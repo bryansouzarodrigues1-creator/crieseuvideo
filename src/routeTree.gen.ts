@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiAiExplainerPlanRouteImport } from './routes/api/ai/explainer-plan'
 import { Route as ApiAiGenerateCaptionsRouteImport } from './routes/api/ai/generate-captions'
 import { Route as ApiAiGenerateStoryboardRouteImport } from './routes/api/ai/generate-storyboard'
 import { Route as ApiAiScriptToFullVideoRouteImport } from './routes/api/ai/script-to-full-video'
@@ -17,6 +18,11 @@ import { Route as ApiAiScriptToFullVideoRouteImport } from './routes/api/ai/scri
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiExplainerPlanRoute = ApiAiExplainerPlanRouteImport.update({
+  id: '/api/ai/explainer-plan',
+  path: '/api/ai/explainer-plan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiGenerateCaptionsRoute = ApiAiGenerateCaptionsRouteImport.update({
@@ -37,12 +43,14 @@ const ApiAiScriptToFullVideoRoute = ApiAiScriptToFullVideoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/script-to-full-video': typeof ApiAiScriptToFullVideoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/script-to-full-video': typeof ApiAiScriptToFullVideoRoute
@@ -50,6 +58,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/script-to-full-video': typeof ApiAiScriptToFullVideoRoute
@@ -58,18 +67,21 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/api/ai/explainer-plan'
     | '/api/ai/generate-captions'
     | '/api/ai/generate-storyboard'
     | '/api/ai/script-to-full-video'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api/ai/explainer-plan'
     | '/api/ai/generate-captions'
     | '/api/ai/generate-storyboard'
     | '/api/ai/script-to-full-video'
   id:
     | '__root__'
     | '/'
+    | '/api/ai/explainer-plan'
     | '/api/ai/generate-captions'
     | '/api/ai/generate-storyboard'
     | '/api/ai/script-to-full-video'
@@ -77,6 +89,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiAiExplainerPlanRoute: typeof ApiAiExplainerPlanRoute
   ApiAiGenerateCaptionsRoute: typeof ApiAiGenerateCaptionsRoute
   ApiAiGenerateStoryboardRoute: typeof ApiAiGenerateStoryboardRoute
   ApiAiScriptToFullVideoRoute: typeof ApiAiScriptToFullVideoRoute
@@ -89,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai/explainer-plan': {
+      id: '/api/ai/explainer-plan'
+      path: '/api/ai/explainer-plan'
+      fullPath: '/api/ai/explainer-plan'
+      preLoaderRoute: typeof ApiAiExplainerPlanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/generate-captions': {
@@ -117,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiAiExplainerPlanRoute: ApiAiExplainerPlanRoute,
   ApiAiGenerateCaptionsRoute: ApiAiGenerateCaptionsRoute,
   ApiAiGenerateStoryboardRoute: ApiAiGenerateStoryboardRoute,
   ApiAiScriptToFullVideoRoute: ApiAiScriptToFullVideoRoute,

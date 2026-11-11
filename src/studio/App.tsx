@@ -9,11 +9,12 @@ import { ScriptSyncModal } from './components/ScriptSyncModal';
 import { ExportVideoModal } from './components/ExportVideoModal';
 import { CreativeToolsDrawer } from './components/CreativeToolsDrawer';
 import { ProductionWorkspace } from './components/ProductionWorkspace';
+import { ExplainerStudio } from './explainer/ExplainerStudio';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
 export default function App() {
-  const [workspace, setWorkspace] = useState<'production' | 'editor'>('production');
+  const [workspace, setWorkspace] = useState<'explainer' | 'production' | 'editor'>('explainer');
   const [currentPresetKey, setCurrentPresetKey] = useState<string>('ww2_brazilian_soldier_feb');
   const [project, setProject] = useState<StickmanProject>(
     PRESET_PROJECTS.ww2_brazilian_soldier_feb
@@ -181,11 +182,12 @@ export default function App() {
       ? project.scenes[audioModalSceneIdx]
       : null;
 
-  if (workspace === 'production') return <ProductionWorkspace onOpenEditor={() => setWorkspace('editor')} />;
+  if (workspace === 'explainer') return <ExplainerStudio onOpenEditor={() => setWorkspace('editor')} onOpenVideo={() => setWorkspace('production')} />;
+  if (workspace === 'production') return (<><div className="editor-workspace-return"><Button variant="ghost" size="sm" onClick={() => setWorkspace('explainer')}><ArrowLeft />Animação 2D</Button></div><ProductionWorkspace onOpenEditor={() => setWorkspace('editor')} /></>);
 
   return (
     <div className="studio-shell flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      <div className="editor-workspace-return"><Button variant="ghost" size="sm" onClick={() => setWorkspace('production')}><ArrowLeft />Criação livre</Button></div>
+      <div className="editor-workspace-return"><Button variant="ghost" size="sm" onClick={() => setWorkspace('explainer')}><ArrowLeft />Animação 2D</Button></div>
       {/* Top Navbar */}
       <StickmanTopNav
         currentPresetKey={currentPresetKey}
