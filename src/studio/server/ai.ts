@@ -1,16 +1,16 @@
 // Server-only helper: calls the Lovable AI Gateway, returns null when unavailable so callers use fallbacks.
-export async function askAi(prompt: string): Promise<string | null> {
+export async function askAi(prompt: string, model = "google/gemini-3-flash-preview"): Promise<string | null> {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) return null;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 20000);
+  const t = setTimeout(() => ctrl.abort(), 60000);
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       signal: ctrl.signal,
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model,
         messages: [{ role: "user", content: prompt + "\n\nResponda somente com JSON válido." }],
         response_format: { type: "json_object" },
       }),

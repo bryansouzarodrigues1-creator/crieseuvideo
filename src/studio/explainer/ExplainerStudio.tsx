@@ -31,7 +31,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
   const [voiceOn, setVoiceOn] = useState(true);
   const [voicing, setVoicing] = useState<number | null>(null);
-  const [mode, setMode] = useState<'smart' | 'creative' | 'gallery'>('smart');
+  const [mode, setMode] = useState<'smart' | 'creative' | 'gallery'>('creative');
   const [provider, setProvider] = useState<'gemini' | 'eleven'>('gemini');
   const [elevenId, setElevenId] = useState('');
   const [projectId, setProjectId] = useState(() => `p${Date.now().toString(36)}`);

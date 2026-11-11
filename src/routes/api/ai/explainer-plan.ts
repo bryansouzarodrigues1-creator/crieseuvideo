@@ -13,12 +13,17 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         const mode = body.mode === "creative" || body.mode === "gallery" ? body.mode : "smart";
         const gallery: { id: string; name: string; drawing: unknown }[] = Array.isArray(body.gallery) ? body.gallery.slice(0, 40).filter((g: any) => g && typeof g.id === "string" && typeof g.name === "string" && Array.isArray(g.drawing)) : [];
         const modeRule = mode === "creative"
-          ? "MODO CRIATIVO: use visual=custom em TODAS as cenas e desenhe cenários completos e ricos (céu/chão/fundo, objetos, personagens, 20 a 40 formas, várias animações). Nunca repita a mesma composição."
+          ? "MODO CRIATIVO: use visual=custom em TODAS as cenas e desenhe cenários completos e ricos (céu/chão/fundo, objetos, personagens, NO MÍNIMO 25 e até 40 formas, várias animações). Nunca repita a mesma composição."
           : mode === "gallery"
             ? `MODO GALERIA: o usuário tem desenhos salvos. Quando um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ") || "(vazia)"}. Fora isso, prefira os visuais prontos; use custom só quando nada servir.`
             : "PREFIRA custom sempre que o roteiro citar objetos, lugares, ações ou personagens específicos (fogo, cadeira, bombeiros, casa, animais, pessoas nomeadas). Use os visuais prontos só quando servem exatamente.";
         if (script.length < 4) return Response.json({ error: "Escreva um roteiro um pouco maior." }, { status: 400 });
-        const text = await askAi(`Você é diretor de animações explicativas 2D para redes sociais (estilo cartoon plano, legenda palavra por palavra).
+        // Long scripts are directed in parallel chunks so rich creative drawings never hit the time limit and fall back to ready-made visuals.
+        const sentences = script.match(/[^.!?…\n]+[.!?…]*/g)?.map((x) => x.trim()).filter(Boolean) ?? [script];
+        const size = mode === "creative" ? 1 : 8;
+        const parts: string[] = [];
+        for (let i = 0; i < sentences.length; i += size) parts.push(sentences.slice(i, i + size).join(" "));
+        const direct = (script: string) => askAi(`Você é diretor de animações explicativas 2D para redes sociais (estilo cartoon plano, legenda palavra por palavra).
 Divida o roteiro em cenas curtas (uma ideia por cena, 4 a 18 palavras, máx 40 cenas), mantendo o texto original fiel.
 Para cada cena escolha o visual que MELHOR ilustra o significado:
 - visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
@@ -33,7 +38,9 @@ ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 Roteiro:
 """${script}"""
 Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery"}]}`);
-        const raw = parseJson(text);
+        const results = (await Promise.all(parts.map((p) => direct(p)))).map(parseJson);
+        const ok = results.filter((r) => r && Array.isArray(r.scenes));
+        const raw = ok.length ? { title: ok[0].title, scenes: results.flatMap((r, i) => (r && Array.isArray(r.scenes) ? r.scenes : [{ text: parts[i] }])) } : null;
         if (raw && Array.isArray(raw.scenes)) for (const sc of raw.scenes) {
           const hit = sc && gallery.find((g) => g.id === sc.gallery);
           if (hit) { sc.visual = "custom"; sc.drawing = hit.drawing; }
