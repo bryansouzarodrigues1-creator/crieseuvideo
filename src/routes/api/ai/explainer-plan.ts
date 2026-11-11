@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { askAi, parseJson } from "@/studio/server/ai";
 import { DRAWING_GUIDE } from "@/studio/explainer/drawing";
+import { SETTING_GUIDE } from "@/studio/explainer/settings";
 import { buildFallbackPlan, normalizePlan, VISUALS, MOODS, PALETTES } from "@/studio/explainer/plan";
 
 export const Route = createFileRoute("/api/ai/explainer-plan")({
@@ -29,6 +30,7 @@ Para cada cena escolha o visual que MELHOR ilustra o significado:
 - visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - ${DRAWING_GUIDE}
+- ${SETTING_GUIDE} Sempre preencha "setting" em todas as cenas.
 - mood: um de [${MOODS.join(", ")}]
 - palette: um de [${PALETTES.join(", ")}], varie entre cenas; use night para momentos tristes ou finais
 - label: etiqueta curta opcional (ex: "3 MESES DEPOIS...", "DE GRAÇA")
@@ -37,7 +39,7 @@ ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - highlight: palavras do texto para destacar em amarelo
 Roteiro:
 """${script}"""
-Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery"}]}`);
+Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting"}]}`);
         const results = (await Promise.all(parts.map((p) => direct(p)))).map(parseJson);
         const ok = results.filter((r) => r && Array.isArray(r.scenes));
         const raw = ok.length ? { title: ok[0].title, scenes: results.flatMap((r, i) => (r && Array.isArray(r.scenes) ? r.scenes : [{ text: parts[i] }])) } : null;

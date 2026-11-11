@@ -42,3 +42,12 @@ test('uploaded narration sets the video length to the audio length', () => {
   const p = fitToTrack(bfp('Primeira frase bem longa aqui agora. Segunda frase.', '9:16'), 20);
   expect(Math.abs(td(p) - 20)).toBeLessThan(0.5);
 });
+
+import { normalizePlan as np2 } from './plan';
+import { it as it2, expect as ex2 } from 'vitest';
+it2('keeps a known scenario and drops an unknown one', () => {
+  const p = np2({ scenes: [{ text: 'meu carro na estrada', setting: 'road' }, { text: 'outra cena', setting: 'mars' }, { text: 'de noite na praia', setting: 'mars' }] }, 'x', '9:16');
+  ex2(p.scenes[0]!.setting).toBe('road');
+  ex2(p.scenes[1]!.setting).toBeUndefined();
+  ex2(p.scenes[2]!.setting).toBe('beach');
+});

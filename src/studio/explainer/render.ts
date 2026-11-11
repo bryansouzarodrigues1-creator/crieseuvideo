@@ -1,6 +1,7 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
 import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
 import type { Shape } from './drawing';
+import { drawSetting } from './settings';
 
 const PAL: Record<string, [string, string]> = {
   orange: ['#F08A3C', '#E46F2A'], purple: ['#8B6FD6', '#6E52C2'], teal: ['#2FA8A8', '#22898C'],
@@ -322,6 +323,11 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
       case 'swing': rot += Math.sin(t * 2 + i) * 0.18; break;
       case 'rock': rot += Math.sin(t * 1.8 + i) * 0.1; break;
       case 'walk': dx = Math.sin(t * 1.2 + i) * 40; dy = -Math.abs(Math.sin(t * 6 + i)) * 8; break;
+      case 'drive': dx = -700 + ((local - d) * 260) % 1400; dy = Math.sin(t * 14 + i) * 2; break;
+      case 'bounce': dy = -Math.abs(Math.sin((local - d) * 4 + i)) * 60; break;
+      case 'grow': sc *= Math.min(1, Math.max(0.01, (local - d) / 1.2)); break;
+      case 'zoom': sc *= 1 + Math.min(0.5, Math.max(0, local - d) * 0.12); break;
+      case 'orbit': dx = Math.cos(t * 1.5 + i) * 90; dy = Math.sin(t * 1.5 + i) * 40; break;
     }
     c.save(); c.globalAlpha *= alpha;
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
@@ -358,6 +364,8 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
         c.font = `${Math.round(64 * (sh.size || 1) * u)}px 'Lilita One', sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.lineJoin = 'round'; c.lineWidth = 10 * u; c.strokeStyle = st; c.strokeText(sh.text || '', 0, 0); c.fillStyle = fill; c.fillText(sh.text || '', 0, 0); break;
       }
+      case 'car': case 'house': case 'tree': case 'cloud': case 'building': case 'sun': case 'moon': case 'heart': case 'arrow': case 'bubble':
+        drawObject(c, sh.type, (sh.size || 1) * u, sh.color, st, t + i, lw, sh.anim === 'drive' || sh.anim === 'walk', sh.text); break;
       case 'person': {
         const mood = (MOODS as readonly string[]).includes(sh.mood || '') ? (sh.mood as Mood) : 'neutral';
         drawCharacter(c, 0, 0, u * 0.55 * (sh.size || 1), mood, t + i, i === 0 ? talk : 0, beat);
@@ -372,7 +380,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
   const at = sceneAt(plan, t); if (!at) return;
   const { scene, local, index, duration } = at;
-  if (scene.visual === 'city_night') city(c, w, h, u, local); else sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, cy = portrait ? h * 0.55 : h * 0.58, k = portrait ? 1.15 : 0.9;
@@ -410,4 +418,52 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   if (scene.label && scene.visual !== 'laptop' && scene.visual !== 'phone_chat' && scene.visual !== 'chips')
     badge(c, scene.label.toUpperCase(), w / 2, portrait ? h * 0.3 : h * 0.27, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
   caption(c, scene, local, w, portrait ? h * 0.13 : h * 0.13, u);
+}
+
+function drawObject(c: CanvasRenderingContext2D, type: string, z: number, col: string | undefined, st: string, t: number, lw: number, moving: boolean, text?: string) {
+  const lw2 = lw;
+  switch (type) {
+    case 'car': {
+      const body = col || '#E63946';
+      c.beginPath(); c.moveTo(-170 * z, 30 * z); c.lineTo(-170 * z, -20 * z); c.lineTo(-110 * z, -30 * z); c.lineTo(-60 * z, -90 * z); c.lineTo(70 * z, -90 * z); c.lineTo(120 * z, -30 * z); c.lineTo(170 * z, -20 * z); c.lineTo(170 * z, 30 * z); c.closePath(); shape(c, body, lw2, st);
+      c.beginPath(); c.moveTo(-90 * z, -32 * z); c.lineTo(-50 * z, -76 * z); c.lineTo(0, -76 * z); c.lineTo(0, -32 * z); c.closePath(); shape(c, '#BDE8FF', lw2 * 0.7, st);
+      c.beginPath(); c.moveTo(14 * z, -32 * z); c.lineTo(14 * z, -76 * z); c.lineTo(62 * z, -76 * z); c.lineTo(100 * z, -32 * z); c.closePath(); shape(c, '#BDE8FF', lw2 * 0.7, st);
+      c.beginPath(); c.arc(160 * z, -6 * z, 10 * z, 0, Math.PI * 2); shape(c, '#FFE66D', lw2 * 0.5, st);
+      [-100, 100].forEach((x) => { c.save(); c.translate(x * z, 34 * z); c.rotate(moving ? t * 8 : 0); c.beginPath(); c.arc(0, 0, 38 * z, 0, Math.PI * 2); shape(c, '#2B2D42', lw2, st);
+        c.beginPath(); c.arc(0, 0, 16 * z, 0, Math.PI * 2); shape(c, '#CED4DA', lw2 * 0.5, st); c.fillStyle = st; c.fillRect(-3 * z, -16 * z, 6 * z, 32 * z); c.restore(); });
+      break;
+    }
+    case 'house': {
+      rr(c, -130 * z, -80 * z, 260 * z, 180 * z, 6 * z); shape(c, col || '#F4A261', lw2, st);
+      c.beginPath(); c.moveTo(-160 * z, -70 * z); c.lineTo(0, -200 * z); c.lineTo(160 * z, -70 * z); c.closePath(); shape(c, '#C1121F', lw2, st);
+      rr(c, -30 * z, 10 * z, 60 * z, 90 * z, 6 * z); shape(c, '#8D5524', lw2, st);
+      [-90, 90].forEach((x) => { rr(c, (x - 30) * z, -45 * z, 60 * z, 55 * z, 4 * z); shape(c, `rgba(255,230,109,${0.8 + 0.2 * Math.sin(t * 2)})`, lw2 * 0.7, st); });
+      break;
+    }
+    case 'tree': {
+      const sw = Math.sin(t * 1.4) * 0.05; rr(c, -20 * z, -40 * z, 40 * z, 140 * z, 6 * z); shape(c, '#8D5524', lw2, st);
+      c.save(); c.rotate(sw); c.beginPath(); [[0, -130, 90], [-70, -80, 65], [70, -80, 65]].forEach(([x, y, r]) => { c.moveTo(x * z + r * z, y * z); c.arc(x * z, y * z, r * z, 0, Math.PI * 2); }); shape(c, col || '#2A9D8F', lw2, st); c.restore();
+      break;
+    }
+    case 'cloud': c.beginPath(); [[-60, 0, 50], [0, -25, 60], [60, 0, 50]].forEach(([x, y, r]) => { c.moveTo(x * z + r * z, y * z); c.arc(x * z, y * z, r * z, 0, Math.PI * 2); }); shape(c, col || '#FFFFFF', lw2, st); break;
+    case 'building': {
+      rr(c, -90 * z, -320 * z, 180 * z, 420 * z, 6 * z); shape(c, col || '#577590', lw2, st);
+      for (let y = -290; y < 60; y += 60) for (let x = -60; x <= 30; x += 45) { c.fillStyle = Math.sin(x * 3 + y + Math.floor(t)) > 0 ? '#FFE66D' : '#2B2D42'; c.fillRect(x * z, y * z, 28 * z, 36 * z); }
+      break;
+    }
+    case 'sun': { c.save(); c.rotate(t * 0.4); c.strokeStyle = '#FFB703'; c.lineWidth = 14 * z; c.lineCap = 'round';
+      for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5; c.beginPath(); c.moveTo(Math.cos(a) * 100 * z, Math.sin(a) * 100 * z); c.lineTo(Math.cos(a) * 140 * z, Math.sin(a) * 140 * z); c.stroke(); } c.restore();
+      c.beginPath(); c.arc(0, 0, 80 * z, 0, Math.PI * 2); shape(c, col || '#FFD23F', lw2, st); break; }
+    case 'moon': c.beginPath(); c.arc(0, 0, 80 * z, 0.6, Math.PI * 2 - 0.6 + Math.PI * 0.0); c.arc(40 * z, -10 * z, 65 * z, Math.PI * 2 - 0.9, 0.9, true); c.closePath(); shape(c, col || '#F6F1D5', lw2, st); break;
+    case 'heart': { const b = 1 + 0.08 * Math.max(0, Math.sin(t * 6)); c.scale(b, b); c.beginPath(); c.moveTo(0, 70 * z);
+      c.bezierCurveTo(-120 * z, -10 * z, -60 * z, -110 * z, 0, -50 * z); c.bezierCurveTo(60 * z, -110 * z, 120 * z, -10 * z, 0, 70 * z); shape(c, col || '#EF233C', lw2, st); break; }
+    case 'arrow': c.beginPath(); c.moveTo(-120 * z, -25 * z); c.lineTo(40 * z, -25 * z); c.lineTo(40 * z, -65 * z); c.lineTo(130 * z, 0); c.lineTo(40 * z, 65 * z); c.lineTo(40 * z, 25 * z); c.lineTo(-120 * z, 25 * z); c.closePath(); shape(c, col || '#3DDC97', lw2, st); break;
+    case 'bubble': {
+      const label = text || '...'; c.font = `${Math.round(46 * z)}px 'Lilita One', sans-serif`;
+      const tw = Math.max(120 * z, c.measureText(label).width + 60 * z);
+      rr(c, -tw / 2, -60 * z, tw, 100 * z, 30 * z); shape(c, col || '#FFFFFF', lw2, st);
+      c.beginPath(); c.moveTo(-20 * z, 38 * z); c.lineTo(-40 * z, 80 * z); c.lineTo(10 * z, 38 * z); c.closePath(); shape(c, col || '#FFFFFF', lw2, st);
+      c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, 0, -10 * z); break;
+    }
+  }
 }

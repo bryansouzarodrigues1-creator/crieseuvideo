@@ -1,4 +1,5 @@
 import { normalizeDrawing, type Shape } from './drawing';
+import { SETTINGS, type Setting } from './settings';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -18,6 +19,8 @@ export interface ExplainerScene {
   highlight?: string[];
   /** AI-written free drawing used when visual is 'custom'. */
   drawing?: Shape[];
+  /** Animated full-screen scenario behind the scene. */
+  setting?: Setting;
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
@@ -130,6 +133,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       text,
       visual,
       drawing: visual === 'custom' ? drawing : undefined,
+      setting: (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
       mood: pick(s.mood, MOODS, pickMood(text)),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),
@@ -140,4 +144,17 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
   }).filter(Boolean) as ExplainerScene[];
   if (!scenes.length) return fb;
   return { title: str(raw?.title, 80) || fb.title, aspect, scenes };
+}
+
+const SETTING_WORDS: [Setting, RegExp][] = [
+  ['road', /estrada|rodovia|carro|dirig|viagem|caminh[aã]o|moto/], ['beach', /praia|mar\b|oceano|areia|onda/],
+  ['space', /espa[cç]o|planeta|foguete|gal[aá]xia|astronauta/], ['rain', /chuva|tempestade|chove/],
+  ['night', /noite|estrela|lua|dormir|sonho/], ['sunset', /p[oô]r do sol|entardecer|fim de tarde/],
+  ['forest', /floresta|mata|[aá]rvore|natureza|bosque/], ['office', /escrit[oó]rio|empresa|reuni[aã]o|trabalho|chefe/],
+  ['room', /\bcasa\b|quarto|sala|cozinha|fam[ií]lia/], ['city_day', /cidade|rua|pr[eé]dio|bairro|loja/],
+];
+/** Picks an animated scenario from the sentence when the AI didn't name a valid one. */
+export function pickSetting(text: string): Setting | undefined {
+  const t = text.toLowerCase();
+  return SETTING_WORDS.find(([, re]) => re.test(t))?.[0];
 }
