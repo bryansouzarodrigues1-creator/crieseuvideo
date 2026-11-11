@@ -15,7 +15,7 @@ Então ele mostrou o site pronto, com nome, endereço e botão de WhatsApp.
 Vendeu na primeira conversa.
 Agora a pergunta é: vai ser você?`;
 
-const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro' };
+const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {

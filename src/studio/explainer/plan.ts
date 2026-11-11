@@ -1,5 +1,6 @@
+import { normalizeDrawing, type Shape } from './drawing';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
-export const VISUALS = ['character', 'phone_chat', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money'] as const;
+export const VISUALS = ['character', 'phone_chat', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
 export const PALETTES = ['orange', 'purple', 'teal', 'pink', 'night'] as const;
 export type Visual = (typeof VISUALS)[number];
@@ -15,6 +16,8 @@ export interface ExplainerScene {
   chat?: string;
   chips?: string[];
   highlight?: string[];
+  /** AI-written free drawing used when visual is 'custom'. */
+  drawing?: Shape[];
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
@@ -110,9 +113,13 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
   const scenes = arr.slice(0, 40).map((s: any, i: number): ExplainerScene | null => {
     const text = str(s?.text, 400);
     if (!text) return null;
+    const drawing = normalizeDrawing(s?.drawing);
+    let visual = pick(s.visual, VISUALS, pickVisual(text));
+    if (visual === 'custom' && !drawing) visual = pickVisual(text);
     return {
       text,
-      visual: pick(s.visual, VISUALS, pickVisual(text)),
+      visual,
+      drawing: visual === 'custom' ? drawing : undefined,
       mood: pick(s.mood, MOODS, pickMood(text)),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),

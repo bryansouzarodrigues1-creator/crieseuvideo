@@ -1,5 +1,6 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
-import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood } from './plan';
+import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
+import type { Shape } from './drawing';
 
 const PAL: Record<string, [string, string]> = {
   orange: ['#F08A3C', '#E46F2A'], purple: ['#8B6FD6', '#6E52C2'], teal: ['#2FA8A8', '#22898C'],
@@ -304,6 +305,69 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
   c.restore();
 }
 
+function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number) {
+  shapes.forEach((sh, i) => {
+    const d = sh.delay, ph = t * 1.3 + i;
+    let sc = sh.anim === 'none' ? (local >= d ? 1 : 0) : pop(local, d, 0.45);
+    if (sc <= 0.001) return;
+    let dx = 0, dy = 0, rot = (sh.rot || 0) * Math.PI / 180, alpha = 1;
+    switch (sh.anim) {
+      case 'float': dy = Math.sin(ph * 1.4) * 10; break;
+      case 'flicker': alpha = 0.75 + 0.25 * Math.sin(t * 11 + i * 2); sc *= 1 + 0.05 * Math.sin(t * 9 + i); break;
+      case 'spin': rot += (local - d) * 2.2; break;
+      case 'shake': dx = Math.sin(t * 30 + i) * 4; break;
+      case 'rise': dy = -Math.min(1, Math.max(0, local - d) / 2) * 80; break;
+      case 'fall': dy = Math.min(1, Math.max(0, local - d) / 1.5) * 120; break;
+      case 'pulse': sc *= 1 + 0.07 * Math.sin(t * 4 + i); break;
+      case 'swing': rot += Math.sin(t * 2 + i) * 0.18; break;
+      case 'rock': rot += Math.sin(t * 1.8 + i) * 0.1; break;
+      case 'walk': dx = Math.sin(t * 1.2 + i) * 40; dy = -Math.abs(Math.sin(t * 6 + i)) * 8; break;
+    }
+    c.save(); c.globalAlpha *= alpha;
+    c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
+    const fill = sh.color || '#FFFFFF', lw = 6 * u, st = sh.stroke || INK;
+    const w = (sh.w || 120) * u, h = (sh.h || 120) * u, r = (sh.r || 60) * u;
+    switch (sh.type) {
+      case 'circle': c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); shape(c, fill, lw, st); break;
+      case 'ellipse': c.beginPath(); c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); shape(c, fill, lw, st); break;
+      case 'rect': rr(c, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.08); shape(c, fill, lw, st); break;
+      case 'poly': case 'line': {
+        const pts = sh.points || []; c.beginPath();
+        pts.forEach(([px, py], k) => { const X = (px - sh.x) * u, Y = (py - sh.y) * u; k ? c.lineTo(X, Y) : c.moveTo(X, Y); });
+        if (sh.type === 'poly') { c.closePath(); shape(c, fill, lw, st); }
+        else { c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = st; c.lineWidth = (sh.size || 1) * 22 * u; c.stroke(); c.strokeStyle = fill; c.lineWidth = (sh.size || 1) * 12 * u; c.stroke(); }
+        break;
+      }
+      case 'star': {
+        c.beginPath();
+        for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rad = k % 2 ? r * 0.45 : r; k ? c.lineTo(Math.cos(a) * rad, Math.sin(a) * rad) : c.moveTo(Math.cos(a) * rad, Math.sin(a) * rad); }
+        c.closePath(); shape(c, fill === '#FFFFFF' ? '#FFD23F' : fill, lw, st); break;
+      }
+      case 'flame': {
+        const z = (sh.size || 1) * u;
+        [['#E8402A', 1], ['#FF9F1C', 0.68], ['#FFE66D', 0.38]].forEach(([col, k], j) => {
+          const f = Number(k) * z, wob = Math.sin(t * 9 + i + j) * 10 * f;
+          c.beginPath(); c.moveTo(0, 60 * f);
+          c.bezierCurveTo(-70 * f, 40 * f, -60 * f + wob, -40 * f, wob * 1.5, -130 * f - Math.abs(wob));
+          c.bezierCurveTo(60 * f + wob, -40 * f, 70 * f, 40 * f, 0, 60 * f);
+          if (j === 0) shape(c, String(col), 5 * u, st); else { c.fillStyle = String(col); c.fill(); }
+        });
+        break;
+      }
+      case 'text': {
+        c.font = `${Math.round(64 * (sh.size || 1) * u)}px 'Lilita One', sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.lineJoin = 'round'; c.lineWidth = 10 * u; c.strokeStyle = st; c.strokeText(sh.text || '', 0, 0); c.fillStyle = fill; c.fillText(sh.text || '', 0, 0); break;
+      }
+      case 'person': {
+        const mood = (MOODS as readonly string[]).includes(sh.mood || '') ? (sh.mood as Mood) : 'neutral';
+        drawCharacter(c, 0, 0, u * 0.55 * (sh.size || 1), mood, t + i, i === 0 ? talk : 0, beat);
+        break;
+      }
+    }
+    c.restore();
+  });
+}
+
 export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
   const at = sceneAt(plan, t); if (!at) return;
@@ -318,7 +382,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   const push = 1 + local * 0.012;
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
   const px = w / 2 + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
-  const isProp = scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
+  const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
   if (isProp && enter > 0.01) { c.beginPath(); c.ellipse(px, cy + 330 * u * k, 260 * u * k * (1 - float / (80 * u)), 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill(); }
   c.save(); c.globalAlpha = 1 - exit;
   withPop(c, px, cy + (isProp ? float : 0), enter * k * push * (1 - exit * 0.15), () => {
@@ -338,6 +402,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
         break;
       }
       case 'city_night': break;
+      case 'custom': customDrawing(c, u, local, t, scene.drawing || [], talk, wd?.since ?? 1); break;
       default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, wd?.since ?? 1);
     }
   });
