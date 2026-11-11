@@ -5,7 +5,7 @@ const PAL: Record<string, [string, string]> = {
   orange: ['#F08A3C', '#E46F2A'], purple: ['#8B6FD6', '#6E52C2'], teal: ['#2FA8A8', '#22898C'],
   pink: ['#E46A92', '#CF4F7A'], night: ['#3A3350', '#24203A'],
 };
-const INK = '#2A2230', SKIN = '#F2C49B', HAIR = '#3B2A22', GREEN = '#1F7A57', PAPER = '#F4F1EA';
+const INK = '#2A2230', SKIN = '#F1C8A4', HAIR = '#B9853F', GREEN = '#1F7A57', PAPER = '#F4F1EA';
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const outBack = (x: number) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2; };
 const pop = (t: number, delay = 0, len = 0.4) => outBack(clamp((t - delay) / len));
@@ -104,8 +104,14 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
   c.beginPath(); c.ellipse(0, 345 * u, 210 * u, 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.18)'; c.fill();
   // body with breathing
   c.save(); c.translate(0, 330 * u); c.scale(1 + breath * 0.008, 1 + breath * 0.016); c.translate(0, -330 * u);
-  c.beginPath(); c.moveTo(-170 * u, 330 * u); c.quadraticCurveTo(-165 * u, 175 * u + slump * 20 * u, 0, 168 * u + slump * 18 * u); c.quadraticCurveTo(165 * u, 175 * u + slump * 20 * u, 170 * u, 330 * u); c.closePath(); shape(c, '#9AA3B5', lw);
-  c.beginPath(); c.moveTo(-30 * u, 190 * u); c.lineTo(-30 * u, 240 * u); c.moveTo(30 * u, 190 * u); c.lineTo(30 * u, 240 * u); c.lineWidth = 5 * u; c.strokeStyle = INK; c.stroke();
+  // navy jacket, slate vest with buttons, open-collar light blue shirt
+  const top = 168 * u + slump * 18 * u, JACKET = '#2E3650', VEST = '#4A5873', SHIRT = '#CFE3F5';
+  c.beginPath(); c.moveTo(-175 * u, 340 * u); c.quadraticCurveTo(-170 * u, 180 * u, 0, top); c.quadraticCurveTo(170 * u, 180 * u, 175 * u, 340 * u); c.closePath(); shape(c, JACKET, lw);
+  c.beginPath(); c.moveTo(-70 * u, top + 10 * u); c.lineTo(-80 * u, 340 * u); c.lineTo(80 * u, 340 * u); c.lineTo(70 * u, top + 10 * u); c.closePath(); shape(c, VEST, 5 * u);
+  c.beginPath(); c.moveTo(-50 * u, top + 2 * u); c.lineTo(0, 260 * u); c.lineTo(50 * u, top + 2 * u); c.closePath(); shape(c, SHIRT, 5 * u);
+  c.beginPath(); c.moveTo(-50 * u, top); c.lineTo(-20 * u, 215 * u); c.lineTo(0, top + 20 * u); c.moveTo(50 * u, top); c.lineTo(20 * u, 215 * u); c.lineTo(0, top + 20 * u); c.lineWidth = 5 * u; c.strokeStyle = INK; c.fillStyle = '#FFFFFF'; c.stroke();
+  for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 70 * u, top + 10 * u); c.lineTo(s2 * 30 * u, 290 * u); c.lineTo(s2 * 110 * u, 230 * u); c.closePath(); shape(c, JACKET, 5 * u); }
+  for (const by of [280, 310]) { c.beginPath(); c.arc(0, by * u, 6 * u, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); }
   c.restore();
   // arms: target hand positions per mood, animated with time and speech beats
   const sh = 205 * u + slump * 20 * u, wave = Math.sin(t * 1.6) * 0.3, sway = Math.sin(t * 1.2) * 0.5;
@@ -118,26 +124,35 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
       default: return [[-170, 330 + sway * 6, false], [210 + talk * 10, 150 - talk * 20 + sway * 6, false]];
     }
   })();
-  arm(c, -140 * u, sh, hands[0][0] * u, hands[0][1] * u, 120 * u, -1, u, '#9AA3B5', hands[0][2]);
-  arm(c, 140 * u, sh, hands[1][0] * u, hands[1][1] * u, 120 * u, 1, u, '#9AA3B5', hands[1][2]);
+  arm(c, -140 * u, sh, hands[0][0] * u, hands[0][1] * u, 120 * u, -1, u, '#2E3650', hands[0][2]);
+  arm(c, 140 * u, sh, hands[1][0] * u, hands[1][1] * u, 120 * u, 1, u, '#2E3650', hands[1][2]);
   // head group: idle tilt + nod on every word
   c.save(); c.translate(0, 150 * u); c.rotate(Math.sin(t * 0.9) * 0.02 + (mood === 'sad' ? 0.06 : 0)); c.translate(0, nod * 200 * u - 150 * u);
   for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 128 * u, 10 * u, 26 * u, 36 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw); }
   c.beginPath(); c.ellipse(0, 0, 128 * u, 150 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw);
-  c.beginPath(); c.moveTo(-130 * u, -10 * u); c.bezierCurveTo(-150 * u, -170 * u, 130 * u, -200 * u, 132 * u, -20 * u);
-  c.bezierCurveTo(90 * u, -90 * u, -20 * u, -60 * u, -60 * u, -110 * u); c.bezierCurveTo(-80 * u, -60 * u, -110 * u, -40 * u, -130 * u, -10 * u); shape(c, HAIR, lw);
+  // tousled, swept-back wavy golden hair with side locks
+  c.beginPath(); c.moveTo(-132 * u, 40 * u);
+  c.bezierCurveTo(-175 * u, -40 * u, -150 * u, -150 * u, -90 * u, -170 * u);
+  c.bezierCurveTo(-60 * u, -215 * u, 20 * u, -205 * u, 40 * u, -180 * u);
+  c.bezierCurveTo(90 * u, -200 * u, 160 * u, -150 * u, 150 * u, -70 * u);
+  c.bezierCurveTo(165 * u, -30 * u, 150 * u, 20 * u, 132 * u, 40 * u);
+  c.bezierCurveTo(130 * u, -20 * u, 115 * u, -70 * u, 70 * u, -95 * u);
+  c.bezierCurveTo(30 * u, -70 * u, -40 * u, -75 * u, -60 * u, -110 * u);
+  c.bezierCurveTo(-95 * u, -80 * u, -125 * u, -30 * u, -132 * u, 40 * u); shape(c, HAIR, lw);
+  c.beginPath(); for (const [x0, y0, x1, y1] of [[-90, -150, -30, -110], [0, -170, 50, -120], [70, -160, 110, -100]]) { c.moveTo(x0 * u, y0 * u); c.quadraticCurveTo(((x0 + x1) / 2 + 20) * u, ((y0 + y1) / 2 - 15) * u, x1 * u, y1 * u); }
+  c.lineWidth = 5 * u; c.strokeStyle = '#7A5424'; c.stroke();
   // eyes: random saccades between fixation points, eased; natural blink curve
   const seg = Math.floor(t / 1.4), f = smooth(clamp((t % 1.4) / 0.12));
   const lookX = ((rand(seg - 1) - 0.5) * (1 - f) + (rand(seg) - 0.5) * f) * 18 * u, lookY = ((rand(seg + 50) - 0.5) * f) * 8 * u;
   const bp = (t + 0.7) % 3.4, blink = bp < 0.16 ? Math.abs(Math.cos((bp / 0.16) * Math.PI)) * 0.9 + 0.1 : 1;
-  const squint = mood === 'happy' ? 0.85 : mood === 'angry' ? 0.75 : 1;
+  const squint = mood === 'happy' ? 0.7 : mood === 'angry' ? 0.75 : mood === 'neutral' ? 0.78 : 1;
   for (const s2 of [-1, 1]) {
     c.beginPath(); c.ellipse(s2 * 48 * u, 10 * u, 30 * u, 32 * u * blink * squint, 0, 0, Math.PI * 2); shape(c, '#FFFFFF', 6 * u);
     if (blink > 0.45) { c.beginPath(); c.arc(s2 * 48 * u + lookX, 14 * u + lookY, 14 * u, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); c.beginPath(); c.arc(s2 * 48 * u + lookX + 5 * u, 9 * u + lookY, 4 * u, 0, Math.PI * 2); c.fillStyle = '#FFFFFF'; c.fill(); }
     const tilt = mood === 'angry' ? 0.35 : mood === 'sad' || mood === 'worried' ? -0.35 : 0;
     const lift = (mood === 'happy' ? 8 : 0) + talk * 6 + 0;
     c.save(); c.translate(s2 * 48 * u, -36 * u - lift * u); c.rotate(s2 * tilt);
-    c.beginPath(); c.moveTo(-26 * u, 0); c.quadraticCurveTo(0, -6 * u, 26 * u, 0); c.lineWidth = 9 * u; c.lineCap = 'round'; c.strokeStyle = HAIR; c.stroke(); c.restore();
+    c.beginPath(); c.moveTo(-26 * u, 0); c.quadraticCurveTo(0, -6 * u, 26 * u, 0); c.lineWidth = 9 * u; c.lineCap = 'round'; c.strokeStyle = '#8A6030'; c.stroke(); c.restore();
   }
   c.strokeStyle = INK;
   c.beginPath(); c.arc(4 * u, 52 * u, 12 * u, -Math.PI * 0.6, Math.PI * 0.4); c.lineWidth = 5 * u; c.stroke();
@@ -151,7 +166,7 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
   } else if (mood === 'happy') { c.moveTo(-48 * u, 82 * u); c.quadraticCurveTo(0, 140 * u, 48 * u, 82 * u); c.closePath(); shape(c, '#C0392B', 6 * u); }
   else if (mood === 'sad' || mood === 'worried') { c.moveTo(-34 * u, 108 * u); c.quadraticCurveTo(0, 80 * u, 34 * u, 108 * u); c.lineWidth = 7 * u; c.stroke(); }
   else if (mood === 'angry') { c.moveTo(-36 * u, 100 * u); c.lineTo(36 * u, 100 * u); c.lineWidth = 8 * u; c.stroke(); }
-  else { c.moveTo(-28 * u, 96 * u); c.quadraticCurveTo(0, 108 * u, 28 * u, 96 * u); c.lineWidth = 7 * u; c.stroke(); }
+  else { c.moveTo(-34 * u, 100 * u); c.quadraticCurveTo(5 * u, 112 * u, 40 * u, 86 * u); c.lineWidth = 7 * u; c.stroke(); c.beginPath(); c.arc(44 * u, 84 * u, 5 * u, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); }
   if (mood === 'worried') { const dy = ((t * 0.8) % 1) * 40 * u; c.beginPath(); c.ellipse(118 * u, -70 * u + dy, 10 * u, 16 * u, 0, 0, Math.PI * 2); shape(c, '#8FD3FF', 4 * u); }
   if (mood === 'angry') { c.globalAlpha = 0.85; for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 150 * u, -150 * u); c.lineTo(s2 * 185 * u, -185 * u); c.moveTo(s2 * 170 * u, -120 * u); c.lineTo(s2 * 210 * u, -130 * u); c.lineWidth = 8 * u; c.strokeStyle = '#E74C3C'; c.stroke(); } c.globalAlpha = 1; }
   c.restore();

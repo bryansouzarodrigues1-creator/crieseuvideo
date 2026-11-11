@@ -1,5 +1,6 @@
 // Narration: one natural TTS clip per scene; clips are cached in the browser so replays and edits of other scenes never re-bill.
 export const NARRATION_VOICES = [
+  { id: "Algieba", label: "Charmoso (Patrick)" },
   { id: "Charon", label: "Masculina grave" },
   { id: "Puck", label: "Masculina animada" },
   { id: "Kore", label: "Feminina firme" },

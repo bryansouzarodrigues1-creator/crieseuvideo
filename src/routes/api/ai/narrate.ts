@@ -14,7 +14,8 @@ export const Route = createFileRoute("/api/ai/narrate")({
         const text = String(body.text ?? "").trim().slice(0, 500);
         const voice = NARRATION_VOICES.some((v) => v.id === body.voice) ? body.voice : NARRATION_VOICES[0].id;
         if (!text) return Response.json({ error: "Texto vazio." }, { status: 400 });
-        const direction = "Narre em português do Brasil como um narrador de vídeo explicativo para redes sociais: voz natural, calorosa e confiante, ritmo dinâmico porém claro, pausas curtas nas vírgulas, sem soar robótico. Leia exatamente este texto:";
+        const charm = voice === "Algieba" ? "Fale como um mentalista charmoso e espirituoso: voz masculina suave, descontraída e levemente rouca, com um sorriso na voz, tom confiante e brincalhão, ritmo tranquilo e pausas calculadas antes das revelações. " : "";
+        const direction = charm + "Narre em português do Brasil como um narrador de vídeo explicativo para redes sociais: voz natural, calorosa e confiante, ritmo dinâmico porém claro, pausas curtas nas vírgulas, sem soar robótico. Leia exatamente este texto:";
         const upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
