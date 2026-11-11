@@ -31,7 +31,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
   const [voiceOn, setVoiceOn] = useState(true);
   const [voicing, setVoicing] = useState<number | null>(null);
-  const [mode, setMode] = useState<'smart' | 'creative' | 'gallery'>('creative');
+  const [mode, setMode] = useState<'creative' | 'gallery'>('creative');
   const [provider, setProvider] = useState<'gemini' | 'eleven'>('gemini');
   const [elevenId, setElevenId] = useState('');
   const [projectId, setProjectId] = useState(() => `p${Date.now().toString(36)}`);
@@ -161,7 +161,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const generate = async (text = script) => {
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: mode === 'gallery' ? gallery : [] }) });
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
@@ -233,11 +233,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           </div>
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
-            {([['smart', 'Equilibrado', '~0,02'], ['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
+            {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
               <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
             ))}
           </div>
-          <p className="explainer-sub">{mode === 'creative' ? 'A IA programa um cenário completo e único para cada cena. Custa um pouco mais de texto, ainda sem custo de vídeo.' : mode === 'gallery' ? `A IA reaproveita seus ${gallery.length} desenhos salvos e os visuais prontos, o modo mais barato.` : 'A IA mistura visuais prontos e desenhos livres quando o roteiro pede.'}</p>
+          <p className="explainer-sub">{mode === 'creative' ? `A IA programa um cenário único para cada cena e reaproveita seus ${gallery.length} desenhos salvos quando combinarem. Sem custo de vídeo.` : mode === 'gallery' ? `A IA reaproveita seus ${gallery.length} desenhos salvos e os visuais prontos, o modo mais barato.` : ''}</p>
           <div className="explainer-row">
             {(['9:16', '16:9'] as const).map((a) => (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
