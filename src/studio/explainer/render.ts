@@ -2,6 +2,7 @@
 import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
+import { laidOut } from './layout';
 
 const PAL: Record<string, [string, string]> = {
   orange: ['#F08A3C', '#E46F2A'], purple: ['#8B6FD6', '#6E52C2'], teal: ['#2FA8A8', '#22898C'],
@@ -307,6 +308,7 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
 }
 
 function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number) {
+  const firstPerson = shapes.find((x) => x.type === 'person');
   shapes.forEach((sh, i) => {
     const d = sh.delay, ph = t * 1.3 + i;
     let sc = sh.anim === 'none' ? (local >= d ? 1 : 0) : pop(local, d, 0.45);
@@ -316,18 +318,18 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
       case 'float': dy = Math.sin(ph * 1.4) * 10; break;
       case 'flicker': alpha = 0.75 + 0.25 * Math.sin(t * 11 + i * 2); sc *= 1 + 0.05 * Math.sin(t * 9 + i); break;
       case 'spin': rot += (local - d) * 2.2; break;
-      case 'shake': dx = Math.sin(t * 30 + i) * 4; break;
+      case 'shake': dx = Math.sin(t * 30 + i) * 4 * Math.max(0, 1 - (local - d) / 0.8); break;
       case 'rise': dy = -Math.min(1, Math.max(0, local - d) / 2) * 80; break;
       case 'fall': dy = Math.min(1, Math.max(0, local - d) / 1.5) * 120; break;
       case 'pulse': sc *= 1 + 0.07 * Math.sin(t * 4 + i); break;
       case 'swing': rot += Math.sin(t * 2 + i) * 0.18; break;
       case 'rock': rot += Math.sin(t * 1.8 + i) * 0.1; break;
-      case 'walk': dx = Math.sin(t * 1.2 + i) * 40; dy = -Math.abs(Math.sin(t * 6 + i)) * 8; break;
+      case 'walk': dx = Math.sin(t * 0.8 + i) * 22; dy = -Math.abs(Math.sin(t * 4 + i)) * 5; break;
       case 'drive': dx = -700 + ((local - d) * 260) % 1400; dy = Math.sin(t * 14 + i) * 2; break;
-      case 'bounce': dy = -Math.abs(Math.sin((local - d) * 4 + i)) * 60; break;
+      case 'bounce': dy = -Math.abs(Math.sin((local - d) * 3 + i)) * 30 * Math.max(0.3, 1 - (local - d) * 0.3); break;
       case 'grow': sc *= Math.min(1, Math.max(0.01, (local - d) / 1.2)); break;
       case 'zoom': sc *= 1 + Math.min(0.5, Math.max(0, local - d) * 0.12); break;
-      case 'orbit': dx = Math.cos(t * 1.5 + i) * 90; dy = Math.sin(t * 1.5 + i) * 40; break;
+      case 'orbit': dx = Math.cos(t * 1.1 + i) * 50; dy = Math.sin(t * 1.1 + i) * 22; break;
     }
     c.save(); c.globalAlpha *= alpha;
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
@@ -368,7 +370,7 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
         drawObject(c, sh.type, (sh.size || 1) * u, sh.color, st, t + i, lw, sh.anim === 'drive' || sh.anim === 'walk', sh.text); break;
       case 'person': {
         const mood = (MOODS as readonly string[]).includes(sh.mood || '') ? (sh.mood as Mood) : 'neutral';
-        drawCharacter(c, 0, 0, u * 0.55 * (sh.size || 1), mood, t + i, i === 0 ? talk : 0, beat);
+        drawCharacter(c, 0, 0, u * 0.55 * (sh.size || 1), mood, t + i, sh === firstPerson ? talk : 0, beat);
         break;
       }
     }
@@ -410,7 +412,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
         break;
       }
       case 'city_night': break;
-      case 'custom': customDrawing(c, u, local, t, scene.drawing || [], talk, wd?.since ?? 1); break;
+      case 'custom': customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, wd?.since ?? 1); break;
       default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, wd?.since ?? 1);
     }
   });

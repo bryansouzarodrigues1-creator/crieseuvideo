@@ -103,20 +103,20 @@ export function drawSetting(c: CanvasRenderingContext2D, setting: Setting, w: nu
       c.fillStyle = office ? '#DCE6F2' : '#F6E3C8'; c.fillRect(0, 0, w, ground);
       c.fillStyle = office ? '#8D99AE' : '#B5835A'; c.fillRect(0, ground, w, h - ground);
       // window with drifting clouds
-      const wx = w * 0.62, wy = h * 0.12, ww = w * 0.3, wh = h * 0.24;
+      const top = h > w ? h * 0.34 : h * 0.33, wx = w * 0.66, wy = top, ww = w * 0.26, wh = Math.max(h * 0.08, ground - top - h * 0.12);
       c.fillStyle = '#9BDCFF'; c.fillRect(wx, wy, ww, wh);
       c.save(); c.beginPath(); c.rect(wx, wy, ww, wh); c.clip(); clouds(c, w, h, u * 0.6, t); c.restore();
       c.strokeStyle = INK; c.lineWidth = 8 * u; c.strokeRect(wx, wy, ww, wh); c.beginPath(); c.moveTo(wx + ww / 2, wy); c.lineTo(wx + ww / 2, wy + wh); c.stroke();
-      if (office) { c.fillStyle = '#FFFFFF'; c.fillRect(w * 0.08, h * 0.14, w * 0.34, h * 0.18); c.strokeRect(w * 0.08, h * 0.14, w * 0.34, h * 0.18);
-        c.strokeStyle = '#3DDC97'; c.beginPath(); [0, 1, 2, 3, 4].forEach((k) => c.lineTo(w * (0.11 + k * 0.07), h * (0.29 - k * 0.025 - 0.01 * Math.sin(t + k)))); c.stroke(); }
-      else { c.fillStyle = '#E07A5F'; c.beginPath(); c.arc(w * 0.22, h * 0.2, 60 * u, 0, Math.PI * 2); c.fill(); c.strokeStyle = INK; c.stroke(); }
+      if (office) { c.fillStyle = '#FFFFFF'; c.fillRect(w * 0.06, top, w * 0.24, wh * 0.7); c.strokeRect(w * 0.06, top, w * 0.24, wh * 0.7);
+        c.strokeStyle = '#3DDC97'; c.beginPath(); [0, 1, 2, 3, 4].forEach((k) => c.lineTo(w * (0.09 + k * 0.045), top + wh * (0.6 - k * 0.1) - h * 0.005 * Math.sin(t + k))); c.stroke(); }
+      else { c.fillStyle = '#E07A5F'; c.beginPath(); c.arc(w * 0.16, top + 50 * u, 40 * u, 0, Math.PI * 2); c.fill(); c.strokeStyle = INK; c.stroke(); }
       break;
     }
     case 'space':
       c.fillStyle = grad(c, h, ['#05010F', '#1A0B3D']); c.fillRect(0, 0, w, h); stars(c, w, h * 1.4, u, t, 120);
-      c.fillStyle = '#FF7F50'; c.beginPath(); c.arc(w * 0.8, h * 0.2, 110 * u, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = '#FFD7A8'; c.lineWidth = 10 * u; c.beginPath(); c.ellipse(w * 0.8, h * 0.2, 190 * u, 40 * u, -0.3, 0, Math.PI * 2); c.stroke();
-      c.fillStyle = '#6C63FF'; c.beginPath(); c.arc(w * 0.15, h * 0.85, 260 * u, 0, Math.PI * 2); c.fill(); break;
+      c.fillStyle = '#FF7F50'; c.beginPath(); c.arc(w * 0.84, h * 0.4, 80 * u, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#FFD7A8'; c.lineWidth = 10 * u; c.beginPath(); c.ellipse(w * 0.84, h * 0.4, 140 * u, 30 * u, -0.3, 0, Math.PI * 2); c.stroke();
+      c.fillStyle = '#6C63FF'; c.beginPath(); c.arc(w * 0.08, h * 0.95, 200 * u, 0, Math.PI * 2); c.fill(); break;
     case 'rain':
       c.fillStyle = grad(c, h, ['#4B5563', '#9CA3AF']); c.fillRect(0, 0, w, h); clouds(c, w, h, u, t, '#6B7280');
       skyline(c, w, h, u, t, ground, true); c.fillStyle = '#374151'; c.fillRect(0, ground, w, h - ground);
