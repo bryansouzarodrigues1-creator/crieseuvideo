@@ -153,3 +153,26 @@
     color: var(--color-foreground);
   }
 }
+
+/* StickStory Studio (migrated) */
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background-color: #0c0e14;
+    color: #f1f5f9;
+    user-select: none;
+    overflow: hidden;
+  }
+  .font-mono-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+.studio-loading {
+  display: flex; min-height: 100vh; align-items: center; justify-content: center;
+  color: #94a3b8; font-size: 0.875rem;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.5); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }

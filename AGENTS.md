@@ -28,3 +28,6 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- The migrated StickStory animation studio lives in `src/studio/` and renders client-only from `/` (it uses WebGL, audio and localStorage); its AI endpoints are server routes under `src/routes/api/ai/` that fall back to deterministic results when AI is unavailable.
+- Extra-strict TS flags (exactOptionalPropertyTypes, noUncheckedIndexedAccess, etc.) are off because the migrated studio code was written without them.
