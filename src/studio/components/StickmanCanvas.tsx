@@ -515,17 +515,6 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
             </Button>
           </div>
 
-          {onOpenExportModal && (
-            <button
-              onClick={onOpenExportModal}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95"
-              title="Renderizar e baixar vídeo em MP4"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Baixar MP4</span>
-            </button>
-          )}
-
           <button
             onClick={toggleFullscreen}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
@@ -839,17 +828,6 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
               className="w-16 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
           </div>
-
-          {onOpenExportModal && (
-            <button
-              onClick={onOpenExportModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md shadow-emerald-600/20"
-              title="Baixar vídeo em MP4"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Baixar MP4</span>
-            </button>
-          )}
 
           <button
             onClick={toggleFullscreen}

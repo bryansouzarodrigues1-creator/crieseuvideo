@@ -33,3 +33,5 @@ use the editor.
 - Extra-strict TS flags (exactOptionalPropertyTypes, noUncheckedIndexedAccess, etc.) are off because the migrated studio code was written without them.
 - Imported GLB rendering lives in a separate Three.js stage and shares sceneComposition with preview/export; this preserves the legacy cinematic rig and keeps imported animation deterministic by scene time.
 - Scene assets are self-contained GLBs or embedded image data; validate GLB headers and reject external resources/unsupported decoders to prevent silent loading failures. Readiness uses data-scene-ready on the player.
+- The first screen is the open production workspace; the legacy scene editor remains accessible without altering its renderer, because generated MP4s are not editable scene graphs.
+- Video creation uses authenticated server functions, owner-scoped production records and private storage; persist gateway failures and never silently substitute presets or resubmit failed jobs.

@@ -8,16 +8,16 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "StickStory Studio — Criador de animações stickman" },
+      { title: "StickStory Studio — Produção de animações por IA" },
       {
         name: "description",
         content:
-          "Crie animações cinematográficas estilo stickman com roteiro, narração sincronizada e exportação de vídeo.",
+          "Produza cenas originais com IA em 2D, 3D, anime e motion graphics, com histórico privado e download MP4.",
       },
-      { property: "og:title", content: "StickStory Studio — Criador de animações stickman" },
+      { property: "og:title", content: "StickStory Studio — Produção de animações por IA" },
       {
         property: "og:description",
-        content: "Crie animações cinematográficas estilo stickman com roteiro, narração e exportação de vídeo.",
+        content: "Crie cenas originais em 2D, 3D, anime e motion graphics com direção livre por IA.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -335,7 +335,7 @@ export const ScriptDirector: React.FC<ScriptDirectorProps> = ({
             >
               {/* Scene Title Bar */}
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <span
                     className={`flex items-center justify-center w-5 h-5 rounded-md font-mono text-xs font-bold ${
                       isActive
@@ -351,7 +351,7 @@ export const ScriptDirector: React.FC<ScriptDirectorProps> = ({
                     onChange={(e) =>
                       onUpdateScene(idx, { title: e.target.value })
                     }
-                    className="bg-transparent font-semibold text-xs text-slate-200 focus:outline-none focus:border-b border-blue-400 px-1 py-0.5"
+                    className="bg-transparent min-w-0 w-full font-semibold text-xs text-slate-200 focus:outline-none focus:border-b border-blue-400 px-1 py-0.5"
                   />
                 </div>
 
