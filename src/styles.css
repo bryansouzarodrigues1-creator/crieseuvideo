@@ -320,3 +320,5 @@
   .explainer-panel h1 { font-size: 34px; }
   .production-nav { padding: 12px 16px; min-height: 60px; }
 }
+
+.explainer-voice-select { background: var(--secondary); color: var(--foreground); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 13px; }

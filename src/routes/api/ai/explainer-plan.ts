@@ -13,7 +13,7 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         const text = await askAi(`Você é diretor de animações explicativas 2D para redes sociais (estilo cartoon plano, legenda palavra por palavra).
 Divida o roteiro em cenas curtas (uma ideia por cena, 4 a 18 palavras, máx 40 cenas), mantendo o texto original fiel.
 Para cada cena escolha o visual que MELHOR ilustra o significado:
-- visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto)
+- visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro)
 - mood: um de [${MOODS.join(", ")}]
 - palette: um de [${PALETTES.join(", ")}], varie entre cenas; use night para momentos tristes ou finais
 - label: etiqueta curta opcional (ex: "3 MESES DEPOIS...", "DE GRAÇA")

@@ -1,5 +1,5 @@
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
-export const VISUALS = ['character', 'phone_chat', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night'] as const;
+export const VISUALS = ['character', 'phone_chat', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
 export const PALETTES = ['orange', 'purple', 'teal', 'pink', 'night'] as const;
 export type Visual = (typeof VISUALS)[number];
@@ -15,6 +15,8 @@ export interface ExplainerScene {
   chat?: string;
   chips?: string[];
   highlight?: string[];
+  /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
+  voice?: { duration: number; start: number; end: number };
 }
 export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[] }
 
@@ -23,7 +25,21 @@ export const SCENE_LEAD = 0.3;
 export const MIN_SCENE = 2.4;
 
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
-export const sceneDuration = (s: ExplainerScene) => Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5);
+export const VOICE_TAIL = 0.35;
+export const sceneDuration = (s: ExplainerScene) =>
+  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5);
+export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
+
+/** Spoken weight of a word: longer words and punctuation pauses take more time. */
+export const wordWeight = (w: string) => w.replace(/[^\p{L}\d]/gu, '').length + 2 + (/[,;:]$/.test(w) ? 3 : /[.!?…]$/.test(w) ? 5 : 0);
+export function wordTimings(scene: ExplainerScene) {
+  const list = words(scene.text);
+  const from = SCENE_LEAD + (scene.voice ? scene.voice.start : 0);
+  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : list.length * SECONDS_PER_WORD;
+  const total = list.reduce((a, w) => a + wordWeight(w), 0) || 1;
+  let acc = 0;
+  return list.map((word) => { const start = from + (acc / total) * span; acc += wordWeight(word); return { word, start, end: from + (acc / total) * span }; });
+}
 export const totalDuration = (p: ExplainerPlan) => p.scenes.reduce((a, s) => a + sceneDuration(s), 0);
 
 export function sceneAt(p: ExplainerPlan, t: number) {
@@ -37,10 +53,11 @@ export function sceneAt(p: ExplainerPlan, t: number) {
 }
 
 export function wordAt(scene: ExplainerScene, local: number) {
-  const list = words(scene.text);
+  const list = wordTimings(scene);
   if (!list.length) return null;
-  const i = Math.min(list.length - 1, Math.max(0, Math.floor((local - SCENE_LEAD) / SECONDS_PER_WORD)));
-  return { index: i, word: list[i], since: local - SCENE_LEAD - i * SECONDS_PER_WORD };
+  let i = 0;
+  while (i < list.length - 1 && local >= list[i + 1].start) i++;
+  return { index: i, word: list[i].word, since: local - list[i].start, speaking: local >= list[i].start && local < list[i].end };
 }
 
 const has = (s: string, re: RegExp) => re.test(s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
@@ -51,7 +68,9 @@ export function pickVisual(sentence: string): Visual {
   if (has(sentence, /mapa|bairro|empresa|loja|endereco|google/)) return 'map_pins';
   if (has(sentence, /site|computador|notebook|internet|pagina|app/)) return 'laptop';
   if (has(sentence, /tempo|depois|meses|dias|horas|semana|minuto/)) return 'clock';
-  if (has(sentence, /preco|r\$|custa|vale|plano|pagar|dinheiro|real/)) return 'scale';
+  if (has(sentence, /cresc|aument|subiu|resultado|mais vendas|dobro/)) return 'chart_up';
+  if (has(sentence, /dinheiro|lucro|fatur|ganhou|ganhar|rico|reais/)) return 'money';
+  if (has(sentence, /preco|r\$|custa|vale|plano|pagar/)) return 'scale';
   if (has(sentence, /\bver\b|olha|veem|enxerg|mostra/)) return 'eye';
   return 'character';
 }

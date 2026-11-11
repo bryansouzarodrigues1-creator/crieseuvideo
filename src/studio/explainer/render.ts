@@ -57,39 +57,117 @@ function badge(c: CanvasRenderingContext2D, text: string, x: number, y: number, 
   });
 }
 
-export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number, u: number, mood: Mood, t: number) {
-  const bob = Math.sin(t * 3) * 6 * u, lw = 7 * u;
-  c.save(); c.translate(x, y + bob);
-  // body
-  c.beginPath(); c.moveTo(-170 * u, 330 * u); c.quadraticCurveTo(-160 * u, 170 * u, 0, 165 * u); c.quadraticCurveTo(160 * u, 170 * u, 170 * u, 330 * u); c.closePath(); shape(c, '#9AA3B5', lw);
-  c.beginPath(); c.moveTo(-30 * u, 190 * u); c.lineTo(-30 * u, 240 * u); c.moveTo(30 * u, 190 * u); c.lineTo(30 * u, 240 * u); c.lineWidth = 5 * u; c.stroke();
-  // ears + head
-  for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 128 * u, 10 * u, 26 * u, 36 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw); }
+const rand = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const smooth = (x: number) => x * x * (3 - 2 * x);
+
+/** Two-bone arm (shoulder → elbow → hand) solved with simple IK so gestures bend naturally. */
+function arm(c: CanvasRenderingContext2D, sx: number, sy: number, hx: number, hy: number, len: number, side: number, u: number, sleeve: string, fist = false) {
+  const dx = hx - sx, dy = hy - sy, d = Math.min(Math.hypot(dx, dy), len * 1.98);
+  const a = Math.atan2(dy, dx), bend = Math.acos(clamp(d / (2 * len), -1, 1)) * -side;
+  const ex = sx + Math.cos(a + bend) * len, ey = sy + Math.sin(a + bend) * len;
+  const fx = sx + Math.cos(a) * d, fy = sy + Math.sin(a) * d;
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo(ex, ey, fx, fy);
+  c.strokeStyle = INK; c.lineWidth = 46 * u; c.stroke(); c.strokeStyle = sleeve; c.lineWidth = 32 * u; c.stroke();
+  c.beginPath(); c.arc(fx, fy, (fist ? 26 : 24) * u, 0, Math.PI * 2); shape(c, SKIN, 6 * u);
+  if (!fist) { c.beginPath(); c.ellipse(fx + side * -14 * u, fy - 18 * u, 8 * u, 14 * u, side * 0.5, 0, Math.PI * 2); shape(c, SKIN, 5 * u); }
+}
+
+/**
+ * Expressive presenter: breathing, head tilt and nods on each spoken word, eye saccades and blinks,
+ * mood-driven arm gestures and a mouth that opens with the narration.
+ */
+export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number, u: number, mood: Mood, t: number, talk = 0, beat = 1) {
+  const lw = 7 * u, breath = Math.sin(t * 2.2), slump = mood === 'sad' ? 1 : 0;
+  const nod = (1 - smooth(clamp(beat / 0.22))) * 0.05;
+  c.save(); c.translate(x, y + Math.sin(t * 3) * 4 * u + slump * 18 * u);
+  // soft ground shadow
+  c.beginPath(); c.ellipse(0, 345 * u, 210 * u, 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.18)'; c.fill();
+  // body with breathing
+  c.save(); c.translate(0, 330 * u); c.scale(1 + breath * 0.008, 1 + breath * 0.016); c.translate(0, -330 * u);
+  c.beginPath(); c.moveTo(-170 * u, 330 * u); c.quadraticCurveTo(-165 * u, 175 * u + slump * 20 * u, 0, 168 * u + slump * 18 * u); c.quadraticCurveTo(165 * u, 175 * u + slump * 20 * u, 170 * u, 330 * u); c.closePath(); shape(c, '#9AA3B5', lw);
+  c.beginPath(); c.moveTo(-30 * u, 190 * u); c.lineTo(-30 * u, 240 * u); c.moveTo(30 * u, 190 * u); c.lineTo(30 * u, 240 * u); c.lineWidth = 5 * u; c.strokeStyle = INK; c.stroke();
+  c.restore();
+  // arms: target hand positions per mood, animated with time and speech beats
+  const sh = 205 * u + slump * 20 * u, wave = Math.sin(t * 9), sway = Math.sin(t * 1.7);
+  const hands: [number, number, boolean][] = (() => {
+    switch (mood) {
+      case 'happy': return [[-250 + wave * 20, -40 + wave * 15, false], [250 - wave * 20, -40 - wave * 15, false]];
+      case 'sad': return [[-150, 360, false], [150, 360, false]];
+      case 'worried': return [[-170, 330 + sway * 6, false], [120 + Math.sin(t * 14) * 8, -80, false]];
+      case 'angry': return [[-200 + Math.sin(t * 22) * 6, 300, true], [200 - Math.sin(t * 22) * 6, 300, true]];
+      default: return [[-170, 330 + sway * 6, false], [210 + talk * 30, 150 - talk * 70 + sway * 10, false]];
+    }
+  })();
+  arm(c, -140 * u, sh, hands[0][0] * u, hands[0][1] * u, 120 * u, -1, u, '#9AA3B5', hands[0][2]);
+  arm(c, 140 * u, sh, hands[1][0] * u, hands[1][1] * u, 120 * u, 1, u, '#9AA3B5', hands[1][2]);
+  // head group: idle tilt + nod on every word
+  c.save(); c.translate(0, 150 * u); c.rotate(Math.sin(t * 1.3) * 0.045 + (mood === 'sad' ? 0.06 : 0)); c.translate(0, nod * 200 * u - 150 * u);
+  for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 128 * u, 10 * u, 26 * u, 36 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw); }
   c.beginPath(); c.ellipse(0, 0, 128 * u, 150 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw);
-  // hair
   c.beginPath(); c.moveTo(-130 * u, -10 * u); c.bezierCurveTo(-150 * u, -170 * u, 130 * u, -200 * u, 132 * u, -20 * u);
   c.bezierCurveTo(90 * u, -90 * u, -20 * u, -60 * u, -60 * u, -110 * u); c.bezierCurveTo(-80 * u, -60 * u, -110 * u, -40 * u, -130 * u, -10 * u); shape(c, HAIR, lw);
-  // eyes
-  const blink = (t % 3.2) > 3.05 ? 0.1 : 1, look = Math.sin(t * 0.9) * 6 * u;
-  for (const s of [-1, 1]) {
-    c.beginPath(); c.ellipse(s * 48 * u, 10 * u, 30 * u, 32 * u * blink, 0, 0, Math.PI * 2); shape(c, '#FFFFFF', 6 * u);
-    if (blink > 0.5) { c.beginPath(); c.arc(s * 48 * u + look, 14 * u, 14 * u, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); }
-    // brows
+  // eyes: random saccades between fixation points, eased; natural blink curve
+  const seg = Math.floor(t / 1.4), f = smooth(clamp((t % 1.4) / 0.12));
+  const lookX = ((rand(seg - 1) - 0.5) * (1 - f) + (rand(seg) - 0.5) * f) * 18 * u, lookY = ((rand(seg + 50) - 0.5) * f) * 8 * u;
+  const bp = (t + 0.7) % 3.4, blink = bp < 0.16 ? Math.abs(Math.cos((bp / 0.16) * Math.PI)) * 0.9 + 0.1 : 1;
+  const squint = mood === 'happy' ? 0.85 : mood === 'angry' ? 0.75 : 1;
+  for (const s2 of [-1, 1]) {
+    c.beginPath(); c.ellipse(s2 * 48 * u, 10 * u, 30 * u, 32 * u * blink * squint, 0, 0, Math.PI * 2); shape(c, '#FFFFFF', 6 * u);
+    if (blink > 0.45) { c.beginPath(); c.arc(s2 * 48 * u + lookX, 14 * u + lookY, 14 * u, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); c.beginPath(); c.arc(s2 * 48 * u + lookX + 5 * u, 9 * u + lookY, 4 * u, 0, Math.PI * 2); c.fillStyle = '#FFFFFF'; c.fill(); }
     const tilt = mood === 'angry' ? 0.35 : mood === 'sad' || mood === 'worried' ? -0.35 : 0;
-    c.save(); c.translate(s * 48 * u, -36 * u - (mood === 'happy' ? 6 * u : 0)); c.rotate(s * tilt);
-    c.beginPath(); c.moveTo(-26 * u, 0); c.lineTo(26 * u, 0); c.lineWidth = 9 * u; c.lineCap = 'round'; c.strokeStyle = HAIR; c.stroke(); c.restore();
+    const lift = (mood === 'happy' ? 8 : 0) + talk * 6 + (mood === 'worried' ? Math.sin(t * 6) * 3 : 0);
+    c.save(); c.translate(s2 * 48 * u, -36 * u - lift * u); c.rotate(s2 * tilt);
+    c.beginPath(); c.moveTo(-26 * u, 0); c.quadraticCurveTo(0, -6 * u, 26 * u, 0); c.lineWidth = 9 * u; c.lineCap = 'round'; c.strokeStyle = HAIR; c.stroke(); c.restore();
   }
   c.strokeStyle = INK;
-  // nose
   c.beginPath(); c.arc(4 * u, 52 * u, 12 * u, -Math.PI * 0.6, Math.PI * 0.4); c.lineWidth = 5 * u; c.stroke();
-  // mouth
+  if (mood === 'happy' || mood === 'neutral') { for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 82 * u, 66 * u, 20 * u, 11 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(231,76,60,0.22)'; c.fill(); } }
+  // mouth: mood shape, opened by narration amplitude
   c.beginPath();
-  if (mood === 'happy') { c.moveTo(-48 * u, 82 * u); c.quadraticCurveTo(0, 140 * u, 48 * u, 82 * u); c.closePath(); shape(c, '#C0392B', 6 * u); }
+  if (talk > 0.08) {
+    const mw = (mood === 'happy' ? 44 : 34) * u, mh = (10 + talk * 34) * u, my = (mood === 'sad' ? 104 : 96) * u;
+    c.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2); shape(c, '#6B1E22', 6 * u);
+    c.save(); c.clip(); c.beginPath(); c.ellipse(0, my + mh * 0.8, mw * 0.7, mh * 0.6, 0, 0, Math.PI * 2); c.fillStyle = '#E86A6A'; c.fill(); c.fillStyle = '#FFFFFF'; c.fillRect(-mw, my - mh, mw * 2, mh * 0.35); c.restore();
+  } else if (mood === 'happy') { c.moveTo(-48 * u, 82 * u); c.quadraticCurveTo(0, 140 * u, 48 * u, 82 * u); c.closePath(); shape(c, '#C0392B', 6 * u); }
   else if (mood === 'sad' || mood === 'worried') { c.moveTo(-34 * u, 108 * u); c.quadraticCurveTo(0, 80 * u, 34 * u, 108 * u); c.lineWidth = 7 * u; c.stroke(); }
   else if (mood === 'angry') { c.moveTo(-36 * u, 100 * u); c.lineTo(36 * u, 100 * u); c.lineWidth = 8 * u; c.stroke(); }
   else { c.moveTo(-28 * u, 96 * u); c.quadraticCurveTo(0, 108 * u, 28 * u, 96 * u); c.lineWidth = 7 * u; c.stroke(); }
-  if (mood === 'worried') { c.beginPath(); c.ellipse(118 * u, -70 * u, 10 * u, 16 * u, 0, 0, Math.PI * 2); shape(c, '#8FD3FF', 4 * u); }
+  if (mood === 'worried') { const dy = ((t * 0.8) % 1) * 40 * u; c.beginPath(); c.ellipse(118 * u, -70 * u + dy, 10 * u, 16 * u, 0, 0, Math.PI * 2); shape(c, '#8FD3FF', 4 * u); }
+  if (mood === 'angry') { c.globalAlpha = 0.6 + 0.4 * Math.sin(t * 10); for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 150 * u, -150 * u); c.lineTo(s2 * 185 * u, -185 * u); c.moveTo(s2 * 170 * u, -120 * u); c.lineTo(s2 * 210 * u, -130 * u); c.lineWidth = 8 * u; c.strokeStyle = '#E74C3C'; c.stroke(); } c.globalAlpha = 1; }
   c.restore();
+  c.restore();
+}
+
+function chartUp(c: CanvasRenderingContext2D, u: number, local: number) {
+  const w = 600 * u, h = 440 * u;
+  rr(c, -w / 2, -h / 2, w, h, 28 * u); shape(c, '#FFFFFF', 7 * u);
+  const vals = [0.25, 0.4, 0.35, 0.6, 0.8, 1];
+  vals.forEach((v, i) => {
+    const g = smooth(clamp((local - 0.2 - i * 0.12) / 0.5)), bh = v * 300 * u * g, bx = -240 * u + i * 85 * u;
+    rr(c, bx, 170 * u - bh, 60 * u, Math.max(1, bh), 10 * u); shape(c, i === vals.length - 1 ? '#2ECC71' : '#9FD3F4', 5 * u);
+  });
+  const g = smooth(clamp((local - 0.9) / 0.6));
+  c.beginPath(); c.moveTo(-210 * u, 80 * u);
+  const pts = vals.map((v, i) => [-210 * u + i * 85 * u, 170 * u - v * 300 * u - 30 * u] as const);
+  pts.forEach(([px, py], i) => { if (i / (pts.length - 1) <= g + 0.001) c.lineTo(px, py); });
+  c.lineWidth = 12 * u; c.strokeStyle = '#E74C3C'; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke();
+  if (g >= 1) { const [px, py] = pts[pts.length - 1]; withPop(c, px, py, pop(local, 1.5), () => { c.beginPath(); c.moveTo(0, -36 * u); c.lineTo(30 * u, 10 * u); c.lineTo(-30 * u, 10 * u); c.closePath(); shape(c, '#E74C3C', 5 * u); }); }
+}
+
+function money(c: CanvasRenderingContext2D, u: number, local: number) {
+  for (let i = 0; i < 14; i++) {
+    const fall = ((local * 0.9 + rand(i)) % 1.2) / 1.2, x = (rand(i + 9) - 0.5) * 760 * u, y = -520 * u + fall * 1000 * u;
+    c.save(); c.translate(x + Math.sin(local * 3 + i) * 30 * u, y); c.rotate(Math.sin(local * 2.5 + i) * 0.6); c.scale(Math.cos(local * 4 + i), 1);
+    rr(c, -70 * u, -36 * u, 140 * u, 72 * u, 8 * u); shape(c, '#7BD389', 5 * u);
+    c.beginPath(); c.arc(0, 0, 20 * u, 0, Math.PI * 2); c.fillStyle = '#4CAF6A'; c.fill(); c.restore();
+  }
+  const s = pop(local, 0.15, 0.5), bounce = Math.abs(Math.sin(local * 4)) * 14 * u;
+  withPop(c, 0, 80 * u - bounce, s, () => {
+    c.beginPath(); c.moveTo(-150 * u, -40 * u); c.quadraticCurveTo(-200 * u, 200 * u, 0, 200 * u); c.quadraticCurveTo(200 * u, 200 * u, 150 * u, -40 * u); c.quadraticCurveTo(0, -90 * u, -150 * u, -40 * u); shape(c, '#E3B04B', 7 * u);
+    c.beginPath(); c.moveTo(-60 * u, -70 * u); c.lineTo(60 * u, -70 * u); c.lineWidth = 16 * u; c.strokeStyle = INK; c.stroke();
+    c.font = FONT(150 * u); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#FFFFFF'; c.lineWidth = 10 * u; c.strokeText('$', 0, 70 * u); c.fillText('$', 0, 70 * u);
+  });
 }
 
 function phone(c: CanvasRenderingContext2D, u: number, local: number, chat: string, header: string) {
@@ -195,11 +273,22 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
 export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
   const at = sceneAt(plan, t); if (!at) return;
-  const { scene, local } = at;
+  const { scene, local, index, duration } = at;
   if (scene.visual === 'city_night') city(c, w, h, u, local); else sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  const wd = wordAt(scene, local);
+  const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, cy = portrait ? h * 0.55 : h * 0.58, k = portrait ? 1.15 : 0.9;
-  const enter = pop(local, 0.05, 0.5);
-  withPop(c, w / 2, cy, enter * k, () => {
+  // camera: whip-in from alternating sides, slow push-in, quick exit
+  const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
+  const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
+  const push = 1 + local * 0.012;
+  const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
+  const px = w / 2 + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
+  const isProp = scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
+  if (isProp && enter > 0.01) { c.beginPath(); c.ellipse(px, cy + 330 * u * k, 260 * u * k * (1 - float / (80 * u)), 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill(); }
+  c.save(); c.globalAlpha = 1 - exit;
+  withPop(c, px, cy + (isProp ? float : 0), enter * k * push * (1 - exit * 0.15), () => {
+    if (isProp) c.rotate(rot);
     switch (scene.visual) {
       case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
       case 'laptop': laptop(c, u, local, scene.label); break;
@@ -207,16 +296,24 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
       case 'clock': clock(c, u, local); break;
       case 'scale': scale(c, u, local, scene.chips || []); break;
       case 'eye': eye(c, u, local); break;
+      case 'chart_up': chartUp(c, u, local); break;
+      case 'money': money(c, u, local); break;
       case 'chips': {
         const chips = scene.chips?.length ? scene.chips : words(scene.text).filter((x) => x.length > 4).slice(0, 4);
-        chips.forEach((ch, i) => badge(c, ch.toUpperCase(), (i % 2 ? 1 : -1) * 170 * u, (-180 + i * 120) * u, u, pop(local, 0.3 + i * 0.25), i % 2 ? 0.05 : -0.05, i % 2 ? '#FFFFFF' : '#3DDC97'));
+        chips.forEach((ch, i) => badge(c, ch.toUpperCase(), (i % 2 ? 1 : -1) * 170 * u + Math.sin(t * 2 + i) * 6 * u, (-180 + i * 120) * u + Math.cos(t * 1.7 + i) * 6 * u, u, pop(local, 0.3 + i * 0.25), (i % 2 ? 0.05 : -0.05) + Math.sin(t * 1.5 + i) * 0.02, i % 2 ? '#FFFFFF' : '#3DDC97'));
         break;
       }
       case 'city_night': break;
-      default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t);
+      default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, wd?.since ?? 1);
     }
   });
+  // presenter reacts beside props in vertical videos so scenes never feel static
+  if (portrait && (scene.visual === 'phone_chat' || scene.visual === 'laptop' || scene.visual === 'chart_up' || scene.visual === 'money')) {
+    const s = pop(local, 0.35, 0.45);
+    withPop(c, w * 0.18, h * 0.86, s * 0.42, () => drawCharacter(c, 0, -200 * u, u * 1.3, scene.mood, t + 0.4, talk, wd?.since ?? 1));
+  }
+  c.restore();
   if (scene.label && scene.visual !== 'laptop' && scene.visual !== 'phone_chat' && scene.visual !== 'chips')
-    badge(c, scene.label.toUpperCase(), w / 2, portrait ? h * 0.3 : h * 0.27, u, pop(local, 0.5), -0.06, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
+    badge(c, scene.label.toUpperCase(), w / 2, portrait ? h * 0.3 : h * 0.27, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
   caption(c, scene, local, w, portrait ? h * 0.13 : h * 0.13, u);
 }

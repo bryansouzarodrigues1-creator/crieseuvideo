@@ -26,4 +26,13 @@ describe('explainer plan', () => {
     expect(p.scenes[0].visual).toBe('laptop');
     expect(p.scenes[0].mood).toBe('neutral');
   });
+  it('scene lasts exactly as long as its narration clip plus lead and tail', () => {
+    const s = { text: 'Vendeu na primeira conversa.', visual: 'character' as const, mood: 'happy' as const, palette: 'teal' as const, voice: { duration: 2.0, start: 0.1, end: 1.9 } };
+    expect(sceneDuration(s)).toBeCloseTo(0.3 + 2.0 + 0.35);
+  });
+  it('captions follow the spoken part of the narration', () => {
+    const s = { text: 'um dois', visual: 'character' as const, mood: 'neutral' as const, palette: 'teal' as const, voice: { duration: 2, start: 0.5, end: 1.5 } };
+    expect(wordAt(s, 0.9)?.word).toBe('um');
+    expect(wordAt(s, 1.75)?.word).toBe('dois');
+  });
 });

@@ -12,3 +12,8 @@
 - [x] Conferir reprodução, troca 2D/3D e visualização no celular.
 
 Revisão completa da coreografia do motor antigo continua fora desta etapa; vídeo gerado não é um modelo 3D editável.
+## Narração e animação natural
+- [x] Narração natural por cena, com legenda e duração calculadas pela voz, e áudio no vídeo baixado.
+- [x] Personagem com braços, respiração, piscadas, olhar e boca falando; transições de câmera entre cenas.
+- [x] Novos desenhos grátis: gráfico subindo e dinheiro.
+- [ ] Baixar vídeo com voz no aparelho do usuário: não testável no navegador de teste.

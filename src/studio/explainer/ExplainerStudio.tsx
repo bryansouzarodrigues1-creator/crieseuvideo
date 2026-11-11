@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2 } from 'lucide-react';
+import { Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, totalDuration, sceneAt, sceneDuration, type Visual, type Mood } from './plan';
+import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
+import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
 import { drawExplainerFrame } from './render';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 
@@ -14,7 +15,7 @@ Então ele mostrou o site pronto, com nome, endereço e botão de WhatsApp.
 Vendeu na primeira conversa.
 Agora a pergunta é: vai ser você?`;
 
-const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite' };
+const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro' };
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
@@ -26,7 +27,47 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [recording, setRecording] = useState<number | null>(null);
+  const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [voicing, setVoicing] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  const buffers = useRef(new Map<string, AudioBuffer>());
+  const ctx = () => (audioRef.current ??= new AudioContext());
+
+  /** Schedule every narrated scene from timeline time `from`; returns a stop function. */
+  const startAudio = (from: number, extra?: AudioNode) => {
+    const ac = ctx(); void ac.resume();
+    const now = ac.currentTime + 0.05, nodes: AudioBufferSourceNode[] = [];
+    plan.scenes.forEach((s, i) => {
+      const buf = s.voice && buffers.current.get(`${voice}|${s.text}`); if (!buf) return;
+      const at = sceneStart(plan, i) + SCENE_LEAD - from;
+      if (at + buf.duration <= 0) return;
+      const src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); if (extra) src.connect(extra);
+      src.start(now + Math.max(0, at), Math.max(0, -at)); nodes.push(src);
+    });
+    return () => nodes.forEach((n) => { try { n.stop(); } catch {} });
+  };
+
+  const narrate = async (target: ExplainerPlan) => {
+    const ac = ctx(); const out = { ...target, scenes: [...target.scenes] };
+    setVoicing(0);
+    try {
+      for (let i = 0; i < out.scenes.length; i++) {
+        const s = out.scenes[i];
+        const buf = await getNarration(ac, s.text, voice);
+        buffers.current.set(`${voice}|${s.text}`, buf);
+        const b = speechBounds(buf);
+        out.scenes[i] = { ...s, voice: { duration: buf.duration, start: b.start, end: b.end } };
+        setVoicing(Math.round(((i + 1) / out.scenes.length) * 100));
+      }
+      setPlan(out); seek(0);
+      return out;
+    } catch (e: any) {
+      setNote(`${e.message} A animação segue sem voz.`);
+      return null;
+    } finally { setVoicing(null); }
+  };
   const timeRef = useRef(0);
   const total = totalDuration(plan);
 
@@ -43,7 +84,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       draw(timeRef.current); setTime(timeRef.current); raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    const stop = startAudio(timeRef.current);
+    return () => { cancelAnimationFrame(raf); stop(); };
   }, [playing, plan, total]);
 
   const seek = (t: number) => { timeRef.current = t; setTime(t); draw(t); };
@@ -56,19 +98,25 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       setPlan(data.plan); seek(0);
       setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
+      if (voiceOn) await narrate(data.plan);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
   };
 
   const updateScene = (i: number, patch: Partial<ExplainerPlan['scenes'][number]>) =>
-    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch } : s)) }));
-  const jumpTo = (i: number) => seek(plan.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0) + 0.6);
+    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined } : {}) } : s)) }));
+  const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
+  const voiced = plan.scenes.length > 0 && plan.scenes.every((s) => s.voice);
 
   const exportVideo = () => {
     const canvas = canvasRef.current; if (!canvas || typeof MediaRecorder === 'undefined') { setNote('Este navegador não grava vídeo.'); return; }
     setPlaying(false);
     const { mimeType } = getBestSupportedVideoMimeType();
-    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType, videoBitsPerSecond: 6_000_000 });
+    const stream = canvas.captureStream(30);
+    const dest = voiced ? ctx().createMediaStreamDestination() : null;
+    dest?.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr));
+    const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+    let stopAudio = () => {};
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     rec.onstop = () => {
@@ -78,10 +126,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setRecording(null); seek(0);
     };
     rec.start(250);
+    if (dest) stopAudio = startAudio(0, dest);
     const start = performance.now();
     const loop = () => {
       const t = (performance.now() - start) / 1000;
-      if (t >= total) { rec.stop(); return; }
+      if (t >= total) { stopAudio(); rec.stop(); return; }
       draw(t); setRecording(Math.round((t / total) * 100)); requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -104,7 +153,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         <section className="explainer-panel">
           <p className="explainer-kicker">ANIMAÇÃO EXPLICATIVA 2D</p>
           <h1>Do roteiro à animação.</h1>
-          <p className="explainer-sub">A IA escreve a direção, o código desenha cada quadro. Sem custo de vídeo: só ~0,02 crédito por criação.</p>
+          <p className="explainer-sub">A IA escreve a direção, o código desenha cada quadro. Sem custo de vídeo: ~0,02 crédito pela direção e ~0,1 crédito por minuto de narração.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
           <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => setScript(e.target.value)} rows={9} />
           <div className="explainer-row">
@@ -112,8 +161,15 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
             ))}
           </div>
-          <Button className="explainer-generate" onClick={generate} disabled={busy || script.trim().length < 4}>
-            {busy ? <Loader2 className="animate-spin" /> : <Sparkles />}{busy ? 'Dirigindo cenas…' : 'Criar animação'}
+          <div className="explainer-row">
+            <Button size="sm" variant={voiceOn ? 'default' : 'secondary'} onClick={() => setVoiceOn((v) => !v)} aria-pressed={voiceOn}><Mic />{voiceOn ? 'Com narração' : 'Sem narração'}</Button>
+            <select value={voice} onChange={(e) => { setPlaying(false); setVoice(e.target.value); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Voz" className="explainer-voice-select" disabled={!voiceOn}>
+              {NARRATION_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+            </select>
+            {voiceOn && !voiced && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
+          </div>
+          <Button className="explainer-generate" onClick={generate} disabled={busy || voicing !== null || script.trim().length < 4}>
+            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : 'Criar animação'}
           </Button>
           {note && <p className="explainer-note" role="status">{note}</p>}
 
