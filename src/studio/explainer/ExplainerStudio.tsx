@@ -90,8 +90,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
   const seek = (t: number) => { timeRef.current = t; setTime(t); draw(t); };
 
+  /** Mobile browsers only allow sound when unlocked inside a tap. */
+  const unlockAudio = () => {
+    const ac = ctx(); void ac.resume();
+    const b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start();
+  };
   const generate = async () => {
-    setBusy(true); setNote(''); setPlaying(false);
+    unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
       const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script, aspect }) });
       const data = await res.json();
@@ -197,10 +202,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
         <section className="explainer-stage">
           <div className={`explainer-canvas-wrap ${aspect === '9:16' ? 'is-portrait' : ''}`}>
-            <canvas ref={canvasRef} key={aspect} {...dims} onClick={() => setPlaying((p) => !p)} />
+            <canvas ref={canvasRef} key={aspect} {...dims} onClick={() => { unlockAudio(); setPlaying((p) => !p); }} />
           </div>
           <div className="explainer-controls">
-            <Button size="icon" variant="secondary" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pausar' : 'Reproduzir'} disabled={recording !== null}>{playing ? <Pause /> : <Play />}</Button>
+            <Button size="icon" variant="secondary" onClick={() => { unlockAudio(); setPlaying((p) => !p); }} aria-label={playing ? 'Pausar' : 'Reproduzir'} disabled={recording !== null}>{playing ? <Pause /> : <Play />}</Button>
             <input type="range" min={0} max={total} step={0.01} value={time} onChange={(e) => { setPlaying(false); seek(Number(e.target.value)); }} aria-label="Linha do tempo" />
             <span className="explainer-time">{fmt(time)} / {fmt(total)}</span>
             <Button onClick={exportVideo} disabled={recording !== null}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>

@@ -38,19 +38,38 @@ function sunburst(c: CanvasRenderingContext2D, w: number, h: number, pal: [strin
 
 function caption(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, w: number, y: number, u: number) {
   const wd = wordAt(scene, local); if (!wd) return;
-  const clean = wd.word.replace(/[^\p{L}\d$%,!?"]/gu, '').toUpperCase();
-  const hl = (scene.highlight || []).some((h) => h.toLowerCase().replace(/[^\p{L}\d]/gu, '') === wd.word.toLowerCase().replace(/[^\p{L}\d]/gu, ''));
-  let size = 120 * u; c.font = FONT(size);
-  while (c.measureText(clean).width > w * 0.86 && size > 30) { size -= 6; c.font = FONT(size); }
-  const s = 0.75 + 0.25 * pop(wd.since, 0, 0.18);
-  c.save(); c.translate(w / 2, y); c.scale(s, s); c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.lineJoin = 'round'; c.lineWidth = 14 * u; c.strokeStyle = INK; c.strokeText(clean, 0, 0);
-  c.fillStyle = hl ? '#FFD23F' : '#FFFFFF'; c.fillText(clean, 0, 0); c.restore();
+  const all = words(scene.text), key = (x: string) => x.toLowerCase().replace(/[^\p{L}\d]/gu, '');
+  const hlSet = new Set((scene.highlight || []).map(key));
+  // show the phrase chunk (max 6 words) containing the spoken word, in up to 2 centered lines
+  const start = Math.floor(wd.index / 6) * 6, chunk = all.slice(start, start + 6);
+  const maxW = w * 0.84; let size = 78 * u, lines: string[][] = [];
+  for (;;) {
+    c.font = FONT(size); lines = [[]]; const sp = c.measureText(' ').width;
+    let lw = 0;
+    for (const x of chunk) { const ww = c.measureText(x.toUpperCase()).width; if (lw && lw + sp + ww > maxW) { lines.push([]); lw = 0; } lines[lines.length - 1].push(x); lw += (lw ? sp : 0) + ww; }
+    const widest = Math.max(...lines.map((l) => c.measureText(l.join(' ').toUpperCase()).width));
+    if ((lines.length <= 2 && widest <= maxW) || size < 30 * u) break;
+    size -= 4 * u;
+  }
+  const lh = size * 1.12, fade = pop(local, 0, 0.2);
+  c.save(); c.globalAlpha = fade; c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineJoin = 'round'; c.font = FONT(size);
+  const sp = c.measureText(' ').width; let k = start;
+  lines.forEach((l, li) => {
+    const lineW = c.measureText(l.join(' ').toUpperCase()).width; let x = w / 2 - lineW / 2;
+    const ly = y + (li - (lines.length - 1) / 2) * lh;
+    for (const x0 of l) {
+      const txt = x0.toUpperCase(), ww = c.measureText(txt).width, active = k === wd.index;
+      c.lineWidth = 12 * u; c.strokeStyle = INK; c.strokeText(txt, x, ly);
+      c.fillStyle = active ? '#FFD23F' : hlSet.has(key(x0)) ? '#FFE88A' : k < wd.index ? '#FFFFFF' : 'rgba(255,255,255,0.72)';
+      c.fillText(txt, x, ly); x += ww + sp; k++;
+    }
+  });
+  c.restore();
 }
 
 function badge(c: CanvasRenderingContext2D, text: string, x: number, y: number, u: number, s: number, rot = -0.05, fill = '#FFFFFF', color = INK) {
   withPop(c, x, y, s, () => {
-    c.rotate(rot); c.font = FONT(64 * u); const tw = c.measureText(text).width + 70 * u, th = 100 * u;
+    c.rotate(rot); let fs = 64 * u; c.font = FONT(fs); while (c.measureText(text).width > c.canvas.width * 0.72 && fs > 24 * u) { fs -= 4 * u; c.font = FONT(fs); } const tw = c.measureText(text).width + 70 * u, th = fs * 1.56;
     c.fillStyle = 'rgba(0,0,0,0.2)'; rr(c, -tw / 2 + 6 * u, -th / 2 + 8 * u, tw, th, th / 2); c.fill();
     rr(c, -tw / 2, -th / 2, tw, th, th / 2); shape(c, fill, 6 * u);
     c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 0, 2 * u);
@@ -79,8 +98,8 @@ function arm(c: CanvasRenderingContext2D, sx: number, sy: number, hx: number, hy
  */
 export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number, u: number, mood: Mood, t: number, talk = 0, beat = 1) {
   const lw = 7 * u, breath = Math.sin(t * 2.2), slump = mood === 'sad' ? 1 : 0;
-  const nod = (1 - smooth(clamp(beat / 0.22))) * 0.05;
-  c.save(); c.translate(x, y + Math.sin(t * 3) * 4 * u + slump * 18 * u);
+  const nod = (1 - smooth(clamp(beat / 0.3))) * 0.015;
+  c.save(); c.translate(x, y + Math.sin(t * 1.4) * 2 * u + slump * 18 * u);
   // soft ground shadow
   c.beginPath(); c.ellipse(0, 345 * u, 210 * u, 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.18)'; c.fill();
   // body with breathing
@@ -89,20 +108,20 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
   c.beginPath(); c.moveTo(-30 * u, 190 * u); c.lineTo(-30 * u, 240 * u); c.moveTo(30 * u, 190 * u); c.lineTo(30 * u, 240 * u); c.lineWidth = 5 * u; c.strokeStyle = INK; c.stroke();
   c.restore();
   // arms: target hand positions per mood, animated with time and speech beats
-  const sh = 205 * u + slump * 20 * u, wave = Math.sin(t * 9), sway = Math.sin(t * 1.7);
+  const sh = 205 * u + slump * 20 * u, wave = Math.sin(t * 1.6) * 0.3, sway = Math.sin(t * 1.2) * 0.5;
   const hands: [number, number, boolean][] = (() => {
     switch (mood) {
       case 'happy': return [[-250 + wave * 20, -40 + wave * 15, false], [250 - wave * 20, -40 - wave * 15, false]];
       case 'sad': return [[-150, 360, false], [150, 360, false]];
-      case 'worried': return [[-170, 330 + sway * 6, false], [120 + Math.sin(t * 14) * 8, -80, false]];
-      case 'angry': return [[-200 + Math.sin(t * 22) * 6, 300, true], [200 - Math.sin(t * 22) * 6, 300, true]];
-      default: return [[-170, 330 + sway * 6, false], [210 + talk * 30, 150 - talk * 70 + sway * 10, false]];
+      case 'worried': return [[-170, 330 + sway * 6, false], [120, -80, false]];
+      case 'angry': return [[-200 + 0, 300, true], [200 - 0, 300, true]];
+      default: return [[-170, 330 + sway * 6, false], [210 + talk * 10, 150 - talk * 20 + sway * 6, false]];
     }
   })();
   arm(c, -140 * u, sh, hands[0][0] * u, hands[0][1] * u, 120 * u, -1, u, '#9AA3B5', hands[0][2]);
   arm(c, 140 * u, sh, hands[1][0] * u, hands[1][1] * u, 120 * u, 1, u, '#9AA3B5', hands[1][2]);
   // head group: idle tilt + nod on every word
-  c.save(); c.translate(0, 150 * u); c.rotate(Math.sin(t * 1.3) * 0.045 + (mood === 'sad' ? 0.06 : 0)); c.translate(0, nod * 200 * u - 150 * u);
+  c.save(); c.translate(0, 150 * u); c.rotate(Math.sin(t * 0.9) * 0.02 + (mood === 'sad' ? 0.06 : 0)); c.translate(0, nod * 200 * u - 150 * u);
   for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 128 * u, 10 * u, 26 * u, 36 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw); }
   c.beginPath(); c.ellipse(0, 0, 128 * u, 150 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw);
   c.beginPath(); c.moveTo(-130 * u, -10 * u); c.bezierCurveTo(-150 * u, -170 * u, 130 * u, -200 * u, 132 * u, -20 * u);
@@ -116,7 +135,7 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
     c.beginPath(); c.ellipse(s2 * 48 * u, 10 * u, 30 * u, 32 * u * blink * squint, 0, 0, Math.PI * 2); shape(c, '#FFFFFF', 6 * u);
     if (blink > 0.45) { c.beginPath(); c.arc(s2 * 48 * u + lookX, 14 * u + lookY, 14 * u, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); c.beginPath(); c.arc(s2 * 48 * u + lookX + 5 * u, 9 * u + lookY, 4 * u, 0, Math.PI * 2); c.fillStyle = '#FFFFFF'; c.fill(); }
     const tilt = mood === 'angry' ? 0.35 : mood === 'sad' || mood === 'worried' ? -0.35 : 0;
-    const lift = (mood === 'happy' ? 8 : 0) + talk * 6 + (mood === 'worried' ? Math.sin(t * 6) * 3 : 0);
+    const lift = (mood === 'happy' ? 8 : 0) + talk * 6 + 0;
     c.save(); c.translate(s2 * 48 * u, -36 * u - lift * u); c.rotate(s2 * tilt);
     c.beginPath(); c.moveTo(-26 * u, 0); c.quadraticCurveTo(0, -6 * u, 26 * u, 0); c.lineWidth = 9 * u; c.lineCap = 'round'; c.strokeStyle = HAIR; c.stroke(); c.restore();
   }
@@ -134,7 +153,7 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
   else if (mood === 'angry') { c.moveTo(-36 * u, 100 * u); c.lineTo(36 * u, 100 * u); c.lineWidth = 8 * u; c.stroke(); }
   else { c.moveTo(-28 * u, 96 * u); c.quadraticCurveTo(0, 108 * u, 28 * u, 96 * u); c.lineWidth = 7 * u; c.stroke(); }
   if (mood === 'worried') { const dy = ((t * 0.8) % 1) * 40 * u; c.beginPath(); c.ellipse(118 * u, -70 * u + dy, 10 * u, 16 * u, 0, 0, Math.PI * 2); shape(c, '#8FD3FF', 4 * u); }
-  if (mood === 'angry') { c.globalAlpha = 0.6 + 0.4 * Math.sin(t * 10); for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 150 * u, -150 * u); c.lineTo(s2 * 185 * u, -185 * u); c.moveTo(s2 * 170 * u, -120 * u); c.lineTo(s2 * 210 * u, -130 * u); c.lineWidth = 8 * u; c.strokeStyle = '#E74C3C'; c.stroke(); } c.globalAlpha = 1; }
+  if (mood === 'angry') { c.globalAlpha = 0.85; for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 150 * u, -150 * u); c.lineTo(s2 * 185 * u, -185 * u); c.moveTo(s2 * 170 * u, -120 * u); c.lineTo(s2 * 210 * u, -130 * u); c.lineWidth = 8 * u; c.strokeStyle = '#E74C3C'; c.stroke(); } c.globalAlpha = 1; }
   c.restore();
   c.restore();
 }
@@ -307,11 +326,6 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
       default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, wd?.since ?? 1);
     }
   });
-  // presenter reacts beside props in vertical videos so scenes never feel static
-  if (portrait && (scene.visual === 'phone_chat' || scene.visual === 'laptop' || scene.visual === 'chart_up' || scene.visual === 'money')) {
-    const s = pop(local, 0.35, 0.45);
-    withPop(c, w * 0.18, h * 0.86, s * 0.42, () => drawCharacter(c, 0, -200 * u, u * 1.3, scene.mood, t + 0.4, talk, wd?.since ?? 1));
-  }
   c.restore();
   if (scene.label && scene.visual !== 'laptop' && scene.visual !== 'phone_chat' && scene.visual !== 'chips')
     badge(c, scene.label.toUpperCase(), w / 2, portrait ? h * 0.3 : h * 0.27, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
