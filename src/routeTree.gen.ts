@@ -15,6 +15,7 @@ import { Route as ApiAiGenerateCaptionsRouteImport } from './routes/api/ai/gener
 import { Route as ApiAiGenerateStoryboardRouteImport } from './routes/api/ai/generate-storyboard'
 import { Route as ApiAiNarrateRouteImport } from './routes/api/ai/narrate'
 import { Route as ApiAiScriptToFullVideoRouteImport } from './routes/api/ai/script-to-full-video'
+import { Route as ApiAiTranscribeRouteImport } from './routes/api/ai/transcribe'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const ApiAiScriptToFullVideoRoute = ApiAiScriptToFullVideoRouteImport.update({
   path: '/api/ai/script-to-full-video',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiTranscribeRoute = ApiAiTranscribeRouteImport.update({
+  id: '/api/ai/transcribe',
+  path: '/api/ai/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/narrate': typeof ApiAiNarrateRoute
   '/api/ai/script-to-full-video': typeof ApiAiScriptToFullVideoRoute
+  '/api/ai/transcribe': typeof ApiAiTranscribeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/narrate': typeof ApiAiNarrateRoute
   '/api/ai/script-to-full-video': typeof ApiAiScriptToFullVideoRoute
+  '/api/ai/transcribe': typeof ApiAiTranscribeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/narrate': typeof ApiAiNarrateRoute
   '/api/ai/script-to-full-video': typeof ApiAiScriptToFullVideoRoute
+  '/api/ai/transcribe': typeof ApiAiTranscribeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/api/ai/generate-storyboard'
     | '/api/ai/narrate'
     | '/api/ai/script-to-full-video'
+    | '/api/ai/transcribe'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/api/ai/generate-storyboard'
     | '/api/ai/narrate'
     | '/api/ai/script-to-full-video'
+    | '/api/ai/transcribe'
   id:
     | '__root__'
     | '/'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
     | '/api/ai/generate-storyboard'
     | '/api/ai/narrate'
     | '/api/ai/script-to-full-video'
+    | '/api/ai/transcribe'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,6 +118,7 @@ export interface RootRouteChildren {
   ApiAiGenerateStoryboardRoute: typeof ApiAiGenerateStoryboardRoute
   ApiAiNarrateRoute: typeof ApiAiNarrateRoute
   ApiAiScriptToFullVideoRoute: typeof ApiAiScriptToFullVideoRoute
+  ApiAiTranscribeRoute: typeof ApiAiTranscribeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiScriptToFullVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai/transcribe': {
+      id: '/api/ai/transcribe'
+      path: '/api/ai/transcribe'
+      fullPath: '/api/ai/transcribe'
+      preLoaderRoute: typeof ApiAiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -162,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAiGenerateStoryboardRoute: ApiAiGenerateStoryboardRoute,
   ApiAiNarrateRoute: ApiAiNarrateRoute,
   ApiAiScriptToFullVideoRoute: ApiAiScriptToFullVideoRoute,
+  ApiAiTranscribeRoute: ApiAiTranscribeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

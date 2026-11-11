@@ -36,3 +36,9 @@ describe('explainer plan', () => {
     expect(wordAt(s, 1.75)?.word).toBe('dois');
   });
 });
+
+import { fitToTrack, totalDuration as td, buildFallbackPlan as bfp } from './plan';
+test('uploaded narration sets the video length to the audio length', () => {
+  const p = fitToTrack(bfp('Primeira frase bem longa aqui agora. Segunda frase.', '9:16'), 20);
+  expect(Math.abs(td(p) - 20)).toBeLessThan(0.5);
+});

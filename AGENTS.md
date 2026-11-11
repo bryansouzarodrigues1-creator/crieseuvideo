@@ -37,3 +37,5 @@ use the editor.
 - Video creation uses authenticated server functions, owner-scoped production records and private storage; persist gateway failures and never silently substitute presets or resubmit failed jobs.
 - Explainer narration is one TTS clip per scene fetched via the `/api/ai/narrate` server route and cached in the browser Cache API by voice+text; scene length and caption timing come from the measured clip, so replays and edits of other scenes never re-bill.
 - New explainer props and characters are code-drawn in src/studio/explainer/render.ts rather than stored images/videos, because drawing is free and needs no asset storage or AI generation.
+- Explainer projects and the drawing gallery autosave in browser localStorage (src/studio/explainer/library.ts); uploaded narration audio is not persisted, so saved projects drop track timing.
+- ElevenLabs narration is a prepared path in /api/ai/narrate (provider "elevenlabs" + voiceId) that activates only when ELEVENLABS_API_KEY is linked via the connector.

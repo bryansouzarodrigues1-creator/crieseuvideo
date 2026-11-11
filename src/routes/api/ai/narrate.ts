@@ -12,6 +12,7 @@ export const Route = createFileRoute("/api/ai/narrate")({
         if (!key) return Response.json({ error: "Voz indisponível no momento." }, { status: 503 });
         const body = await request.json().catch(() => ({}));
         const text = String(body.text ?? "").trim().slice(0, 500);
+        if (body.provider === "elevenlabs") return elevenLabs(text, String(body.voiceId ?? ""));
         const voice = NARRATION_VOICES.some((v) => v.id === body.voice) ? body.voice : NARRATION_VOICES[0].id;
         if (!text) return Response.json({ error: "Texto vazio." }, { status: 400 });
         const charm = voice === "Algieba" ? "Fale como um mentalista charmoso e espirituoso: voz masculina suave, descontraída e levemente rouca, com um sorriso na voz, tom confiante e brincalhão, ritmo tranquilo e pausas calculadas antes das revelações. " : "";
@@ -37,3 +38,21 @@ export const Route = createFileRoute("/api/ai/narrate")({
     },
   },
 });
+
+/** Prepared ElevenLabs path: works once an ElevenLabs connection is linked (ELEVENLABS_API_KEY). */
+async function elevenLabs(text: string, voiceId: string) {
+  const key = process.env.ELEVENLABS_API_KEY;
+  if (!key) return Response.json({ error: "ElevenLabs ainda não está conectado ao projeto." }, { status: 503 });
+  if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) return Response.json({ error: "Informe um Voice ID válido do ElevenLabs." }, { status: 400 });
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+    method: "POST",
+    headers: { "xi-api-key": key, "Content-Type": "application/json" },
+    body: JSON.stringify({ text, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.4, use_speaker_boost: true } }),
+  });
+  if (!r.ok) {
+    const detail = await r.text();
+    console.error(`ElevenLabs [${r.status}]: ${detail}`);
+    return Response.json({ error: r.status === 401 ? "Chave do ElevenLabs inválida." : "ElevenLabs não gerou a voz." }, { status: r.status });
+  }
+  return new Response(r.body, { status: 200, headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-cache" } });
+}

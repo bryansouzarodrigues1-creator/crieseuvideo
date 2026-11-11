@@ -21,7 +21,17 @@ export interface ExplainerScene {
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[] }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number }
+
+/** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
+export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
+  const weights = plan.scenes.map((s) => words(s.text).reduce((a, w) => a + wordWeight(w), 0) || 1);
+  const sum = weights.reduce((a, b) => a + b, 0);
+  return { ...plan, track, scenes: plan.scenes.map((s, i) => {
+    const d = Math.max(0.4, (weights[i] / sum) * track - SCENE_LEAD - VOICE_TAIL);
+    return { ...s, voice: { duration: d, start: 0, end: d } };
+  }) };
+}
 
 export const SECONDS_PER_WORD = 0.36;
 export const SCENE_LEAD = 0.3;

@@ -15,17 +15,19 @@ async function hash(s: string) {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** Voice key: Gemini voice name, or "eleven:<voiceId>" for a cloned ElevenLabs voice. */
 export async function getNarration(ctx: BaseAudioContext, text: string, voice: string): Promise<AudioBuffer> {
+  const eleven = voice.startsWith("eleven:") ? voice.slice(7) : null;
   const id = await hash(`${voice}|${text.trim()}`);
   const hit = memo.get(id); if (hit) return hit;
   const url = `/__voice/${id}.wav`;
   const cache = typeof caches !== "undefined" ? await caches.open(CACHE).catch(() => null) : null;
   let res = cache ? await cache.match(url) : undefined;
   if (!res) {
-    const r = await fetch("/api/ai/narrate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, voice }) });
+    const r = await fetch("/api/ai/narrate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eleven ? { text, provider: "elevenlabs", voiceId: eleven } : { text, voice }) });
     if (!r.ok) { const e = await r.json().catch(() => ({})); throw Object.assign(new Error(e.error || "Falha na voz."), { status: r.status }); }
     const blob = await r.blob();
-    if (cache) await cache.put(url, new Response(blob, { headers: { "Content-Type": "audio/wav" } })).catch(() => {});
+    if (cache) await cache.put(url, new Response(blob, { headers: { "Content-Type": blob.type || "audio/wav" } })).catch(() => {});
     res = new Response(blob);
   }
   const buf = await ctx.decodeAudioData(await res.arrayBuffer());
