@@ -22,6 +22,7 @@ import {
   SceneAnchorMap,
 } from './stickmanMath';
 import { resolveActiveBeatState } from './choreographyEngine';
+import { getSceneImage } from './sceneImages';
 import {
   constructWorldStage,
   renderConstructedWorldBackground,
@@ -80,7 +81,12 @@ export function renderStickmanFrame({
   ctx.scale(effectiveZoom, effectiveZoom);
   ctx.translate(-centerX, -centerY);
 
-  if (worldStage.isConstructedWarWorld) {
+  const background = scene.backgroundImage ? getSceneImage(scene.backgroundImage.url) : undefined;
+  if (background?.complete && background.naturalWidth > 0) {
+    const scale = Math.max(width / background.naturalWidth, height / background.naturalHeight);
+    const imageW = background.naturalWidth * scale, imageH = background.naturalHeight * scale;
+    ctx.drawImage(background, (width - imageW) / 2, (height - imageH) / 2, imageW, imageH);
+  } else if (worldStage.isConstructedWarWorld) {
     // 1. Render 2.5D Multi-Plane Parallax World Background, Perspective Road, Structures & Explosions
     renderConstructedWorldBackground(
       ctx,

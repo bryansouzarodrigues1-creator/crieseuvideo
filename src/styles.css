@@ -176,3 +176,32 @@
 ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
 ::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.5); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
+
+.scene-assets {
+  --background: oklch(0.17 0.015 180);
+  --foreground: oklch(0.96 0.008 180);
+  --secondary: oklch(0.24 0.018 180);
+  --secondary-foreground: var(--foreground);
+  --primary: oklch(0.8 0.13 165);
+  --primary-foreground: var(--background);
+  --muted-foreground: oklch(0.72 0.025 180);
+  --border: oklch(0.34 0.02 180);
+  --input: var(--border);
+  --accent: var(--secondary);
+  --accent-foreground: var(--foreground);
+}
+@media (max-width: 1023px) {
+  .studio-shell > header { flex-wrap: wrap; gap: 12px; padding: 12px; }
+  .studio-shell > header > div { min-width: 0; max-width: 100%; }
+  .studio-shell > header > div:first-child { width: 100%; }
+  .studio-shell > header > div:first-child p { display: none; }
+  .studio-shell > header select { max-width: 100%; width: 100%; }
+  .studio-shell > header > div:nth-child(2) { width: 100%; }
+  .studio-shell > header > div:last-child { flex-wrap: wrap; }
+  .studio-shell main > div.order-1 { height: auto; min-height: 760px; }
+  .studio-shell main > div.order-1 > div > div.relative.flex-1 { min-height: 240px; flex: none; }
+  .studio-shell main > div.order-1 canvas { width: 100%; height: auto; }
+  .studio-shell main > div.order-1 > div > div:last-child { flex-wrap: wrap; gap: 8px; }
+  .studio-shell main > div.order-1 > div > div:last-child > div { flex-wrap: wrap; }
+  .studio-shell main > div.order-1 .absolute.top-6 { display: none; }
+}

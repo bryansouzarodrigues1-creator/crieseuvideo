@@ -5,6 +5,7 @@ import { lazy, Suspense } from "react";
 const StudioApp = lazy(() => import("@/studio/App"));
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "StickStory Studio — Criador de animações stickman" },

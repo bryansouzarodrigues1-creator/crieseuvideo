@@ -28,12 +28,16 @@ import {
 } from '../utils/stickmanMath';
 import { playSoundEffect } from '../utils/sfxAudio';
 import { resolveActiveBeatState } from '../utils/choreographyEngine';
+import { SceneAssetsPanel } from './SceneAssetsPanel';
+import { renderSceneComposition } from '../utils/sceneComposition';
+import { Button } from '@/components/ui/button';
 
 interface StickmanCanvasProps {
   project: StickmanProject;
   activeSceneIndex: number;
   onSelectScene: (idx: number) => void;
   onUpdateAspectRatio: (ratio: '16:9' | '9:16') => void;
+  onUpdateScene: (update: Partial<StickmanScene>) => void;
   onOpenExportModal?: () => void;
   externalCanvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }
@@ -43,6 +47,7 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
   activeSceneIndex,
   onSelectScene,
   onUpdateAspectRatio,
+  onUpdateScene,
   onOpenExportModal,
   externalCanvasRef,
 }) => {
@@ -333,6 +338,7 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
       );
 
       if (scene) {
+        const ready = renderSceneComposition(ctx, scene, sceneProgress, renderEngineMode, () => {
         if (renderEngineMode === '3d_webgl') {
           threeStageEngine.renderFrameTo2DCanvas({
             ctx,
@@ -357,9 +363,12 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
             wpm: project.wordsPerMinute || 155,
           });
         }
+        });
+        if (ready) playerContainerRef.current?.setAttribute('data-scene-ready', '1');
+        else playerContainerRef.current?.removeAttribute('data-scene-ready');
       }
 
-      if (isPlaying) {
+      if (isPlaying || scene?.importedModel || scene?.backgroundImage) {
         localFrameId = requestAnimationFrame(render);
       }
     };
@@ -459,6 +468,11 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
           : 'flex flex-col h-full bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl'
       }
     >
+      {project.scenes[activeSceneIndex] && <SceneAssetsPanel scene={project.scenes[activeSceneIndex]} onUpdate={(update) => {
+        if (update.importedModel) setRenderEngineMode('3d_webgl');
+        if (update.backgroundImage) setRenderEngineMode('2d_canvas');
+        onUpdateScene(update);
+      }} />}
       {/* Top Video Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-xs">
         <div className="flex items-center gap-2">
@@ -476,7 +490,7 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           {/* 3D WebGL vs 2.5D Canvas Engine Switch */}
           <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800">
-            <button
+            <Button variant="ghost" size="sm"
               onClick={() => setRenderEngineMode('3d_webgl')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold transition ${
                 renderEngineMode === '3d_webgl'
@@ -487,8 +501,8 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
             >
               <Box className="w-3.5 h-3.5" />
               <span>Motor 3D WebGL</span>
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               onClick={() => setRenderEngineMode('2d_canvas')}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition ${
                 renderEngineMode === '2d_canvas'
@@ -497,8 +511,8 @@ export const StickmanCanvas: React.FC<StickmanCanvasProps> = ({
               }`}
               title="Motor 2.5D Canvas Clássico"
             >
-              <span>2.5D</span>
-            </button>
+              <span>2D / 2.5D</span>
+            </Button>
           </div>
 
           {onOpenExportModal && (

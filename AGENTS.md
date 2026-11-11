@@ -31,3 +31,5 @@ use the editor.
 
 - The migrated StickStory animation studio lives in `src/studio/` and renders client-only from `/` (it uses WebGL, audio and localStorage); its AI endpoints are server routes under `src/routes/api/ai/` that fall back to deterministic results when AI is unavailable.
 - Extra-strict TS flags (exactOptionalPropertyTypes, noUncheckedIndexedAccess, etc.) are off because the migrated studio code was written without them.
+- Imported GLB rendering lives in a separate Three.js stage and shares sceneComposition with preview/export; this preserves the legacy cinematic rig and keeps imported animation deterministic by scene time.
+- Scene assets are self-contained GLBs or embedded image data; validate GLB headers and reject external resources/unsupported decoders to prevent silent loading failures. Readiness uses data-scene-ready on the player.

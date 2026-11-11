@@ -2,6 +2,8 @@ import { StickmanProject, StickmanScene } from '../types/stickman';
 import { getAudioDestinationStream, playSoundEffect } from './sfxAudio';
 import { calculateTotalDuration, getSceneAtTimestamp } from './stickmanMath';
 import { threeStageEngine } from './threeStageEngine';
+import { renderSceneComposition } from './sceneComposition';
+import { renderStickmanFrame } from './stickmanRenderer';
 
 export interface RecorderOptions {
   canvas: HTMLCanvasElement;
@@ -84,6 +86,9 @@ export class VideoExportManager {
 
       // Draw initial 3D frame before starting stream capture
       if (ctx && scenesToRender.length > 0 && project) {
+        const first = scenesToRender[0];
+        renderSceneComposition(ctx, first, 0, first.backgroundImage && !first.importedModel ? '2d_canvas' : '3d_webgl', () => {
+        if (first.backgroundImage && !first.importedModel) { renderStickmanFrame({ ctx, width: exportCanvas.width, height: exportCanvas.height, scene: first, sceneProgress: 0, isSpeaking: false, aspectRatio: project.aspectRatio }); return; }
         threeStageEngine.renderFrameTo2DCanvas({
           ctx,
           width: exportCanvas.width,
@@ -94,6 +99,7 @@ export class VideoExportManager {
           cameraOverride: 'auto',
           showSubtitles: true,
           wpm: project.wordsPerMinute || 155,
+        });
         });
       }
 
@@ -160,7 +166,9 @@ export class VideoExportManager {
               }
             }
 
-            threeStageEngine.renderFrameTo2DCanvas({
+            renderSceneComposition(ctx, scene, sceneProgress, scene.backgroundImage && !scene.importedModel ? '2d_canvas' : '3d_webgl', () => {
+              if (scene.backgroundImage && !scene.importedModel) { renderStickmanFrame({ ctx, width: exportCanvas.width, height: exportCanvas.height, scene, sceneProgress, isSpeaking: false, aspectRatio: project.aspectRatio }); return; }
+              threeStageEngine.renderFrameTo2DCanvas({
               ctx,
               width: exportCanvas.width,
               height: exportCanvas.height,
@@ -170,6 +178,7 @@ export class VideoExportManager {
               cameraOverride: 'auto',
               showSubtitles: true,
               wpm: project.wordsPerMinute || 155,
+            });
             });
 
             // Mirror onto the visible preview canvas so user sees the recording live

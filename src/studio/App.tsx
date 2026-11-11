@@ -178,7 +178,7 @@ export default function App() {
       : null;
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="studio-shell flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
       {/* Top Navbar */}
       <StickmanTopNav
         currentPresetKey={currentPresetKey}
@@ -216,6 +216,7 @@ export default function App() {
             activeSceneIndex={activeSceneIndex}
             onSelectScene={setActiveSceneIndex}
             onUpdateAspectRatio={handleUpdateAspectRatio}
+             onUpdateScene={(update) => handleUpdateScene(activeSceneIndex, update)}
             onOpenExportModal={() => setIsExportModalOpen(true)}
             externalCanvasRef={canvasRef}
           />

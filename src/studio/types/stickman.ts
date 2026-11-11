@@ -319,6 +319,9 @@ export interface ChoreographyBeat {
 }
 
 export interface StickmanScene {
+  importedModel?: { url: string; name: string; animations: string[]; animation: string; rotation: number; scale: number };
+  backgroundImage?: { url: string; name: string };
+  liveTitle?: { text: string; style: 'clean' | 'editorial'; enabled: boolean };
   id: string;
   title: string;
   chapter?: string; // Optional chapter/act (e.g. "Ato 1: O Início")
