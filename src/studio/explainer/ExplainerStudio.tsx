@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
-import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, type SavedProject, type GalleryItem } from './library';
+import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
 import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
 import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
 import { drawExplainerFrame } from './render';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 
-const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
+export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
 Mandou mensagem no WhatsApp: Oi, tudo bem? Você tem interesse em um site?
 Ah, legal... depois eu vejo.
@@ -20,9 +20,11 @@ const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_ch
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
-  const [script, setScript] = useState(SAMPLE);
+  const [script, setScript] = useState('');
+  const [vaultCount, setVaultCount] = useState(0);
   const [aspect, setAspect] = useState<'9:16' | '16:9'>('9:16');
-  const [plan, setPlan] = useState<ExplainerPlan>(() => buildFallbackPlan(SAMPLE, '9:16'));
+  const [plan, setPlan] = useState<ExplainerPlan>({ title: 'Novo projeto', aspect: '9:16', scenes: [] });
+  void buildFallbackPlan;
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -107,8 +109,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   }, [playing, plan, total]);
 
   // Library: load on mount, autosave the current project after edits.
-  useEffect(() => { setProjects(listProjects()); setGallery(listGallery()); }, []);
   useEffect(() => {
+    // Open the latest real project; never seed a sample that would autosave itself back.
+    const all = listProjects(); setProjects(all); setGallery(listGallery()); setVaultCount(listVault().length);
+    if (all[0]) openProject(all[0]);
+  }, []);
+  useEffect(() => {
+    if (!script.trim() && !plan.scenes.length) return;
     const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now() }); setProjects(listProjects()); }, 800);
     return () => clearTimeout(id);
   }, [plan, script, projectId]);
@@ -161,11 +168,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const generate = async (text = script) => {
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery }) });
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: [...gallery, ...vaultFor(text)] }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
       setPlan(track ? fitToTrack(data.plan, track.duration) : data.plan); seek(0);
+      for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
+      setVaultCount(listVault().length);
       setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
       if (voiceOn && !track) await narrate(data.plan);
       setPlaying(true);
@@ -237,7 +246,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
             ))}
           </div>
-          <p className="explainer-sub">{mode === 'creative' ? `A IA programa um cenário único para cada cena e reaproveita seus ${gallery.length} desenhos salvos quando combinarem. Sem custo de vídeo.` : mode === 'gallery' ? `A IA reaproveita seus ${gallery.length} desenhos salvos e os visuais prontos, o modo mais barato.` : ''}</p>
+          <p className="explainer-sub">{mode === 'creative' ? `A IA programa um cenário único para cada cena e reaproveita seus ${gallery.length} desenhos salvos e os ${vaultCount} do cofre automático quando combinarem. Sem custo de vídeo.` : mode === 'gallery' ? `A IA reaproveita seus ${gallery.length} desenhos salvos e os visuais prontos, o modo mais barato.` : ''}</p>
           <div className="explainer-row">
             {(['9:16', '16:9'] as const).map((a) => (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
@@ -303,7 +312,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             {projects.map((p) => (
               <div key={p.id} className={`explainer-scene ${p.id === projectId ? 'is-active' : ''}`} onClick={() => openProject(p)}>
                 <div className="explainer-scene-body"><strong>{p.title || 'Sem título'}</strong><small>{p.plan.scenes.length} cenas · {new Date(p.updatedAt).toLocaleString('pt-BR')}</small></div>
-                <Button size="icon" variant="ghost" aria-label="Apagar projeto" onClick={(e) => { e.stopPropagation(); deleteProject(p.id); setProjects(listProjects()); }}><Trash2 /></Button>
+                <Button size="icon" variant="ghost" aria-label="Apagar projeto" onClick={(e) => { e.stopPropagation(); deleteProject(p.id); if (p.id === projectId) { newProject(); setLibrary(true); } setProjects(listProjects()); }}><Trash2 /></Button>
               </div>
             ))}
             <p className="explainer-label">Galeria de desenhos ({gallery.length})</p>

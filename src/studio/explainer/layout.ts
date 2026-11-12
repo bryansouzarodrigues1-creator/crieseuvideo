@@ -17,6 +17,19 @@ export function shapeBox(s: Shape): Box {
     case 'poly': case 'line': { const p = s.points ?? [[s.x, s.y]]; return { x0: Math.min(...p.map((q) => q[0])), x1: Math.max(...p.map((q) => q[0])), y0: Math.min(...p.map((q) => q[1])), y1: Math.max(...p.map((q) => q[1])) }; }
     case 'text': { const hw = (s.text?.length ?? 4) * 19; return at(hw, 36, 36); }
     case 'person': return at(140, 150, 195);
+    case 'bust': return at(200, 175, 280);
+    case 'phone': return at(150, 270, 270);
+    case 'laptop': return at(335, 200, 190);
+    case 'pin': return at(80, 115, 70);
+    case 'scale': return at(320, 170, 160);
+    case 'chart': return at(240, 190, 170);
+    case 'clock': return at(145, 145, 145);
+    case 'xmark': case 'check': return at(115, 115, 115);
+    case 'stamp': { const hw = Math.max(80, (s.text?.length ?? 2) * 22 + 40); return at(hw, 60, 60); }
+    case 'hand': return at(65, 145, 135);
+    case 'dog': case 'cat': return at(190, 160, 125);
+    case 'crowd': return at(350, 60, 125);
+    case 'skyline': return at(385, 330, 160);
     case 'flame': return at(70, 130, 60);
     case 'car': return at(170, 90, 72);
     case 'house': return at(160, 200, 100);
@@ -64,10 +77,10 @@ export function layoutDrawing(input: Shape[]): Shape[] {
   const headOf = (p: Shape): Box => { const pb = shapeBox(p); return { x0: pb.x0 + 30, x1: pb.x1 - 30, y0: pb.y0, y1: pb.y0 + (pb.y1 - pb.y0) * 0.5 }; };
   for (let i = 0; i < shapes.length; i++) {
     let s = shapes[i]!;
-    if (s.type === 'person' || isBackdrop(s) || s.anim === 'drive') continue;
+    if (s.type === 'person' || s.type === 'bust' || isBackdrop(s) || s.anim === 'drive') continue;
     for (let j = 0; j < shapes.length; j++) {
       const p = shapes[j]!;
-      if (p.type !== 'person') continue;
+      if (p.type !== 'person' && p.type !== 'bust') continue;
       let head = headOf(p), b = shapeBox(s);
       if (overlap(head, b) <= 0) continue;
       const side = p.x <= 0 ? 1 : -1;

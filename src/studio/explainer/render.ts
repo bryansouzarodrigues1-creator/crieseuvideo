@@ -11,7 +11,10 @@ const PAL: Record<string, [string, string]> = {
 const INK = '#2A2230', SKIN = '#F1C8A4', HAIR = '#B9853F', GREEN = '#1F7A57', PAPER = '#F4F1EA';
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const outBack = (x: number) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2; };
-const pop = (t: number, delay = 0, len = 0.4) => outBack(clamp((t - delay) / len));
+/** Damped spring (harmonic oscillator): 0 → ~1.15 overshoot → settles at 1 in about `len`·2.5 seconds. */
+export const spring = (x: number) => (x <= 0 ? 0 : x >= 3 ? 1 : 1 - Math.exp(-5 * x) * Math.cos(9 * x));
+const pop = (t: number, delay = 0, len = 0.4) => spring((t - delay) / len);
+void outBack;
 const FONT = (px: number) => `${Math.round(px)}px 'Lilita One', 'Plus Jakarta Sans', sans-serif`;
 const BODY = (px: number, w = 700) => `${w} ${Math.round(px)}px 'Plus Jakarta Sans', sans-serif`;
 
@@ -99,7 +102,7 @@ function arm(c: CanvasRenderingContext2D, sx: number, sy: number, hx: number, hy
  * Expressive presenter: breathing, head tilt and nods on each spoken word, eye saccades and blinks,
  * mood-driven arm gestures and a mouth that opens with the narration.
  */
-export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number, u: number, mood: Mood, t: number, talk = 0, beat = 1) {
+export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number, u: number, mood: Mood, t: number, talk = 0, beat = 1, arms = true) {
   const lw = 7 * u, breath = Math.sin(t * 2.2), slump = mood === 'sad' ? 1 : 0;
   const nod = (1 - smooth(clamp(beat / 0.3))) * 0.015;
   c.save(); c.translate(x, y + Math.sin(t * 1.4) * 2 * u + slump * 18 * u);
@@ -127,8 +130,10 @@ export function drawCharacter(c: CanvasRenderingContext2D, x: number, y: number,
       default: return [[-170, 330 + sway * 6, false], [210 + talk * 10, 150 - talk * 20 + sway * 6, false]];
     }
   })();
+  if (arms) {
   arm(c, -140 * u, sh, hands[0][0] * u, hands[0][1] * u, 120 * u, -1, u, '#2E3650', hands[0][2]);
   arm(c, 140 * u, sh, hands[1][0] * u, hands[1][1] * u, 120 * u, 1, u, '#2E3650', hands[1][2]);
+  }
   // head group: idle tilt + nod on every word
   c.save(); c.translate(0, 150 * u); c.rotate(Math.sin(t * 0.9) * 0.02 + (mood === 'sad' ? 0.06 : 0)); c.translate(0, nod * 200 * u - 150 * u);
   for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 128 * u, 10 * u, 26 * u, 36 * u, 0, 0, Math.PI * 2); shape(c, SKIN, lw); }
@@ -308,7 +313,7 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
 }
 
 function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number) {
-  const firstPerson = shapes.find((x) => x.type === 'person');
+  const firstPerson = shapes.find((x) => x.type === 'person' || x.type === 'bust');
   shapes.forEach((sh, i) => {
     const d = sh.delay, ph = t * 1.3 + i;
     let sc = sh.anim === 'none' ? (local >= d ? 1 : 0) : pop(local, d, 0.45);
@@ -331,8 +336,11 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
       case 'zoom': sc *= 1 + Math.min(0.5, Math.max(0, local - d) * 0.12); break;
       case 'orbit': dx = Math.cos(t * 1.1 + i) * 50; dy = Math.sin(t * 1.1 + i) * 22; break;
     }
+    if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
     c.save(); c.globalAlpha *= alpha;
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
+    // solid sticker shadow keeps every element in the same finished style
+    if (sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
     const fill = sh.color || '#FFFFFF', lw = 6 * u, st = sh.stroke || INK;
     const w = (sh.w || 120) * u, h = (sh.h || 120) * u, r = (sh.r || 60) * u;
     switch (sh.type) {
@@ -366,6 +374,14 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
         c.font = `${Math.round(64 * (sh.size || 1) * u)}px 'Lilita One', sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.lineJoin = 'round'; c.lineWidth = 10 * u; c.strokeStyle = st; c.strokeText(sh.text || '', 0, 0); c.fillStyle = fill; c.fillText(sh.text || '', 0, 0); break;
       }
+      case 'bust': {
+        const mood = (MOODS as readonly string[]).includes(sh.mood || '') ? (sh.mood as Mood) : 'neutral';
+        c.shadowColor = 'transparent';
+        drawCharacter(c, 0, 0, u * 0.8 * (sh.size || 1), mood, t + i, sh === firstPerson ? talk : 0, beat, false);
+        break;
+      }
+      case 'phone': case 'laptop': case 'pin': case 'scale': case 'chart': case 'coin': case 'clock': case 'stamp': case 'xmark': case 'check': case 'hand': case 'dog': case 'cat': case 'crowd': case 'skyline':
+        drawProp(c, sh.type, (sh.size || 1) * u, sh.color, st, t + i, local - d, sh.text); break;
       case 'car': case 'house': case 'tree': case 'cloud': case 'building': case 'sun': case 'moon': case 'heart': case 'arrow': case 'bubble':
         drawObject(c, sh.type, (sh.size || 1) * u, sh.color, st, t + i, lw, sh.anim === 'drive' || sh.anim === 'walk', sh.text); break;
       case 'person': {
@@ -380,8 +396,16 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
 
 export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
-  const at = sceneAt(plan, t); if (!at) return;
+  const at = sceneAt(plan, t);
+  if (!at) { sunburst(c, w, h, PAL.purple, t); return; }
   const { scene, local, index, duration } = at;
+  // camera impact: short decaying shake as each scene lands
+  const kick = Math.max(0, 1 - local / 0.35);
+  c.save(); c.translate(Math.sin(local * 70) * 6 * u * kick, Math.cos(local * 55) * 5 * u * kick);
+  try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t); } finally { c.restore(); }
+}
+
+function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
   if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
@@ -389,7 +413,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   // camera: whip-in from alternating sides, slow push-in, quick exit
   const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
   const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
-  const push = 1 + local * 0.012;
+  const push = 1 + Math.min(local, 8) * 0.008; // slow Ken Burns push-in
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
   const px = w / 2 + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
   const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
@@ -466,6 +490,123 @@ function drawObject(c: CanvasRenderingContext2D, type: string, z: number, col: s
       rr(c, -tw / 2, -60 * z, tw, 100 * z, 30 * z); shape(c, col || '#FFFFFF', lw2, st);
       c.beginPath(); c.moveTo(-20 * z, 38 * z); c.lineTo(-40 * z, 80 * z); c.lineTo(10 * z, 38 * z); c.closePath(); shape(c, col || '#FFFFFF', lw2, st);
       c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, 0, -10 * z); break;
+    }
+  }
+}
+
+
+/** Polished sticker-style props the AI can freely combine (all drawn in code, no images). */
+function drawProp(c: CanvasRenderingContext2D, type: string, z: number, col: string | undefined, st: string, t: number, lt: number, text?: string) {
+  const lw = 7 * z, sp = (d: number) => spring((lt - d) / 0.35);
+  switch (type) {
+    case 'phone': {
+      rr(c, -140 * z, -260 * z, 280 * z, 520 * z, 44 * z); shape(c, col || '#2B2D42', lw, st);
+      rr(c, -120 * z, -230 * z, 240 * z, 460 * z, 28 * z); shape(c, '#ECE5DD', 4 * z, st);
+      c.shadowColor = 'transparent';
+      rr(c, -120 * z, -230 * z, 240 * z, 60 * z, 28 * z); c.fillStyle = '#128C7E'; c.fill();
+      c.beginPath(); c.arc(-80 * z, -200 * z, 16 * z, 0, Math.PI * 2); c.fillStyle = '#FFFFFF'; c.fill();
+      const msgs = [text || 'Oi! Tudo bem?', 'Tenho interesse!', '👍'];
+      msgs.forEach((m, k) => {
+        const s = sp(0.3 + k * 0.6); if (s <= 0.01) return; const mine = k % 2 === 0;
+        c.save(); c.translate(mine ? 22 * z : -22 * z, (-120 + k * 90) * z); c.scale(s, s);
+        c.font = `${Math.round(24 * z)}px 'Plus Jakarta Sans', sans-serif`; const tw = Math.min(190 * z, c.measureText(m).width + 30 * z); c.font = `${Math.round(24 * z * Math.min(1, 160 * z / Math.max(1, c.measureText(m).width)))}px 'Plus Jakarta Sans', sans-serif`;
+        rr(c, -tw / 2, -28 * z, tw, 56 * z, 16 * z); shape(c, mine ? '#DCF8C6' : '#FFFFFF', 3 * z, st);
+        c.fillStyle = '#1A1A1A'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(m.slice(0, 18), 0, -2 * z);
+        if (mine) { c.strokeStyle = '#34B7F1'; c.lineWidth = 3 * z; c.beginPath(); c.moveTo(tw / 2 - 34 * z, 16 * z); c.lineTo(tw / 2 - 28 * z, 22 * z); c.lineTo(tw / 2 - 18 * z, 10 * z); c.moveTo(tw / 2 - 26 * z, 16 * z); c.lineTo(tw / 2 - 20 * z, 22 * z); c.lineTo(tw / 2 - 10 * z, 10 * z); c.stroke(); }
+        c.restore();
+      });
+      break;
+    }
+    case 'laptop': {
+      rr(c, -260 * z, -190 * z, 520 * z, 330 * z, 22 * z); shape(c, '#3A3F55', lw, st);
+      rr(c, -235 * z, -165 * z, 470 * z, 280 * z, 10 * z); shape(c, '#FFFFFF', 4 * z, st);
+      c.shadowColor = 'transparent';
+      c.fillStyle = col || '#FF7A45'; c.fillRect(-235 * z, -165 * z, 470 * z, 50 * z);
+      [0, 1, 2].forEach((k) => { const g = smooth(clamp((lt - 0.3 - k * 0.3) / 0.4)); rr(c, -200 * z, (-90 + k * 60) * z, 400 * z * g * (k === 2 ? 0.6 : 1), 32 * z, 10 * z); c.fillStyle = k === 2 ? '#3DDC97' : '#E3E6EE'; c.fill(); });
+      if (text) { c.font = FONT(30 * z); c.fillStyle = '#FFFFFF'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text.slice(0, 16), 0, -140 * z); }
+      c.beginPath(); c.moveTo(-300 * z, 140 * z); c.lineTo(300 * z, 140 * z); c.lineTo(330 * z, 180 * z); c.lineTo(-330 * z, 180 * z); c.closePath(); shape(c, '#C9CED9', lw, st);
+      break;
+    }
+    case 'pin': {
+      const drop = (1 - smooth(clamp(lt / 0.4))) * -200 * z, b = Math.abs(Math.sin(lt * 6)) * 12 * z * Math.max(0, 1 - lt);
+      c.save(); c.shadowColor = 'transparent'; c.beginPath(); c.ellipse(0, 60 * z, 40 * z, 12 * z, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.2)'; c.fill(); c.restore();
+      c.translate(0, drop - b); c.beginPath(); c.moveTo(0, 60 * z); c.bezierCurveTo(-80 * z, -20 * z, -60 * z, -110 * z, 0, -110 * z); c.bezierCurveTo(60 * z, -110 * z, 80 * z, -20 * z, 0, 60 * z); shape(c, col || '#E63946', lw, st);
+      c.beginPath(); c.arc(0, -55 * z, 22 * z, 0, Math.PI * 2); shape(c, '#FFFFFF', 5 * z, st); break;
+    }
+    case 'scale': {
+      const tilt = Math.sin(lt * 2.2) * Math.exp(-lt * 0.6) * 0.25 + 0.15;
+      rr(c, -20 * z, -150 * z, 40 * z, 270 * z, 10 * z); shape(c, '#8D99AE', lw, st);
+      rr(c, -110 * z, 110 * z, 220 * z, 40 * z, 14 * z); shape(c, '#5C677D', lw, st);
+      c.save(); c.translate(0, -150 * z); c.rotate(tilt);
+      rr(c, -230 * z, -12 * z, 460 * z, 24 * z, 12 * z); shape(c, col || '#FFD23F', lw, st);
+      for (const s2 of [-1, 1]) { c.save(); c.translate(s2 * 210 * z, 0); c.rotate(-tilt); c.strokeStyle = st; c.lineWidth = 4 * z; c.beginPath(); c.moveTo(0, 0); c.lineTo(-60 * z, 110 * z); c.moveTo(0, 0); c.lineTo(60 * z, 110 * z); c.stroke(); c.beginPath(); c.ellipse(0, 115 * z, 85 * z, 22 * z, 0, 0, Math.PI); shape(c, '#FFD23F', lw, st); c.restore(); }
+      c.restore(); break;
+    }
+    case 'chart': {
+      rr(c, -230 * z, -180 * z, 460 * z, 340 * z, 24 * z); shape(c, '#FFFFFF', lw, st);
+      c.shadowColor = 'transparent';
+      [0.3, 0.5, 0.45, 0.75, 1].forEach((v, k) => { const g = spring((lt - 0.2 - k * 0.12) / 0.35), bh = v * 240 * z * g; rr(c, (-190 + k * 80) * z, 130 * z - bh, 56 * z, Math.max(1, bh), 10 * z); shape(c, k === 4 ? (col || '#2ECC71') : '#9FD3F4', 4 * z, st); });
+      break;
+    }
+    case 'coin': {
+      const sq = Math.abs(Math.cos(t * 2.5));
+      c.beginPath(); c.ellipse(0, 0, 80 * z * Math.max(0.15, sq), 80 * z, 0, 0, Math.PI * 2); shape(c, col || '#FFC23D', lw, st);
+      if (sq > 0.4) { c.font = FONT(80 * z * sq); c.fillStyle = '#C98A00'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', 0, 4 * z); }
+      break;
+    }
+    case 'clock': {
+      c.beginPath(); c.arc(0, 0, 140 * z, 0, Math.PI * 2); shape(c, col || '#FFFFFF', lw, st);
+      c.shadowColor = 'transparent';
+      for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; c.beginPath(); c.moveTo(Math.cos(a) * 110 * z, Math.sin(a) * 110 * z); c.lineTo(Math.cos(a) * 125 * z, Math.sin(a) * 125 * z); c.strokeStyle = st; c.lineWidth = 6 * z; c.stroke(); }
+      for (const [len, sp2, wd] of [[70, 0.3, 10], [105, 3.6, 6]] as const) { const a = t * sp2 - Math.PI / 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * len * z, Math.sin(a) * len * z); c.lineCap = 'round'; c.lineWidth = wd * z; c.stroke(); }
+      break;
+    }
+    case 'stamp': {
+      const label = (text || 'OK').toUpperCase().slice(0, 14); c.font = FONT(60 * z); const tw = c.measureText(label).width + 70 * z;
+      rr(c, -tw / 2, -55 * z, tw, 110 * z, 22 * z); shape(c, col || '#FFFFFF', lw, st);
+      c.shadowColor = 'transparent'; c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, 0, 4 * z); break;
+    }
+    case 'xmark': case 'check': {
+      c.beginPath(); c.arc(0, 0, 110 * z, 0, Math.PI * 2); shape(c, type === 'xmark' ? (col || '#E63946') : (col || '#2ECC71'), lw, st);
+      c.shadowColor = 'transparent'; c.strokeStyle = '#FFFFFF'; c.lineWidth = 26 * z; c.lineCap = 'round'; c.beginPath();
+      if (type === 'xmark') { c.moveTo(-50 * z, -50 * z); c.lineTo(50 * z, 50 * z); c.moveTo(50 * z, -50 * z); c.lineTo(-50 * z, 50 * z); }
+      else { c.moveTo(-55 * z, 5 * z); c.lineTo(-15 * z, 45 * z); c.lineTo(60 * z, -45 * z); }
+      c.stroke(); break;
+    }
+    case 'hand': {
+      const tap = Math.max(0, Math.sin(lt * 4)) * 14 * z; c.translate(0, -tap);
+      rr(c, -45 * z, -40 * z, 90 * z, 110 * z, 34 * z); shape(c, SKIN, lw, st);
+      rr(c, -16 * z, -140 * z, 32 * z, 120 * z, 16 * z); shape(c, SKIN, lw, st);
+      rr(c, -60 * z, 60 * z, 120 * z, 70 * z, 14 * z); shape(c, col || '#2E3650', lw, st); break;
+    }
+    case 'dog': case 'cat': {
+      const fur = col || (type === 'dog' ? '#C68B59' : '#F4A261'), wag = Math.sin(t * (type === 'dog' ? 12 : 3)) * 0.4;
+      c.save(); c.translate(110 * z, 10 * z); c.rotate(-0.8 + wag); rr(c, -10 * z, -80 * z, 20 * z, 80 * z, 10 * z); shape(c, fur, lw, st); c.restore();
+      c.beginPath(); c.ellipse(0, 30 * z, 120 * z, 70 * z, 0, 0, Math.PI * 2); shape(c, fur, lw, st);
+      for (const s2 of [-70, -25, 25, 70]) { rr(c, (s2 - 14) * z, 70 * z, 28 * z, 50 * z, 12 * z); shape(c, fur, 5 * z, st); }
+      c.save(); c.translate(-110 * z, -60 * z); c.rotate(Math.sin(t * 1.3) * 0.08);
+      if (type === 'dog') for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 55 * z, 0, 22 * z, 45 * z, s2 * 0.3, 0, Math.PI * 2); shape(c, '#8D5524', lw, st); }
+      else for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 20 * z, -50 * z); c.lineTo(s2 * 60 * z, -95 * z); c.lineTo(s2 * 65 * z, -30 * z); c.closePath(); shape(c, fur, lw, st); }
+      c.beginPath(); c.arc(0, 0, 70 * z, 0, Math.PI * 2); shape(c, fur, lw, st);
+      const bl = ((t + 1.1) % 3.2) < 0.15 ? 0.15 : 1;
+      for (const s2 of [-1, 1]) { c.beginPath(); c.ellipse(s2 * 25 * z, -8 * z, 9 * z, 12 * z * bl, 0, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); }
+      c.beginPath(); c.ellipse(0, 20 * z, 14 * z, 10 * z, 0, 0, Math.PI * 2); c.fillStyle = INK; c.fill(); c.restore(); break;
+    }
+    case 'crowd': {
+      const cols = ['#577590', '#E76F51', '#2A9D8F', '#8B6FD6', '#F4A261', '#4A5873'];
+      for (let k = 0; k < 7; k++) { const x = (-300 + k * 100) * z, bob = Math.sin(t * 2 + k) * 4 * z, back = k % 2 ? -30 * z : 0;
+        c.beginPath(); c.moveTo(x - 45 * z, 120 * z); c.quadraticCurveTo(x - 45 * z, 20 * z + back + bob, x, 15 * z + back + bob); c.quadraticCurveTo(x + 45 * z, 20 * z + back + bob, x + 45 * z, 120 * z); c.closePath(); shape(c, col || cols[k % cols.length], 5 * z, st);
+        c.beginPath(); c.arc(x, -25 * z + back + bob, 32 * z, 0, Math.PI * 2); shape(c, SKIN, 5 * z, st); }
+      break;
+    }
+    case 'skyline': {
+      [[-330, 260], [-230, 380], [-120, 300], [-10, 440], [110, 330], [220, 400], [320, 280]].forEach(([x, hh], k) => {
+        rr(c, (x - 50) * z, (120 - hh) * z, 100 * z, hh * z, 4 * z); shape(c, col || ['#3D405B', '#4A4E69', '#22223B'][k % 3], 5 * z, st);
+        c.shadowColor = 'transparent';
+        for (let y = 140 - hh; y < 100; y += 45) for (const dx of [-25, 10]) { c.fillStyle = rand(x * 7 + y + k) > 0.4 ? '#FFE66D' : '#2B2D42'; c.fillRect((x + dx) * z, y * z, 18 * z, 22 * z); }
+      });
+      for (let k = 0; k < 4; k++) { const x = ((t * 120 + k * 230) % 900 - 450) * z; c.fillStyle = k % 2 ? '#E63946' : '#3A86FF'; rr(c, x - 30 * z, 128 * z, 60 * z, 24 * z, 8 * z); c.fill(); c.beginPath(); c.arc(x + 30 * z, 138 * z, 6 * z, 0, Math.PI * 2); c.fillStyle = '#FFF3B0'; c.fill(); }
+      break;
     }
   }
 }

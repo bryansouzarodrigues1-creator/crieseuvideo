@@ -39,3 +39,5 @@ use the editor.
 - New explainer props and characters are code-drawn in src/studio/explainer/render.ts rather than stored images/videos, because drawing is free and needs no asset storage or AI generation.
 - Explainer projects and the drawing gallery autosave in browser localStorage (src/studio/explainer/library.ts); uploaded narration audio is not persisted, so saved projects drop track timing.
 - ElevenLabs narration is a prepared path in /api/ai/narrate (provider "elevenlabs" + voiceId) that activates only when ELEVENLABS_API_KEY is linked via the connector.
+
+- AI drawings are auto-stored in a tagged local asset vault (library.ts) and the most relevant ones are sent to the director so it reuses them instead of redrawing; reuse costs no extra AI output.
