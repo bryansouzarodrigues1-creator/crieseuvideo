@@ -1,3 +1,4 @@
+import { cueRule } from "@/studio/explainer/keywords";
 import { createFileRoute } from "@tanstack/react-router";
 import { askAi, parseJson } from "@/studio/server/ai";
 import { DRAWING_GUIDE } from "@/studio/explainer/drawing";
@@ -25,7 +26,8 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         const parts: string[] = [];
         for (let i = 0; i < sentences.length; i += size) parts.push(sentences.slice(i, i + size).join(" "));
         const direct = (script: string) => askAi(`Você é diretor de animações explicativas 2D para redes sociais (estilo cartoon plano, legenda palavra por palavra).
-Divida o roteiro em cenas curtas (uma ideia por cena, 4 a 18 palavras, máx 40 cenas), mantendo o texto original fiel.
+Divida o roteiro em cenas curtas (uma ideia por cena, 4 a 18 palavras, máx 40 cenas). FIDELIDADE TOTAL: o campo "text" deve conter EXATAMENTE as palavras do roteiro, na ordem, sem inventar, resumir ou acrescentar frases. Todo desenho deve caber inteiro dentro da tela.
+${cueRule(script)}
 Para cada cena escolha o visual que MELHOR ilustra o significado:
 - visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
