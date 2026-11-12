@@ -9,7 +9,14 @@ const P = 'stickstory-projects-v1', G = 'stickstory-gallery-v1';
 const read = <T,>(k: string): T[] => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
 const write = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-export const listProjects = () => read<SavedProject>(P).sort((a, b) => b.updatedAt - a.updatedAt);
+// Old builds autosaved the built-in pizzaria demo many times; drop those copies for good.
+const isOldDemo = (p: SavedProject) => (p.script || '').startsWith('Ele criou um site para a pizzaria do bairro');
+export const listProjects = () => {
+  const all = read<SavedProject>(P);
+  const kept = all.filter((p) => !isOldDemo(p));
+  if (kept.length !== all.length) write(P, kept);
+  return kept.sort((a, b) => b.updatedAt - a.updatedAt);
+};
 export function saveProject(p: SavedProject) {
   // Uploaded narration is not stored, so saved timing must not claim a track.
   const plan = { ...p.plan, track: undefined, scenes: p.plan.track ? p.plan.scenes.map(({ voice: _v, ...s }) => s) : p.plan.scenes };
