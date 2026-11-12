@@ -231,6 +231,26 @@ function phone(c: CanvasRenderingContext2D, u: number, local: number, chat: stri
   c.fillStyle = INK; lines.forEach((l, i) => c.fillText(l, bx + 20 * u, by + 36 * u + i * 36 * u));
 }
 
+function profile(c: CanvasRenderingContext2D, u: number, local: number, name?: string) {
+  const w = 420 * u, h = 780 * u, top = -h / 2 + 18 * u;
+  rr(c, -w / 2, -h / 2, w, h, 56 * u); shape(c, INK, 6 * u);
+  rr(c, -w / 2 + 18 * u, top, w - 36 * u, h - 36 * u, 40 * u); shape(c, PAPER, 0.001);
+  c.save(); rr(c, -w / 2 + 18 * u, top, w - 36 * u, 190 * u, 40 * u); c.clip(); const g = c.createLinearGradient(-w / 2, 0, w / 2, 0); g.addColorStop(0, '#F58529'); g.addColorStop(1, '#DD2A7B'); c.fillStyle = g; c.fillRect(-w / 2, top, w, 200 * u); c.restore();
+  c.beginPath(); c.arc(0, top + 190 * u, 70 * u * pop(local, 0.1), 0, Math.PI * 2); shape(c, SKIN, 6 * u);
+  c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = BODY(30 * u, 800); c.fillText(name || '@seuperfil', 0, top + 300 * u);
+  const s = pop(local, 0.4); rr(c, -150 * u, top + 340 * u, 300 * u, 66 * u, 20 * u); shape(c, '#2F80ED', 5 * u); c.fillStyle = '#FFFFFF'; c.fillText('Seguir', 0, top + 374 * u);
+  const pulse = 1 + 0.06 * Math.sin(local * 8) * clamp(local - 0.8);
+  c.save(); c.translate(0, top + 470 * u); c.scale(pulse * pop(local, 0.7), pulse * pop(local, 0.7)); rr(c, -170 * u, -40 * u, 340 * u, 80 * u, 20 * u); shape(c, '#FFE066', 6 * u); c.fillStyle = INK; c.font = BODY(30 * u, 900); c.fillText('🔗 LINK NA BIO', 0, 2 * u); c.restore();
+  void s;
+  const ay = top + 560 * u + Math.sin(local * 6) * 10 * u; c.beginPath(); c.moveTo(0, ay - 40 * u); c.lineTo(-34 * u, ay + 10 * u); c.lineTo(34 * u, ay + 10 * u); c.closePath(); shape(c, '#E63946', 5 * u);
+}
+
+/** Captions + label only, drawn over the 3D engine frame. */
+export function drawOverlay(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
+  const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080, at = sceneAt(plan, t);
+  if (at) caption(c, at.scene, at.local, w, h * 0.13, u);
+}
+
 function laptop(c: CanvasRenderingContext2D, u: number, local: number, label?: string) {
   const w = 620 * u, h = 400 * u;
   rr(c, -w / 2, -h / 2, w, h, 24 * u); shape(c, INK, 6 * u);
@@ -423,6 +443,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     if (isProp) c.rotate(rot);
     switch (scene.visual) {
       case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
+      case 'profile': profile(c, u, local, scene.label); break;
       case 'laptop': laptop(c, u, local, scene.label); break;
       case 'map_pins': mapPins(c, u, local); break;
       case 'clock': clock(c, u, local); break;
@@ -441,7 +462,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     }
   });
   c.restore();
-  if (scene.label && scene.visual !== 'laptop' && scene.visual !== 'phone_chat' && scene.visual !== 'chips')
+  if (scene.label && scene.visual !== 'laptop' && scene.visual !== 'phone_chat' && scene.visual !== 'profile' && scene.visual !== 'chips')
     badge(c, scene.label.toUpperCase(), w / 2, portrait ? h * 0.3 : h * 0.27, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
   caption(c, scene, local, w, portrait ? h * 0.13 : h * 0.13, u);
 }

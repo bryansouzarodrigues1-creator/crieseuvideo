@@ -41,3 +41,6 @@ use the editor.
 - ElevenLabs narration is a prepared path in /api/ai/narrate (provider "elevenlabs" + voiceId) that activates only when ELEVENLABS_API_KEY is linked via the connector.
 
 - AI drawings are auto-stored in a tagged local asset vault (library.ts) and the most relevant ones are sent to the director so it reuses them instead of redrawing; reuse costs no extra AI output.
+- The explainer has two engines: Motion 2D (render.ts) and 3D Toon (toon3d.ts, Three.js cel-shading, lazy-loaded); the 3D frame is drawn into the same 2D canvas with captions on top so preview and MP4 export share one pipeline.
+- A keyword bank (src/studio/explainer/keywords.ts) maps script words to required visuals before the AI directs, so meaning (e.g. "link na bio" = profile) doesn't depend on AI guessing.
+- Every generation and its yes/no feedback is stored in explainer_generations (service-role only, via /api/ai/feedback); recent "no" reasons are injected into the director prompt so it learns from real misses.

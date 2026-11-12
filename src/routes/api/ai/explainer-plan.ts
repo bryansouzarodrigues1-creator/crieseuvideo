@@ -19,6 +19,12 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
           : mode === "gallery"
             ? `MODO GALERIA: o usuário tem desenhos salvos. Quando um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ") || "(vazia)"}. Fora isso, prefira os visuais prontos; use custom só quando nada servir.`
             : "PREFIRA custom sempre que o roteiro citar objetos, lugares, ações ou personagens específicos (fogo, cadeira, bombeiros, casa, animais, pessoas nomeadas). Use os visuais prontos só quando servem exatamente.";
+        let lessons = "";
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data } = await supabaseAdmin.from("explainer_generations").select("reason").eq("rating", "no").not("reason", "is", null).order("rated_at", { ascending: false }).limit(12);
+          if (data?.length) lessons = `ERROS QUE USUÁRIOS JÁ REPORTARAM (nunca repita): ${data.map((d) => d.reason).join(" | ")}`;
+        } catch { /* learning is optional */ }
         if (script.length < 4) return Response.json({ error: "Escreva um roteiro um pouco maior." }, { status: 400 });
         // Long scripts are directed in parallel chunks so rich creative drawings never hit the time limit and fall back to ready-made visuals.
         const sentences = script.match(/[^.!?…\n]+[.!?…]*/g)?.map((x) => x.trim()).filter(Boolean) ?? [script];
@@ -28,8 +34,9 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         const direct = (script: string) => askAi(`Você é diretor de animações explicativas 2D para redes sociais (estilo cartoon plano, legenda palavra por palavra).
 Divida o roteiro em cenas curtas (uma ideia por cena, 4 a 18 palavras, máx 40 cenas). FIDELIDADE TOTAL: o campo "text" deve conter EXATAMENTE as palavras do roteiro, na ordem, sem inventar, resumir ou acrescentar frases. Todo desenho deve caber inteiro dentro da tela.
 ${cueRule(script)}
+${lessons}
 Para cada cena escolha o visual que MELHOR ilustra o significado:
-- visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
+- visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando (só para conversa/WhatsApp); profile = celular mostrando perfil de rede social com LINK NA BIO e botão seguir; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - ${DRAWING_GUIDE}
 - ${SETTING_GUIDE} Sempre preencha "setting" em todas as cenas.

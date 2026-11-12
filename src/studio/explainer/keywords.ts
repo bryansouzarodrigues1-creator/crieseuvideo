@@ -2,7 +2,7 @@
 export type Cue = { tag: string; words: string[]; hint: string };
 
 export const KEYWORD_BANK: Cue[] = [
-  { tag: "CTA_BIO", words: ["bio", "link na bio", "link da bio", "perfil", "seguir", "siga", "arrasta pra cima"], hint: "phone mostrando um PERFIL de rede social (foto, nome, botão Seguir, link da bio em destaque) + hand apontando. NUNCA chat/WhatsApp." },
+  { tag: "CTA_BIO", words: ["bio", "link na bio", "link da bio", "perfil", "seguir", "siga", "arrasta pra cima"], hint: "visual profile (perfil com LINK NA BIO). NUNCA phone_chat/WhatsApp." },
   { tag: "CHAT", words: ["whatsapp", "mensagem", "conversa", "chat", "direct", "dm"], hint: "phone com balões de conversa (visual phone_chat)." },
   { tag: "WEBSITE", words: ["site", "página", "pagina", "landing", "loja virtual", "internet"], hint: "laptop com site sendo montado." },
   { tag: "MONEY", words: ["dinheiro", "renda", "lucro", "faturar", "ganhar", "vender", "venda", "reais", "r$"], hint: "coin/money grandes, chart subindo." },

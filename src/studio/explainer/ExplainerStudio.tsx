@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
 import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
 import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
-import { drawExplainerFrame } from './render';
+import { drawExplainerFrame, drawOverlay } from './render';
+import { detectCues } from './keywords';
+import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
@@ -16,7 +18,7 @@ Então ele mostrou o site pronto, com nome, endereço e botão de WhatsApp.
 Vendeu na primeira conversa.
 Agora a pergunta é: vai ser você?`;
 
-const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
+const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular (conversa)', profile: 'Perfil / link na bio', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
@@ -33,6 +35,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
   const [voiceOn, setVoiceOn] = useState(true);
   const [voicing, setVoicing] = useState<number | null>(null);
+  const [engine, setEngine] = useState<'2d' | '3d'>('3d');
+  const toonRef = useRef<Toon3D | null>(null);
+  const [toonReady, setToonReady] = useState(0);
+  const [genId, setGenId] = useState<string | null>(null);
+  const [rated, setRated] = useState<'yes' | 'no' | 'sent' | null>(null);
+  const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'creative' | 'gallery'>('creative');
   const [provider, setProvider] = useState<'gemini' | 'eleven'>('gemini');
   const [elevenId, setElevenId] = useState('');
@@ -92,8 +100,25 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const total = totalDuration(plan);
 
   useEffect(() => { document.fonts?.load("40px 'Lilita One'").then(() => draw(timeRef.current)); }, []);
-  const draw = (t: number) => { const c = canvasRef.current?.getContext('2d'); if (c) drawExplainerFrame(c, plan, t); };
-  useEffect(() => { draw(timeRef.current); }, [plan]);
+  useEffect(() => {
+    if (engine !== '3d' || toonRef.current) return;
+    let alive = true;
+    import('./toon3d').then(({ Toon3D }) => { if (alive) { toonRef.current = new Toon3D(); setToonReady((n) => n + 1); } });
+    return () => { alive = false; };
+  }, [engine]);
+  const draw = (t: number) => {
+    const c = canvasRef.current?.getContext('2d'); if (!c) return;
+    const toon = toonRef.current;
+    if (engine === '3d' && toon && plan.scenes.length) { toon.render(plan, t, c.canvas.width, c.canvas.height); c.drawImage(toon.canvas, 0, 0); drawOverlay(c, plan, t); }
+    else drawExplainerFrame(c, plan, t);
+  };
+  useEffect(() => { draw(timeRef.current); }, [plan, engine, toonReady]);
+  const rate = async (rating: 'yes' | 'no', why = '') => {
+    if (!genId) return;
+    if (rating === 'no' && !why) { setRated('no'); return; }
+    setRated('sent');
+    await fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'rate', id: genId, rating, reason: why || undefined }) }).catch(() => {});
+  };
 
   useEffect(() => {
     if (!playing) return;
@@ -106,7 +131,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     raf = requestAnimationFrame(loop);
     const stop = startAudio(timeRef.current);
     return () => { cancelAnimationFrame(raf); stop(); };
-  }, [playing, plan, total]);
+  }, [playing, plan, total, engine, toonReady]);
 
   // Library: load on mount, autosave the current project after edits.
   useEffect(() => {
@@ -119,7 +144,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now() }); setProjects(listProjects()); }, 800);
     return () => clearTimeout(id);
   }, [plan, script, projectId]);
-  const openProject = (p: SavedProject) => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); seek(0); setLibrary(false); };
+  const openProject = (p: SavedProject) => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
   const newProject = () => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
 
   const transcribe = async (blob: Blob, name: string) => {
@@ -175,6 +200,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setPlan(track ? fitToTrack(data.plan, track.duration) : data.plan); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
+      setGenId(null); setRated(null); setReason('');
+      fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: text, plan: data.plan, engine, keywords: detectCues(text).map((c) => c.tag) }) })
+        .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
       setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
       if (voiceOn && !track) await narrate(data.plan);
       setPlaying(true);
@@ -240,6 +268,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <label className="explainer-file-btn"><Upload />{trackName ? 'Trocar áudio' : 'Usar meu áudio'}<input type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void useOwnAudio(f); }} /></label>
             {trackName && <Button size="sm" variant="ghost" onClick={removeTrack} aria-label="Remover áudio"><X />{trackName.slice(0, 18)}</Button>}
           </div>
+          <p className="explainer-label">Estilo de animação</p>
+          <div className="explainer-row">
+            <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
+            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+          </div>
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
             {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
@@ -301,6 +334,22 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <span className="explainer-time">{fmt(time)} / {fmt(total)}</span>
             <Button onClick={exportVideo} disabled={recording !== null}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
           </div>
+          {genId && rated !== 'sent' && (
+            <div className="explainer-scene" role="group" aria-label="Avaliação">
+              <div className="explainer-scene-body">
+                <strong>Era o que você queria?</strong>
+                <div className="explainer-row">
+                  <Button size="sm" variant="secondary" onClick={() => void rate('yes')}><ThumbsUp />Sim</Button>
+                  <Button size="sm" variant={rated === 'no' ? 'default' : 'secondary'} onClick={() => void rate('no')}><ThumbsDown />Não</Button>
+                </div>
+                {rated === 'no' && (<>
+                  <textarea className="explainer-textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="O que ficou errado? Ex: falei de link na bio e apareceu WhatsApp" aria-label="Motivo" />
+                  <Button size="sm" onClick={() => void rate('no', reason.trim() || 'sem motivo')}>Enviar</Button>
+                </>)}
+              </div>
+            </div>
+          )}
+          {rated === 'sent' && <p className="explainer-note" role="status">Obrigado! A IA vai usar isso nos próximos vídeos.</p>}
           <p className="explainer-hint"><Wand2 /> Toque numa cena para ir até ela e troque o visual, a expressão ou a etiqueta.</p>
         </section>
       </main>

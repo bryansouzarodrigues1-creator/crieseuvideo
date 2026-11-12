@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      explainer_generations: {
+        Row: {
+          created_at: string
+          engine: string
+          id: string
+          keywords: string[]
+          plan: Json
+          rated_at: string | null
+          rating: string | null
+          reason: string | null
+          script: string
+        }
+        Insert: {
+          created_at?: string
+          engine?: string
+          id?: string
+          keywords?: string[]
+          plan: Json
+          rated_at?: string | null
+          rating?: string | null
+          reason?: string | null
+          script: string
+        }
+        Update: {
+          created_at?: string
+          engine?: string
+          id?: string
+          keywords?: string[]
+          plan?: Json
+          rated_at?: string | null
+          rating?: string | null
+          reason?: string | null
+          script?: string
+        }
+        Relationships: []
+      }
       studio_ai_state: {
         Row: {
           id: string

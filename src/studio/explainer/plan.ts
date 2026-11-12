@@ -1,7 +1,7 @@
 import { normalizeDrawing, type Shape } from './drawing';
 import { SETTINGS, type Setting } from './settings';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
-export const VISUALS = ['character', 'phone_chat', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
+export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
 export const PALETTES = ['orange', 'purple', 'teal', 'pink', 'night'] as const;
 export type Visual = (typeof VISUALS)[number];
@@ -24,7 +24,7 @@ export interface ExplainerScene {
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
@@ -79,6 +79,7 @@ export function wordAt(scene: ExplainerScene, local: number) {
 const has = (s: string, re: RegExp) => re.test(s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
 
 export function pickVisual(sentence: string): Visual {
+  if (has(sentence, /\bbio\b|perfil|seguidor|siga|instagram|tiktok/)) return 'profile';
   if (has(sentence, /whats|mensage|celular|telefone|conversa|chamou/)) return 'phone_chat';
   if (has(sentence, /noite|cidade|predio|rua/)) return 'city_night';
   if (has(sentence, /mapa|bairro|empresa|loja|endereco|google/)) return 'map_pins';

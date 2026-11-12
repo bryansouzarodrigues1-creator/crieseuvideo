@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiAiExplainerPlanRouteImport } from './routes/api/ai/explainer-plan'
+import { Route as ApiAiFeedbackRouteImport } from './routes/api/ai/feedback'
 import { Route as ApiAiGenerateCaptionsRouteImport } from './routes/api/ai/generate-captions'
 import { Route as ApiAiGenerateStoryboardRouteImport } from './routes/api/ai/generate-storyboard'
 import { Route as ApiAiNarrateRouteImport } from './routes/api/ai/narrate'
@@ -25,6 +26,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiAiExplainerPlanRoute = ApiAiExplainerPlanRouteImport.update({
   id: '/api/ai/explainer-plan',
   path: '/api/ai/explainer-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiFeedbackRoute = ApiAiFeedbackRouteImport.update({
+  id: '/api/ai/feedback',
+  path: '/api/ai/feedback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiGenerateCaptionsRoute = ApiAiGenerateCaptionsRouteImport.update({
@@ -56,6 +62,7 @@ const ApiAiTranscribeRoute = ApiAiTranscribeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
+  '/api/ai/feedback': typeof ApiAiFeedbackRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/narrate': typeof ApiAiNarrateRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
+  '/api/ai/feedback': typeof ApiAiFeedbackRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/narrate': typeof ApiAiNarrateRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
+  '/api/ai/feedback': typeof ApiAiFeedbackRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
   '/api/ai/generate-storyboard': typeof ApiAiGenerateStoryboardRoute
   '/api/ai/narrate': typeof ApiAiNarrateRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/ai/explainer-plan'
+    | '/api/ai/feedback'
     | '/api/ai/generate-captions'
     | '/api/ai/generate-storyboard'
     | '/api/ai/narrate'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api/ai/explainer-plan'
+    | '/api/ai/feedback'
     | '/api/ai/generate-captions'
     | '/api/ai/generate-storyboard'
     | '/api/ai/narrate'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/ai/explainer-plan'
+    | '/api/ai/feedback'
     | '/api/ai/generate-captions'
     | '/api/ai/generate-storyboard'
     | '/api/ai/narrate'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAiExplainerPlanRoute: typeof ApiAiExplainerPlanRoute
+  ApiAiFeedbackRoute: typeof ApiAiFeedbackRoute
   ApiAiGenerateCaptionsRoute: typeof ApiAiGenerateCaptionsRoute
   ApiAiGenerateStoryboardRoute: typeof ApiAiGenerateStoryboardRoute
   ApiAiNarrateRoute: typeof ApiAiNarrateRoute
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ai/explainer-plan'
       fullPath: '/api/ai/explainer-plan'
       preLoaderRoute: typeof ApiAiExplainerPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai/feedback': {
+      id: '/api/ai/feedback'
+      path: '/api/ai/feedback'
+      fullPath: '/api/ai/feedback'
+      preLoaderRoute: typeof ApiAiFeedbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/generate-captions': {
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAiExplainerPlanRoute: ApiAiExplainerPlanRoute,
+  ApiAiFeedbackRoute: ApiAiFeedbackRoute,
   ApiAiGenerateCaptionsRoute: ApiAiGenerateCaptionsRoute,
   ApiAiGenerateStoryboardRoute: ApiAiGenerateStoryboardRoute,
   ApiAiNarrateRoute: ApiAiNarrateRoute,
