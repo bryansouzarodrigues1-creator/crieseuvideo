@@ -4,7 +4,7 @@ import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from '.
 import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/types';
 import * as THREE from 'three';
 import { sceneAt, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
-import { spring } from './render';
+import { spring, drawBoardArt } from './render';
 
 const INK = 0x1c1824;
 const HOODIE: Record<string, number> = { orange: 0xf28c28, purple: 0x7b5cd6, teal: 0x23a59a, pink: 0xe5578f, night: 0x3b4a7a };
@@ -214,17 +214,25 @@ export class Toon3D {
   private rig: ToonCharacterRig | null = null;
   private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
-  private labelSign: THREE.Mesh | null = null;
+  private holder: THREE.Group | null = null;
+  private board: THREE.Group | null = null;
+  private boardSize = { w: 2.15, h: 1.62 };
+  private boardCanvas: HTMLCanvasElement;
+  private boardCtx: CanvasRenderingContext2D;
+  private boardTex: THREE.CanvasTexture;
   private shot: { from: Shot; to: Shot } | null = null;
   constructor() {
     this.canvas = document.createElement('canvas');
+    this.boardCanvas = document.createElement('canvas'); this.boardCanvas.width = 1024; this.boardCanvas.height = 772;
+    this.boardCtx = this.boardCanvas.getContext('2d')!;
+    this.boardTex = new THREE.CanvasTexture(this.boardCanvas); this.boardTex.colorSpace = THREE.SRGBColorSpace; this.boardTex.anisotropy = 4;
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, preserveDrawingBuffer: true });
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.add(this.world);
   }
   private build(scene: ExplainerScene, index: number, portrait: boolean) {
-    this.world.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); const mat = m.material as THREE.Material & { map?: THREE.Texture }; if (mat && mat !== OUTLINE) { mat.map?.dispose(); mat.dispose?.(); } });
+    this.world.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); const mat = m.material as THREE.Material & { map?: THREE.Texture }; if (mat && mat !== OUTLINE && (mat as THREE.MeshBasicMaterial).map !== this.boardTex) { mat.map?.dispose(); mat.dispose?.(); } });
     this.world.clear();
     const night = scene.palette === 'night' || scene.setting === 'night' || scene.setting === 'space' || scene.visual === 'city_night';
     this.scene.background = new THREE.Color(sky(scene.setting || (night ? 'night' : 'sky_day')));
@@ -233,25 +241,41 @@ export class Toon3D {
     const sun = new THREE.DirectionalLight(night ? 0xaab8ff : 0xfff1d6, night ? 1.4 : 2.4); sun.position.set(-4, 8, 6); sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
-    const set = buildSet(scene, this.world, night, index + 1);
-    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: 0x22325a }); this.rigPos = { x: 0, y: 0, z: 0 }; const holder = new THREE.Group(); holder.position.y = 1.62; holder.scale.setScalar(1.15); holder.add(this.rig.root); this.world.add(holder);
-    this.prop = heroProp(scene);
-    // alternate cinematic shots so consecutive scenes never share framing
-    const kind = this.prop ? (index % 2 ? 'prop_close' : 'two_shot') : (['medium', 'close', 'wide'] as const)[index % 3];
-    const back = portrait ? 1.45 : 1;
-    if (this.prop) {
-      this.prop.position.set(kind === 'prop_close' ? 0 : 1.25, 1.6, kind === 'prop_close' ? 1.4 : 0.6); this.world.add(this.prop);
-      if (kind === 'prop_close') this.rigPos = { x: -1.3, y: 0, z: -0.8 };
+    buildSet(scene, this.world, night, index + 1);
+    const handProp = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
+    // Composition: the host stands in front; the scene illustration lives on a big presentation board
+    // (portrait: above the host, landscape: beside him), so any script line has a matching visual.
+    const L = portrait
+      ? { host: new THREE.Vector3(0, 0, 0.9), board: new THREE.Vector3(0, 3.45, -0.6), bw: 2.15, bh: 1.62 }
+      : { host: new THREE.Vector3(-1.35, 0, 0.6), board: new THREE.Vector3(1.05, 2.25, -0.4), bw: 2.7, bh: 2.03 };
+    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: 0x22325a }, handProp); this.rigPos = { x: 0, y: 0, z: 0 };
+    const holder = new THREE.Group(); holder.position.set(L.host.x, portrait ? 1.05 : 1.62, L.host.z); holder.scale.setScalar(1.15); holder.add(this.rig.root); this.world.add(holder);
+    this.holder = holder;
+    // board: dark bezel + live 2D illustration texture + two stand legs down to the floor
+    const board = new THREE.Group(); board.position.copy(L.board); this.world.add(board);
+    const bezel = toon(new THREE.BoxGeometry(L.bw + 0.16, L.bh + 0.16, 0.08), 0x1c1824, { outline: 0.02 }); bezel.position.z = -0.05; board.add(bezel);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(L.bw, L.bh), new THREE.MeshBasicMaterial({ map: this.boardTex, toneMapped: false })); face.position.z = 0.0; board.add(face);
+    [-1, 1].forEach((sd) => { const leg = toon(new THREE.CylinderGeometry(0.035, 0.035, L.board.y, 8), 0x3a3a46, { outline: 0.03 }); leg.position.set(sd * L.bw * 0.38, -L.board.y / 2, -0.1); board.add(leg); });
+    this.board = board; this.boardSize = { w: L.bw, h: L.bh };
+    // shots alternate scene by scene: two-shot (host + board), board close-up, host close-up (board still behind)
+    const kinds = ['two', 'board', 'two', 'host'] as const, kind = kinds[index % kinds.length]!;
+    const tan = Math.tan(THREE.MathUtils.degToRad(21)), aspect = portrait ? 9 / 16 : 16 / 9;
+    const mid = L.board.clone().add(new THREE.Vector3(L.host.x, 2.2, L.host.z)).multiplyScalar(0.5);
+    let look: THREE.Vector3, dist: number;
+    if (portrait) {
+      if (kind === 'board') { look = L.board.clone().add(new THREE.Vector3(0, -0.2, 0)); dist = (L.bw / 0.9) / aspect / 2 / tan; }
+      else if (kind === 'host') { look = new THREE.Vector3(0, 2.05, L.host.z); dist = 3.1; }
+      else { look = new THREE.Vector3(0, 2.55, 0); dist = (L.bw / 0.82) / aspect / 2 / tan + 0.6; }
+    } else {
+      if (kind === 'board') { look = L.board.clone().add(new THREE.Vector3(-0.3, -0.15, 0)); dist = (L.bh / 0.7) / 2 / tan; }
+      else if (kind === 'host') { look = new THREE.Vector3(L.host.x + 0.5, 2.3, L.host.z); dist = 3.4; }
+      else { look = mid.setY(2.05); dist = 5.2; }
     }
-    const look = kind === 'prop_close' ? new THREE.Vector3(0, 1.7, 1.4) : kind === 'two_shot' ? new THREE.Vector3(0.6, 1.6, 0) : kind === 'close' ? new THREE.Vector3(0, 2, 0) : new THREE.Vector3(0, 1.4, 0);
-    const dist = (kind === 'close' ? 2.6 : kind === 'prop_close' ? 3 : kind === 'wide' ? 8 : 5) * back;
-    const ang = kind === 'wide' ? 0.55 : index % 2 ? 0.25 : -0.25, hgt = kind === 'wide' ? 2.6 : 0.3;
+    const ang = kind === 'board' ? 0 : index % 2 ? 0.16 : -0.16, hgt = 0.15;
     const to = { pos: new THREE.Vector3(look.x + Math.sin(ang) * dist, look.y + hgt, look.z + Math.cos(ang) * dist), look };
-    const from = { pos: to.pos.clone().multiplyScalar(1).add(new THREE.Vector3(-Math.sin(ang) * 1.2, 0.4, 1.2)), look: look.clone() };
+    const from = { pos: to.pos.clone().add(new THREE.Vector3(-Math.sin(ang) * 0.6, 0.15, 0.7)), look: look.clone() };
     this.shot = { from, to };
-    this.labelSign = scene.label ? sign(scene.label) : null;
-    if (this.labelSign) { this.labelSign.position.set(look.x, look.y + (kind === 'close' ? 1.05 : 1.9), look.z + 0.3); this.world.add(this.labelSign); }
-    void set;
+    holder.visible = kind !== 'board'; // board close-ups are clean cutaways: no half-cut host under the caption
   }
   render(plan: ExplainerPlan, t: number, w: number, h: number) {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
@@ -260,36 +284,32 @@ export class Toon3D {
     const { scene, local, index } = at, portrait = h > w;
     const key = `${index}|${scene.text}|${scene.visual}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}`;
     if (key !== this.key) { this.key = key; this.build(scene, index, portrait); }
+    // live board illustration (same code-drawn art as the 2D engine)
+    const bc = this.boardCanvas, bw = 1024, bh = Math.round(1024 * (this.boardSize.h / this.boardSize.w));
+    if (bc.width !== bw || bc.height !== bh) { bc.width = bw; bc.height = bh; this.boardTex.dispose(); }
+    drawBoardArt(this.boardCtx, scene, local, t); this.boardTex.needsUpdate = true;
+    if (this.board) { const s = spring((local - 0.05) / 0.5); this.board.scale.setScalar(Math.max(0.001, 0.85 + 0.15 * s)); this.board.rotation.y = portrait ? 0 : -0.12; }
     const wd = wordAt(scene, local);
     const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) : 0;
     if (this.rig) {
       const expression: FacialExpression = scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
-      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : this.prop ? (local < 1.6 ? 'pointing' : 'talking') : talk > 0 ? 'talking' : 'idle';
-      const ch: ToonCharacter = { id: 'host', pose, expression, gaze: this.prop ? 'lookAtProp' : 'lookAtCamera', prop: 'none', position: this.rigPos, rotationY: this.prop ? 0.25 : 0, scale: 1 };
+      const hasHandProp = scene.visual === 'phone_chat' || scene.visual === 'profile' || scene.visual === 'money';
+      // present the board for the first beat of each scene, then talk to camera
+      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle';
+      const prop = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
+      const ch: ToonCharacter = { id: 'host', pose, expression, gaze: hasHandProp ? 'lookAtProp' : 'lookAtCamera', prop, position: this.rigPos, rotationY: 0, scale: 1 };
       updateCharacterRig(this.rig, ch, t);
+      // turn slightly toward the board while pointing at it
+      if (this.holder) this.holder.rotation.y = pose === 'pointing' ? (portrait ? 0 : 0.35) : (portrait ? 0 : 0.18);
+      if (pose === 'pointing' && portrait) this.rig.head.rotation.x -= 0.18; // glance up at the board
     }
-    // glance at the hero prop but keep the face toward camera
-    if (this.rig && this.prop) this.rig.head.rotation.y += clamp(Math.atan2(this.prop.position.x - this.rig.root.position.x, 3), -0.35, 0.35) * (0.5 + 0.5 * Math.sin(t * 0.8));
-    if (this.prop) {
-      const s = spring((local - 0.15) / 0.55); this.prop.scale.setScalar(Math.max(0.001, s));
-      this.prop.rotation.y = Math.sin(t * 1.2) * 0.25; this.prop.position.y = 1.6 + Math.sin(t * 1.8) * 0.05;
-      this.prop.children.forEach((ch) => {
-        const d = ch.userData;
-        if (d.spin) ch.rotation.z = t * d.spin * 2;
-        if (d.grow) { const k = clamp(spring((local - 0.3) / 0.8)); ch.scale.y = Math.max(0.01, k); ch.position.y = (d.grow * k) / 2; }
-        if (d.hand) ch.rotation.z = -t * d.hand;
-        if (d.drop !== undefined) ch.position.y = Math.max(0, 1.5 * (1 - spring((local - 0.3 - d.drop) / 0.5)));
-        if (d.swing) ch.rotation.z = Math.sin(t * 2.4) * 0.18;
-      });
-    }
-    if (this.labelSign) { const s = spring((local - 0.45) / 0.45); this.labelSign.scale.setScalar(Math.max(0.001, s)); this.labelSign.rotation.z = -0.05 + Math.sin(t * 2) * 0.03; this.labelSign.lookAt(this.camera.position); }
     this.world.children.forEach((o) => { if (o.userData.drift) o.position.x += 0.004 * o.userData.drift; });
     if (this.shot) {
-      const k = ease(local / 0.9), push = Math.min(local, 8) * 0.03;
+      const k = ease(local / 0.9), push = Math.min(local, 8) * 0.025;
       const pos = this.shot.from.pos.clone().lerp(this.shot.to.pos, k);
       const dir = this.shot.to.look.clone().sub(pos).normalize(); pos.addScaledVector(dir, push);
       const kick = Math.max(0, 1 - local / 0.3);
-      pos.x += Math.sin(local * 60) * 0.03 * kick; pos.y += Math.cos(local * 50) * 0.03 * kick;
+      pos.x += Math.sin(local * 60) * 0.02 * kick; pos.y += Math.cos(local * 50) * 0.02 * kick;
       this.camera.position.copy(pos); this.camera.lookAt(this.shot.to.look);
     }
     this.renderer.render(this.scene, this.camera);

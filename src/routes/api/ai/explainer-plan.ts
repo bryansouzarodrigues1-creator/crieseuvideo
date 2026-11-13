@@ -15,7 +15,7 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         const mode = body.mode === "gallery" ? "gallery" : "creative";
         const gallery: { id: string; name: string; drawing: unknown }[] = Array.isArray(body.gallery) ? body.gallery.slice(0, 80).filter((g: any) => g && typeof g.id === "string" && typeof g.name === "string" && Array.isArray(g.drawing)) : [];
         const modeRule = mode === "creative"
-          ? `MODO CRIATIVO: use visual=custom em TODAS as cenas e desenhe cenários completos e ricos (céu/chão/fundo, objetos, personagens, 10 a 22 formas bem compostas, um foco claro por cena). Nunca repita a mesma composição. ALTERNÂNCIA: nunca use o mesmo tipo de plano em duas cenas seguidas; alterne entre close do personagem (bust grande reagindo), objeto herói gigante (phone, laptop, scale, chart, clock...), metáfora/carimbo (stamp, xmark, check), plano aberto (skyline, crowd, cenário com personagem). Um HERÓI grande por cena ocupando 60-70% da área.${gallery.length ? ` GALERIA/COFRE (desenhos já prontos, custo zero): se um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing (economiza). Caso contrário desenhe do zero. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ")}.` : ""}`
+          ? `MODO CRIATIVO: use visual=custom em TODAS as cenas e desenhe composições limpas (4 a 12 formas, no máximo 6 objetos, um foco claro por cena, nada sobreposto). Nunca repita a mesma composição. ALTERNÂNCIA: nunca use o mesmo tipo de plano em duas cenas seguidas; alterne entre close do personagem (bust grande reagindo), objeto herói gigante (phone, laptop, scale, chart, clock...), metáfora/carimbo (stamp, xmark, check), plano aberto (skyline, crowd, cenário com personagem). Um HERÓI grande por cena ocupando 60-70% da área.${gallery.length ? ` GALERIA/COFRE (desenhos já prontos, custo zero): se um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing (economiza). Caso contrário desenhe do zero. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ")}.` : ""}`
           : mode === "gallery"
             ? `MODO GALERIA: o usuário tem desenhos salvos. Quando um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ") || "(vazia)"}. Fora isso, prefira os visuais prontos; use custom só quando nada servir.`
             : "PREFIRA custom sempre que o roteiro citar objetos, lugares, ações ou personagens específicos (fogo, cadeira, bombeiros, casa, animais, pessoas nomeadas). Use os visuais prontos só quando servem exatamente.";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         if (script.length < 4) return Response.json({ error: "Escreva um roteiro um pouco maior." }, { status: 400 });
         // Long scripts are directed in parallel chunks so rich creative drawings never hit the time limit and fall back to ready-made visuals.
         const sentences = script.match(/[^.!?…\n]+[.!?…]*/g)?.map((x) => x.trim()).filter(Boolean) ?? [script];
-        const size = mode === "creative" ? 1 : 8;
+        const size = mode === "creative" ? 3 : 8; // 3 sentences per call: a third of the requests, still fast enough for rich drawings
         const parts: string[] = [];
         for (let i = 0; i < sentences.length; i += size) parts.push(sentences.slice(i, i + size).join(" "));
         const direct = (script: string) => askAi(`Você é diretor de animações explicativas 2D para redes sociais (estilo cartoon plano, legenda palavra por palavra).
@@ -52,6 +52,25 @@ Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","la
         const results = (await Promise.all(parts.map((p) => direct(p)))).map(parseJson);
         const ok = results.filter((r) => r && Array.isArray(r.scenes));
         const raw = ok.length ? { title: ok[0].title, scenes: results.flatMap((r, i) => (r && Array.isArray(r.scenes) ? r.scenes : [{ text: parts[i] }])) } : null;
+        // A IA escolhe direção visual e divisão; o texto final é reconstruído somente com palavras do roteiro original.
+        // Isso impede frases inventadas, duplicadas ou omitidas, mesmo se o modelo devolver texto divergente.
+        if (raw && Array.isArray(raw.scenes)) {
+          const sourceWords = script.match(/\S+/g) ?? [];
+          const generated = raw.scenes.slice(0, Math.min(40, sourceWords.length));
+          const weights = generated.map((sc: any) => Math.max(1, String(sc?.text ?? "").trim().split(/\s+/).filter(Boolean).length));
+          const weightTotal = weights.reduce((sum: number, value: number) => sum + value, 0) || 1;
+          let cursor = 0;
+          raw.scenes = generated.map((sc: any, i: number) => {
+            const scenesLeft = generated.length - i - 1;
+            const proposed = i === generated.length - 1
+              ? sourceWords.length - cursor
+              : Math.max(1, Math.round(sourceWords.length * weights[i] / weightTotal));
+            const take = Math.min(sourceWords.length - cursor - scenesLeft, proposed);
+            const exactText = sourceWords.slice(cursor, cursor + take).join(" ");
+            cursor += take;
+            return { ...sc, text: exactText };
+          });
+        }
         if (raw && Array.isArray(raw.scenes)) for (const sc of raw.scenes) {
           const hit = sc && gallery.find((g) => g.id === sc.gallery);
           if (hit) { sc.visual = "custom"; sc.drawing = hit.drawing; }

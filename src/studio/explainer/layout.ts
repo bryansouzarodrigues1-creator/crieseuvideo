@@ -63,7 +63,66 @@ function contain(s: Shape): Shape {
   return dx || dy ? move(s, dx, dy) : s;
 }
 
+const area = (b: Box) => Math.max(1, b.x1 - b.x0) * Math.max(1, b.y1 - b.y0);
+const isItem = (s: Shape) => !isBackdrop(s) && s.anim !== 'drive' && s.type !== 'line';
+/** Most foreground objects a scene may show; extra ones were the clutter that stacked on top of each other. */
+export const MAX_ITEMS = 6;
+
+/**
+ * Generic anti-collision: two foreground objects that cover a real part of each other are pushed apart along
+ * the shortest axis (and shrunk if the zone is too tight). Small details placed on a much bigger object
+ * (a flame on a house, a coin in a hand) are intentional and stay where the AI put them.
+ */
+function separate(input: Shape[], origSize: number[]): Shape[] {
+  const shapes = [...input];
+  for (let pass = 0; pass < 6; pass++) {
+    let moved = false;
+    for (let i = 0; i < shapes.length; i++) for (let j = i + 1; j < shapes.length; j++) {
+      const a = shapes[i]!, b = shapes[j]!;
+      if (!isItem(a) || !isItem(b)) continue;
+      const A = shapeBox(a), B = shapeBox(b), small = Math.min(area(A), area(B)), big = Math.max(area(A), area(B));
+      const words = a.type === 'text' || b.type === 'text' || a.type === 'bubble' || b.type === 'bubble' || a.type === 'stamp' || b.type === 'stamp';
+      if (!words && small < big * 0.15) continue; // detail on a bigger object
+      if (overlap(A, B) <= small * (words ? 0.02 : 0.2)) continue;
+      const px = Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0), py = Math.min(A.y1, B.y1) - Math.max(A.y0, B.y0);
+      // the later shape always gives way: the AI lists the hero first
+      const moveB = true;
+      const k = moveB ? j : i, other = moveB ? A : B, me = moveB ? B : A;
+      const sx = (me.x0 + me.x1) / 2 >= (other.x0 + other.x1) / 2 ? 1 : -1, sy = (me.y0 + me.y1) / 2 >= (other.y0 + other.y1) / 2 ? 1 : -1;
+      let next = px <= py ? move(shapes[k]!, sx * (px + 16), 0) : move(shapes[k]!, 0, sy * (py + 16));
+      next = contain(next);
+      shapes[k] = next; moved = true;
+    }
+    if (!moved) break;
+  }
+  // whatever still collides (or had to shrink to a speck) is dropped: a clean frame beats a crowded one.
+  // Earlier shapes win, because the AI lists the hero first.
+  const kept: Shape[] = [];
+  shapes.forEach((s, i) => {
+    if (!isItem(s)) { kept.push(s); return; }
+    const shrunk = (s.size ?? 1) / (origSize[i] ?? 1);
+    if (shrunk < 0.45 || (s.type === 'text' && (s.size ?? 1) < 0.5)) return;
+    const B = shapeBox(s);
+    const clash = kept.some((k) => {
+      if (!isItem(k)) return false;
+      const A = shapeBox(k), small = Math.min(area(A), area(B)), big = Math.max(area(A), area(B));
+      const words = [s, k].some((x) => x.type === 'text' || x.type === 'bubble' || x.type === 'stamp');
+      if (!words && small < big * 0.15) return false;
+      return overlap(A, B) > small * (words ? 0.05 : 0.25);
+    });
+    if (!clash) kept.push(s);
+  });
+  return kept;
+}
+
 export function layoutDrawing(input: Shape[]): Shape[] {
+  // one short word label at most (the caption already says the line) and a bounded number of objects
+  let texts = 0, items = 0;
+  input = input.filter((s) => {
+    if (s.type === 'text') return ++texts <= 1;
+    if (isItem(s)) return ++items <= MAX_ITEMS;
+    return true;
+  }).map((s) => (s.type === 'text' && s.text ? { ...s, text: s.text.split(/\s+/).slice(0, 3).join(' ') } : s));
   // backdrops (floors, walls, desks) only must not climb under the caption
   let shapes = input.map((s) => {
     if (s.type === 'text') { const max = 820 / Math.max(1, (s.text?.length ?? 1) * 38); return { ...s, size: Math.min(s.size ?? 1, max, 1.6) }; }
@@ -92,6 +151,7 @@ export function layoutDrawing(input: Shape[]): Shape[] {
     }
     shapes[i] = s;
   }
+  shapes = separate(shapes, input.map((s) => s.size ?? 1));
   // two characters never stand inside each other
   for (let i = 0; i < shapes.length; i++) for (let j = i + 1; j < shapes.length; j++) {
     const a = shapes[i]!, b = shapes[j]!;

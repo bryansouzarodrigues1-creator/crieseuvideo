@@ -476,6 +476,50 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
 
+function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, t: number, u: number, talk: number, beat: number) {
+  switch (scene.visual) {
+    case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
+    case 'profile': profile(c, u, local, scene.label); break;
+    case 'laptop': laptop(c, u, local, scene.label); break;
+    case 'map_pins': mapPins(c, u, local); break;
+    case 'clock': clock(c, u, local); break;
+    case 'scale': scale(c, u, local, scene.chips || []); break;
+    case 'eye': eye(c, u, local); break;
+    case 'chart_up': chartUp(c, u, local); break;
+    case 'money': money(c, u, local); break;
+    case 'chips': {
+      const chips = scene.chips?.length ? scene.chips : words(scene.text).filter((x) => x.length > 4).slice(0, 4);
+      chips.forEach((ch, i) => badge(c, ch.toUpperCase(), (i % 2 ? 1 : -1) * 170 * u + Math.sin(t * 2 + i) * 6 * u, (-180 + i * 120) * u + Math.cos(t * 1.7 + i) * 6 * u, u, pop(local, 0.3 + i * 0.25), (i % 2 ? 0.05 : -0.05) + Math.sin(t * 1.5 + i) * 0.02, i % 2 ? '#FFFFFF' : '#3DDC97'));
+      break;
+    }
+    case 'city_night': break;
+    case 'custom': customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, beat); break;
+    default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, beat);
+  }
+}
+
+/**
+ * The scene's illustration alone (backdrop + hero visual, no caption/label), fitted inside the given canvas.
+ * The 3D engine paints this onto the presentation board next to the host, so every script line gets
+ * a matching visual in 3D too without modelling new 3D objects.
+ */
+export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, t: number) {
+  const w = c.canvas.width, h = c.canvas.height;
+  c.clearRect(0, 0, w, h);
+  sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  // a lone host on the board would duplicate the 3D host: show the scene's key words instead
+  const art: ExplainerScene = scene.visual === 'character' || scene.visual === 'city_night' ? { ...scene, visual: 'chips', label: undefined } : scene;
+  const wd = wordAt(scene, local);
+  const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) : 0;
+  const ext = padRect(heroExtent(art, 1), 30);
+  const zone: Rect = { x0: w * 0.05, y0: h * 0.06, x1: w * 0.95, y1: h * 0.94 };
+  const s = fitScale(ext, zone, Infinity) * (1 + Math.min(local, 8) * 0.006);
+  const spot = centerIn(ext, zone, s);
+  c.save(); c.beginPath(); c.rect(0, 0, w, h); c.clip();
+  withPop(c, spot.x, spot.y, s * Math.min(1, pop(local, 0.1, 0.5)), () => drawHero(c, art, local, t, 1, talk, wd?.since ?? 1));
+  c.restore();
+}
+
 function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
   if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
@@ -503,25 +547,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   if (scene.visual === 'money') { c.beginPath(); c.rect(0, 0, w, z.caption.y0 - 4 * u); c.clip(); }
   withPop(c, px, spot.y + (isProp ? float : 0), Math.min(1, enter) * sBase * push * (1 - exit * 0.15), () => {
     if (isProp) c.rotate(rot);
-    switch (scene.visual) {
-      case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
-      case 'profile': profile(c, u, local, scene.label); break;
-      case 'laptop': laptop(c, u, local, scene.label); break;
-      case 'map_pins': mapPins(c, u, local); break;
-      case 'clock': clock(c, u, local); break;
-      case 'scale': scale(c, u, local, scene.chips || []); break;
-      case 'eye': eye(c, u, local); break;
-      case 'chart_up': chartUp(c, u, local); break;
-      case 'money': money(c, u, local); break;
-      case 'chips': {
-        const chips = scene.chips?.length ? scene.chips : words(scene.text).filter((x) => x.length > 4).slice(0, 4);
-        chips.forEach((ch, i) => badge(c, ch.toUpperCase(), (i % 2 ? 1 : -1) * 170 * u + Math.sin(t * 2 + i) * 6 * u, (-180 + i * 120) * u + Math.cos(t * 1.7 + i) * 6 * u, u, pop(local, 0.3 + i * 0.25), (i % 2 ? 0.05 : -0.05) + Math.sin(t * 1.5 + i) * 0.02, i % 2 ? '#FFFFFF' : '#3DDC97'));
-        break;
-      }
-      case 'city_night': break;
-      case 'custom': customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, wd?.since ?? 1); break;
-      default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, wd?.since ?? 1);
-    }
+    drawHero(c, scene, local, t, u, talk, wd?.since ?? 1);
   });
   c.restore();
   // label badge: fixed slot above the hero zone
