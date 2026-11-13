@@ -40,6 +40,7 @@ Para cada cena escolha o visual que MELHOR ilustra o significado:
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - ${DRAWING_GUIDE}
 - ${SETTING_GUIDE} Sempre preencha "setting" em todas as cenas.
+- presenterPose (opcional): escolha um de [idle, talking, pointing, running, shocked] SOMENTE quando houver ação humana concreta ou reação do apresentador. 'running' para correr/fugir, 'shocked' para se assustar, 'pointing' para mostrar/apontar. Caso contrário omita; não repita gestos genéricos.
 - mood: um de [${MOODS.join(", ")}]
 - palette: um de [${PALETTES.join(", ")}], varie entre cenas; use night para momentos tristes ou finais
 - label: etiqueta curta opcional (ex: "3 MESES DEPOIS...", "DE GRAÇA")
@@ -48,7 +49,7 @@ ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - highlight: palavras do texto para destacar em amarelo
 Roteiro:
 """${script}"""
-Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting"}]}`);
+Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose"}]}`);
         const results = (await Promise.all(parts.map((p) => direct(p)))).map(parseJson);
         const ok = results.filter((r) => r && Array.isArray(r.scenes));
         const raw = ok.length ? { title: ok[0].title, scenes: results.flatMap((r, i) => (r && Array.isArray(r.scenes) ? r.scenes : [{ text: parts[i] }])) } : null;
