@@ -39,12 +39,12 @@ export function getBestSupportedVideoMimeType(): { mimeType: string; extension: 
     ];
     for (const candidate of webmCandidates) {
       if (MediaRecorder.isTypeSupported(candidate)) {
-        return { mimeType: candidate, extension: 'mp4' };
+        return { mimeType: candidate, extension: 'webm' };
       }
     }
   }
 
-  return { mimeType: 'video/mp4', extension: 'mp4' };
+  throw new Error('Este navegador não oferece um formato de gravação de vídeo compatível.');
 }
 
 export class VideoExportManager {
@@ -129,7 +129,7 @@ export class VideoExportManager {
 
       this.mediaRecorder.onstop = () => {
         this.cleanupLoops();
-        const blob = new Blob(this.recordedChunks, { type: 'video/mp4' });
+        const blob = new Blob(this.recordedChunks, { type: mimeType.split(';')[0] });
         const videoUrl = URL.createObjectURL(blob);
         onComplete(blob, videoUrl, mimeType);
       };
