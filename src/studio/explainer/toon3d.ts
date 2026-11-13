@@ -234,18 +234,19 @@ export class Toon3D {
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
     const set = buildSet(scene, this.world, night, index + 1);
-    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: 0x22325a }); this.rigPos = { x: 0, y: 0, z: 0 }; const holder = new THREE.Group(); holder.position.y = 1.62; holder.scale.setScalar(1.15); holder.add(this.rig.root); this.world.add(holder);
-    this.prop = heroProp(scene);
-    // alternate cinematic shots so consecutive scenes never share framing
-    const kind = this.prop ? (index % 2 ? 'prop_close' : 'two_shot') : (['medium', 'close', 'wide'] as const)[index % 3];
-    const back = portrait ? 1.45 : 1;
+    const handProp = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
+    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: 0x22325a }, handProp); this.rigPos = { x: 0, y: 0, z: 0 }; const holder = new THREE.Group(); holder.position.y = 1.62; holder.scale.setScalar(1.15); holder.add(this.rig.root); this.world.add(holder);
+    // Objetos de destaque continuam no cenário; celular e dinheiro são acoplados à mão direita.
+    this.prop = handProp === 'none' ? heroProp(scene) : null;
+    const kind = this.prop ? 'prop_close' : 'medium';
+    const back = portrait ? 1 : 1;
     if (this.prop) {
-      this.prop.position.set(kind === 'prop_close' ? 0 : 1.25, 1.6, kind === 'prop_close' ? 1.4 : 0.6); this.world.add(this.prop);
-      if (kind === 'prop_close') this.rigPos = { x: -1.3, y: 0, z: -0.8 };
+      this.prop.position.set(1.05, 1.85, 0.55); this.world.add(this.prop);
     }
-    const look = kind === 'prop_close' ? new THREE.Vector3(0, 1.7, 1.4) : kind === 'two_shot' ? new THREE.Vector3(0.6, 1.6, 0) : kind === 'close' ? new THREE.Vector3(0, 2, 0) : new THREE.Vector3(0, 1.4, 0);
-    const dist = (kind === 'close' ? 2.6 : kind === 'prop_close' ? 3 : kind === 'wide' ? 8 : 5) * back;
-    const ang = kind === 'wide' ? 0.55 : index % 2 ? 0.25 : -0.25, hgt = kind === 'wide' ? 2.6 : 0.3;
+    // Plano médio vertical: enquadra da cintura para cima e preserva espaço para os gestos.
+    const look = new THREE.Vector3(0, 2.05, 0);
+    const dist = (portrait ? 3.65 : 4.2) * back;
+    const ang = this.prop ? 0.18 : 0, hgt = 0.12;
     const to = { pos: new THREE.Vector3(look.x + Math.sin(ang) * dist, look.y + hgt, look.z + Math.cos(ang) * dist), look };
     const from = { pos: to.pos.clone().multiplyScalar(1).add(new THREE.Vector3(-Math.sin(ang) * 1.2, 0.4, 1.2)), look: look.clone() };
     this.shot = { from, to };
@@ -264,8 +265,10 @@ export class Toon3D {
     const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) : 0;
     if (this.rig) {
       const expression: FacialExpression = scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
-      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : this.prop ? (local < 1.6 ? 'pointing' : 'talking') : talk > 0 ? 'talking' : 'idle';
-      const ch: ToonCharacter = { id: 'host', pose, expression, gaze: this.prop ? 'lookAtProp' : 'lookAtCamera', prop: 'none', position: this.rigPos, rotationY: this.prop ? 0.25 : 0, scale: 1 };
+      const hasHandProp = scene.visual === 'phone_chat' || scene.visual === 'profile' || scene.visual === 'money';
+      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : this.prop ? (local < 1.6 ? 'pointing' : 'talking') : talk > 0 ? 'talking' : 'idle';
+      const prop = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
+      const ch: ToonCharacter = { id: 'host', pose, expression, gaze: hasHandProp ? 'lookAtProp' : 'lookAtCamera', prop, position: this.rigPos, rotationY: 0, scale: 1 };
       updateCharacterRig(this.rig, ch, t);
     }
     // glance at the hero prop but keep the face toward camera
