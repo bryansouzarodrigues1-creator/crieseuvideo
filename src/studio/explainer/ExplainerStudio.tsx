@@ -8,7 +8,7 @@ import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
-import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import { audioCues, missingNarrationScenes, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -271,17 +271,15 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       if (voiceOn) {
         if (plan.track && !trackRef.current) throw new Error('O áudio enviado não está mais disponível. Envie-o novamente.');
         if (!plan.track) {
-          const missing: number[] = [];
-          for (let i = 0; i < plan.scenes.length; i++) {
-            const scene = plan.scenes[i];
-            if (!scene.voice) { missing.push(i + 1); continue; }
+          for (const scene of plan.scenes) {
+            if (!scene.voice) continue;
             const key = `${voiceKey}|${scene.text}`;
             if (!buffers.current.has(key)) {
               const cached = await getCachedNarration(ac, scene.text, voiceKey);
               if (cached) buffers.current.set(key, cached);
-              else missing.push(i + 1);
             }
           }
+          const missing = missingNarrationScenes({ plan, voiceKey, buffers: buffers.current });
           if (missing.length) throw new Error(`Narração ausente nas cenas ${missing.join(', ')}. Use "Gerar voz" antes de baixar. Nenhum crédito foi gasto.`);
         }
       }
