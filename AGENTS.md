@@ -44,3 +44,5 @@ use the editor.
 - The explainer has two engines: Motion 2D (render.ts) and 3D Toon (toon3d.ts, Three.js cel-shading, lazy-loaded); the 3D frame is drawn into the same 2D canvas with captions on top so preview and MP4 export share one pipeline.
 - A keyword bank (src/studio/explainer/keywords.ts) maps script words to required visuals before the AI directs, so meaning (e.g. "link na bio" = profile) doesn't depend on AI guessing.
 - Every generation and its yes/no feedback is stored in explainer_generations (service-role only, via /api/ai/feedback); recent "no" reasons are injected into the director prompt so it learns from real misses.
+- The 3D Toon host is the procedural articulated rig in src/studio/explainer/toon/characterRig.ts (driven by pose/expression from scene mood), so characters stay code-drawn and deterministic by time.
+- Every 2D layer draws inside one rigid zone from safeZone.ts and exports use exportTimeline.ts (offline audio mix, frames at n/30), so text never overlaps and MP4s never cut early.

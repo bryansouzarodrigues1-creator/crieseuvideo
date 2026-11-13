@@ -8,6 +8,7 @@ import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
+import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -55,6 +56,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const voiceKey = provider === 'eleven' ? `eleven:${elevenId.trim()}` : voice;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const exportingRef = useRef(false);
   const buffers = useRef(new Map<string, AudioBuffer>());
   const ctx = () => (audioRef.current ??= new AudioContext());
 
@@ -106,7 +108,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     import('./toon3d').then(({ Toon3D }) => { if (alive) { toonRef.current = new Toon3D(); setToonReady((n) => n + 1); } });
     return () => { alive = false; };
   }, [engine]);
-  const draw = (t: number) => {
+  const draw = (t: number, force = false) => {
+    if (exportingRef.current && !force) return;
     const c = canvasRef.current?.getContext('2d'); if (!c) return;
     const toon = toonRef.current;
     if (engine === '3d' && toon && plan.scenes.length) { toon.render(plan, t, c.canvas.width, c.canvas.height); c.drawImage(toon.canvas, 0, 0); drawOverlay(c, plan, t); }
@@ -121,7 +124,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   };
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || exportingRef.current) return;
     let raf = 0, last = performance.now();
     const loop = (now: number) => {
       timeRef.current += (now - last) / 1000; last = now;
@@ -214,32 +217,90 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
   const voiced = plan.scenes.length > 0 && (plan.track ? !!trackRef.current : plan.scenes.every((s) => s.voice));
 
-  const exportVideo = () => {
-    const canvas = canvasRef.current; if (!canvas || typeof MediaRecorder === 'undefined') { setNote('Este navegador não grava vídeo.'); return; }
-    setPlaying(false);
-    const { mimeType } = getBestSupportedVideoMimeType();
-    const stream = canvas.captureStream(30);
-    const dest = voiced ? ctx().createMediaStreamDestination() : null;
-    dest?.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr));
-    const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
-    let stopAudio = () => {};
-    const chunks: Blob[] = [];
-    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    rec.onstop = () => {
+      /**
+   * Deterministic export. Timeline = source of truth:
+   *  - frame 0 is drawn at t = 0 before recording starts;
+   *  - narration/track is mixed offline onto the timeline (sample-exact) and played once, only into the recorder;
+   *  - the audio clock (or performance.now when silent) drives t, and each frame is drawn at an exact n / fps;
+   *  - the recorder stops only after the whole timeline plus the tail has been rendered AND the audio has ended.
+   */
+  const exportVideo = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') { setNote('Este navegador não grava vídeo.'); return; }
+    if (exportingRef.current || !plan.scenes.length) return;
+    exportingRef.current = true; setPlaying(false); setRecording(0); setNote('');
+    let timer = 0, src: AudioBufferSourceNode | null = null, stream: MediaStream | null = null;
+    try {
+      unlockAudio();
+      await document.fonts?.load("40px 'Lilita One'").catch(() => {});
+      const ac = ctx(); await ac.resume();
+      const fps = EXPORT_FPS;
+
+      // 1) timeline + audio mixdown
+      const cues = voiced ? audioCues({ plan, voiceKey, buffers: buffers.current, track: trackRef.current }) : [];
+      const duration = exportDuration(plan, cues);
+      const silent = cues.length > 0 && ac.state !== 'running';
+      if (silent) setNote('O navegador bloqueou o áudio: exportando sem voz.');
+      const mix = cues.length && !silent ? await mixdown(cues, duration, ac.sampleRate) : null;
+
+      // 2) the first frame is t = 0, on screen before the recorder starts
+      timeRef.current = 0; setTime(0); draw(0, true);
+
+      // 3) video track: frames are pushed by us (requestFrame) when supported, otherwise sampled at fps
+      stream = canvas.captureStream(0);
+      const vtrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack;
+      const manual = typeof vtrack?.requestFrame === 'function';
+      if (!manual) { vtrack?.stop(); stream = canvas.captureStream(fps); }
+      const push = () => { if (manual) vtrack.requestFrame(); };
+      const dest = mix ? ac.createMediaStreamDestination() : null;
+      dest?.stream.getAudioTracks().forEach((tr) => stream!.addTrack(tr));
+
+      const { mimeType } = getBestSupportedVideoMimeType();
+      const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000, ...(mix ? { audioBitsPerSecond: 128_000 } : {}) });
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      const stopped = new Promise<void>((resolve, reject) => {
+        rec.onstop = () => resolve();
+        rec.onerror = (e) => reject((e as unknown as { error?: Error }).error ?? new Error('Falha na gravação do vídeo.'));
+      });
+      rec.start(250);
+      push(); // frame 0
+
+      // 4) one clock for picture and sound; the audio starts LEAD seconds after the recorder (t = 0 held meanwhile)
+      const LEAD = 0.15, startAt = ac.currentTime + LEAD, perf0 = performance.now() + LEAD * 1000;
+      if (mix && dest) { src = ac.createBufferSource(); src.buffer = mix; src.connect(dest); src.start(startAt); }
+      const clock = () => (mix ? ac.currentTime - startAt : (performance.now() - perf0) / 1000);
+
+      let frame = 0, pct = -1;
+      await new Promise<void>((resolve, reject) => {
+        timer = window.setInterval(() => {
+          try {
+            const now = clock(), t = Math.min(Math.max(0, now), duration), n = Math.floor(t * fps + 1e-6);
+            if (n !== frame) { frame = n; draw(n / fps, true); push(); }
+            const p = Math.min(99, Math.round((t / duration) * 100)); if (p !== pct) { pct = p; setRecording(p); }
+            if (now >= duration) { window.clearInterval(timer); resolve(); }
+          } catch (e) { window.clearInterval(timer); reject(e); }
+        }, 1000 / (fps * 2));
+      });
+
+      // 5) last frame held, audio ended: flush and stop
+      draw(Math.floor(duration * fps) / fps, true); push();
+      await new Promise((r) => setTimeout(r, 150));
+      rec.requestData(); rec.stop(); await stopped;
       const blob = new Blob(chunks, { type: mimeType.split(';')[0] });
+      if (!blob.size) throw new Error('A gravação saiu vazia.');
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
       a.download = `${plan.title.replace(/[^\p{L}\d]+/gu, '-').slice(0, 40) || 'animacao'}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`; a.click();
-      setRecording(null); seek(0);
-    };
-    rec.start(250);
-    if (dest) stopAudio = startAudio(0, dest);
-    const start = performance.now();
-    const loop = () => {
-      const t = (performance.now() - start) / 1000;
-      if (t >= total) { stopAudio(); rec.stop(); return; }
-      draw(t); setRecording(Math.round((t / total) * 100)); requestAnimationFrame(loop);
-    };
-    requestAnimationFrame(loop);
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      if (!silent) setNote(`Vídeo exportado: ${duration.toFixed(1)} s${mix ? ', com voz' : ''}.`);
+    } catch (e: any) {
+      setNote(`Não consegui exportar: ${e?.message || e}`);
+    } finally {
+      window.clearInterval(timer);
+      try { src?.stop(); } catch {}
+      stream?.getTracks().forEach((tr) => tr.stop());
+      exportingRef.current = false; setRecording(null); seek(0);
+    }
   };
 
   const current = sceneAt(plan, time)?.index ?? 0;
@@ -326,11 +387,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
         <section className="explainer-stage">
           <div className={`explainer-canvas-wrap ${aspect === '9:16' ? 'is-portrait' : ''}`}>
-            <canvas ref={canvasRef} key={aspect} {...dims} onClick={() => { unlockAudio(); setPlaying((p) => !p); }} />
+            <canvas ref={canvasRef} key={aspect} {...dims} onClick={() => { if (exportingRef.current) return; unlockAudio(); setPlaying((p) => !p); }} />
           </div>
           <div className="explainer-controls">
             <Button size="icon" variant="secondary" onClick={() => { unlockAudio(); setPlaying((p) => !p); }} aria-label={playing ? 'Pausar' : 'Reproduzir'} disabled={recording !== null}>{playing ? <Pause /> : <Play />}</Button>
-            <input type="range" min={0} max={total} step={0.01} value={time} onChange={(e) => { setPlaying(false); seek(Number(e.target.value)); }} aria-label="Linha do tempo" />
+            <input type="range" min={0} max={total} step={0.01} value={time} onChange={(e) => { setPlaying(false); seek(Number(e.target.value)); }} aria-label="Linha do tempo" disabled={recording !== null} />
             <span className="explainer-time">{fmt(time)} / {fmt(total)}</span>
             <Button onClick={exportVideo} disabled={recording !== null}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
           </div>

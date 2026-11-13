@@ -2,7 +2,8 @@
 import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
-import { laidOut } from './layout';
+import { laidOut, foregroundExtent } from './layout';
+import { frameZones, fitScale, centerIn, padRect, scaleRect, MAX_CAPTION_LINES, type FrameZones, type Rect } from './safeZone';
 
 const PAL: Record<string, [string, string]> = {
   orange: ['#F08A3C', '#E46F2A'], purple: ['#8B6FD6', '#6E52C2'], teal: ['#2FA8A8', '#22898C'],
@@ -42,32 +43,60 @@ function sunburst(c: CanvasRenderingContext2D, w: number, h: number, pal: [strin
   c.fillStyle = g; c.fillRect(0, 0, w, h);
 }
 
-function caption(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, w: number, y: number, u: number) {
+/** Caption pages: fixed font size per scene, at most MAX_CAPTION_LINES lines per page, stable between frames. */
+interface CapPage { from: number; to: number; lines: number[][]; size: number }
+const pageCache = new Map<string, CapPage[]>();
+export function captionPages(c: CanvasRenderingContext2D, all: string[], maxW: number, design: number, minSize: number): CapPage[] {
+  c.font = FONT(design);
+  const key = `${all.join(' ')}|${Math.round(maxW)}|${Math.round(design)}|${Math.round(c.measureText('MMMMMMMM').width)}`;
+  const hit = pageCache.get(key); if (hit) return hit;
+  const up = all.map((x) => x.toUpperCase());
+  // one font size for the whole scene: shrink until the longest single word fits the line width
+  let size = design;
+  const widest = () => { c.font = FONT(size); return Math.max(...up.map((x) => c.measureText(x).width)); };
+  while (widest() > maxW && size > minSize) size -= 2;
+  c.font = FONT(size);
+  const sp = c.measureText(' ').width, wordW = up.map((x) => c.measureText(x).width);
+  const pages: CapPage[] = [];
+  let page: CapPage = { from: 0, to: -1, lines: [[]], size }, lw = 0;
+  all.forEach((_, i) => {
+    let line = page.lines[page.lines.length - 1];
+    if (line.length && lw + sp + wordW[i] > maxW) {
+      if (page.lines.length >= MAX_CAPTION_LINES) { pages.push(page); page = { from: i, to: i - 1, lines: [[]], size }; }
+      else page.lines.push([]);
+      line = page.lines[page.lines.length - 1]; lw = 0;
+    }
+    lw += (line.length ? sp : 0) + wordW[i]; line.push(i); page.to = i;
+  });
+  if (page.to >= page.from) pages.push(page);
+  if (pageCache.size > 200) pageCache.clear();
+  pageCache.set(key, pages);
+  return pages;
+}
+
+/**
+ * Word-by-word caption locked to the bottom band of the frame: never more than 2 lines, the last
+ * line always sits on the same baseline and nothing else is ever drawn inside the band.
+ */
+function caption(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, z: FrameZones, u: number) {
   const wd = wordAt(scene, local); if (!wd) return;
   const all = words(scene.text), key = (x: string) => x.toLowerCase().replace(/[^\p{L}\d]/gu, '');
   const hlSet = new Set((scene.highlight || []).map(key));
-  // show the phrase chunk (max 6 words) containing the spoken word, in up to 2 centered lines
-  const start = Math.floor(wd.index / 6) * 6, chunk = all.slice(start, start + 6);
-  const maxW = w * 0.84; let size = 78 * u, lines: string[][] = [];
-  for (;;) {
-    c.font = FONT(size); lines = [[]]; const sp = c.measureText(' ').width;
-    let lw = 0;
-    for (const x of chunk) { const ww = c.measureText(x.toUpperCase()).width; if (lw && lw + sp + ww > maxW) { lines.push([]); lw = 0; } lines[lines.length - 1].push(x); lw += (lw ? sp : 0) + ww; }
-    const widest = Math.max(...lines.map((l) => c.measureText(l.join(' ').toUpperCase()).width));
-    if ((lines.length <= 2 && widest <= maxW) || size < 30 * u) break;
-    size -= 4 * u;
-  }
-  const lh = size * 1.12, fade = pop(local, 0, 0.2);
-  c.save(); c.globalAlpha = fade; c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineJoin = 'round'; c.font = FONT(size);
-  const sp = c.measureText(' ').width; let k = start;
-  lines.forEach((l, li) => {
-    const lineW = c.measureText(l.join(' ').toUpperCase()).width; let x = w / 2 - lineW / 2;
-    const ly = y + (li - (lines.length - 1) / 2) * lh;
-    for (const x0 of l) {
-      const txt = x0.toUpperCase(), ww = c.measureText(txt).width, active = k === wd.index;
+  const maxW = z.caption.x1 - z.caption.x0;
+  const pages = captionPages(c, all, maxW, z.captionFont, 24 * u);
+  const page = pages.find((p) => wd.index >= p.from && wd.index <= p.to) ?? pages[pages.length - 1]; if (!page) return;
+  const lh = page.size * 1.12, fade = pop(local, 0, 0.2);
+  c.save(); c.globalAlpha = Math.min(1, fade); c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineJoin = 'round'; c.font = FONT(page.size);
+  const sp = c.measureText(' ').width, base = z.caption.y1 - lh / 2 - 6 * u;
+  page.lines.forEach((line, li) => {
+    const ly = base - (page.lines.length - 1 - li) * lh;
+    const lineW = line.reduce((a, k) => a + c.measureText(all[k].toUpperCase()).width, 0) + sp * (line.length - 1);
+    let x = (z.caption.x0 + z.caption.x1) / 2 - lineW / 2;
+    for (const k of line) {
+      const txt = all[k].toUpperCase(), ww = c.measureText(txt).width, active = k === wd.index;
       c.lineWidth = 12 * u; c.strokeStyle = INK; c.strokeText(txt, x, ly);
-      c.fillStyle = active ? '#FFD23F' : hlSet.has(key(x0)) ? '#FFE88A' : k < wd.index ? '#FFFFFF' : 'rgba(255,255,255,0.72)';
-      c.fillText(txt, x, ly); x += ww + sp; k++;
+      c.fillStyle = active ? '#FFD23F' : hlSet.has(key(all[k])) ? '#FFE88A' : k < wd.index ? '#FFFFFF' : 'rgba(255,255,255,0.72)';
+      c.fillText(txt, x, ly); x += ww + sp;
     }
   });
   c.restore();
@@ -245,10 +274,10 @@ function profile(c: CanvasRenderingContext2D, u: number, local: number, name?: s
   const ay = top + 560 * u + Math.sin(local * 6) * 10 * u; c.beginPath(); c.moveTo(0, ay - 40 * u); c.lineTo(-34 * u, ay + 10 * u); c.lineTo(34 * u, ay + 10 * u); c.closePath(); shape(c, '#E63946', 5 * u);
 }
 
-/** Captions + label only, drawn over the 3D engine frame. */
+/** Captions only, drawn over the 3D engine frame, in the same bottom band as the 2D engine. */
 export function drawOverlay(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080, at = sceneAt(plan, t);
-  if (at) caption(c, at.scene, at.local, w, h * 0.13, u);
+  if (at) caption(c, at.scene, at.local, frameZones(w, h), u);
 }
 
 function laptop(c: CanvasRenderingContext2D, u: number, local: number, label?: string) {
@@ -425,21 +454,54 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t); } finally { c.restore(); }
 }
 
+/** Drawn extent of each hero visual (px at u = 1, relative to its origin), measured from the draw code. */
+const HERO_EXT: Record<string, Rect> = {
+  character: { x0: -345, y0: -342, x1: 348, y1: 466 },
+  phone_chat: { x0: -210, y0: -390, x1: 210, y1: 390 },
+  profile: { x0: -210, y0: -390, x1: 210, y1: 390 },
+  laptop: { x0: -360, y0: -244, x1: 377, y1: 230 },
+  map_pins: { x0: -320, y0: -242, x1: 350, y1: 240 },
+  clock: { x0: -220, y0: -220, x1: 220, y1: 220 },
+  scale: { x0: -369, y0: -211, x1: 369, y1: 290 },
+  eye: { x0: -300, y0: -260, x1: 300, y1: 260 },
+  chart_up: { x0: -300, y0: -220, x1: 300, y1: 220 },
+  money: { x0: -205, y0: -15, x1: 205, y1: 290 }, // the bag; falling bills are clipped above the caption band
+  chips: { x0: -470, y0: -215, x1: 470, y1: 255 },
+};
+/** Labels that already live inside their prop; every other label gets the badge slot above the hero zone. */
+const LABEL_IN_PROP = new Set(['laptop', 'phone_chat', 'profile', 'chips']);
+
+function heroExtent(scene: ExplainerScene, u: number): Rect {
+  if (scene.visual === 'custom') return scaleRect(foregroundExtent(laidOut(scene.drawing || [])) ?? { x0: -420, y0: -290, x1: 420, y1: 430 }, u);
+  return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
+}
+
 function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
   if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
-  const portrait = h > w, cy = portrait ? h * 0.55 : h * 0.58, k = portrait ? 1.15 : 0.9;
+  const portrait = h > w, k = portrait ? 1.15 : 0.9;
+  const outerLabel = !!scene.label && !LABEL_IN_PROP.has(scene.visual);
+  const z = frameZones(w, h, outerLabel);
+  // hero placement: the whole group is scaled to fit the hero zone (headroom kept for the push-in and idle float)
+  // and centred in it, so it can never reach the label slot above or the caption band below
+  const ext = padRect(heroExtent(scene, u), 6 * u);
+  const push = 1 + Math.min(local, 8) * 0.008; // slow Ken Burns push-in
+  const sBase = Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
+  const spot = centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
   const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
   const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
-  const push = 1 + Math.min(local, 8) * 0.008; // slow Ken Burns push-in
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
-  const px = w / 2 + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
+  const px = spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
   const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
-  if (isProp && enter > 0.01) { c.beginPath(); c.ellipse(px, cy + 330 * u * k, 260 * u * k * (1 - float / (80 * u)), 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill(); }
+  if (isProp && enter > 0.01) {
+    const shadowW = Math.min(260 * u * sBase, ((ext.x1 - ext.x0) / 2) * sSteady * 0.8);
+    c.beginPath(); c.ellipse(px, spot.y + (ext.y1 - 18 * u) * sSteady, shadowW * (1 - float / (80 * u)), 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill();
+  }
   c.save(); c.globalAlpha = 1 - exit;
-  withPop(c, px, cy + (isProp ? float : 0), enter * k * push * (1 - exit * 0.15), () => {
+  if (scene.visual === 'money') { c.beginPath(); c.rect(0, 0, w, z.caption.y0 - 4 * u); c.clip(); }
+  withPop(c, px, spot.y + (isProp ? float : 0), Math.min(1, enter) * sBase * push * (1 - exit * 0.15), () => {
     if (isProp) c.rotate(rot);
     switch (scene.visual) {
       case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
@@ -462,9 +524,10 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     }
   });
   c.restore();
-  if (scene.label && scene.visual !== 'laptop' && scene.visual !== 'phone_chat' && scene.visual !== 'profile' && scene.visual !== 'chips')
-    badge(c, scene.label.toUpperCase(), w / 2, portrait ? h * 0.3 : h * 0.27, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
-  caption(c, scene, local, w, portrait ? h * 0.13 : h * 0.13, u);
+  // label badge: fixed slot above the hero zone
+  if (outerLabel)
+    badge(c, scene.label!.toUpperCase(), w / 2, (z.label.y0 + z.label.y1) / 2, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
+  caption(c, scene, local, z, u);
 }
 
 function drawObject(c: CanvasRenderingContext2D, type: string, z: number, col: string | undefined, st: string, t: number, lw: number, moving: boolean, text?: string) {

@@ -1,5 +1,7 @@
 // 3D Toon engine (style "E Se?" / Ninco): cel-shaded meshes with ink outlines, real light/shadow and a cinematic camera.
 // Renders one scene at a time into its own WebGL canvas; the studio composites captions on top so export stays the same.
+import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from './toon/characterRig';
+import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/types';
 import * as THREE from 'three';
 import { sceneAt, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
 import { spring } from './render';
@@ -209,7 +211,8 @@ export class Toon3D {
   private camera = new THREE.PerspectiveCamera(42, 9 / 16, 0.1, 100);
   private world = new THREE.Group();
   private key = '';
-  private rig: Rig | null = null;
+  private rig: ToonCharacterRig | null = null;
+  private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
   private labelSign: THREE.Mesh | null = null;
   private shot: { from: Shot; to: Shot } | null = null;
@@ -231,14 +234,14 @@ export class Toon3D {
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
     const set = buildSet(scene, this.world, night, index + 1);
-    this.rig = character(HOODIE[scene.palette] ?? HOODIE.orange); this.world.add(this.rig.root);
+    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: 0x22325a }); this.rigPos = { x: 0, y: 0, z: 0 }; const holder = new THREE.Group(); holder.position.y = 1.62; holder.scale.setScalar(1.15); holder.add(this.rig.root); this.world.add(holder);
     this.prop = heroProp(scene);
     // alternate cinematic shots so consecutive scenes never share framing
     const kind = this.prop ? (index % 2 ? 'prop_close' : 'two_shot') : (['medium', 'close', 'wide'] as const)[index % 3];
     const back = portrait ? 1.45 : 1;
     if (this.prop) {
       this.prop.position.set(kind === 'prop_close' ? 0 : 1.25, 1.6, kind === 'prop_close' ? 1.4 : 0.6); this.world.add(this.prop);
-      if (kind === 'prop_close') this.rig.root.position.set(-1.3, 0, -0.8);
+      if (kind === 'prop_close') this.rigPos = { x: -1.3, y: 0, z: -0.8 };
     }
     const look = kind === 'prop_close' ? new THREE.Vector3(0, 1.7, 1.4) : kind === 'two_shot' ? new THREE.Vector3(0.6, 1.6, 0) : kind === 'close' ? new THREE.Vector3(0, 2, 0) : new THREE.Vector3(0, 1.4, 0);
     const dist = (kind === 'close' ? 2.6 : kind === 'prop_close' ? 3 : kind === 'wide' ? 8 : 5) * back;
@@ -259,7 +262,12 @@ export class Toon3D {
     if (key !== this.key) { this.key = key; this.build(scene, index, portrait); }
     const wd = wordAt(scene, local);
     const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) : 0;
-    if (this.rig) poseRig(this.rig, scene.mood, t, talk, local);
+    if (this.rig) {
+      const expression: FacialExpression = scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
+      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : this.prop ? (local < 1.6 ? 'pointing' : 'talking') : talk > 0 ? 'talking' : 'idle';
+      const ch: ToonCharacter = { id: 'host', pose, expression, gaze: this.prop ? 'lookAtProp' : 'lookAtCamera', prop: 'none', position: this.rigPos, rotationY: this.prop ? 0.25 : 0, scale: 1 };
+      updateCharacterRig(this.rig, ch, t);
+    }
     // glance at the hero prop but keep the face toward camera
     if (this.rig && this.prop) this.rig.head.rotation.y += clamp(Math.atan2(this.prop.position.x - this.rig.root.position.x, 3), -0.35, 0.35) * (0.5 + 0.5 * Math.sin(t * 0.8));
     if (this.prop) {

@@ -6,7 +6,7 @@
 import type { Shape } from './drawing';
 
 export const SAFE = { left: -420, right: 420, top: -290, bottom: 430 };
-type Box = { x0: number; y0: number; x1: number; y1: number };
+export type Box = { x0: number; y0: number; x1: number; y1: number };
 
 /** Approximate extents of a shape in drawing units (centre-relative). */
 export function shapeBox(s: Shape): Box {
@@ -102,6 +102,36 @@ export function layoutDrawing(input: Shape[]): Shape[] {
   // labels and speech balloons read on top of everything
   const front = (s: Shape) => s.type === 'text' || s.type === 'bubble';
   return [...shapes.filter((s) => !front(s)), ...shapes.filter(front)];
+}
+
+/** Extra room (x0, y0, x1, y1) an idle animation needs around a shape's box, in drawing units. */
+const ANIM_PAD: Partial<Record<NonNullable<Shape['anim']>, [number, number, number, number]>> = {
+  float: [0, 10, 0, 10], rise: [0, 80, 0, 0], fall: [0, 0, 0, 120], bounce: [0, 30, 0, 0],
+  orbit: [50, 22, 50, 22], walk: [22, 5, 22, 0], shake: [4, 0, 4, 0],
+};
+/**
+ * Union of the boxes of every foreground shape, in drawing units, including the room its animation
+ * needs (backdrops such as floors/walls and vehicles driving through are excluded). The renderer scales
+ * the whole drawing so this box fits the hero zone, which keeps the artwork clear of the caption band.
+ */
+export function foregroundExtent(shapes: Shape[]): Box | null {
+  let ext: Box | null = null;
+  for (const s of shapes) {
+    if (isBackdrop(s) || s.anim === 'drive') continue;
+    let b = shapeBox(s);
+    const [px0, py0, px1, py1] = (s.anim && ANIM_PAD[s.anim]) || [0, 0, 0, 0];
+    b = { x0: b.x0 - px0, y0: b.y0 - py0, x1: b.x1 + px1, y1: b.y1 + py1 };
+    const grow = s.anim === 'zoom' ? 1.5 : s.anim === 'pulse' ? 1.07 : 1; // box scales about its own centre
+    const spins = s.anim === 'spin' || !!s.rot; // a rotating box needs its circumscribed square
+    if (grow !== 1 || spins) {
+      const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+      const half = Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2 * grow * (spins ? 1.42 : 1);
+      const hw = spins ? half : (b.x1 - b.x0) / 2 * grow, hh = spins ? half : (b.y1 - b.y0) / 2 * grow;
+      b = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
+    }
+    ext = ext ? { x0: Math.min(ext.x0, b.x0), y0: Math.min(ext.y0, b.y0), x1: Math.max(ext.x1, b.x1), y1: Math.max(ext.y1, b.y1) } : b;
+  }
+  return ext;
 }
 
 const cache = new WeakMap<Shape[], Shape[]>();
