@@ -62,3 +62,20 @@ describe('script fidelity', () => {
     expect(out.every((s) => s.text.length > 0)).toBe(true);
   });
 });
+
+
+describe('meaning-driven presenter poses', () => {
+  it('chooses running for literal movement and shocked for surprise without AI', () => {
+    expect(buildFallbackPlan('Ele correu pela estrada.').scenes[0].presenterPose).toBe('running');
+    expect(buildFallbackPlan('Ela ficou assustada.').scenes[0].presenterPose).toBe('shocked');
+  });
+  it('preserves a valid AI-selected pose and rejects unsupported poses', () => {
+    const chosen = normalizePlan({ scenes: [{ text: 'Aponte para a tela.', presenterPose: 'pointing' }] }, 'Aponte para a tela.', '9:16');
+    expect(chosen.scenes[0].presenterPose).toBe('pointing');
+    const rejected = normalizePlan({ scenes: [{ text: 'Uma ideia comum.', presenterPose: 'levitating' }] }, 'Uma ideia comum.', '9:16');
+    expect(rejected.scenes[0].presenterPose).toBeUndefined();
+  });
+  it('keeps the original automatic gesture when the script has no explicit action', () => {
+    expect(buildFallbackPlan('Esta é uma informação simples.').scenes[0].presenterPose).toBeUndefined();
+  });
+});
