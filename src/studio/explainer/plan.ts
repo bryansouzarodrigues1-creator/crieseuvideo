@@ -159,3 +159,23 @@ export function pickSetting(text: string): Setting | undefined {
   const t = text.toLowerCase();
   return SETTING_WORDS.find(([, re]) => re.test(t))?.[0];
 }
+
+/**
+ * The AI only chooses visuals and where to cut; the spoken text is rebuilt from the user's own words, in order,
+ * so scenes can never add, repeat or drop words of the script.
+ */
+export function keepScriptWords<T extends { text?: unknown }>(scenes: T[], script: string): (T & { text: string })[] {
+  const source = script.match(/\S+/g) ?? [];
+  const list = scenes.slice(0, Math.min(40, source.length));
+  const weights = list.map((sc) => Math.max(1, String(sc?.text ?? '').trim().split(/\s+/).filter(Boolean).length));
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  let cursor = 0;
+  return list.map((sc, i) => {
+    const left = list.length - i - 1;
+    const want = i === list.length - 1 ? source.length - cursor : Math.max(1, Math.round((source.length * weights[i]!) / total));
+    const take = Math.min(source.length - cursor - left, want);
+    const text = source.slice(cursor, cursor + take).join(' ');
+    cursor += take;
+    return { ...sc, text };
+  });
+}

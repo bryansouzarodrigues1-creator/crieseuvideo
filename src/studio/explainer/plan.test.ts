@@ -51,3 +51,14 @@ it2('keeps a known scenario and drops an unknown one', () => {
   ex2(p.scenes[1]!.setting).toBeUndefined();
   ex2(p.scenes[2]!.setting).toBe('beach');
 });
+
+describe('script fidelity', () => {
+  it('uses exactly the words the user wrote, even when the AI adds lines', async () => {
+    const { keepScriptWords } = await import('./plan');
+    const script = 'Ganhe dinheiro com freelas. Coloque o link na bio.';
+    const ai = [{ text: 'Ganhe muito dinheiro hoje com freelas incríveis!' }, { text: 'Coloque o link na bio.' }, { text: 'Inscreva-se no canal!' }];
+    const out = keepScriptWords(ai, script);
+    expect(out.map((s) => s.text).join(' ')).toBe(script);
+    expect(out.every((s) => s.text.length > 0)).toBe(true);
+  });
+});

@@ -46,3 +46,5 @@ use the editor.
 - Every generation and its yes/no feedback is stored in explainer_generations (service-role only, via /api/ai/feedback); recent "no" reasons are injected into the director prompt so it learns from real misses.
 - The 3D Toon host is the procedural articulated rig in src/studio/explainer/toon/characterRig.ts (driven by pose/expression from scene mood), so characters stay code-drawn and deterministic by time.
 - Every 2D layer draws inside one rigid zone from safeZone.ts and exports use exportTimeline.ts (offline audio mix, frames at n/30), so text never overlaps and MP4s never cut early.
+- 3D Toon scenes show the scene's 2D illustration (drawBoardArt in render.ts) on a live presentation board beside the host, because any script line then gets a matching visual without modelling new 3D objects.
+- AI drawings pass layout.ts anti-collision (≤6 objects, ≤1 short text, later shapes give way, leftovers dropped) and scene text is rebuilt from the user's own words (keepScriptWords), so frames stay clean and scripts are never lengthened.

@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { askAi, parseJson } from "@/studio/server/ai";
 import { DRAWING_GUIDE } from "@/studio/explainer/drawing";
 import { SETTING_GUIDE } from "@/studio/explainer/settings";
-import { buildFallbackPlan, normalizePlan, VISUALS, MOODS, PALETTES } from "@/studio/explainer/plan";
+import { buildFallbackPlan, normalizePlan, keepScriptWords, VISUALS, MOODS, PALETTES } from "@/studio/explainer/plan";
 
 export const Route = createFileRoute("/api/ai/explainer-plan")({
   server: {
@@ -54,23 +54,7 @@ Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","la
         const raw = ok.length ? { title: ok[0].title, scenes: results.flatMap((r, i) => (r && Array.isArray(r.scenes) ? r.scenes : [{ text: parts[i] }])) } : null;
         // A IA escolhe direção visual e divisão; o texto final é reconstruído somente com palavras do roteiro original.
         // Isso impede frases inventadas, duplicadas ou omitidas, mesmo se o modelo devolver texto divergente.
-        if (raw && Array.isArray(raw.scenes)) {
-          const sourceWords = script.match(/\S+/g) ?? [];
-          const generated = raw.scenes.slice(0, Math.min(40, sourceWords.length));
-          const weights = generated.map((sc: any) => Math.max(1, String(sc?.text ?? "").trim().split(/\s+/).filter(Boolean).length));
-          const weightTotal = weights.reduce((sum: number, value: number) => sum + value, 0) || 1;
-          let cursor = 0;
-          raw.scenes = generated.map((sc: any, i: number) => {
-            const scenesLeft = generated.length - i - 1;
-            const proposed = i === generated.length - 1
-              ? sourceWords.length - cursor
-              : Math.max(1, Math.round(sourceWords.length * weights[i] / weightTotal));
-            const take = Math.min(sourceWords.length - cursor - scenesLeft, proposed);
-            const exactText = sourceWords.slice(cursor, cursor + take).join(" ");
-            cursor += take;
-            return { ...sc, text: exactText };
-          });
-        }
+        if (raw && Array.isArray(raw.scenes)) raw.scenes = keepScriptWords(raw.scenes, script);
         if (raw && Array.isArray(raw.scenes)) for (const sc of raw.scenes) {
           const hit = sc && gallery.find((g) => g.id === sc.gallery);
           if (hit) { sc.visual = "custom"; sc.drawing = hit.drawing; }
