@@ -739,154 +739,66 @@ function animatePose(
   t: number,
   options: Required<ToonAnimationOptions>
 ): void {
-  const {
-    leftArm,
-    rightArm,
-    leftLeg,
-    rightLeg,
-    head,
-    torso,
-  } = rig;
-
-  const breath = Math.sin(t * 2.2) *
-    options.breathingAmplitude;
-
-  torso.position.y = breath;
-
-  head.rotation.x = Math.sin(t * 1.5) * 0.025;
-  head.rotation.z = Math.sin(t * 1.1) * 0.025;
-
-  // Posição neutra
-  const neutral = {
-    leftArmZ: 0,
-    rightArmZ: 0,
-    leftElbowX: 0,
-    rightElbowX: 0,
-    leftLegX: 0,
-    rightLegX: 0,
-    headX: 0,
-    headZ: 0,
+  const { leftArm, rightArm, leftLeg, rightLeg, head, torso } = rig;
+  torso.position.y = Math.sin(t * 2.2) * options.breathingAmplitude;
+  torso.rotation.set(0, 0, 0);
+  head.rotation.set(Math.sin(t * 1.5) * 0.018, 0, Math.sin(t * 1.1) * 0.018);
+  // Os braços seguem o eixo local -Y. Rotação X negativa leva o antebraço para +Z (frente).
+  const gesture = Math.sin(t * options.talkingFrequency) * 0.07 * options.gestureIntensity;
+  const target = {
+    leftShoulderX: -0.08, rightShoulderX: -0.08,
+    leftShoulderZ: 0.04, rightShoulderZ: -0.04,
+    leftElbowX: -0.04, rightElbowX: -0.04,
+    leftLegX: 0, rightLegX: 0, headX: 0, headZ: 0,
   };
-
-  let target = { ...neutral };
-
   switch (pose) {
-    case "talking": {
-      const gesture = Math.sin(
-        t * options.talkingFrequency
-      ) * 0.16 * options.gestureIntensity;
-
-      target = {
-        ...neutral,
-        rightArmZ: -0.7 + gesture,
-        rightElbowX: -0.5,
-        leftArmZ: 0.45 - gesture * 0.5,
-        leftElbowX: -0.25,
-        headZ: Math.sin(t * 3.5) * 0.06,
-        headX: Math.sin(t * 2.4) * 0.035,
-      };
+    case "talking":
+      target.rightShoulderX = -0.34 - gesture;
+      target.leftShoulderX = -0.24 + gesture * 0.4;
+      target.rightShoulderZ = -0.12; target.leftShoulderZ = 0.10;
+      target.rightElbowX = -0.48; target.leftElbowX = -0.34;
+      target.headZ = Math.sin(t * 3.5) * 0.035;
+      target.headX = Math.sin(t * 2.4) * 0.025;
       break;
-    }
-
     case "pointing":
-      target = {
-        ...neutral,
-        rightArmZ: -1.2,
-        rightElbowX: -0.15,
-        leftArmZ: 0.1,
-      };
+      target.rightShoulderX = -0.48; target.rightShoulderZ = -0.10;
+      target.rightElbowX = -0.28; target.leftShoulderX = -0.12;
       break;
-
     case "holding_prop":
-      target = {
-        ...neutral,
-        rightArmZ: -0.85,
-        rightElbowX: -0.8,
-        leftArmZ: 0.15,
-        leftElbowX: -0.15,
-      };
+      target.rightShoulderX = -0.62; target.rightShoulderZ = -0.08;
+      target.rightElbowX = -0.82; target.leftShoulderX = -0.16;
+      target.leftElbowX = -0.12;
       break;
-
     case "running": {
       const run = Math.sin(t * 9);
-      target = {
-        ...neutral,
-        rightArmZ: -0.7 + run * 0.45,
-        leftArmZ: 0.7 - run * 0.45,
-        rightElbowX: -0.7,
-        leftElbowX: -0.7,
-        rightLegX: run * 0.8,
-        leftLegX: -run * 0.8,
-        headX: -0.08,
-      };
-
-      rig.torso.position.y +=
-        Math.abs(Math.sin(t * 9)) * 0.09;
+      target.rightShoulderX = -0.25 - run * 0.35;
+      target.leftShoulderX = -0.25 + run * 0.35;
+      target.rightElbowX = -0.55; target.leftElbowX = -0.55;
+      target.rightLegX = run * 0.8; target.leftLegX = -run * 0.8;
+      target.headX = -0.05;
+      torso.position.y += Math.abs(Math.sin(t * 9)) * 0.045;
       break;
     }
-
     case "shocked":
-      target = {
-        ...neutral,
-        rightArmZ: -1.3,
-        leftArmZ: 1.3,
-        rightElbowX: -0.7,
-        leftElbowX: -0.7,
-        headX: -0.18,
-      };
+      target.rightShoulderX = -0.38; target.leftShoulderX = -0.38;
+      target.rightShoulderZ = -0.28; target.leftShoulderZ = 0.28;
+      target.rightElbowX = -0.72; target.leftElbowX = -0.72;
+      target.headX = -0.12;
       break;
-
     case "idle":
     default:
       break;
   }
-
-  const blend = smoothstep(
-    Math.min(1, t * 5)
-  );
-
-  leftArm.root.rotation.z =
-    THREE.MathUtils.lerp(
-      neutral.leftArmZ,
-      target.leftArmZ,
-      blend
-    );
-
-  rightArm.root.rotation.z =
-    THREE.MathUtils.lerp(
-      neutral.rightArmZ,
-      target.rightArmZ,
-      blend
-    );
-
-  leftArm.elbow!.rotation.x =
-    THREE.MathUtils.lerp(
-      neutral.leftElbowX,
-      target.leftElbowX,
-      blend
-    );
-
-  rightArm.elbow!.rotation.x =
-    THREE.MathUtils.lerp(
-      neutral.rightElbowX,
-      target.rightElbowX,
-      blend
-    );
-
-  leftLeg.root.rotation.x =
-    target.leftLegX;
-
-  rightLeg.root.rotation.x =
-    target.rightLegX;
-
+  const blend = smoothstep(Math.min(1, t * 4));
+  leftArm.root.rotation.set(THREE.MathUtils.lerp(-0.08, target.leftShoulderX, blend), 0, THREE.MathUtils.lerp(0.04, target.leftShoulderZ, blend));
+  rightArm.root.rotation.set(THREE.MathUtils.lerp(-0.08, target.rightShoulderX, blend), 0, THREE.MathUtils.lerp(-0.04, target.rightShoulderZ, blend));
+  leftArm.elbow!.rotation.set(THREE.MathUtils.lerp(-0.04, target.leftElbowX, blend), 0, 0);
+  rightArm.elbow!.rotation.set(THREE.MathUtils.lerp(-0.04, target.rightElbowX, blend), 0, 0);
+  leftLeg.root.rotation.x = target.leftLegX;
+  rightLeg.root.rotation.x = target.rightLegX;
   head.rotation.x += target.headX * blend;
   head.rotation.z += target.headZ * blend;
-
-  // Pequena resposta elástica ao movimento.
-  const spring = dampedSpring(t, 7, 5);
-
-  torso.rotation.z =
-    spring * 0.025 * options.gestureIntensity;
+  torso.rotation.z = dampedSpring(t, 7, 5) * 0.012 * options.gestureIntensity;
 }
 
 /* -------------------------------------------------------
@@ -926,13 +838,8 @@ export function updateCharacterRig(
     character.expression
   );
 
-  // Direção do olhar
-  const gazeX = character.gaze === "lookAtCamera"
-    ? 0
-    : 0.12;
-
-  rig.face.leftEye.position.x = -0.15 + gazeX;
-  rig.face.rightEye.position.x = 0.15 + gazeX;
+  // Orienta discretamente o rosto para o item na mão.
+  rig.head.rotation.y = character.gaze === "lookAtProp" && character.prop !== "none" ? 0.18 : 0;
 
   // Visibilidade do objeto
   rig.prop.visible = character.prop !== "none";
