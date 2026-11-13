@@ -3,15 +3,20 @@ import { SETTINGS, type Setting } from './settings';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
+/** Gestures the existing 3D rig can perform; omit to retain automatic host behavior. */
+export const PRESENTER_POSES = ['idle', 'talking', 'pointing', 'running', 'shocked'] as const;
 export const PALETTES = ['orange', 'purple', 'teal', 'pink', 'night'] as const;
 export type Visual = (typeof VISUALS)[number];
 export type Mood = (typeof MOODS)[number];
+export type PresenterPose = (typeof PRESENTER_POSES)[number];
 export type Palette = (typeof PALETTES)[number];
 
 export interface ExplainerScene {
   text: string;
   visual: Visual;
   mood: Mood;
+  /** Optional meaning-driven gesture for the 3D presenter; no new 3D assets required. */
+  presenterPose?: PresenterPose;
   palette: Palette;
   label?: string;
   chat?: string;
@@ -99,6 +104,14 @@ export function pickMood(sentence: string): Mood {
   return 'neutral';
 }
 
+/** A conservative zero-AI fallback: only direct human gestures, never guess elaborate action choreography. */
+export function pickPresenterPose(text: string): PresenterPose | undefined {
+  if (has(text, /\bcorr(?:e|eu|er|endo|ia|iam|eram)\b|\bfug(?:iu|ir|indo)\b|persegui|perseguindo|disparou/)) return 'running';
+  if (has(text, /assust|espant|levou um susto|apavor|aterror|surpres/)) return 'shocked';
+  if (has(text, /apont|indicou|indicando|mostr(?:ou|ando|ar)|sinaliz/)) return 'pointing';
+  return undefined;
+}
+
 export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:16'): ExplainerPlan {
   const sentences = script.split(/(?<=[.!?…])\s+|\n+/).map((s) => s.trim()).filter(Boolean).slice(0, 40);
   const list = sentences.length ? sentences : ['Escreva seu roteiro para começar.'];
@@ -108,7 +121,7 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
     const num = text.match(/\d+\s+[\p{L}]+/u)?.[0];
     const longest = [...words(text)].sort((a, b) => b.length - a.length)[0]?.replace(/[^\p{L}\d]/gu, '');
     return {
-      text, visual, mood,
+      text, visual, mood, presenterPose: pickPresenterPose(text),
       palette: visual === 'city_night' || mood === 'sad' ? 'night' : PALETTES[i % 4],
       label: num ? `${num.toUpperCase()}…` : undefined,
       chat: visual === 'phone_chat' ? text : undefined,
@@ -136,6 +149,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       drawing: visual === 'custom' ? drawing : undefined,
       setting: (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
       mood: pick(s.mood, MOODS, pickMood(text)),
+      presenterPose: (PRESENTER_POSES as readonly string[]).includes(s.presenterPose) ? (s.presenterPose as PresenterPose) : pickPresenterPose(text),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),
       chat: str(s.chat, 120),
