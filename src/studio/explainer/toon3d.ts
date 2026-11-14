@@ -1,10 +1,11 @@
 // 3D Toon engine (style "E Se?" / Ninco): cel-shaded meshes with ink outlines, real light/shadow and a cinematic camera.
 // Renders one scene at a time into its own WebGL canvas; the studio composites captions on top so export stays the same.
 import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from './toon/characterRig';
+import { ToonStory3D } from './story3d';
 import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/types';
 import * as THREE from 'three';
 import { updateEnvironment } from './toon/environment';
-import { sceneAt, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
+import { sceneAt, sceneDuration, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
 import { spring, drawBoardArt } from './render';
 
 const INK = 0x1c1824;
@@ -213,6 +214,7 @@ export class Toon3D {
   private world = new THREE.Group();
   private key = '';
   private rig: ToonCharacterRig | null = null;
+  private storyStage: ToonStory3D | null = null;
   private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
   private holder: THREE.Group | null = null;
@@ -233,6 +235,7 @@ export class Toon3D {
     this.scene.add(this.world);
   }
   private build(scene: ExplainerScene, index: number, portrait: boolean) {
+    this.storyStage?.dispose(); this.storyStage = null;
     this.world.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); const mat = m.material as THREE.Material & { map?: THREE.Texture }; if (mat && mat !== OUTLINE && (mat as THREE.MeshBasicMaterial).map !== this.boardTex) { mat.map?.dispose(); mat.dispose?.(); } });
     this.world.clear();
     const night = scene.palette === 'night' || scene.setting === 'night' || scene.setting === 'space' || scene.visual === 'city_night';
@@ -243,6 +246,18 @@ export class Toon3D {
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
     buildSet(scene, this.world, night, index + 1);
+    if (scene.story) {
+      // Narrative shots occupy the REAL 3D world: no presenter or board duplication.
+      this.rig?.dispose(); this.rig = null; this.holder = null; this.board = null;
+      this.storyStage = new ToonStory3D(scene.story, this.world);
+      const distance = portrait ? 9.5 : 6.5;
+      const look = new THREE.Vector3(0, 1.45, 0);
+      this.shot = {
+        from: { pos: new THREE.Vector3(-.6, 2.45, distance + .9), look: look.clone() },
+        to: { pos: new THREE.Vector3(.15, 2.30, distance), look },
+      };
+      return;
+    }
     const handProp = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
     // Composition: the host stands in front; the scene illustration lives on a big presentation board
     // (portrait: above the host, landscape: beside him), so any script line has a matching visual.
@@ -283,8 +298,10 @@ export class Toon3D {
     const at = sceneAt(plan, t);
     if (!at) { this.scene.background = new THREE.Color(0x7b5cd6); this.renderer.render(this.scene, this.camera); return; }
     const { scene, local, index } = at, portrait = h > w;
-    const key = `${index}|${scene.text}|${scene.visual}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}`;
+    const key = `${index}|${scene.text}|${scene.visual}|${scene.story ? JSON.stringify(scene.story) : ''}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}`;
     if (key !== this.key) { this.key = key; this.build(scene, index, portrait); }
+    if (scene.story) this.storyStage?.update(local, sceneDuration(scene));
+    else {
     // live board illustration (same code-drawn art as the 2D engine)
     const bc = this.boardCanvas, bw = 1024, bh = Math.round(1024 * (this.boardSize.h / this.boardSize.w));
     if (bc.width !== bw || bc.height !== bh) { bc.width = bw; bc.height = bh; this.boardTex.dispose(); }
@@ -304,6 +321,7 @@ export class Toon3D {
       if (this.holder) this.holder.rotation.y = pose === 'pointing' ? (portrait ? 0 : 0.35) : (portrait ? 0 : 0.18);
       if (pose === 'pointing' && portrait) this.rig.head.rotation.x -= 0.18; // glance up at the board
     }
+    }
     updateEnvironment(this.world, local);
     if (this.shot) {
       const k = ease(local / 0.9), push = Math.min(local, 8) * 0.025;
@@ -315,5 +333,5 @@ export class Toon3D {
     }
     this.renderer.render(this.scene, this.camera);
   }
-  dispose() { this.renderer.dispose(); }
+  dispose() { this.storyStage?.dispose(); this.renderer.dispose(); }
 }

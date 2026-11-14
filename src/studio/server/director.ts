@@ -49,6 +49,7 @@ Para cada cena escolha o visual que MELHOR ilustra o significado:
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - ${DRAWING_GUIDE}
 - ${SETTING_GUIDE} Sempre preencha "setting" em todas as cenas.
+- story (opcional, para ação FÍSICA inequivocamente descrita nesta frase; não é um desenho estático): {"action":"pickup|handoff|chase","prop":"lantern|hat|ball|box|key","actors":[{"name":"nome literal que aparece neste trecho","color":"#FFB447"},{"name":"segundo nome literal","color":"#4AC6BE"}]}. pickup=pegar objeto, handoff=uma pessoa entrega objeto à outra, chase=correr atrás de objeto. Só use se a frase contiver verbo afirmativo explícito, nome(s) literal(is) e o objeto certo (lanterna, chapéu, bola, caixa ou chave). Em handoff, "actors" deve vir na ordem do GIVER e RECEIVER conforme a frase (Lia entregou a Caio => [Lia, Caio]); inclua duas pessoas. Não invente uma entrega se houver "não entregou", "nunca pegou", ordem ambígua ou frase hipotética. Quando houver story, use visual=custom e OMITA drawing; a engine irá animar contato e posse do objeto. Nunca repita story em cenas cujo texto não tenha essa ação.
 - presenterPose (opcional): escolha um de [idle, talking, pointing, running, shocked] SOMENTE quando houver ação humana concreta ou reação do apresentador. 'running' para correr/fugir, 'shocked' para se assustar, 'pointing' para mostrar/apontar. Caso contrário omita; não repita gestos genéricos.
 - mood: um de [${MOODS.join(", ")}]
 - palette: um de [${PALETTES.join(", ")}], varie entre cenas; use night para momentos tristes ou finais
@@ -58,7 +59,7 @@ ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - highlight: palavras do texto para destacar em amarelo
 Roteiro:
 """${script}"""
-Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose"}]}`, undefined, env);
+Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose","story"}]}`, undefined, env);
   const parts = directorChunks(script);
   const plans: ExplainerPlan[] = new Array(parts.length);
   let next = 0;
