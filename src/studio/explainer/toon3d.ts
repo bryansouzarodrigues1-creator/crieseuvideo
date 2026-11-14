@@ -332,7 +332,10 @@ export class Toon3D {
       this.camera.position.copy(pos); this.camera.lookAt(this.shot.to.look);
     }
     const performanceShot = this.storyStage?.camera(local, sceneDuration(scene), w / h);
-    if (performanceShot) { this.camera.position.copy(performanceShot.pos); this.camera.lookAt(performanceShot.look); }
+    if (performanceShot) {
+      this.camera.setViewOffset(w, h, 0, h * .11, w, h); // reserve the lower band for captions
+      this.camera.position.copy(performanceShot.pos); this.camera.lookAt(performanceShot.look);
+    } else if (this.camera.view?.enabled) this.camera.clearViewOffset();
     this.renderer.render(this.scene, this.camera);
   }
   performanceDiagnostics() { return this.storyStage?.performance?.diagnostics() ?? null; }

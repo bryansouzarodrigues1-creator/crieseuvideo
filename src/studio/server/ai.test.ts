@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { askAi } from './ai';
+import { askAi, askAiResult } from './ai';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -96,5 +96,32 @@ describe('AI text provider selection', () => {
     vi.stubGlobal('fetch', fetchMock);
     expect(await askAi('Teste')).toBe('{"scenes":[]}');
     expect(String((fetchMock.mock.calls[0] as unknown as [string])[0])).toContain('gemini-3.6-flash:generateContent');
+  });
+  it('distinguishes provider request, model and key failures without exposing response bodies', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    for (const [status, body, code] of [
+      [400, { error: { message: 'private-provider-detail' } }, 'invalid_request'],
+      [404, {}, 'unsupported_model'],
+      [400, { error: { message: 'private-provider-detail', details: [{ reason: 'API_KEY_INVALID' }] } }, 'auth'],
+      [429, {}, 'quota'],
+    ] as const) {
+      fetchMock.mockResolvedValueOnce(Response.json(body, { status }));
+      expect(await askAiResult('private-script', undefined, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'private-key' })).toMatchObject({ ok: false, code, status });
+    }
+    const logs = JSON.stringify(warn.mock.calls);
+    for (const secret of ['private-key', 'private-script', 'private-provider-detail']) expect(logs).not.toContain(secret);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+  it('rejects blocked and truncated content before parsing a scene plan', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    for (const [response, code] of [
+      [{ promptFeedback: { blockReason: 'SAFETY' } }, 'blocked'],
+      [{ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"partial":' }] } }] }, 'truncated'],
+    ] as const) {
+      fetchMock.mockResolvedValueOnce(Response.json(response));
+      expect(await askAiResult('test', undefined, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-only' })).toMatchObject({ ok: false, code });
+    }
   });
 });

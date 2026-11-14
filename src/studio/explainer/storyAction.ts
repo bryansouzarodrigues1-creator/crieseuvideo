@@ -37,6 +37,12 @@ const mentionsName = (text: string, name: string): boolean => {
   const nameWords = clean(name).split(/[^a-z0-9]+/).filter(Boolean);
   return nameWords.length > 0 && sourceWords.some((_, i) => nameWords.every((word, j) => sourceWords[i + j] === word));
 };
+const nameIndex = (text: string, name: string, last = false) => {
+  const haystack = clean(text).split(/[^a-z0-9]+/).filter(Boolean);
+  const needle = clean(name).split(/[^a-z0-9]+/).filter(Boolean);
+  const matches = haystack.flatMap((_, i) => needle.length && needle.every((w, j) => haystack[i + j] === w) ? [i] : []);
+  return matches.length ? (last ? matches[matches.length - 1] : matches[0]) : -1;
+};
 
 const defaults = ['#FFB447', '#4AC6BE'];
 const easing = (value: number) => { const p = Math.max(0, Math.min(1, value)); return p * p * (3 - 2 * p); };
@@ -85,6 +91,17 @@ export function normalizeStory(raw: unknown, sourceText: string): StoryScene | u
     // Only animate explicit "giver ... handed ... receiver" phrasing.
     // Ambiguous reversed phrasing falls back to a static illustration.
     if (!mentionsName(before, actors[0]!.name) || !mentionsName(after, actors[1]!.name)) return;
+    // Both names may occur elsewhere in the sentence. Use the nearest named
+    // subject before the verb and the first named recipient after it.
+    if (nameIndex(before, actors[1]!.name, true) > nameIndex(before, actors[0]!.name, true)) return;
+    const giverAfter = nameIndex(after, actors[0]!.name), receiverAfter = nameIndex(after, actors[1]!.name);
+    if (giverAfter >= 0 && giverAfter < receiverAfter) return;
+    const pickup = source.match(VERBS.pickup);
+    if (pickup && pickup.index! < handoff.index!) {
+      const prior = source.slice(0, pickup.index);
+      if (nameIndex(prior, actors[0]!.name, true) < 0 ||
+          nameIndex(prior, actors[1]!.name, true) > nameIndex(prior, actors[0]!.name, true)) return;
+    }
   }
   const pickupFirst = action === 'pickup' || (action === 'handoff' && VERBS.pickup.test(source));
   const performance = input.performance === 'grounded-v1' && action === 'handoff' && pickupFirst && prop === 'lantern'

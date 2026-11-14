@@ -11,6 +11,7 @@ const SAMPLE = 'Ele recebeu uma mensagem no celular. A novidade fez o coração 
 let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
 let plan: ExplainerPlan, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
+let planScript = '';
 const note = (text: string) => { $('message').textContent = text; };
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function counter() { $('counter').textContent = `${script.value.length.toLocaleString('pt-BR')} / 6.000`; }
@@ -18,7 +19,7 @@ function draw() {
   if (!plan) return;
   if (engine === '3d' && toon) {
     try { toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d'; }
-    catch { engine = '2d'; buttons(); drawExplainerFrame(context, plan, time); note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
+    catch { engine = '2d'; buttons(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
   } else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
   timeline.value = String(time); $('clock').textContent = `${fmt(time)} / ${fmt(totalDuration(plan))}`;
   const i = sceneAt(plan, time)?.index ?? 0;
@@ -38,10 +39,13 @@ async function prepare3d() {
 function setPlan(next: ExplainerPlan, label: string) {
   playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir');
   plan = { ...next, engine, aspect }; time = .7; selectedScene = -1; source = label;
+  planScript = spokenText(next.scenes.map((s) => s.text).join(' '));
+  canvas.style.opacity = planScript === spokenText(script.value) ? '1' : '.45';
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;
   $('scene-count').textContent = String(plan.scenes.length);
   const sourceWords = spokenText(script.value), resultWords = spokenText(plan.scenes.map((s) => s.text).join(' '));
   $('fidelity').textContent = sourceWords === resultWords ? '✓ Todas as palavras preservadas' : 'Confira as falas';
+  if (sourceWords !== resultWords) $('source').textContent = 'PRÉVIA ANTERIOR';
   const list = $('scenes'); list.replaceChildren();
   plan.scenes.forEach((scene, i) => {
     const button = document.createElement('button'); button.className = 'scene-card';
@@ -59,7 +63,14 @@ function local() {
   const error = scriptError(script.value); if (error) return note(error);
   setPlan(buildFallbackPlan(script.value, aspect), 'ENSAIO LOCAL'); note('Ensaio local pronto. Nenhuma chamada de IA foi feita. Confira os gestos e cada palavra do roteiro.');
 }
-script.addEventListener('input', counter);
+script.addEventListener('input', () => {
+  counter();
+  if (planScript && spokenText(script.value) !== planScript) {
+    playing = false; $('play').textContent = '▶';
+    $('source').textContent = 'PRÉVIA ANTERIOR'; $('fidelity').textContent = 'Roteiro alterado · gere uma nova prévia'; canvas.style.opacity = '.45';
+    note('O roteiro mudou. Ensaie ou dirija novamente para atualizar a animação.');
+  } else { $('source').textContent = source; canvas.style.opacity = '1'; }
+});
 $('sample').addEventListener('click', () => { script.value = SAMPLE; counter(); local(); });
 $('local').addEventListener('click', local);
 $('story-demo').addEventListener('click', () => {
@@ -91,7 +102,7 @@ $('generate').addEventListener('click', async () => {
     const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: script.value, aspect }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'A direção não foi concluída.');
     setPlan(normalizePlan(data.plan, script.value, aspect), 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
-  } catch (error) { note(error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.'); }
+  } catch (error) { $('source').textContent = 'PRÉVIA ANTERIOR'; note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
   finally { setBusy(false); }
 });
 $('connect').addEventListener('click', async () => {

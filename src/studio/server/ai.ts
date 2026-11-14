@@ -2,7 +2,7 @@
 // test deployment reuse this code without copying secrets into browser bundles.
 export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY', string>>;
 export type AiProvider = 'gemini' | 'lovable';
-export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_response' | 'upstream' | 'configuration';
+export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_response' | 'upstream' | 'configuration' | 'invalid_request' | 'unsupported_model' | 'blocked' | 'truncated';
 export type AiResult =
   | { ok: true; text: string; provider: AiProvider; model: string }
   | { ok: false; code: AiFailure; status: number; provider: AiProvider; model: string };
@@ -12,7 +12,10 @@ const runtimeEnv = (): AiEnvironment => typeof process === 'undefined' ? {} : pr
 
 async function requestText(prompt: string, provider: AiProvider, model: string, env: AiEnvironment): Promise<AiResult> {
   const key = provider === 'gemini' ? env.GEMINI_API_KEY : env.LOVABLE_API_KEY;
-  const failure = (code: AiFailure, status = 503): AiResult => ({ ok: false, code, status, provider, model });
+  const failure = (code: AiFailure, status = 503): AiResult => {
+    console.warn('AI_FAILURE', JSON.stringify({ provider, model, code, status }));
+    return { ok: false, code, status, provider, model };
+  };
   if (!key) return failure('missing_key');
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 60000);
@@ -34,12 +37,16 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
       }),
     });
     if (!res.ok) {
-      // Provider response bodies and request headers must never enter logs.
-      return failure(res.status === 402 || res.status === 429 ? 'quota' : res.status === 401 || res.status === 403 ? 'auth' : 'upstream', res.status);
+      // Read only a whitelisted reason; never log the provider message or headers.
+      const body=await Promise.resolve().then(() => res.json()).catch(()=>null);
+      const reasons=Array.isArray(body?.error?.details)?body.error.details.map((item:any)=>item?.reason):[];
+      if(reasons.some((reason:unknown)=>['API_KEY_INVALID','API_KEY_SERVICE_BLOCKED','API_KEY_HTTP_REFERRER_BLOCKED','API_KEY_IP_ADDRESS_BLOCKED'].includes(String(reason))))return failure('auth',res.status);
+      return failure(res.status === 402 || res.status === 429 ? 'quota' : res.status === 401 || res.status === 403 ? 'auth' : res.status === 400 ? 'invalid_request' : res.status === 404 ? 'unsupported_model' : 'upstream', res.status);
     }
     const data = await res.json();
     const candidate = data?.candidates?.[0];
-    if (direct && candidate?.finishReason && candidate.finishReason !== 'STOP') return failure('invalid_response', 502);
+    if (direct && data?.promptFeedback?.blockReason) return failure('blocked', 422);
+    if (direct && candidate?.finishReason && candidate.finishReason !== 'STOP') return failure(candidate.finishReason === 'MAX_TOKENS' ? 'truncated' : candidate.finishReason === 'SAFETY' ? 'blocked' : 'invalid_response', 502);
     const text = direct
       ? candidate?.content?.parts?.filter((part: { thought?: boolean }) => !part.thought).map((part: { text?: string }) => part.text ?? '').join('')
       : data?.choices?.[0]?.message?.content;

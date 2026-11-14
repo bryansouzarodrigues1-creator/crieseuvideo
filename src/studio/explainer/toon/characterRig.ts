@@ -18,6 +18,8 @@ const DEFAULT_OPTIONS: Required<ToonRigOptions> = {
   bodyColor: 0xf2c94c,
   outlineColor: 0x171717,
   scale: 1,
+  hairColor: 0xc99a45,
+  hairStyle: 'wavy',
 };
 
 const DEFAULT_ANIMATION: Required<ToonAnimationOptions> = {
@@ -401,6 +403,7 @@ function applyExpression(
 
   mouth.scale.set(1, 1, 1);
   mouth.position.y = 0;
+  mouth.rotation.set(0, 0, 0);
 
   leftEye.scale.set(1, 1, 1);
   rightEye.scale.set(1, 1, 1);
@@ -631,8 +634,11 @@ export function createCharacterRig(
   addPart(torso, new THREE.CylinderGeometry(0.1, 0.12, 0.14, 8), createToonMaterial(0xf2c9a0), new THREE.Vector3(0, 0.42, 0), outlineColor);
 
   // Cabelo dourado ondulado (Patrick)
-  const hairMat = createToonMaterial(0xc99a45);
-  const hairPuffs: [number, number, number, number][] = [
+  const hairMat = createToonMaterial(config.hairColor);
+  const hairPuffs: [number, number, number, number][] = config.hairStyle === 'tied' ? [
+    [0, .19, -.10, .29], [-.21, .10, -.08, .18], [.21, .10, -.08, .18],
+    [-.14, .24, .10, .15], [.11, .23, .10, .15], [0, .08, -.36, .20],
+  ] : [
     [0, 0.2, -0.04, 0.3], [-0.2, 0.16, 0.06, 0.17], [0.2, 0.16, 0.06, 0.17], [-0.08, 0.26, 0.14, 0.15],
     [0.1, 0.25, 0.16, 0.14], [-0.27, 0.0, -0.06, 0.13], [0.27, 0.0, -0.06, 0.13], [0, 0.05, -0.24, 0.24],
   ];

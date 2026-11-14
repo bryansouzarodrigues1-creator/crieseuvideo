@@ -21,6 +21,12 @@ describe('literal story action validation', () => {
     const reversed = { ...raw, actors: [...raw.actors].reverse() };
     expect(normalizeStory(reversed, phrase)).toBeUndefined();
   });
+  it('does not confuse earlier or later mentions with the actual subject and recipient', () => {
+    const text = 'Caio viu Lia, e Lia pegou a lanterna e entregou para Caio, enquanto Lia sorriu.';
+    expect(normalizeStory(raw, text)).toBeDefined();
+    expect(normalizeStory({ ...raw, actors: [...raw.actors].reverse() }, text)).toBeUndefined();
+    expect(normalizeStory(raw, 'Caio pegou a lanterna e Lia entregou para Caio.')).toBeUndefined();
+  });
   it('does not animate an action that the story negates', () => {
     expect(normalizeStory(raw, 'Lia não entregou a lanterna para Caio.')).toBeUndefined();
     expect(normalizeStory(raw, 'Lia nunca pegou a lanterna e entregou para Caio.')).toBeUndefined();

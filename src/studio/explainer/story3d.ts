@@ -90,7 +90,9 @@ export class ToonStory3D {
   constructor(readonly story: StoryScene, world: THREE.Group) {
     for (let i = 0; i < story.actors.length; i++) {
       const actor = story.actors[i]!;
-      const rig = createCharacterRig({ bodyColor: parseInt(actor.color.slice(1), 16), scale: 1 }, 'none');
+      const rig = createCharacterRig({ bodyColor: parseInt(actor.color.slice(1), 16), scale: 1,
+        ...(story.performance ? { hairColor: i ? 0x352820 : 0x5d303b, hairStyle: i ? 'wavy' as const : 'tied' as const } : {}),
+      }, 'none');
       rig.root.traverse((o) => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
       const holder = new THREE.Group();
       holder.add(rig.root);

@@ -40,16 +40,38 @@ and local light. Camera shots follow the event and fit the chosen aspect.
 
 ## Verified locally
 
-- Original 123 tests pass; 7 new tests also pass (130 total).
+- Original 123 tests pass; 18 new tests also pass (141 total).
 - 1,081 actual-rig samples at 60 fps verify hand contacts, foot targets and floor
   clearance to less than 1 mm. No bone stretching is used.
 - Pickup and handoff ownership boundaries have less than 0.1 mm displacement
   across a 20-microsecond sample interval.
 - Fresh, forward and backward seek transforms match to numerical tolerance.
 - Three different giver/receiver name pairs retain literal roles and words.
+- Both aspects keep the active character and lantern inside the camera frame;
+  the lower band is reserved for captions.
 - Main/lab TypeScript and builds pass.
 
+## Director fidelity and diagnostics
+
+The server assigns fixed source IDs before requesting direction. Model output
+can arrive out of order, but drawings and actions stay attached to their original
+IDs. Duplicate/missing/fabricated IDs, contradictory text, reversed literal roles
+and unsupported actions reject the whole new plan. Legacy responses are accepted
+only if their entire text is already exact and ordered. No proportional text
+repair is used on AI results. Gemini can select the supported `grounded-v1`
+capability; mocked provider tests verify the contract without paid calls.
+
+Provider failures distinguish quota, authentication, model availability, invalid
+requests, safety blocks and token truncation. Logs contain only whitelisted
+provider/model/status/code metadata. The lab marks stale/failed previews as
+previous work. Real Gemini generation has not been retested with a paid call.
+
 ## Pending visual approval
+
+The first rendered revision passed 540-frame H.264/AAC exports in both aspects
+and identical-frame seek checks, with no browser errors or AI calls. Visual
+inspection caught an occluded pickup arm; the next revision moves the grip to
+the camera-facing arm, differentiates hair, adds a smile and tightens framing.
 
 Mathematical contacts alone do not certify natural acting. Inspect the full
 18-second video, silhouettes, soles, palms, framing and shot changes. The

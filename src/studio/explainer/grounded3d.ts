@@ -80,19 +80,25 @@ export function performanceFrame(time: number) {
 
 /** Handle sockets are separate: palms do not occupy the same space during handoff. */
 export const LANTERN_GRIPS = [V(-.105, .595, 0), V(.105, .595, 0)] as const;
-export const FLOOR_LANTERN = V(-1.06, .273, .46);
-const TRANSFER_LANTERN = V(1.32, 1.10, .46);
+export const FLOOR_LANTERN = V(-1.06, .273, 1.03);
+const TRANSFER_LANTERN = V(1.32, 1.10, 1.03);
 const worldPosition = (node: THREE.Object3D) => node.getWorldPosition(new THREE.Vector3());
 
 export class GroundedPerformance {
   readonly sockets: THREE.Group[];
   readonly feet: FootTarget[][] = [];
+  private readonly smiles: THREE.Mesh[];
   constructor(readonly actors: PerformanceActor[], readonly prop: THREE.Group, readonly world: THREE.Group) {
     if (actors.length !== 2) throw new Error('A handoff needs two performers.');
     this.sockets = actors.map(({ rig }, i) => {
       const socket = new THREE.Group(); socket.name = `lantern-grip-${i}`;
-      (i === 0 ? rig.rightArm : rig.leftArm).hand!.add(socket);
+      rig.leftArm.hand!.add(socket);
       return socket;
+    });
+    this.smiles = actors.map(({ rig }) => {
+      const curve = new THREE.QuadraticBezierCurve3(V(-.085, -.105, .32), V(0, -.190, .34), V(.085, -.105, .32));
+      const smile = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, .012, 6, false), new THREE.MeshBasicMaterial({ color: 0x381515 }));
+      rig.head.add(smile); return smile;
     });
   }
 
@@ -111,7 +117,11 @@ export class GroundedPerformance {
       // Reset every channel absolutely; arbitrary seek order must be identical.
       rig.torso.position.set(0, (i ? 0 : .012 * Math.sin(f.distance / .8 * Math.PI * 4) * speed), 0);
       rig.torso.rotation.set(i ? 0 : .32 * f.crouch + .07 * speed, 0, 0);
-      rig.head.rotation.set(i ? -.09 * f.recover : .32 * f.crouch - .05, i ? -.22 * beat(t, 10, 12) : -.12 * (1 - f.crouch), 0);
+      rig.head.rotation.set(i ? .13 * f.recover : .32 * f.crouch - .05, i ? -.22 * beat(t, 10, 12) : -.12 * (1 - f.crouch), 0);
+      this.smiles[i].visible = i ? t > 14.5 : t > 15.3;
+      rig.face.mouth.visible = !this.smiles[i].visible;
+      const blink = [2.9, 7.2, 12.1, 16.8].reduce((amount, at) => Math.max(amount, Math.max(0, 1 - Math.abs(t - at - i * .31) / .09)), 0);
+      rig.face.leftEye.scale.y *= 1 - blink * .92; rig.face.rightEye.scale.y *= 1 - blink * .92;
       for (const limb of [rig.leftArm, rig.rightArm, rig.leftLeg, rig.rightLeg]) {
         limb.root.quaternion.identity(); limb.elbow!.quaternion.identity(); limb.hand!.quaternion.identity();
       }
@@ -138,18 +148,18 @@ export class GroundedPerformance {
     }
 
     const giver = this.actors[0].rig, receiver = this.actors[1].rig;
-    const carryRoot = V(f.x + .59, mix(FLOOR_LANTERN.y, .73, beat(t, 5.9, 7.3)), .46);
+    const carryRoot = V(f.x + .59, mix(FLOOR_LANTERN.y, .73, beat(t, 5.9, 7.3)), 1.03);
     const objectPosition = t < CONTACT_TIME ? FLOOR_LANTERN.clone() : carryRoot.lerp(TRANSFER_LANTERN, f.present);
-    const reactionRoot = V(1.67, 1.23, .98);
+    const reactionRoot = V(1.67, 1.23, 1.05);
     if (t >= TRANSFER_TIME) objectPosition.copy(TRANSFER_LANTERN).lerp(reactionRoot, f.recover);
     // A little inertial sway rotates around the handle, never detaches from it.
     const sway = f.walking && t > 7.5 ? .065 * Math.sin(f.distance / .8 * Math.PI * 2) * speed : 0;
     const objectRotation = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), sway);
     const target = (i: number) => LANTERN_GRIPS[i].clone().applyQuaternion(objectRotation).add(objectPosition);
-    const giverRest = worldPosition(giver.rightArm.hand!);
+    const giverRest = worldPosition(giver.leftArm.hand!);
     const giverTarget = giverRest.lerp(target(0), f.reach * (1 - f.release));
     // Elbows bend below/outside the wrist instead of crossing through the torso.
-    solveLimb(giver.rightArm, giverTarget, V(f.x + .5, .50 - .2 * f.crouch, .1));
+    solveLimb(giver.leftArm, giverTarget, V(f.x + .32, .50 - .2 * f.crouch, 1.5));
     const receiverRest = worldPosition(receiver.leftArm.hand!);
     solveLimb(receiver.leftArm, receiverRest.lerp(target(1), f.receive), V(2.5, .85, .9));
     // Free hand acknowledges the gift. It does not touch the handle.
@@ -193,11 +203,11 @@ export function performanceCamera(time: number, aspect: number) {
   const f = performanceFrame(time), t = f.t;
   let look: THREE.Vector3, width: number, height: number, angle: number;
   if (t < 1.6) { look = V(-1.0, 1.35, .5); width = 7.9; height = 3.8; angle = -.10; }
-  else if (t < 4.0) { look = V(f.x + .30, 1.22, .55); width = 3.0; height = 3.3; angle = .12; }
-  else if (t < 7.5) { look = V(-1.30, 1.04, .5); width = 2.65; height = 2.85; angle = -.23; }
-  else if (t < 11.3) { look = V(f.x + .32, 1.20, .55); width = 3.2; height = 3.35; angle = -.16; }
-  else if (t < 14.3) { look = V(1.30, 1.53, .60); width = 2.9; height = 3.25; angle = -.10; }
-  else { look = V(1.90, 1.85, .68); width = 2.25; height = 2.05; angle = -.20; }
+  else if (t < 4.0) { look = V(f.x + .30, 1.10, .75); width = 2.35; height = 3.4; angle = .12; }
+  else if (t < 7.5) { look = V(-1.30, .97, .8); width = 2.15; height = mix(3.9, 3.0, f.crouch); angle = -.18; }
+  else if (t < 11.3) { look = V(f.x + .32, 1.12, .75); width = 2.5; height = 3.5; angle = -.16; }
+  else if (t < 14.3) { look = V(1.35, 1.20, .8); width = 2.45; height = 3.9; angle = -.10; }
+  else { look = V(2.02, 1.68, .83); width = 1.52; height = 2.65; angle = -.12; }
   const distance = Math.max(width / aspect, height) / (2 * Math.tan(THREE.MathUtils.degToRad(21))) * 1.10;
   const pos = look.clone().add(V(Math.sin(angle) * distance, distance * .12, Math.cos(angle) * distance));
   return { pos, look };

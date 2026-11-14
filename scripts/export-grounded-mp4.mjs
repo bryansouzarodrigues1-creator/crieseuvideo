@@ -103,7 +103,14 @@ function originalFoley() {
   wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVE', 8); wav.write('fmt ', 12);
   wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(sampleRate, 24);
   wav.writeUInt32LE(sampleRate * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(count * 2, 40);
-  const steps = [.95, 1.55, 2.15, 2.75, 3.35, 8.1, 8.7, 9.3, 9.9, 10.5];
+  // Touchdown happens each .4m (half of the .8m gait cycle). Invert the
+  // same smooth root curve so footsteps stay aligned while entering/stopping.
+  const inverseSmooth = (amount) => {
+    let a = 0, b = 1;
+    for (let n = 0; n < 40; n++) { const m = (a + b) / 2; if (m * m * (3 - 2 * m) < amount) a = m; else b = m; }
+    return (a + b) / 2;
+  };
+  const steps = [[.4, 3.8], [7.5, 11.2]].flatMap(([a, b]) => Array.from({ length: 6 }, (_, i) => a + (b - a) * inverseSmooth((i + 1) / 6)));
   const events = [...steps.map((at) => ({ at, hz: 115, len: .09, amp: .12 })), { at: 5.7, hz: 780, len: .25, amp: .07 }, { at: 13.65, hz: 960, len: .42, amp: .07 }];
   for (let i = 0; i < count; i++) {
     const t = i / sampleRate; let value = 0;

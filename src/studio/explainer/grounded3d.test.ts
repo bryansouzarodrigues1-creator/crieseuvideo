@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createCharacterRig } from './toon/characterRig';
-import { GroundedPerformance, CONTACT_TIME, TRANSFER_TIME, footTarget, performanceFrame, solveLimb } from './grounded3d';
+import { GroundedPerformance, CONTACT_TIME, TRANSFER_TIME, footTarget, performanceFrame, performanceCamera, solveLimb } from './grounded3d';
 import { normalizePlan, sceneDuration } from './plan';
 import { normalizeStory } from './storyAction';
 
@@ -75,6 +75,35 @@ describe('grounded full-body performance on the actual Three.js rig', () => {
       if (a.planted && b.planted) expect(a.position.distanceTo(b.position)).toBeLessThan(1e-8);
     }
     expect(performanceFrame(4).distance).toBe(performanceFrame(7.4).distance);
+  });
+  it('keeps the active actor and hand contact inside both camera aspects', () => {
+    const s = stage();
+    for (const aspect of [9 / 16, 16 / 9]) {
+      const camera = new THREE.PerspectiveCamera(42, aspect, .1, 100);
+      camera.setViewOffset(aspect * 1000, 1000, 0, 110, aspect * 1000, 1000);
+      for (let t = 0; t < 18; t += .1) {
+        s.update(t); const shot = performanceCamera(t, aspect);
+        camera.position.copy(shot.pos); camera.lookAt(shot.look); camera.updateMatrixWorld();
+        const focused = t < 1.6 || (t >= 11.3 && t < 14.3) ? s.actors : [s.actors[t < 14.3 ? 0 : 1]];
+        for (const { rig } of focused) {
+          const points = [rig.head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, .43, 0))];
+          if (t < 14.3) points.push(rig.leftLeg.hand!.getWorldPosition(new THREE.Vector3()), rig.rightLeg.hand!.getWorldPosition(new THREE.Vector3()));
+          for (const point of points) {
+            point.project(camera);
+            expect(Math.abs(point.x), `x at ${t.toFixed(1)}, aspect ${aspect}`).toBeLessThan(.96);
+            expect(point.y, `top at ${t.toFixed(1)}, aspect ${aspect}`).toBeLessThan(.96);
+            expect(point.y, `bottom at ${t.toFixed(1)}, aspect ${aspect}`).toBeGreaterThan(-.48);
+          }
+        }
+        if (t >= 4) for (const height of [-.26, .65]) {
+          const point = s.prop.localToWorld(new THREE.Vector3(0, height, 0)).project(camera);
+          expect(Math.abs(point.x), `prop x at ${t.toFixed(1)}`).toBeLessThan(.96);
+          expect(point.y, `prop bottom at ${t.toFixed(1)}`).toBeGreaterThan(-.48);
+          expect(point.y, `prop top at ${t.toFixed(1)}`).toBeLessThan(.96);
+        }
+      }
+    }
+    s.actors.forEach((a) => a.rig.dispose());
   });
 });
 
