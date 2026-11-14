@@ -1,6 +1,6 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
 import { ExplainerPlan, ExplainerScene, sceneAt, sceneDuration, wordAt, words, Mood, MOODS } from './plan';
-import { drawStory } from './storyRender';
+import { drawStory, drawStoryBackdrop } from './storyRender';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
 import { laidOut, foregroundExtent } from './layout';
@@ -526,7 +526,9 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
 }
 
 function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
-  if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  if (scene.story) drawStoryBackdrop(c, w, h, t);
+  else if (scene.visual === 'city_night') city(c, w, h, u, local);
+  else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, k = portrait ? 1.15 : 0.9;
@@ -540,7 +542,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   const spot = centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
   const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
-  const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
+  const exit = scene.story ? 0 : smooth(clamp((local - (duration - 0.22)) / 0.22));
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
   const px = spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
   const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
