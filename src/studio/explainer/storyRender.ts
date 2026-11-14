@@ -78,7 +78,7 @@ function drawActor(c: CanvasRenderingContext2D, actor: StoryActor, frame: StoryA
   c.restore();
 }
 
-function drawProp(c: CanvasRenderingContext2D, prop: StoryProp, x: number, y: number, angle: number, t: number) {
+function drawProp(c: CanvasRenderingContext2D, prop: StoryProp, x: number, y: number, angle: number) {
   c.save(); c.translate(x, y); c.rotate(angle);
   c.shadowOffsetY = 7; c.shadowColor = 'rgba(16,26,43,.22)'; c.shadowBlur = 12;
   switch (prop) {
@@ -127,6 +127,6 @@ export function drawStory(c: CanvasRenderingContext2D, story: StoryScene, u: num
   c.beginPath(); c.moveTo(-400, 227); c.lineTo(400, 227);
   c.strokeStyle = 'rgba(27,41,61,.20)'; c.lineWidth = 4; c.stroke();
   state.actors.forEach((actor, index) => drawActor(c, story.actors[index]!, actor, local, index));
-  drawProp(c, story.prop, state.prop.x, state.prop.y, state.prop.rotation, local);
+  drawProp(c, story.prop, state.prop.x, state.prop.y, state.prop.rotation);
   c.restore();
 }
