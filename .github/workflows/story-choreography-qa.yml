@@ -43,6 +43,23 @@ jobs:
           bunx playwright install chromium
       - name: Visual browser smoke (without AI keys)
         run: node scripts/lab-browser-smoke.mjs
+      - name: Verify ffmpeg availability
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          ffmpeg -version | head -1
+      - name: Export real animated 2D + 3D MP4 (no AI calls)
+        run: node scripts/export-story-mp4.mjs
+      - name: Upload animated MP4
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crieseuvideo-lia-caio-mp4
+          path: tmp/story-video-output/*.mp4
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload visual QA frames
         if: always()
         uses: actions/upload-artifact@v4
