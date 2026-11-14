@@ -9,6 +9,10 @@ on:
       - work/export-capture-guard-2026-11-14
   workflow_dispatch:
 
+concurrency:
+  group: story-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
