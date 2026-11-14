@@ -1,5 +1,6 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
-import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
+import { ExplainerPlan, ExplainerScene, sceneAt, sceneDuration, wordAt, words, Mood, MOODS } from './plan';
+import { drawStory } from './storyRender';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
 import { laidOut, foregroundExtent } from './layout';
@@ -472,6 +473,7 @@ const HERO_EXT: Record<string, Rect> = {
 const LABEL_IN_PROP = new Set(['laptop', 'phone_chat', 'profile', 'chips']);
 
 function heroExtent(scene: ExplainerScene, u: number): Rect {
+  if (scene.story) return scaleRect({ x0: -405, y0: -250, x1: 405, y1: 290 }, u);
   if (scene.visual === 'custom') return scaleRect(foregroundExtent(laidOut(scene.drawing || [])) ?? { x0: -420, y0: -290, x1: 420, y1: 430 }, u);
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
@@ -493,7 +495,10 @@ function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: num
       break;
     }
     case 'city_night': break;
-    case 'custom': customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, beat); break;
+    case 'custom':
+      if (scene.story) drawStory(c, scene.story, u, local, sceneDuration(scene));
+      else customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, beat);
+      break;
     default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, beat);
   }
 }
