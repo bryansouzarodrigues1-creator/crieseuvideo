@@ -30,6 +30,10 @@ const VERBS: Record<StoryAction, RegExp> = {
   chase: /\b(persegu\w*|corr\w*|fug\w*)\b/,
 };
 const clean = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const mentionsName = (text: string, name: string) =>
+  text.split(/[^a-z0-9]+/).join(' ').split(' ').length > 0 &&
+  new RegExp(`(^|[^a-z0-9])${clean(name).replace(/[.*+?^\$\{\}()|[\]\\]/g, '\\const clean = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');')}(?=$|[^a-z0-9])`).test(text);
+
 const defaults = ['#FFB447', '#4AC6BE'];
 const easing = (value: number) => { const p = Math.max(0, Math.min(1, value)); return p * p * (3 - 2 * p); };
 const between = (value: number, start: number, end: number) => easing((value - start) / (end - start));
@@ -53,8 +57,9 @@ export function normalizeStory(raw: unknown, sourceText: string): StoryScene | u
   // This is conservative for short scene snippets; the director should not
   // combine a negated action with a later affirmative one in one story beat.
   if (/\b(nao|nunca|jamais|sem)\b(?:\s+\S+){0,5}\s+(?:entreg\w*|peg\w*|apanh\w*|persegu\w*|corr\w*|fug\w*|passou|deu|transfer\w*)\b/.test(source)) return;
+  if (/\bse\b(?:\s+\S+){0,4}\s+(?:entreg\w*|peg\w*|persegu\w*|corr\w*)\b/.test(source)) return;
 
-  const persons = Array.isArray(input.actors) ? input.actors.slice(0, 2) : [];
+  const persons = Array.isArray(input.actors) && input.actors.length <= 2 ? input.actors : [];
   const expected = action === 'handoff' ? 2 : 1;
   if (persons.length < expected) return;
   const actors: StoryActor[] = [];
@@ -64,7 +69,7 @@ export function normalizeStory(raw: unknown, sourceText: string): StoryScene | u
     const actor = item as Record<string, unknown>;
     const name = typeof actor.name === 'string' ? actor.name.trim().slice(0, 24) : '';
     // Names must come from the spoken text; the AI must not invent participants.
-    if (!name || !source.includes(clean(name))) return;
+    if (!name || !mentionsName(source, name)) return;
     const color = typeof actor.color === 'string' && /^#[0-9a-f]{6}$/i.test(actor.color)
       ? actor.color : defaults[i]!;
     actors.push({ name, color });
@@ -75,7 +80,7 @@ export function normalizeStory(raw: unknown, sourceText: string): StoryScene | u
     const before = source.slice(0, handoff.index), after = source.slice(handoff.index! + handoff[0].length);
     // Only animate explicit "giver ... handed ... receiver" phrasing.
     // Ambiguous reversed phrasing falls back to a static illustration.
-    if (!before.includes(clean(actors[0]!.name)) || !after.includes(clean(actors[1]!.name))) return;
+    if (!mentionsName(before, actors[0]!.name) || !mentionsName(after, actors[1]!.name)) return;
   }
   return {
     action, prop, actors,
