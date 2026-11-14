@@ -9,6 +9,7 @@ import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, hasNarration, missingNarrationScenes, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import { normalizeStory } from './storyAction';
 import { captureHealthError } from './exportCapture';
 import { scriptError, MAX_SCRIPT_CHARS } from './script';
 
@@ -263,7 +264,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   };
 
   const updateScene = (i: number, patch: Partial<ExplainerPlan['scenes'][number]>) =>
-    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined } : {}) } : s)) }));
+    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined, story: normalizeStory(s.story, patch.text) } : {}) } : s)) }));
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
   const voiced = hasNarration({ plan, voiceKey, buffers: buffers.current, track: trackRef.current });
 

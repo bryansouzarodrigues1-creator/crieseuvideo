@@ -47,7 +47,7 @@ function setPlan(next: ExplainerPlan, label: string) {
     const button = document.createElement('button'); button.className = 'scene-card';
     const small = document.createElement('small'); small.textContent = `CENA ${String(i + 1).padStart(2, '0')}`;
     const text = document.createElement('p'); text.textContent = scene.text;
-    const meta = document.createElement('em'); meta.textContent = [scene.setting || 'Estúdio', scene.presenterPose || 'Apresentação'].join(' · ');
+    const meta = document.createElement('em'); meta.textContent = scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : [scene.setting || 'Estúdio', scene.presenterPose || 'Apresentação'].join(' · ');
     button.append(small, text, meta); button.addEventListener('click', () => { time = sceneStart(plan, i) + .7; draw(); }); list.append(button);
   });
   canvas.width = aspect === '9:16' ? 720 : 1280; canvas.height = aspect === '9:16' ? 1280 : 720;
@@ -62,6 +62,19 @@ function local() {
 script.addEventListener('input', counter);
 $('sample').addEventListener('click', () => { script.value = SAMPLE; counter(); local(); });
 $('local').addEventListener('click', local);
+$('story-demo').addEventListener('click', () => {
+  // Deterministic original scene: no Gemini or voice request. Tests actors, contact and ownership.
+  script.value = 'Lia pegou uma lanterna e entregou para Caio.';
+  counter(); engine = '2d'; buttons();
+  const sample = normalizePlan({ title: 'Lia e Caio · a lanterna', scenes: [{
+    text: script.value, visual: 'custom', mood: 'happy', palette: 'teal', setting: 'room',
+    story: { action: 'handoff', prop: 'lantern', actors: [
+      { name: 'Lia', color: '#FFB447' }, { name: 'Caio', color: '#4AC6BE' },
+    ] },
+  }] }, script.value, aspect);
+  setPlan(sample, 'COREOGRAFIA SEM IA');
+  note('Lia pega a lanterna, se aproxima de Caio e entrega o objeto. Compare os contatos durante toda a cena; nenhum crédito foi utilizado.');
+});
 $('play').addEventListener('click', () => { playing = !playing; if (time >= totalDuration(plan)) time = 0; $('play').textContent = playing ? 'Ⅱ' : '▶'; $('play').setAttribute('aria-label', playing ? 'Pausar' : 'Reproduzir'); last = performance.now(); });
 timeline.addEventListener('input', () => { time = Number(timeline.value); draw(); });
 document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.addEventListener('click', () => { engine = b.dataset.engine as typeof engine; buttons(); setPlan(plan, source); }));
@@ -70,7 +83,7 @@ $('download').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ script: script.value, plan, source }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'crieseuvideo-plano.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-function setBusy(value: boolean) { busy = value; for (const id of ['local', 'generate', 'sample']) $<HTMLButtonElement>(id).disabled = value; script.disabled = value; $('generate').textContent = value ? 'Dirigindo cenas…' : '✦ Dirigir com Gemini'; }
+function setBusy(value: boolean) { busy = value; for (const id of ['local', 'generate', 'sample', 'story-demo']) $<HTMLButtonElement>(id).disabled = value; script.disabled = value; $('generate').textContent = value ? 'Dirigindo cenas…' : '✦ Dirigir com Gemini'; }
 $('generate').addEventListener('click', async () => {
   if (busy) return; const error = scriptError(script.value); if (error) return note(error);
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');

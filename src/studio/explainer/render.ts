@@ -1,5 +1,6 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
-import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
+import { ExplainerPlan, ExplainerScene, sceneAt, sceneDuration, wordAt, words, Mood, MOODS } from './plan';
+import { drawStory, drawStoryBackdrop } from './storyRender';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
 import { laidOut, foregroundExtent } from './layout';
@@ -472,6 +473,7 @@ const HERO_EXT: Record<string, Rect> = {
 const LABEL_IN_PROP = new Set(['laptop', 'phone_chat', 'profile', 'chips']);
 
 function heroExtent(scene: ExplainerScene, u: number): Rect {
+  if (scene.story) return scaleRect({ x0: -405, y0: -250, x1: 405, y1: 290 }, u);
   if (scene.visual === 'custom') return scaleRect(foregroundExtent(laidOut(scene.drawing || [])) ?? { x0: -420, y0: -290, x1: 420, y1: 430 }, u);
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
@@ -493,7 +495,10 @@ function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: num
       break;
     }
     case 'city_night': break;
-    case 'custom': customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, beat); break;
+    case 'custom':
+      if (scene.story) drawStory(c, scene.story, u, local, sceneDuration(scene));
+      else customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, beat);
+      break;
     default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, beat);
   }
 }
@@ -521,7 +526,9 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
 }
 
 function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
-  if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  if (scene.story) drawStoryBackdrop(c, w, h, t);
+  else if (scene.visual === 'city_night') city(c, w, h, u, local);
+  else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, k = portrait ? 1.15 : 0.9;
@@ -535,7 +542,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   const spot = centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
   const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
-  const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
+  const exit = scene.story ? 0 : smooth(clamp((local - (duration - 0.22)) / 0.22));
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
   const px = spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
   const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';

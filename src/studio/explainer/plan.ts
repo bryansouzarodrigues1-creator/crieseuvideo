@@ -1,4 +1,5 @@
 import { normalizeDrawing, type Shape } from './drawing';
+import { normalizeStory, type StoryScene } from './storyAction';
 import { SETTINGS, type Setting } from './settings';
 import { scriptScenes, splitSceneText, spokenText } from './script';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
@@ -25,6 +26,8 @@ export interface ExplainerScene {
   highlight?: string[];
   /** AI-written free drawing used when visual is 'custom'. */
   drawing?: Shape[];
+  /** Validated object choreography; 2D stage and Toon3D board share these beats. */
+  story?: StoryScene;
   /** Animated full-screen scenario behind the scene. */
   setting?: Setting;
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
@@ -142,13 +145,15 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
   const scenes = faithful.map((s: any, i: number): ExplainerScene | null => {
     const text = s.text;
     if (!text) return null;
+    const story = normalizeStory(s?.story, text);
     const drawing = normalizeDrawing(s?.drawing);
-    let visual = pick(s.visual, VISUALS, pickVisual(text));
-    if (visual === 'custom' && !drawing) visual = pickVisual(text);
+    let visual = story ? 'custom' as Visual : pick(s.visual, VISUALS, pickVisual(text));
+    if (visual === 'custom' && !drawing && !story) visual = pickVisual(text);
     return {
       text,
       visual,
-      drawing: visual === 'custom' ? drawing : undefined,
+      drawing: visual === 'custom' && !story ? drawing : undefined,
+      story,
       setting: (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
       mood: pick(s.mood, MOODS, pickMood(text)),
       presenterPose: (PRESENTER_POSES as readonly string[]).includes(s.presenterPose) ? (s.presenterPose as PresenterPose) : pickPresenterPose(text),
