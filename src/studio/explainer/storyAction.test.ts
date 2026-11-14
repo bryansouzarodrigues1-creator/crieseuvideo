@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeStory, storyFrame, type StoryScene } from './storyAction';
+import { normalizeStory, solveArmTarget, storyFrame, type StoryScene } from './storyAction';
 import { normalizePlan } from './plan';
 
 const phrase = 'Lia pegou uma lanterna e entregou para Caio.';
@@ -90,5 +90,22 @@ describe('deterministic two-person prop choreography', () => {
     expect(storyFrame(pickup!, 8, 8).prop.owner).toBe(0);
     expect(storyFrame(chase!, 8, 8).prop.owner).toBeNull();
     expect(storyFrame(chase!, 8, 8).actors[0].x).toBeGreaterThan(storyFrame(chase!, 0, 8).actors[0].x);
+  });
+});
+
+
+describe('2-bone IK for physical 3D prop contact', () => {
+  it('puts either actor wrist exactly at the shared object when it is in reach', () => {
+    for (const dx of [-0.42, 0.42]) {
+      const arm = solveArmTarget(dx, -0.65);
+      expect(arm.reachable).toBe(true);
+      expect(arm.wristX).toBeCloseTo(dx, 5);
+      expect(arm.wristY).toBeCloseTo(-0.65, 5);
+    }
+  });
+  it('saturates at arm length rather than overextending to distant objects', () => {
+    const arm = solveArmTarget(.1, -1.55);
+    expect(arm.reachable).toBe(false);
+    expect(Math.hypot(arm.wristX, arm.wristY)).toBeLessThan(.85);
   });
 });
