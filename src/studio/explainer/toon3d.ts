@@ -2,6 +2,7 @@
 // Renders one scene at a time into its own WebGL canvas; the studio composites captions on top so export stays the same.
 import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from './toon/characterRig';
 import { ToonStory3D } from './story3d';
+import { Narrative3D } from './narrative3d';
 import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/types';
 import * as THREE from 'three';
 import { updateEnvironment } from './toon/environment';
@@ -215,6 +216,7 @@ export class Toon3D {
   private key = '';
   private rig: ToonCharacterRig | null = null;
   private storyStage: ToonStory3D | null = null;
+  private narrativeStage: Narrative3D | null = null;
   private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
   private holder: THREE.Group | null = null;
@@ -236,6 +238,7 @@ export class Toon3D {
   }
   private build(scene: ExplainerScene, index: number, portrait: boolean) {
     this.storyStage?.dispose(); this.storyStage = null;
+    this.narrativeStage?.dispose(); this.narrativeStage = null;
     this.world.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); const mat = m.material as THREE.Material & { map?: THREE.Texture }; if (mat && mat !== OUTLINE && (mat as THREE.MeshBasicMaterial).map !== this.boardTex) { mat.map?.dispose(); mat.dispose?.(); } });
     this.world.clear();
     const night = scene.palette === 'night' || scene.setting === 'night' || scene.setting === 'space' || scene.visual === 'city_night';
@@ -243,9 +246,11 @@ export class Toon3D {
     this.scene.fog = new THREE.Fog(this.scene.background, 14, 34);
     this.world.add(new THREE.HemisphereLight(night ? 0x8090ff : 0xffffff, 0x705848, night ? 0.9 : 1.4));
     const sun = new THREE.DirectionalLight(night ? 0xaab8ff : 0xfff1d6, night ? 1.4 : 2.4); sun.position.set(-4, 8, 6); sun.castShadow = true;
+    sun.name = 'story-sun'; this.world.add(sun.target);
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
-    buildSet(scene, this.world, night, index + 1);
+    if (!scene.staging || !['money_flow', 'growth', 'time'].includes(scene.staging.action)) buildSet(scene, this.world, night, index + 1);
+    else this.scene.background = new THREE.Color(0x1b2d3d);
     if (scene.story) {
       // Narrative shots occupy the REAL 3D world: no presenter or board duplication.
       this.rig?.dispose(); this.rig = null; this.holder = null; this.board = null;
@@ -256,6 +261,11 @@ export class Toon3D {
         from: { pos: new THREE.Vector3(-.6, 2.45, distance + .9), look: look.clone() },
         to: { pos: new THREE.Vector3(.15, 2.30, distance), look },
       };
+      return;
+    }
+    if (scene.staging) {
+      this.rig?.dispose(); this.rig = null; this.holder = null; this.board = null;
+      this.narrativeStage = new Narrative3D(scene, this.world); this.shot = null;
       return;
     }
     const handProp = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
@@ -298,9 +308,10 @@ export class Toon3D {
     const at = sceneAt(plan, t);
     if (!at) { this.scene.background = new THREE.Color(0x7b5cd6); this.renderer.render(this.scene, this.camera); return; }
     const { scene, local, index } = at, portrait = h > w;
-    const key = `${index}|${scene.text}|${scene.visual}|${scene.story ? JSON.stringify(scene.story) : ''}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}`;
+    const key = `${index}|${scene.text}|${scene.visual}|${scene.story ? JSON.stringify(scene.story) : ''}|${JSON.stringify(scene.staging)}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}`;
     if (key !== this.key) { this.key = key; this.build(scene, index, portrait); }
     if (scene.story) this.storyStage?.update(local, sceneDuration(scene));
+    else if (scene.staging) this.narrativeStage?.update(local, sceneDuration(scene));
     else {
     // live board illustration (same code-drawn art as the 2D engine)
     const bc = this.boardCanvas, bw = 1024, bh = Math.round(1024 * (this.boardSize.h / this.boardSize.w));
@@ -323,6 +334,11 @@ export class Toon3D {
     }
     }
     updateEnvironment(this.world, local);
+    if (scene.staging?.action === 'run' || scene.staging?.action === 'walk') {
+      const sunlight = this.world.getObjectByName('story-sun') as THREE.DirectionalLight;
+      const x = this.narrativeStage?.diagnostics().positions[0]?.[0] ?? 0;
+      sunlight.position.x = x - 4; sunlight.target.position.x = x;
+    }
     if (this.shot) {
       const k = ease(local / 0.9), push = Math.min(local, 8) * 0.025;
       const pos = this.shot.from.pos.clone().lerp(this.shot.to.pos, k);
@@ -331,7 +347,7 @@ export class Toon3D {
       pos.x += Math.sin(local * 60) * 0.02 * kick; pos.y += Math.cos(local * 50) * 0.02 * kick;
       this.camera.position.copy(pos); this.camera.lookAt(this.shot.to.look);
     }
-    const performanceShot = this.storyStage?.camera(local, sceneDuration(scene), w / h);
+    const performanceShot = this.storyStage?.camera(local, sceneDuration(scene), w / h) ?? this.narrativeStage?.camera(w / h);
     if (performanceShot) {
       this.camera.setViewOffset(w, h, 0, h * .11, w, h); // reserve the lower band for captions
       this.camera.position.copy(performanceShot.pos); this.camera.lookAt(performanceShot.look);
@@ -339,5 +355,6 @@ export class Toon3D {
     this.renderer.render(this.scene, this.camera);
   }
   performanceDiagnostics() { return this.storyStage?.performance?.diagnostics() ?? null; }
-  dispose() { this.storyStage?.dispose(); this.renderer.dispose(); }
+  narrativeDiagnostics() { return this.narrativeStage?.diagnostics() ?? null; }
+  dispose() { this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.renderer.dispose(); }
 }

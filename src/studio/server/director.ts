@@ -5,12 +5,14 @@ import { normalizePlan, VISUALS, MOODS, PALETTES, type ExplainerPlan } from '../
 import { scriptError, spokenText } from '../explainer/script';
 import { sourceBeats, beatChunks, groundScenes, type SourceBeat } from './grounding';
 import { normalizeStory } from '../explainer/storyAction';
+import { normalizeStaging, STAGING_GUIDE } from '../explainer/staging';
+import { normalizeTargetDuration, withTargetDuration } from '../explainer/duration';
 import { askAiResult, parseJson, type AiEnvironment, type AiResult } from './ai';
 
 export class DirectorError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
-export interface DirectorInput { script: string; aspect?: unknown; mode?: unknown; gallery?: unknown; lessons?: string }
+export interface DirectorInput { script: string; aspect?: unknown; mode?: unknown; gallery?: unknown; lessons?: string; targetDuration?: unknown; engine?: unknown }
 export function validateDirectorInput(script: unknown): asserts script is string {
   const error = typeof script === 'string' ? scriptError(script) : 'Informe o roteiro em texto.';
   if (error) throw new DirectorError(400, 'invalid_script', error);
@@ -36,6 +38,9 @@ function providerError(result: Extract<AiResult, { ok: false }>): DirectorError 
 /** Shared by the production route and the isolated test site. At most two requests in flight. */
 export async function directExplainer(input: DirectorInput, env?: AiEnvironment) {
   validateDirectorInput(input.script);
+  let targetDuration: number | undefined;
+  try { targetDuration = normalizeTargetDuration(input.targetDuration); }
+  catch (error) { throw new DirectorError(400, 'invalid_duration', (error as Error).message); }
   const script = input.script.trim();
   const aspect = input.aspect === '16:9' ? '16:9' : '9:16';
   const mode = input.mode === 'gallery' ? 'gallery' : 'creative';
@@ -43,7 +48,7 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
     ? input.gallery.slice(0, 80).filter((g: any) => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.drawing)) : [];
   const lessons = input.lessons || '';
         const modeRule = mode === "creative"
-          ? `MODO CRIATIVO: use visual=custom em TODAS as cenas e desenhe composições limpas (4 a 12 formas, no máximo 6 objetos, um foco claro por cena, nada sobreposto). Nunca repita a mesma composição. ALTERNÂNCIA: nunca use o mesmo tipo de plano em duas cenas seguidas; alterne entre close do personagem (bust grande reagindo), objeto herói gigante (phone, laptop, scale, chart, clock...), metáfora/carimbo (stamp, xmark, check), plano aberto (skyline, crowd, cenário com personagem). Um HERÓI grande por cena ocupando 60-70% da área.${gallery.length ? ` GALERIA/COFRE (desenhos já prontos, custo zero): se um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing (economiza). Caso contrário desenhe do zero. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ")}.` : ""}`
+          ? `MODO CRIATIVO: priorize ações encenadas com staging/story quando o roteiro as permitir. Use visual=custom e desenho livre somente para temas sem capacidade de encenação disponível. Mantenha personagens e causalidade. Cada movimento deve demonstrar o verbo da frase. Não use um apresentador parado ou quadro de exposição para substituir a ação.${gallery.length ? ` GALERIA: ${gallery.map((g) => `${g.id}=${g.name}`).join('; ')}.` : ''}`
           : mode === "gallery"
             ? `MODO GALERIA: o usuário tem desenhos salvos. Quando um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ") || "(vazia)"}. Fora isso, prefira os visuais prontos; use custom só quando nada servir.`
             : "PREFIRA custom sempre que o roteiro citar objetos, lugares, ações ou personagens específicos (fogo, cadeira, bombeiros, casa, animais, pessoas nomeadas). Use os visuais prontos só quando servem exatamente.";
@@ -51,6 +56,8 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
 As frases de origem já possuem sourceId fixo. Devolva EXATAMENTE uma direção por sourceId. Preserve a cronologia, o autor da ação, quem recebe a ação, negações e condições. Não agrupe, duplique, omita nem invente IDs. Omita text: o texto narrado vem diretamente do sourceId original. Se incluir text, deve ser literalmente igual à frase desse ID. Todo desenho deve caber inteiro dentro da tela.
 ${cueRule(script)}
 ${lessons}
+${STAGING_GUIDE}
+${targetDuration ? `Duração pedida: ${targetDuration} segundos no total. O motor distribuirá esse tempo entre ações e pausas. Não invente falas ou fatos para preencher tempo.` : ''}
 Para cada cena escolha o visual que MELHOR ilustra o significado:
 - visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando (só para conversa/WhatsApp); profile = celular mostrando perfil de rede social com LINK NA BIO e botão seguir; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
@@ -69,7 +76,7 @@ Contexto do roteiro completo (não gere cenas extras a partir dele):
 """${input.script}"""
 Frases de origem a dirigir neste pedido:
 ${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}
-Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose","story"}]}`, undefined, env); };
+Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose","story","staging"}]}`, undefined, env); };
   const parts = beatChunks(sourceBeats(script));
   const plans: ExplainerPlan[] = new Array(parts.length);
   let next = 0;
@@ -96,6 +103,9 @@ Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette"
           failure ??= new DirectorError(502, 'unsupported_action', 'A IA propôs uma ação sem suporte ou trocou quem faz e recebe a ação. Essa direção foi rejeitada; seu roteiro foi preservado.'); return;
         }
       }
+      if (grounded.some((scene) => scene.staging !== undefined && !normalizeStaging(scene.staging, scene.text))) {
+        failure ??= new DirectorError(502, 'unsupported_action', 'A IA escolheu uma ação sem suporte ou que não corresponde à frase. Seu roteiro foi preservado.'); return;
+      }
       plans[i] = normalizePlan({ ...raw, scenes: grounded }, parts[i]!.map((b) => b.text).join(' '), aspect);
       provider = result.provider; model = result.model;
     }
@@ -106,5 +116,5 @@ Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette"
   if (spokenText(plan.scenes.map((s) => s.text).join(' ')) !== spokenText(script)) {
     throw new DirectorError(502, 'script_mismatch', 'A direção não preservou o roteiro completo. Nenhum vídeo foi substituído.');
   }
-  return { plan, source: 'ai' as const, provider, model };
+  return { plan: withTargetDuration(plan, targetDuration), source: 'ai' as const, provider, model };
 }

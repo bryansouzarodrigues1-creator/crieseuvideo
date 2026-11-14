@@ -1,5 +1,7 @@
 import './style.css';
-import { buildFallbackPlan, normalizePlan, totalDuration, sceneAt, sceneStart, type ExplainerPlan } from '../src/studio/explainer/plan';
+import { buildFallbackPlan, normalizePlan, totalDuration, sceneAt, sceneStart, sceneDuration, type ExplainerPlan } from '../src/studio/explainer/plan';
+import { withTargetDuration, normalizeTargetDuration, durationNotice, DURATION_PRESETS } from '../src/studio/explainer/duration';
+import { ACTION_LABELS } from '../src/studio/explainer/staging';
 import { drawExplainerFrame, drawOverlay } from '../src/studio/explainer/render';
 import { scriptError, spokenText } from '../src/studio/explainer/script';
 import type { Toon3D } from '../src/studio/explainer/toon3d';
@@ -12,13 +14,18 @@ let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
 let plan: ExplainerPlan, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
 let planScript = '';
+let targetDuration: number | undefined;
 const note = (text: string) => { $('message').textContent = text; };
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function counter() { $('counter').textContent = `${script.value.length.toLocaleString('pt-BR')} / 6.000`; }
 function draw() {
   if (!plan) return;
   if (engine === '3d' && toon) {
-    try { toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d'; }
+    try {
+      toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d';
+      const acting = toon.narrativeDiagnostics(); canvas.dataset.action = acting?.action || (sceneAt(plan, time)?.scene.story ? 'story' : 'illustration');
+      canvas.dataset.contactError = String(acting?.maxContactError ?? 0);
+    }
     catch { engine = '2d'; buttons(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
   } else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
   timeline.value = String(time); $('clock').textContent = `${fmt(time)} / ${fmt(totalDuration(plan))}`;
@@ -38,20 +45,24 @@ async function prepare3d() {
 }
 function setPlan(next: ExplainerPlan, label: string) {
   playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir');
-  plan = { ...next, engine, aspect }; time = .7; selectedScene = -1; source = label;
+  plan = withTargetDuration({ ...next, engine, aspect }, targetDuration); time = .7; selectedScene = -1; source = label;
   planScript = spokenText(next.scenes.map((s) => s.text).join(' '));
   canvas.style.opacity = planScript === spokenText(script.value) ? '1' : '.45';
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;
   $('scene-count').textContent = String(plan.scenes.length);
+  const staged = plan.scenes.filter((s) => s.story || s.staging).length;
+  $('staging-info').textContent = `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais usam ilustrações; confira o storyboard.' : ''}`;
+  $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
   const sourceWords = spokenText(script.value), resultWords = spokenText(plan.scenes.map((s) => s.text).join(' '));
   $('fidelity').textContent = sourceWords === resultWords ? '✓ Todas as palavras preservadas' : 'Confira as falas';
   if (sourceWords !== resultWords) $('source').textContent = 'PRÉVIA ANTERIOR';
   const list = $('scenes'); list.replaceChildren();
   plan.scenes.forEach((scene, i) => {
     const button = document.createElement('button'); button.className = 'scene-card';
+    button.dataset.start = String(sceneStart(plan, i)); button.dataset.duration = String(sceneDuration(scene));
     const small = document.createElement('small'); small.textContent = `CENA ${String(i + 1).padStart(2, '0')}`;
     const text = document.createElement('p'); text.textContent = scene.text;
-    const meta = document.createElement('em'); meta.textContent = scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : [scene.setting || 'Estúdio', scene.presenterPose || 'Apresentação'].join(' · ');
+    const meta = document.createElement('em'); meta.textContent = `${sceneDuration(scene).toFixed(1)}s · ` + (scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : scene.staging ? `${scene.staging.metaphor ? 'METÁFORA · ' : ''}${ACTION_LABELS[scene.staging.action]}` : 'Ilustração');
     button.append(small, text, meta); button.addEventListener('click', () => { time = sceneStart(plan, i) + .7; draw(); }); list.append(button);
   });
   canvas.width = aspect === '9:16' ? 720 : 1280; canvas.height = aspect === '9:16' ? 1280 : 720;
@@ -94,6 +105,17 @@ $('play').addEventListener('click', () => { playing = !playing; if (time >= tota
 timeline.addEventListener('input', () => { time = Number(timeline.value); draw(); });
 document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.addEventListener('click', () => { engine = b.dataset.engine as typeof engine; buttons(); setPlan(plan, source); }));
 document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.addEventListener('click', () => { aspect = b.dataset.aspect as typeof aspect; buttons(); setPlan(plan, source); }));
+function changeDuration() {
+  const select = $<HTMLSelectElement>('duration'), input = $<HTMLInputElement>('duration-custom');
+  input.hidden = select.value !== 'custom';
+  try {
+    if (select.value === 'custom' && !input.value.trim()) throw new Error('Informe a duração em segundos.');
+    targetDuration = normalizeTargetDuration(select.value === 'custom' ? input.value : select.value); setPlan(plan, source);
+  }
+  catch (error) { note((error as Error).message); }
+}
+$('duration').addEventListener('change', changeDuration);
+$('duration-custom').addEventListener('change', changeDuration);
 $('download').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ script: script.value, plan, source }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'crieseuvideo-plano.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -103,7 +125,7 @@ $('generate').addEventListener('click', async () => {
   if (busy) return; const error = scriptError(script.value); if (error) return note(error);
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
-    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: script.value, aspect }) });
+    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine }) });
     const data = await res.json(); if (!res.ok) throw new Error(data.error || 'A direção não foi concluída.');
     setPlan(normalizePlan(data.plan, script.value, aspect), 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
   } catch (error) { $('source').textContent = 'PRÉVIA ANTERIOR'; note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
@@ -121,7 +143,14 @@ $('connect').addEventListener('click', async () => {
 function loop(now: number) { if (playing && !document.hidden) { time += Math.min((now - last) / 1000, .15); if (time >= totalDuration(plan)) { time = totalDuration(plan); playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } draw(); } last = now; requestAnimationFrame(loop); }
 try {
   const saved = JSON.parse(localStorage.getItem('crieseuvideo-lab-v1') || 'null');
-  if (saved?.plan?.scenes?.length && typeof saved.script === 'string') { script.value = saved.script; aspect = saved.aspect === '16:9' ? '16:9' : '9:16'; engine = saved.engine === '2d' ? '2d' : '3d'; buttons(); setPlan(normalizePlan(saved.plan, script.value, aspect), saved.source === 'GEMINI DIRETO' ? 'GEMINI DIRETO' : 'ENSAIO LOCAL'); }
+  if (saved?.plan?.scenes?.length && typeof saved.script === 'string') {
+    script.value = saved.script; aspect = saved.aspect === '16:9' ? '16:9' : '9:16'; engine = saved.engine === '2d' ? '2d' : '3d';
+    targetDuration = normalizeTargetDuration(saved.plan.targetDuration);
+    $<HTMLSelectElement>('duration').value = targetDuration ? (DURATION_PRESETS as readonly number[]).includes(targetDuration) ? String(targetDuration) : 'custom' : 'auto';
+    $<HTMLInputElement>('duration-custom').hidden = $<HTMLSelectElement>('duration').value !== 'custom';
+    if (targetDuration) $<HTMLInputElement>('duration-custom').value = String(targetDuration);
+    buttons(); setPlan(normalizePlan(saved.plan, script.value, aspect), saved.source === 'GEMINI DIRETO' ? 'GEMINI DIRETO' : 'ENSAIO LOCAL');
+  }
   else { script.value = SAMPLE; local(); }
 } catch { script.value = SAMPLE; local(); }
 counter(); requestAnimationFrame(loop);

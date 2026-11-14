@@ -75,4 +75,19 @@ describe('bounded scene direction', () => {
     expect(plan.scenes[0].text).toBe(text);
     expect(askAiResult).toHaveBeenCalledTimes(1);
   });
+  it('normal AI direction of a non-demo script gets an executable scene and requested duration', async () => {
+    const text = 'Esse foi o maior esquema de corrupção.';
+    vi.mocked(askAiResult).mockResolvedValue(good(text));
+    const { plan } = await directExplainer({ script: text, targetDuration: 30, engine: '3d' });
+    expect(plan.scenes[0].staging?.action).toBe('money_flow');
+    expect(plan.scenes[0].duration).toBeCloseTo(30);
+    expect(plan.scenes[0].text).toBe(text);
+    expect(askAiResult).toHaveBeenCalledTimes(1);
+  });
+  it('rejects unsupported staged actions and invalid duration before requesting AI', async () => {
+    await expect(directExplainer({ script: 'Ele correu.', targetDuration: 10000 })).rejects.toMatchObject({ code: 'invalid_duration' });
+    expect(askAiResult).not.toHaveBeenCalled();
+    vi.mocked(askAiResult).mockResolvedValue({ ...good(''), text: JSON.stringify({ scenes: [{ sourceId: 's1', staging: { action: 'fly' } }] }) });
+    await expect(directExplainer({ script: 'Ele correu.' })).rejects.toMatchObject({ code: 'unsupported_action' });
+  });
 });

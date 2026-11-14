@@ -27,8 +27,8 @@ export default { async fetch(request: Request, env: Environment) {
       if (Number(request.headers.get('Content-Length') || 0) > 40000) return json({ error: 'O roteiro ultrapassa o tamanho permitido.' }, 413);
       active = true; lastGeneration = Date.now();
       try {
-        const body = await request.json() as { script?: unknown; aspect?: unknown };
-        return json(await directExplainer({ script: body?.script as string, aspect: body?.aspect }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
+        const body = await request.json() as { script?: unknown; aspect?: unknown; targetDuration?: unknown; engine?: unknown };
+        return json(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
       } catch (error) {
         return error instanceof DirectorError ? json({ error: error.message, code: error.code }, error.status) : json({ error: 'Não foi possível concluir a direção. O roteiro foi preservado.' }, 503);
       } finally { active = false; }
