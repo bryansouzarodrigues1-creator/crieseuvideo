@@ -59,7 +59,7 @@ describe('AI text provider selection', () => {
     const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"title":"ok"}' } }] }) }));
     vi.stubGlobal('fetch', fetchMock);
     expect(await askAi('Teste')).toBe('{"title":"ok"}');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('ai.gateway.lovable.dev');
+    expect(String((fetchMock.mock.calls[0] as unknown as [string])[0])).toContain('ai.gateway.lovable.dev');
   });
 
   it('uses Gemini after Lovable 402 only with explicit fallback consent', async () => {
@@ -95,6 +95,6 @@ describe('AI text provider selection', () => {
     const fetchMock = vi.fn(async () => goodGemini());
     vi.stubGlobal('fetch', fetchMock);
     expect(await askAi('Teste')).toBe('{"scenes":[]}');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('gemini-3.6-flash:generateContent');
+    expect(String((fetchMock.mock.calls[0] as unknown as [string])[0])).toContain('gemini-3.6-flash:generateContent');
   });
 });
