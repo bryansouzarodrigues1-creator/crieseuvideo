@@ -2,6 +2,7 @@ import { normalizeDrawing, type Shape } from './drawing';
 import { normalizeStory, type StoryScene } from './storyAction';
 import { SETTINGS, type Setting } from './settings';
 import { scriptScenes, splitSceneText, spokenText } from './script';
+import { localStory } from './localStory';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -120,12 +121,13 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
   const sentences = scriptScenes(script);
   const list = sentences.length ? sentences : ['Escreva seu roteiro para começar.'];
   const scenes = list.map((text, i): ExplainerScene => {
-    const visual = pickVisual(text);
+    const story = localStory(text);
+    const visual = story ? 'custom' : pickVisual(text);
     const mood = pickMood(text);
     const num = text.match(/\d+\s+[\p{L}]+/u)?.[0];
     const longest = [...words(text)].sort((a, b) => b.length - a.length)[0]?.replace(/[^\p{L}\d]/gu, '');
     return {
-      text, visual, mood, presenterPose: pickPresenterPose(text),
+      text, visual, mood, story, setting: story ? pickSetting(text) || 'room' : undefined, presenterPose: pickPresenterPose(text),
       palette: visual === 'city_night' || mood === 'sad' ? 'night' : PALETTES[i % 4],
       label: num ? `${num.toUpperCase()}…` : undefined,
       chat: visual === 'phone_chat' ? text : undefined,

@@ -106,6 +106,18 @@ try {
     }
     assert.equal(new Set(frames3d).size, 3, 'O Toon3D não reage à linha do tempo.');
     console.log('PASS Toon3D rendered 3 different WebGL action frames');
+    await page.locator('#script').fill('Nina caminha, agacha-se, pega a lanterna e entrega para Rui, que sorri.');
+    assert.match(await page.locator('#source').innerText(), /PRÉVIA ANTERIOR/);
+    await page.locator('#local').click();
+    assert.equal(Number(await page.locator('#timeline').getAttribute('max')), 18);
+    assert.match(await page.locator('#source').innerText(), /ENSAIO LOCAL/);
+    const newStory = await page.locator('.scene-card').first().innerText();
+    assert.match(newStory, /Nina → Rui/);
+    assert.doesNotMatch(newStory, /Lia|Caio/);
+    await page.locator('#timeline').evaluate((element) => { element.value = '13.7'; element.dispatchEvent(new Event('input', { bubbles: true })); });
+    assert.equal(await canvas.getAttribute('data-render-engine'), '3d');
+    await canvas.screenshot({ path: path.join(output, 'nina-rui-new-script-3d.png') });
+    console.log('PASS new literal Nina-to-Rui script uses the full 3D capability without AI');
   } else {
     console.log('SKIP Toon3D: WebGL not available in CI, browser fallback remains in place');
   }

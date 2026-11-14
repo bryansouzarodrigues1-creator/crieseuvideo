@@ -61,7 +61,11 @@ function setPlan(next: ExplainerPlan, label: string) {
 }
 function local() {
   const error = scriptError(script.value); if (error) return note(error);
-  setPlan(buildFallbackPlan(script.value, aspect), 'ENSAIO LOCAL'); note('Ensaio local pronto. Nenhuma chamada de IA foi feita. Confira os gestos e cada palavra do roteiro.');
+  const rehearsal = buildFallbackPlan(script.value, aspect);
+  setPlan(rehearsal, 'ENSAIO LOCAL');
+  note(rehearsal.scenes.some((s) => s.story?.performance)
+    ? 'História de pegar e entregar a lanterna reconhecida. Ensaio de 18 segundos com os nomes do seu roteiro. Nenhuma chamada de IA.'
+    : 'Ensaio local pronto. Nenhuma chamada de IA foi feita. Confira os gestos e cada palavra do roteiro.');
 }
 script.addEventListener('input', () => {
   counter();

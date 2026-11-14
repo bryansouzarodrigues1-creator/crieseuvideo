@@ -17,6 +17,14 @@ handoff between two named people. Other actions retain their existing renderer.
 The export blocks AI/TTS/connection endpoints and external requests. Output is
 under ignored `tmp/grounded-performance/`. No credentials are needed.
 
+## Rehearsing a new script
+
+In the local rehearsal, try: `Nina caminha, agacha-se, pega a lanterna e entrega
+para Rui, que sorri.` Named subjects at the start and recipients after `para`
+use the same validated capability without AI calls. This narrow grammar rejects
+negated/conditional actions, missing pickups, unnamed roles and other props.
+Gemini can select the same capability through its structured plan.
+
 ## Timeline in seconds
 
 | Time | Action |
@@ -40,7 +48,7 @@ and local light. Camera shots follow the event and fit the chosen aspect.
 
 ## Verified locally
 
-- Original 123 tests pass; 18 new tests also pass (141 total).
+- Original 123 tests pass; 21 new tests also pass (144 total).
 - 1,081 actual-rig samples at 60 fps verify hand contacts, foot targets and floor
   clearance to less than 1 mm. No bone stretching is used.
 - Pickup and handoff ownership boundaries have less than 0.1 mm displacement
