@@ -40,7 +40,7 @@ or a richer story. Uploaded audio remains a lower bound.
 
 ## Verification
 
-158 tests pass locally, including the 144 previous tests and 14 ordinary-flow,
+160 tests pass locally, including the 144 previous tests and 16 ordinary-flow,
 duration, semantic-guard and actual-rig tests. Main/lab TypeScript and builds
 pass. Browser QA must fill the ordinary textarea and click local rehearsal;
 it never clicks the special demo. It checks 15/30/60/90/custom, persistence,
@@ -63,3 +63,8 @@ corrected the phone screen orientation (with an over-shoulder reading shot),
 restored office context, removed an unintended night interpretation of a street
 and kept the growing bars moving through the last frames. The next revision
 requires another actual-frame check before visual approval. Keep production main unchanged; use the private lab and a stacked PR.
+
+Further semantic guards reject noun-only prop mentions and negated events;
+abstract scenes do not overwrite the named human protagonist. The player starts
+at t=0. The phone reading shot also checks that the head does not occlude its
+centre ray.

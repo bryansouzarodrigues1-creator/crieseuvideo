@@ -23,6 +23,7 @@ export function inferStaging(text: string): NarrativeStaging | undefined {
   if (/\b(nao|nunca|jamais)\b.{0,35}(corrupcao|propina|lavagem de dinheiro|desvio)/.test(t)) return;
   if (/\b(leao|leoa|gato|cachorro|cavalo|animal|passaro|peixe)\b/.test(t)) return;
   const deniedMotion = /\b(nao|nunca|jamais|sem)\b(?:\s+\S+){0,4}\s+\b(corr\w*|caminh\w*|andou|fug\w*)\b/.test(t);
+  if (!deniedMotion && /\b(nao|nunca|jamais)\b(?:\s+\S+){0,4}\s+(receb\w*|leu|digit\w*|abri\w*|criou|dispar\w*|subi\w*|cresc\w*)\b/.test(t)) return;
   if (/\bse\b(?:\s+\S+){0,4}\s+(corr\w*|caminh\w*|receb\w*|digit\w*)\b/.test(t)) return;
   let action: StagedAction | undefined;
   if (deniedMotion || /\b(parad[oa]|esperou|aguardou|ficou imovel)\b/.test(t)) action = 'wait';
@@ -31,8 +32,8 @@ export function inferStaging(text: string): NarrativeStaging | undefined {
   else if (/\b(caminh(?:a|ou|ando|ar|ava)|andou|andando)\b/.test(t)) action = 'walk';
   else if (/corrupcao|propina|lavagem de dinheiro|desvio de (dinheiro|verba)|esquema de corrup/.test(t)) action = 'money_flow';
   else if (/\b(grafico|vendas|resultado)\b/.test(t) && /subi|cresc|aument|dispar|dobr/.test(t)) action = 'growth';
-  else if (/celular|telefone|mensage|notific|whatsapp/.test(t)) action = 'phone';
-  else if (/computador|notebook|laptop|\bsite\b|digit|programou|escreveu no/.test(t)) action = 'work';
+  else if (/celular|telefone|mensage|notific|whatsapp/.test(t) && /receb|\bleu\b|\bler\b|olhou|\bviu\b|mand|envi|digit|respond|abriu|chegou/.test(t)) action = 'phone';
+  else if (/computador|notebook|laptop|\bsite\b/.test(t) && /digit|program|escrev|criou|montou|abriu|trabalh|mostrou/.test(t)) action = 'work';
   else if (/pergunt|duvida|e agora|pensou|percebeu|surpres|assust/.test(t)) action = 'question';
   else if (/\b(horas|meses|dias|semanas|tempo passou|relogio)\b/.test(t)) action = 'time';
   if (!action) return;

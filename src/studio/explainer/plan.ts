@@ -189,6 +189,7 @@ function stageSetting(staging?: NarrativeStaging): Setting {
 function continueCast(scenes: ExplainerScene[]) {
   let known: NarrativeStaging['actor'] | undefined;
   for (const scene of scenes) if (scene.staging) {
+    if (['money_flow', 'growth', 'time'].includes(scene.staging.action)) continue;
     if (scene.staging.actor.id === 'lead' && known) scene.staging.actor = { ...known };
     else known = scene.staging.actor;
   }

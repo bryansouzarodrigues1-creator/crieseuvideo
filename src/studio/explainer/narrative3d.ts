@@ -187,8 +187,15 @@ export class Narrative3D {
       if (this.phone) {
         reach('left', V(-.30, 1.42, 1.1), beat(t, .15, Math.min(1.1, duration * .3)));
         const hand = rig.leftArm.hand!; if (this.phone.parent !== hand) hand.add(this.phone);
-        const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-.45, Math.PI - .5, -.08));
-        const objectPosition = pos(hand).sub(V(0, -.18, -.03).applyQuaternion(rotation));
+        const handPosition = pos(hand), grip = V(0, -.18, -.03);
+        const rotation = new THREE.Quaternion(); let objectPosition = handPosition.clone().add(V(0, .18, 0));
+        // Orient the display toward the reader, keeping the local top upright.
+        // Iteration accounts for the off-centre grip without moving the hand.
+        for (let k = 0; k < 3; k++) {
+          const normal = pos(rig.head).sub(objectPosition).normalize();
+          rotation.setFromRotationMatrix(new THREE.Matrix4().lookAt(normal, V(), V(0, 1, 0)));
+          objectPosition = handPosition.clone().sub(grip.clone().applyQuaternion(rotation));
+        }
         const matrix = new THREE.Matrix4().compose(objectPosition, rotation, V(1, 1, 1)); hand.updateWorldMatrix(true, false);
         new THREE.Matrix4().copy(hand.matrixWorld).invert().multiply(matrix).decompose(this.phone.position, this.phone.quaternion, this.phone.scale); this.phone.updateWorldMatrix(false, true);
         if (t > 1.1) reach('right', this.phone.localToWorld(V(.08, .01 + .025 * Math.sin(t * 5), .065)), beat(t, 1.1, 1.8) * .92);
@@ -219,7 +226,7 @@ export class Narrative3D {
       // view makes the same screen visible to the audience without cheating its orientation.
       const look = pos(this.phone).add(V(0, .06, 0));
       const d = Math.max(1.25 / aspect, 1.7) / (2 * Math.tan(THREE.MathUtils.degToRad(21))) * 1.08;
-      return { look, pos: look.clone().add(V(-d * .62, d * .38, -d * .75)) };
+      return { look, pos: look.clone().add(V(-d * .32, d * .85, -d * .65)) };
     }
     const look = V(locomotion ? f.x + .20 + f.arrival * .45 : abstract ? 0 : -.02, close ? 1.80 : abstract ? 1.48 : 1.16, .55);
     const width = locomotion && f.arrival > 0 ? 3.9 : close ? 1.7 : staging.action === 'money_flow' ? 2.05 : abstract ? 2.55 : 2.35;

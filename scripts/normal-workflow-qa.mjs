@@ -54,6 +54,7 @@ try {
     await page.locator('[data-aspect="' + spec.aspect + '"]').click(); await page.locator('#local').click();
     await page.waitForFunction(() => document.getElementById('canvas').dataset.renderEngine === '3d');
     assert.equal(Number(await page.locator('#timeline').getAttribute('max')), spec.seconds);
+    assert.equal(Number(await page.locator('#timeline').inputValue()), 0);
     assert.match(await page.locator('#fidelity').innerText(), /Todas as palavras preservadas/);
     const scenes = await page.locator('.scene-card').evaluateAll((cards) => cards.map((c) => ({ start: Number(c.dataset.start), duration: Number(c.dataset.duration), text: c.querySelector('p').textContent })));
     assert.equal(scenes.length, spec.actions.length); assert.equal(scenes.map((s) => s.text).join(' '), spec.text);

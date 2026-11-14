@@ -45,7 +45,7 @@ async function prepare3d() {
 }
 function setPlan(next: ExplainerPlan, label: string) {
   playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir');
-  plan = withTargetDuration({ ...next, engine, aspect }, targetDuration); time = .7; selectedScene = -1; source = label;
+  plan = withTargetDuration({ ...next, engine, aspect }, targetDuration); time = 0; selectedScene = -1; source = label;
   planScript = spokenText(next.scenes.map((s) => s.text).join(' '));
   canvas.style.opacity = planScript === spokenText(script.value) ? '1' : '.45';
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;

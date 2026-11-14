@@ -62,7 +62,12 @@ it('the phone screen faces the reader while the camera can move over their shoul
   const scene = buildFallbackPlan('Ele recebeu uma mensagem no celular.').scenes[0];
   const stage = new Narrative3D(scene, new THREE.Group()); stage.update(3, 10);
   expect(stage.diagnostics().phoneFacingReader).toBe(true);
-  expect(stage.camera(9 / 16).pos.z).toBeLessThan(0);
+  const camera = stage.camera(9 / 16);
+  expect(camera.pos.z).toBeLessThan(0);
+  const head = stage.actors[0].rig.head.getWorldPosition(new THREE.Vector3());
+  const ray = new THREE.Ray(camera.pos, camera.look.clone().sub(camera.pos).normalize());
+  const hit = ray.intersectSphere(new THREE.Sphere(head, .42), new THREE.Vector3());
+  expect(!hit || hit.distanceTo(camera.pos) > camera.look.distanceTo(camera.pos)).toBe(true);
   stage.dispose();
 });
 it('a graph described as continuously rising keeps growing through the last frames', () => {
@@ -72,4 +77,13 @@ it('a graph described as continuously rising keeps growing through the last fram
   stage.update(9.99, 10);
   stage.diagnostics().barHeights.forEach((h, i) => expect(h).toBeGreaterThan(before[i]));
   stage.dispose();
+});
+it('a prop noun alone does not invent reading or computer work, and denied events do not execute', () => {
+  for (const text of ['O celular era caro.', 'O computador estava quebrado.', 'O coração não disparou.', 'Ele não recebeu a mensagem.', 'O gráfico nunca subiu.']) {
+    expect(inferStaging(text), text).toBeUndefined();
+  }
+});
+it('an abstract topic cannot replace the identity of the human protagonist', () => {
+  const scenes = buildFallbackPlan('Nina recebeu uma mensagem. Corrupção era o assunto. Ela correu pela rua.').scenes;
+  expect(scenes[2].staging?.actor.name).toBe('Nina');
 });

@@ -250,7 +250,7 @@ export class Toon3D {
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
     if (!scene.staging || !['money_flow', 'time', 'run', 'walk'].includes(scene.staging.action)) buildSet(scene, this.world, night, index + 1);
-    else this.scene.background = new THREE.Color(0x1b2d3d);
+    else if (scene.staging && ['money_flow', 'time'].includes(scene.staging.action)) this.scene.background = new THREE.Color(0x1b2d3d);
     if (scene.story) {
       // Narrative shots occupy the REAL 3D world: no presenter or board duplication.
       this.rig?.dispose(); this.rig = null; this.holder = null; this.board = null;
