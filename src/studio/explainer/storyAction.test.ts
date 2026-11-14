@@ -25,6 +25,14 @@ describe('literal story action validation', () => {
     expect(normalizeStory(raw, 'Lia não entregou a lanterna para Caio.')).toBeUndefined();
     expect(normalizeStory(raw, 'Lia nunca pegou a lanterna e entregou para Caio.')).toBeUndefined();
   });
+  it('does not treat a name that appears only inside a longer word as an actor', () => {
+    expect(normalizeStory({
+      action: 'pickup', prop: 'ball', actors: [{ name: 'Ana' }],
+    }, 'Banana pegou uma bola.')).toBeUndefined();
+  });
+  it('does not act out a hypothetical or conditional handoff', () => {
+    expect(normalizeStory(raw, 'Se Lia entregasse a lanterna para Caio, seria ótimo.')).toBeUndefined();
+  });
   it('refuses incorrect props and invented participant names', () => {
     expect(normalizeStory({ ...raw, prop: 'hat' }, phrase)).toBeUndefined();
     expect(normalizeStory({ ...raw, actors: [{ name: 'Bia' }, { name: 'Caio' }] }, phrase)).toBeUndefined();
