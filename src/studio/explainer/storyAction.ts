@@ -30,9 +30,11 @@ const VERBS: Record<StoryAction, RegExp> = {
   chase: /\b(persegu\w*|corr\w*|fug\w*)\b/,
 };
 const clean = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const mentionsName = (text: string, name: string) =>
-  text.split(/[^a-z0-9]+/).join(' ').split(' ').length > 0 &&
-  new RegExp(`(^|[^a-z0-9])${clean(name).replace(/[.*+?^\$\{\}()|[\]\\]/g, '\\const clean = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');')}(?=$|[^a-z0-9])`).test(text);
+const mentionsName = (text: string, name: string): boolean => {
+  const sourceWords = clean(text).split(/[^a-z0-9]+/).filter(Boolean);
+  const nameWords = clean(name).split(/[^a-z0-9]+/).filter(Boolean);
+  return nameWords.length > 0 && sourceWords.some((_, i) => nameWords.every((word, j) => sourceWords[i + j] === word));
+};
 
 const defaults = ['#FFB447', '#4AC6BE'];
 const easing = (value: number) => { const p = Math.max(0, Math.min(1, value)); return p * p * (3 - 2 * p); };
