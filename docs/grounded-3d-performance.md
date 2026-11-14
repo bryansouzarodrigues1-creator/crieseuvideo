@@ -37,7 +37,7 @@ Gemini can select the same capability through its structured plan.
 | 11.7–13.35 | Present the lantern and reach with receiver's hand |
 | 13.35–13.95 | Both hands contact separate points on the handle |
 | 13.65 | Change parent to receiver with continuous world transform |
-| 13.95–15.6 | Release, raise the gift and acknowledge it |
+| 13.95–15.6 | Release, settle the gift and acknowledge it |
 
 The arm/leg solver uses true world-space two-bone IK and a bend pole. Foot
 stance anchors are functions of distance, independent of wall-clock speed.
@@ -79,7 +79,8 @@ previous work. Real Gemini generation has not been retested with a paid call.
 The first rendered revision passed 540-frame H.264/AAC exports in both aspects
 and identical-frame seek checks, with no browser errors or AI calls. Visual
 inspection caught an occluded pickup arm; the next revision moves the grip to
-the camera-facing arm, differentiates hair, adds a smile and tightens framing.
+the camera-facing arm, differentiates hair, adds a smile and tightens framing. A second visual pass also lowers the
+resting handle below the receiver's mouth and adds a small acknowledgement nod.
 
 Mathematical contacts alone do not certify natural acting. Inspect the full
 18-second video, silhouettes, soles, palms, framing and shot changes. The

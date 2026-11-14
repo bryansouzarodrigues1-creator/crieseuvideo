@@ -115,9 +115,10 @@ export class GroundedPerformance {
         gaze: 'lookAtCamera', prop: 'none', position: { x: 0, y: 0, z: 0 }, rotationY: yaw, scale: 1,
       }, t, { breathingAmplitude: 0 });
       // Reset every channel absolutely; arbitrary seek order must be identical.
-      rig.torso.position.set(0, (i ? 0 : .012 * Math.sin(f.distance / .8 * Math.PI * 4) * speed), 0);
+      rig.torso.position.set(0, .006 * Math.sin(t * 2.1 + i) + (i ? 0 : .012 * Math.sin(f.distance / .8 * Math.PI * 4) * speed), 0);
       rig.torso.rotation.set(i ? 0 : .32 * f.crouch + .07 * speed, 0, 0);
-      rig.head.rotation.set(i ? .13 * f.recover : .32 * f.crouch - .05, i ? -.22 * beat(t, 10, 12) : -.12 * (1 - f.crouch), 0);
+      const nod = i && t >= 14.7 && t <= 15.6 ? .12 * Math.sin(Math.PI * (t - 14.7) / .9) : 0;
+      rig.head.rotation.set((i ? .13 * f.recover + nod : .32 * f.crouch - .05) + .006 * Math.sin(t * 1.8 + i), i ? -.22 * beat(t, 10, 12) : -.12 * (1 - f.crouch), .008 * Math.sin(t * 1.5 + i));
       this.smiles[i].visible = i ? t > 14.5 : t > 15.3;
       rig.face.mouth.visible = !this.smiles[i].visible;
       const blink = [2.9, 7.2, 12.1, 16.8].reduce((amount, at) => Math.max(amount, Math.max(0, 1 - Math.abs(t - at - i * .31) / .09)), 0);
@@ -150,7 +151,7 @@ export class GroundedPerformance {
     const giver = this.actors[0].rig, receiver = this.actors[1].rig;
     const carryRoot = V(f.x + .59, mix(FLOOR_LANTERN.y, .73, beat(t, 5.9, 7.3)), 1.03);
     const objectPosition = t < CONTACT_TIME ? FLOOR_LANTERN.clone() : carryRoot.lerp(TRANSFER_LANTERN, f.present);
-    const reactionRoot = V(1.67, 1.23, 1.05);
+    const reactionRoot = V(1.49, 1.02, 1.05); // keep the handle below the face so the smile remains readable
     if (t >= TRANSFER_TIME) objectPosition.copy(TRANSFER_LANTERN).lerp(reactionRoot, f.recover);
     // A little inertial sway rotates around the handle, never detaches from it.
     const sway = f.walking && t > 7.5 ? .065 * Math.sin(f.distance / .8 * Math.PI * 2) * speed : 0;
