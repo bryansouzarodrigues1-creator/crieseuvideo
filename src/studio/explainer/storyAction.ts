@@ -137,3 +137,19 @@ export function storyFrame(story: StoryScene, local: number, duration: number): 
     touching: [leftTouch, rightTouch],
   };
 }
+
+/**
+ * Pure planar two-bone IK: screen-right is +X, gravity points toward -Y.
+ * The 3D arm geometry consists of two segments hanging along local -Y.
+ */
+export function solveArmTarget(dx: number, dy: number, upper = .42, lower = .43) {
+  const distance = Math.hypot(dx, dy);
+  const clamped = Math.max(Math.abs(upper - lower) + .001, Math.min(upper + lower - .001, distance));
+  const elbow = Math.acos(Math.max(-1, Math.min(1, (clamped ** 2 - upper ** 2 - lower ** 2) / (2 * upper * lower))));
+  const direction = Math.atan2(dx, -dy);
+  const correction = Math.atan2(lower * Math.sin(elbow), upper + lower * Math.cos(elbow));
+  const shoulder = direction - correction;
+  const wristX = upper * Math.sin(shoulder) + lower * Math.sin(shoulder + elbow);
+  const wristY = -upper * Math.cos(shoulder) - lower * Math.cos(shoulder + elbow);
+  return { shoulder, elbow, wristX, wristY, reachable: distance <= upper + lower };
+}
