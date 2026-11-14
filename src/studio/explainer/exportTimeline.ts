@@ -49,7 +49,7 @@ export function missingNarrationScenes({ plan, voiceKey, buffers }: Pick<MixSour
 /** Export length: the longer of the visual timeline and the end of the last audio cue, plus the tail. */
 export function exportDuration(plan: ExplainerPlan, cues: AudioCue[]): number {
   const audioEnd = cues.reduce((m, c) => Math.max(m, c.at + c.buffer.duration), 0);
-  return Math.max(totalDuration(plan), audioEnd) + EXPORT_TAIL;
+  return Math.max(totalDuration(plan), audioEnd) + (plan.targetDuration ? 0 : EXPORT_TAIL);
 }
 
 /** Frame-exact time for a clock reading: always an integer multiple of 1/fps, never negative. */

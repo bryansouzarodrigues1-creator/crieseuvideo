@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
+import { withTargetDuration, normalizeTargetDuration, durationNotice, DURATION_PRESETS } from './duration';
+import { ACTION_LABELS, normalizeStaging } from './staging';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
@@ -30,7 +32,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [script, setScript] = useState('');
   const [vaultCount, setVaultCount] = useState(0);
   const [aspect, setAspect] = useState<'9:16' | '16:9'>('9:16');
-  const [plan, setPlan] = useState<ExplainerPlan>({ title: 'Novo projeto', aspect: '9:16', scenes: [] });
+  const durationRef = useRef<number | undefined>(undefined);
+  const [durationChoice, setDurationChoice] = useState('auto');
+  const [customSeconds, setCustomSeconds] = useState('60');
+  const [plan, setRawPlan] = useState<ExplainerPlan>({ title: 'Novo projeto', aspect: '9:16', scenes: [] });
+  const setPlan = useCallback((value: SetStateAction<ExplainerPlan>) => setRawPlan((previous) => withTargetDuration(typeof value === 'function' ? value(previous) : value, durationRef.current)), []);
   void buildFallbackPlan;
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -183,6 +189,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setProvider('gemini'); setVoice(savedVoice);
     }
     setVoiceOn(p.voiceOn ?? true);
+    try { durationRef.current = normalizeTargetDuration(p.plan.targetDuration); } catch { durationRef.current = undefined; }
+    setDurationChoice(durationRef.current ? (DURATION_PRESETS as readonly number[]).includes(durationRef.current) ? String(durationRef.current) : 'custom' : 'auto');
+    if (durationRef.current) setCustomSeconds(String(durationRef.current));
     setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d');
     seek(0); setLibrary(false);
   };
@@ -234,9 +243,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const generate = async (text = script) => {
     const invalid = scriptError(text);
     if (invalid) { setNote(invalid); return; }
+    try {
+      if (durationChoice === 'custom' && !customSeconds.trim()) throw new Error('Informe a duração em segundos.');
+      durationRef.current = normalizeTargetDuration(durationChoice === 'custom' ? customSeconds : durationChoice);
+    } catch (error) { setNote((error as Error).message); return; }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: [...gallery, ...vaultFor(text)] }) });
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, engine, targetDuration: durationRef.current, gallery: [...gallery, ...vaultFor(text)] }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
@@ -264,7 +277,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   };
 
   const updateScene = (i: number, patch: Partial<ExplainerPlan['scenes'][number]>) =>
-    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined, story: normalizeStory(s.story, patch.text) } : {}) } : s)) }));
+    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined, story: normalizeStory(s.story, patch.text), staging: normalizeStaging(undefined, patch.text) } : {}) } : s)) }));
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
   const voiced = hasNarration({ plan, voiceKey, buffers: buffers.current, track: trackRef.current });
 
@@ -400,7 +413,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       </nav>
       <main className="explainer-layout">
         <section className="explainer-panel">
-          <p className="explainer-kicker">ANIMAÇÃO EXPLICATIVA 2D</p>
+          <p className="explainer-kicker">HISTÓRIAS EM MOVIMENTO</p>
           <h1>Do roteiro à animação.</h1>
           <p className="explainer-sub">A IA escreve a direção, o código desenha cada quadro. Sem custo de vídeo: ~0,02 crédito pela direção e ~0,1 crédito por minuto de narração.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
@@ -415,6 +428,23 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
             <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
+          <label className="explainer-label" htmlFor="video-duration">Duração do vídeo</label>
+          <div className="explainer-row">
+            <select id="video-duration" className="explainer-voice-select" value={durationChoice} disabled={busy || recording !== null || voicing !== null} onChange={(e) => {
+              const choice = e.target.value; setDurationChoice(choice);
+              durationRef.current = normalizeTargetDuration(choice === 'custom' ? customSeconds : choice); setPlan((p) => p); seek(0);
+            }}>
+              <option value="auto">Automática pelo roteiro</option>
+              {DURATION_PRESETS.map((seconds) => <option key={seconds} value={seconds}>{seconds} segundos</option>)}
+              <option value="custom">Personalizada</option>
+            </select>
+            {durationChoice === 'custom' && <input type="number" className="explainer-badge-input" min={5} max={600} step={1} value={customSeconds} aria-label="Duração em segundos" onChange={(e) => {
+              setCustomSeconds(e.target.value);
+              try { durationRef.current = normalizeTargetDuration(e.target.value); setPlan((p) => p); seek(0); }
+              catch (error) { setNote((error as Error).message); }
+            }} />}
+          </div>
+          <p className="explainer-hint">{durationNotice(plan) || 'O tempo organiza as ações e pausas. O roteiro e a voz são preservados.'}</p>
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
             {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
@@ -448,12 +478,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           {note && <p className="explainer-note" role="status">{note}</p>}
 
           <div className="explainer-scenes">
-            <p className="explainer-label">Cenas ({plan.scenes.length})</p>
+            <p className="explainer-label">Cenas ({plan.scenes.length}) · {plan.scenes.filter((s) => s.story || s.staging).length} com encenação disponível em 3D</p>
             {plan.scenes.map((s, i) => (
               <div key={i} className={`explainer-scene ${i === current ? 'is-active' : ''}`} onClick={() => jumpTo(i)}>
                 <span className="explainer-scene-n">{i + 1}</span>
                 <div className="explainer-scene-body">
                   <input value={s.text} onChange={(e) => updateScene(i, { text: e.target.value })} aria-label={`Texto da cena ${i + 1}`} />
+                  {s.staging && <small>{s.staging.metaphor ? 'Metáfora visual · ' : ''}{ACTION_LABELS[s.staging.action]}</small>}
                   <div className="explainer-row">
                     <select value={s.visual} onChange={(e) => updateScene(i, { visual: e.target.value as Visual })} aria-label="Visual">
                       {VISUALS.map((v) => <option key={v} value={v}>{VISUAL_LABEL[v]}</option>)}

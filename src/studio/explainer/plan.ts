@@ -3,6 +3,7 @@ import { normalizeStory, type StoryScene } from './storyAction';
 import { SETTINGS, type Setting } from './settings';
 import { scriptScenes, splitSceneText, spokenText } from './script';
 import { localStory } from './localStory';
+import { normalizeStaging, type NarrativeStaging } from './staging';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -29,12 +30,15 @@ export interface ExplainerScene {
   drawing?: Shape[];
   /** Validated object choreography; 2D stage and Toon3D board share these beats. */
   story?: StoryScene;
+  staging?: NarrativeStaging;
+  /** Explicit scene time allocated by the user's duration setting. */
+  duration?: number;
   /** Animated full-screen scenario behind the scene. */
   setting?: Setting;
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
@@ -52,8 +56,12 @@ export const MIN_SCENE = 2.4;
 
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 export const VOICE_TAIL = 0.35;
-export const sceneDuration = (s: ExplainerScene) => Math.max(s.story?.performance === 'grounded-v1' ? 18 : 0,
-  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5));
+export function sceneDuration(s: ExplainerScene) {
+  const explicit = Number.isFinite(s.duration) && s.duration! > 0 ? s.duration! : 0;
+  const speech = s.voice ? SCENE_LEAD + s.voice.duration + VOICE_TAIL : 0;
+  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : 0, explicit,
+    explicit ? speech : s.voice ? Math.max(1.6, speech) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + .5));
+}
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
 
 /** Spoken weight of a word: longer words and punctuation pauses take more time. */
@@ -61,7 +69,7 @@ export const wordWeight = (w: string) => w.replace(/[^\p{L}\d]/gu, '').length + 
 export function wordTimings(scene: ExplainerScene) {
   const list = words(scene.text);
   const from = SCENE_LEAD + (scene.voice ? scene.voice.start : 0);
-  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : scene.story?.performance ? sceneDuration(scene) - SCENE_LEAD - .5 : list.length * SECONDS_PER_WORD;
+  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : scene.story?.performance || scene.duration ? Math.max(.2, sceneDuration(scene) - SCENE_LEAD - .5) : list.length * SECONDS_PER_WORD;
   const total = list.reduce((a, w) => a + wordWeight(w), 0) || 1;
   let acc = 0;
   return list.map((word) => { const start = from + (acc / total) * span; acc += wordWeight(word); return { word, start, end: from + (acc / total) * span }; });
@@ -122,18 +130,20 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
   const list = sentences.length ? sentences : ['Escreva seu roteiro para começar.'];
   const scenes = list.map((text, i): ExplainerScene => {
     const story = localStory(text);
+    const staging = story ? undefined : normalizeStaging(undefined, text);
     const visual = story ? 'custom' : pickVisual(text);
     const mood = pickMood(text);
     const num = text.match(/\d+\s+[\p{L}]+/u)?.[0];
     const longest = [...words(text)].sort((a, b) => b.length - a.length)[0]?.replace(/[^\p{L}\d]/gu, '');
     return {
-      text, visual, mood, story, setting: story ? pickSetting(text) || 'room' : undefined, presenterPose: pickPresenterPose(text),
+      text, visual, mood, story, staging, setting: story || staging ? pickSetting(text) || stageSetting(staging) : undefined, presenterPose: pickPresenterPose(text),
       palette: visual === 'city_night' || mood === 'sad' ? 'night' : PALETTES[i % 4],
       label: num ? `${num.toUpperCase()}…` : undefined,
       chat: visual === 'phone_chat' ? text : undefined,
       highlight: longest ? [longest] : [],
     };
   });
+  continueCast(scenes);
   return { title: list[0].slice(0, 60), aspect, scenes };
 }
 
@@ -148,6 +158,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
     const text = s.text;
     if (!text) return null;
     const story = normalizeStory(s?.story, text);
+    const staging = story ? undefined : normalizeStaging(s?.staging, text);
     const drawing = normalizeDrawing(s?.drawing);
     let visual = story ? 'custom' as Visual : pick(s.visual, VISUALS, pickVisual(text));
     if (visual === 'custom' && !drawing && !story) visual = pickVisual(text);
@@ -156,7 +167,8 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       visual,
       drawing: visual === 'custom' && !story ? drawing : undefined,
       story,
-      setting: (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
+      staging,
+      setting: staging ? pickSetting(text) || stageSetting(staging) : (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
       mood: pick(s.mood, MOODS, pickMood(text)),
       presenterPose: (PRESENTER_POSES as readonly string[]).includes(s.presenterPose) ? (s.presenterPose as PresenterPose) : pickPresenterPose(text),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
@@ -167,7 +179,20 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
     };
   }).filter(Boolean) as ExplainerScene[];
   if (!scenes.length) return fb;
+  continueCast(scenes);
   return { title: str(raw?.title, 80) || fb.title, aspect, scenes };
+}
+
+function stageSetting(staging?: NarrativeStaging): Setting {
+  return staging?.action === 'run' || staging?.action === 'walk' ? 'city_day' : staging?.action === 'work' || staging?.action === 'growth' ? 'office' : 'room';
+}
+function continueCast(scenes: ExplainerScene[]) {
+  let known: NarrativeStaging['actor'] | undefined;
+  for (const scene of scenes) if (scene.staging) {
+    if (['money_flow', 'growth', 'time'].includes(scene.staging.action)) continue;
+    if (scene.staging.actor.id === 'lead' && known) scene.staging.actor = { ...known };
+    else known = scene.staging.actor;
+  }
 }
 
 const SETTING_WORDS: [Setting, RegExp][] = [

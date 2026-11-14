@@ -9,10 +9,11 @@ on:
     branches:
       - work/export-capture-guard-2026-11-14
       - feat/story-action-choreography
+      - feat/grounded-3d-performance
   workflow_dispatch:
 
 concurrency:
-  group: story-qa-${{ github.ref }}
+  group: story-qa-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -21,7 +22,7 @@ permissions:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       CI: "true"
     steps:
@@ -52,16 +53,28 @@ jobs:
             sudo apt-get install -y -qq ffmpeg
           fi
           ffmpeg -version | head -1
-      - name: Export full 18s grounded 3D in both aspects (no AI calls)
-        run: node scripts/export-grounded-mp4.mjs
+      - name: Ordinary input and user duration - samples first
+        run: node scripts/normal-workflow-qa.mjs --samples
+      - name: Upload normal workflow samples before long render
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ordinary-workflow-samples
+          path: |
+            tmp/normal-workflow/*.png
+            tmp/normal-workflow/samples-report.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Export ordinary 60s and 30s videos without AI calls
+        run: node scripts/normal-workflow-qa.mjs --full
       - name: Upload animated MP4
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: crieseuvideo-lia-caio-mp4
+          name: ordinary-workflow-mp4
           path: |
-            tmp/grounded-performance/*.mp4
-            tmp/grounded-performance/*report.json
+            tmp/normal-workflow/*.mp4
+            tmp/normal-workflow/*report.json
           if-no-files-found: warn
           retention-days: 7
       - name: Upload visual QA frames
