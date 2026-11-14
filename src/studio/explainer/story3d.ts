@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from './toon/characterRig';
 import type { ToonCharacter, CharacterPose } from './toon/types';
-import { storyFrame, type StoryScene, type StoryProp } from './storyAction';
+import { solveArmTarget, storyFrame, type StoryScene, type StoryProp } from './storyAction';
 
 type Performer = { rig: ToonCharacterRig; holder: THREE.Group; name: THREE.Sprite; texture: THREE.CanvasTexture };
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -67,13 +67,9 @@ function aimHand(
   const localTarget = holder.worldToLocal(target.clone());
   const dx = localTarget.x - (side === 'left' ? -.36 : .36);
   const dy = localTarget.y - .3;
-  const upper = .42, lower = .43;
-  const dist = clamp(Math.hypot(dx, dy), .05, upper + lower - .001);
-  const elbow = Math.acos(clamp((dist * dist - upper * upper - lower * lower) / (2 * upper * lower), -1, 1));
-  const direction = Math.atan2(dx, -dy);
-  const correction = Math.atan2(lower * Math.sin(elbow), upper + lower * Math.cos(elbow));
-  arm.root.rotation.set(0, 0, direction - correction);
-  arm.elbow?.rotation.set(0, 0, elbow);
+  const angles = solveArmTarget(dx, dy);
+  arm.root.rotation.set(0, 0, angles.shoulder);
+  arm.elbow?.rotation.set(0, 0, angles.elbow);
 }
 
 /**
