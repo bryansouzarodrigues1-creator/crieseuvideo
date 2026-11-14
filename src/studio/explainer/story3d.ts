@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from './toon/characterRig';
 import type { ToonCharacter, CharacterPose } from './toon/types';
 import { solveArmTarget, storyFrame, type StoryScene, type StoryProp } from './storyAction';
+import { GroundedPerformance, performanceCamera } from './grounded3d';
 
 type Performer = { rig: ToonCharacterRig; holder: THREE.Group; name: THREE.Sprite; texture: THREE.CanvasTexture };
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -17,12 +18,17 @@ function add(g: THREE.Group, geometry: THREE.BufferGeometry, color: number, x: n
 function objectModel(kind: StoryProp): THREE.Group {
   const g = new THREE.Group();
   if (kind === 'lantern') {
-    add(g, new THREE.CylinderGeometry(.19, .22, .45, 12), 0xf9b232, 0, 0, 0);
-    add(g, new THREE.CylinderGeometry(.17, .17, .29, 12), 0xffee9b, 0, 0.02, .02);
+    add(g, new THREE.CylinderGeometry(.22, .23, .06, 16), 0x263750, 0, -.23, 0);
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .38, 16), new THREE.MeshPhysicalMaterial({ color: 0xffd886, transparent: true, opacity: .24, roughness: .18, depthWrite: false }));
+    glass.position.y = .01; g.add(glass);
+    const glow = new THREE.Mesh(new THREE.CapsuleGeometry(.07, .13, 6, 10), new THREE.MeshStandardMaterial({ color: 0xffe99a, emissive: 0xffb62f, emissiveIntensity: 2 }));
+    glow.position.y = -.02; g.add(glow);
+    for (const x of [-.16, .16]) for (const z of [-.12, .12]) add(g, new THREE.CylinderGeometry(.015, .015, .42, 6), 0x263750, x, .01, z);
     add(g, new THREE.CylinderGeometry(.23, .23, .07, 12), 0x263750, 0, .26, 0);
-    const ring = mesh(new THREE.TorusGeometry(.15, .028, 7, 14, Math.PI), 0x263750);
-    ring.rotation.z = Math.PI; ring.position.y = .32; g.add(ring);
-    const light = new THREE.PointLight(0xffdf7e, .7, 2.5); light.position.y = .05; g.add(light);
+    add(g, new THREE.CylinderGeometry(.035, .035, .14, 8), 0x263750, 0, .35, 0);
+    const ring = mesh(new THREE.TorusGeometry(.14, .024, 8, 24), 0x263750);
+    ring.position.y = .50; g.add(ring);
+    const light = new THREE.PointLight(0xffc557, 1.2, 3); light.position.y = .05; g.add(light);
   } else if (kind === 'hat') {
     add(g, new THREE.CylinderGeometry(.33, .37, .30, 16), 0x6378e5, 0, .14, 0);
     add(g, new THREE.CylinderGeometry(.58, .58, .06, 20), 0x657ce5, 0, -.03, 0);
@@ -79,20 +85,24 @@ function aimHand(
 export class ToonStory3D {
   readonly performers: Performer[] = [];
   readonly prop: THREE.Group;
+  readonly performance: GroundedPerformance | null;
   private readonly sparks: THREE.Mesh[] = [];
   constructor(readonly story: StoryScene, world: THREE.Group) {
     for (let i = 0; i < story.actors.length; i++) {
       const actor = story.actors[i]!;
       const rig = createCharacterRig({ bodyColor: parseInt(actor.color.slice(1), 16), scale: 1 }, 'none');
+      rig.root.traverse((o) => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true; } });
       const holder = new THREE.Group();
       holder.add(rig.root);
       const tag = nameTag(actor.name);
       tag.sprite.position.set(0, 1.45, .10); holder.add(tag.sprite);
+      tag.sprite.visible = !story.performance;
       world.add(holder);
       this.performers.push({ rig, holder, name: tag.sprite, texture: tag.texture });
     }
     this.prop = objectModel(story.prop);
     world.add(this.prop);
+    this.performance = story.performance === 'grounded-v1' ? new GroundedPerformance(this.performers, this.prop, world) : null;
     for (let i = 0; i < 5; i++) {
       const spark = mesh(new THREE.IcosahedronGeometry(.06, 0), 0xffd765);
       spark.visible = false; world.add(spark); this.sparks.push(spark);
@@ -100,6 +110,7 @@ export class ToonStory3D {
   }
 
   update(local: number, duration: number) {
+    if (this.performance) { this.performance.update(local * 18 / duration); return; }
     const frame = storyFrame(this.story, local, duration);
     const p = clamp(local / Math.max(.1, duration), 0, 1);
     const propPosition = new THREE.Vector3(frame.prop.x / 160, 1.10 - (frame.prop.y + 12) * .0045, .75);
@@ -135,6 +146,10 @@ export class ToonStory3D {
         );
       }
     });
+  }
+
+  camera(local: number, duration: number, aspect: number) {
+    return this.performance ? performanceCamera(local * 18 / duration, aspect) : null;
   }
 
   dispose() {

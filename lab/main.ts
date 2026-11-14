@@ -17,9 +17,9 @@ function counter() { $('counter').textContent = `${script.value.length.toLocaleS
 function draw() {
   if (!plan) return;
   if (engine === '3d' && toon) {
-    try { toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); }
+    try { toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d'; }
     catch { engine = '2d'; buttons(); drawExplainerFrame(context, plan, time); note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
-  } else drawExplainerFrame(context, plan, time);
+  } else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
   timeline.value = String(time); $('clock').textContent = `${fmt(time)} / ${fmt(totalDuration(plan))}`;
   const i = sceneAt(plan, time)?.index ?? 0;
   if (i !== selectedScene) { selectedScene = i; document.querySelectorAll('.scene-card').forEach((card, k) => card.classList.toggle('active', k === i)); }
@@ -64,16 +64,16 @@ $('sample').addEventListener('click', () => { script.value = SAMPLE; counter(); 
 $('local').addEventListener('click', local);
 $('story-demo').addEventListener('click', () => {
   // Deterministic original scene: no Gemini or voice request. Tests actors, contact and ownership.
-  script.value = 'Lia pegou uma lanterna e entregou para Caio.';
-  counter(); engine = '2d'; buttons();
+  script.value = 'Lia entra, caminha, agacha-se, pega a lanterna e entrega para Caio, que segura o objeto e sorri.';
+  counter(); engine = '3d'; buttons();
   const sample = normalizePlan({ title: 'Lia e Caio · a lanterna', scenes: [{
     text: script.value, visual: 'custom', mood: 'happy', palette: 'teal', setting: 'room',
-    story: { action: 'handoff', prop: 'lantern', actors: [
+    story: { action: 'handoff', prop: 'lantern', performance: 'grounded-v1', actors: [
       { name: 'Lia', color: '#FFB447' }, { name: 'Caio', color: '#4AC6BE' },
     ] },
   }] }, script.value, aspect);
-  setPlan(sample, 'COREOGRAFIA SEM IA');
-  note('Lia pega a lanterna, se aproxima de Caio e entrega o objeto. Compare os contatos durante toda a cena; nenhum crédito foi utilizado.');
+  setPlan(sample, 'ATUAÇÃO 3D · 18s');
+  note('Ensaio 3D de 18 segundos: caminhar, agachar, pegar, transportar e entregar. Confira pés, mãos e posse ao avançar ou voltar a linha do tempo. Nenhuma chamada de IA.');
 });
 $('play').addEventListener('click', () => { playing = !playing; if (time >= totalDuration(plan)) time = 0; $('play').textContent = playing ? 'Ⅱ' : '▶'; $('play').setAttribute('aria-label', playing ? 'Pausar' : 'Reproduzir'); last = performance.now(); });
 timeline.addEventListener('input', () => { time = Number(timeline.value); draw(); });

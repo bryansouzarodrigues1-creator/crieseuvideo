@@ -33,3 +33,4 @@ dist-ssr
 
 # Isolated lab build output (contains bundled source, never secrets)
 lab/generated/
+tmp/

@@ -42,12 +42,13 @@ try {
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.locator('#story-demo').click();
-  assert.match(await page.locator('#source').innerText(), /COREOGRAFIA SEM IA/);
+  assert.match(await page.locator('#source').innerText(), /ATUAÇÃO 3D/);
   assert.equal(await page.locator('#scene-count').innerText(), '1');
   assert.match(await page.locator('#fidelity').innerText(), /Todas as palavras preservadas/);
   const storyboard = await page.locator('.scene-card').first().innerText();
   assert.match(storyboard, /Lia/);
   assert.match(storyboard, /Caio/);
+  await page.locator('[data-engine="2d"]').click();
 
   const canvas = page.locator('#canvas');
   const samples = [];

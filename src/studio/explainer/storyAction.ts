@@ -15,6 +15,8 @@ export interface StoryScene {
   actors: StoryActor[];
   /** Whether the source explicitly says the giver picks up the object first. */
   pickupFirst: boolean;
+  /** Opt-in full-body 18s performance. Validated against the literal action. */
+  performance?: 'grounded-v1';
 }
 
 const PROP_WORDS: Record<StoryProp, RegExp> = {
@@ -84,9 +86,13 @@ export function normalizeStory(raw: unknown, sourceText: string): StoryScene | u
     // Ambiguous reversed phrasing falls back to a static illustration.
     if (!mentionsName(before, actors[0]!.name) || !mentionsName(after, actors[1]!.name)) return;
   }
+  const pickupFirst = action === 'pickup' || (action === 'handoff' && VERBS.pickup.test(source));
+  const performance = input.performance === 'grounded-v1' && action === 'handoff' && pickupFirst && prop === 'lantern'
+    ? 'grounded-v1' as const : undefined;
   return {
     action, prop, actors,
-    pickupFirst: action === 'pickup' || (action === 'handoff' && VERBS.pickup.test(source)),
+    pickupFirst,
+    ...(performance ? { performance } : {}),
   };
 }
 

@@ -51,8 +51,8 @@ export const MIN_SCENE = 2.4;
 
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 export const VOICE_TAIL = 0.35;
-export const sceneDuration = (s: ExplainerScene) =>
-  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5);
+export const sceneDuration = (s: ExplainerScene) => Math.max(s.story?.performance === 'grounded-v1' ? 18 : 0,
+  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5));
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
 
 /** Spoken weight of a word: longer words and punctuation pauses take more time. */
@@ -60,7 +60,7 @@ export const wordWeight = (w: string) => w.replace(/[^\p{L}\d]/gu, '').length + 
 export function wordTimings(scene: ExplainerScene) {
   const list = words(scene.text);
   const from = SCENE_LEAD + (scene.voice ? scene.voice.start : 0);
-  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : list.length * SECONDS_PER_WORD;
+  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : scene.story?.performance ? sceneDuration(scene) - SCENE_LEAD - .5 : list.length * SECONDS_PER_WORD;
   const total = list.reduce((a, w) => a + wordWeight(w), 0) || 1;
   let acc = 0;
   return list.map((word) => { const start = from + (acc / total) * span; acc += wordWeight(word); return { word, start, end: from + (acc / total) * span }; });
