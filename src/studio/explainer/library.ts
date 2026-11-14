@@ -2,7 +2,7 @@
 import type { ExplainerPlan } from './plan';
 import type { Shape } from './drawing';
 
-export interface SavedProject { id: string; title: string; script: string; plan: ExplainerPlan; updatedAt: number }
+export interface SavedProject { id: string; title: string; script: string; plan: ExplainerPlan; updatedAt: number; /** Original TTS voice used for scene audio cache keys. */ voiceKey?: string; voiceOn?: boolean }
 export interface GalleryItem { id: string; name: string; drawing: Shape[] }
 
 const P = 'stickstory-projects-v1', G = 'stickstory-gallery-v1';

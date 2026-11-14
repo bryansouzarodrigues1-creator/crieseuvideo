@@ -35,6 +35,28 @@ export async function getNarration(ctx: BaseAudioContext, text: string, voice: s
   return buf;
 }
 
+/**
+ * Restore an existing narration only from local memory / Cache Storage.
+ * Never calls /api/ai/narrate, so opening or exporting a saved project cannot
+ * accidentally regenerate paid TTS when the cached WAV was evicted.
+ */
+export async function getCachedNarration(ctx: BaseAudioContext, text: string, voice: string): Promise<AudioBuffer | null> {
+  const id = await hash(`${voice}|${text.trim()}`);
+  const hit = memo.get(id);
+  if (hit) return hit;
+  if (typeof caches === 'undefined') return null;
+  const cache = await caches.open(CACHE).catch(() => null);
+  const res = cache ? await cache.match(`/__voice/${id}.wav`).catch(() => undefined) : undefined;
+  if (!res) return null;
+  try {
+    const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+    memo.set(id, buffer);
+    return buffer;
+  } catch {
+    return null;
+  }
+}
+
 /** Trim leading/trailing near-silence so captions line up with the spoken words. */
 export function speechBounds(buf: AudioBuffer, threshold = 0.02) {
   const d = buf.getChannelData(0); let a = 0, b = d.length - 1;
