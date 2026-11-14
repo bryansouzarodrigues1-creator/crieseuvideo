@@ -46,7 +46,7 @@ test('uploaded narration sets the video length to the audio length', () => {
 import { normalizePlan as np2 } from './plan';
 import { it as it2, expect as ex2 } from 'vitest';
 it2('keeps a known scenario and drops an unknown one', () => {
-  const p = np2({ scenes: [{ text: 'meu carro na estrada', setting: 'road' }, { text: 'outra cena', setting: 'mars' }, { text: 'de noite na praia', setting: 'mars' }] }, 'x', '9:16');
+  const p = np2({ scenes: [{ text: 'meu carro na estrada', setting: 'road' }, { text: 'outra cena', setting: 'mars' }, { text: 'de noite na praia', setting: 'mars' }] }, 'meu carro na estrada outra cena de noite na praia', '9:16');
   ex2(p.scenes[0]!.setting).toBe('road');
   ex2(p.scenes[1]!.setting).toBeUndefined();
   ex2(p.scenes[2]!.setting).toBe('beach');
@@ -60,5 +60,22 @@ describe('script fidelity', () => {
     const out = keepScriptWords(ai, script);
     expect(out.map((s) => s.text).join(' ')).toBe(script);
     expect(out.every((s) => s.text.length > 0)).toBe(true);
+  });
+});
+
+
+describe('meaning-driven presenter poses', () => {
+  it('chooses running for literal movement and shocked for surprise without AI', () => {
+    expect(buildFallbackPlan('Ele correu pela estrada.').scenes[0].presenterPose).toBe('running');
+    expect(buildFallbackPlan('Ela ficou assustada.').scenes[0].presenterPose).toBe('shocked');
+  });
+  it('preserves a valid AI-selected pose and rejects unsupported poses', () => {
+    const chosen = normalizePlan({ scenes: [{ text: 'Aponte para a tela.', presenterPose: 'pointing' }] }, 'Aponte para a tela.', '9:16');
+    expect(chosen.scenes[0].presenterPose).toBe('pointing');
+    const rejected = normalizePlan({ scenes: [{ text: 'Uma ideia comum.', presenterPose: 'levitating' }] }, 'Uma ideia comum.', '9:16');
+    expect(rejected.scenes[0].presenterPose).toBeUndefined();
+  });
+  it('keeps the original automatic gesture when the script has no explicit action', () => {
+    expect(buildFallbackPlan('Esta é uma informação simples.').scenes[0].presenterPose).toBeUndefined();
   });
 });

@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
-import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
-import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
+import { ExplainerPlan, VISUALS, MOODS, PRESENTER_POSES, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood, type PresenterPose } from './plan';
+import { NARRATION_VOICES, getNarration, getCachedNarration, speechBounds } from './voice';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
-import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import { audioCues, hasNarration, missingNarrationScenes, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import { scriptError, MAX_SCRIPT_CHARS } from './script';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -21,6 +22,7 @@ Agora a pergunta é: vai ser você?`;
 
 const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular (conversa)', profile: 'Perfil / link na bio', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
+const POSE_LABEL: Record<PresenterPose, string> = { idle: 'Parado', talking: 'Falando', pointing: 'Apontando', running: 'Correndo', shocked: 'Assustado' };
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
   const [script, setScript] = useState('');
@@ -35,6 +37,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [recording, setRecording] = useState<number | null>(null);
   const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [, refreshAudioCache] = useState(0);
   const [voicing, setVoicing] = useState<number | null>(null);
   const [engine, setEngine] = useState<'2d' | '3d'>('3d');
   const toonRef = useRef<Toon3D | null>(null);
@@ -62,6 +65,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
   /** Schedule every narrated scene from timeline time `from`; returns a stop function. */
   const startAudio = (from: number, extra?: AudioNode) => {
+    if (!voiceOn) return () => {};
     const ac = ctx(); void ac.resume();
     const now = ac.currentTime + 0.05, nodes: AudioBufferSourceNode[] = [];
     if (plan.track && trackRef.current) {
@@ -94,7 +98,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setPlan(out); seek(0);
       return out;
     } catch (e: any) {
-      setNote(`${e.message} A animação segue sem voz.`);
+      // Keep clips that succeeded before the failure; retrying reuses their cache.
+      setPlan(out); seek(0);
+      const ready = audioCues({ plan: out, voiceKey, buffers: buffers.current, track: null }).length;
+      setNote(`${e.message} Voz disponível em ${ready} de ${out.scenes.length} cenas. Clique em Gerar voz para tentar completar.`);
       return null;
     } finally { setVoicing(null); }
   };
@@ -116,6 +123,24 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     else drawExplainerFrame(c, plan, t);
   };
   useEffect(() => { draw(timeRef.current); }, [plan, engine, toonReady]);
+  // Reopening a project must restore the existing WAVs, never silently request new TTS.
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      let restored = 0;
+      for (const scene of plan.scenes) {
+        if (!scene.voice) continue;
+        const key = `${voiceKey}|${scene.text}`;
+        if (buffers.current.has(key)) continue;
+        const cached = await getCachedNarration(ctx(), scene.text, voiceKey).catch(() => null);
+        if (cancelled) return;
+        if (cached) { buffers.current.set(key, cached); restored++; }
+      }
+      if (restored && !cancelled) refreshAudioCache((v) => v + 1);
+    };
+    void restore();
+    return () => { cancelled = true; };
+  }, [plan, voiceKey]);
   const rate = async (rating: 'yes' | 'no', why = '') => {
     if (!genId) return;
     if (rating === 'no' && !why) { setRated('no'); return; }
@@ -134,7 +159,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     raf = requestAnimationFrame(loop);
     const stop = startAudio(timeRef.current);
     return () => { cancelAnimationFrame(raf); stop(); };
-  }, [playing, plan, total, engine, toonReady]);
+  }, [playing, plan, total, engine, toonReady, voiceOn]);
 
   // Library: load on mount, autosave the current project after edits.
   useEffect(() => {
@@ -144,10 +169,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   }, []);
   useEffect(() => {
     if (!script.trim() && !plan.scenes.length) return;
-    const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now() }); setProjects(listProjects()); }, 800);
+    const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now(), voiceKey, voiceOn }); setProjects(listProjects()); }, 800);
     return () => clearTimeout(id);
-  }, [plan, script, projectId]);
-  const openProject = (p: SavedProject) => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
+  }, [plan, script, projectId, voiceKey, voiceOn]);
+  const openProject = (p: SavedProject) => {
+    setPlaying(false); trackRef.current = null; setTrackName('');
+    const savedVoice = p.voiceKey || NARRATION_VOICES[0].id;
+    if (savedVoice.startsWith('eleven:')) {
+      setProvider('eleven'); setElevenId(savedVoice.slice(7));
+    } else {
+      setProvider('gemini'); setVoice(savedVoice);
+    }
+    setVoiceOn(p.voiceOn ?? true);
+    setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d');
+    seek(0); setLibrary(false);
+  };
   const newProject = () => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
 
   const transcribe = async (blob: Blob, name: string) => {
@@ -194,28 +230,41 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start();
   };
   const generate = async (text = script) => {
+    const invalid = scriptError(text);
+    if (invalid) { setNote(invalid); return; }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
       const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: [...gallery, ...vaultFor(text)] }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
-      setPlan(track ? fitToTrack(data.plan, track.duration) : data.plan); seek(0);
+      const directed: ExplainerPlan = { ...data.plan, engine };
+      setPlan(track ? fitToTrack(directed, track.duration) : directed); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
       setGenId(null); setRated(null); setReason('');
       fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: text, plan: data.plan, engine, keywords: detectCues(text).map((c) => c.tag) }) })
         .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
-      setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
-      if (voiceOn && !track) await narrate(data.plan);
+      setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.${data.provider === 'gemini' && voiceOn && !track ? ' A narração é uma etapa separada; use Gerar voz quando quiser.' : ''}` : 'Cenas locais criadas pelas palavras do roteiro.');
+      // Gemini text must never silently trigger the paid Lovable speech gateway.
+      if (voiceOn && !track && data.provider !== 'gemini') await narrate(directed);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
+  };
+
+  const createLocal = () => {
+    const invalid = scriptError(script);
+    if (invalid) { setNote(invalid); return; }
+    setPlaying(false); trackRef.current = null; setTrackName(''); setVoiceOn(false);
+    setPlan({ ...buildFallbackPlan(script, aspect), engine }); seek(0);
+    setGenId(null); setRated(null);
+    setNote('Cenas locais criadas, sem IA e sem narração. Você pode editar cada cena.');
   };
 
   const updateScene = (i: number, patch: Partial<ExplainerPlan['scenes'][number]>) =>
     setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined } : {}) } : s)) }));
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
-  const voiced = plan.scenes.length > 0 && (plan.track ? !!trackRef.current : plan.scenes.every((s) => s.voice));
+  const voiced = hasNarration({ plan, voiceKey, buffers: buffers.current, track: trackRef.current });
 
       /**
    * Deterministic export. Timeline = source of truth:
@@ -237,11 +286,26 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const fps = EXPORT_FPS;
 
       // 1) timeline + audio mixdown
-      const cues = voiced ? audioCues({ plan, voiceKey, buffers: buffers.current, track: trackRef.current }) : [];
+      if (voiceOn) {
+        if (plan.track && !trackRef.current) throw new Error('O áudio enviado não está mais disponível. Envie-o novamente.');
+        if (!plan.track) {
+          for (const scene of plan.scenes) {
+            if (!scene.voice) continue;
+            const key = `${voiceKey}|${scene.text}`;
+            if (!buffers.current.has(key)) {
+              const cached = await getCachedNarration(ac, scene.text, voiceKey);
+              if (cached) buffers.current.set(key, cached);
+            }
+          }
+          const missing = missingNarrationScenes({ plan, voiceKey, buffers: buffers.current });
+          if (missing.length) throw new Error(`Narração ausente nas cenas ${missing.join(', ')}. Use "Gerar voz" antes de baixar. Nenhum crédito foi gasto.`);
+        }
+      }
+      const cues = voiceOn ? audioCues({ plan, voiceKey, buffers: buffers.current, track: trackRef.current }) : [];
+      if (voiceOn && !cues.length) throw new Error('Não encontrei áudio de narração para exportar.');
       const duration = exportDuration(plan, cues);
-      const silent = cues.length > 0 && ac.state !== 'running';
-      if (silent) setNote('O navegador bloqueou o áudio: exportando sem voz.');
-      const mix = cues.length && !silent ? await mixdown(cues, duration, ac.sampleRate) : null;
+      if (cues.length && ac.state !== 'running') throw new Error('O navegador bloqueou o áudio. Toque na tela e tente novamente.');
+      const mix = cues.length ? await mixdown(cues, duration, ac.sampleRate) : null;
 
       // 2) the first frame is t = 0, on screen before the recorder starts
       timeRef.current = 0; setTime(0); draw(0, true);
@@ -292,7 +356,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
       a.download = `${plan.title.replace(/[^\p{L}\d]+/gu, '-').slice(0, 40) || 'animacao'}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
-      if (!silent) setNote(`Vídeo exportado: ${duration.toFixed(1)} s${mix ? ', com voz' : ''}.`);
+      setNote(`Vídeo exportado: ${duration.toFixed(1)} s${mix ? ', com voz' : ', sem narração'}.`);
     } catch (e: any) {
       setNote(`Não consegui exportar: ${e?.message || e}`);
     } finally {
@@ -351,15 +415,19 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <select value={voice} onChange={(e) => { setPlaying(false); setVoice(e.target.value); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Voz" className="explainer-voice-select" disabled={!voiceOn}>
               {NARRATION_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
-            <select value={provider} onChange={(e) => { setPlaying(false); setProvider(e.target.value as 'gemini' | 'eleven'); }} aria-label="Motor de voz" className="explainer-voice-select" disabled={!voiceOn}>
+            <select value={provider} onChange={(e) => { setPlaying(false); setProvider(e.target.value as 'gemini' | 'eleven'); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Motor de voz" className="explainer-voice-select" disabled={!voiceOn}>
               <option value="gemini">Voz do estúdio</option><option value="eleven">ElevenLabs (voz clonada)</option>
             </select>
-            {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => setElevenId(e.target.value)} aria-label="Voice ID do ElevenLabs" />}
+            {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => { setElevenId(e.target.value); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Voice ID do ElevenLabs" />}
             {voiceOn && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>
           <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < 4}>
             {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : 'Criar animação'}
           </Button>
+          <div className="explainer-row">
+            <Button size="sm" variant="secondary" onClick={createLocal} disabled={busy || voicing !== null || recording !== null || script.trim().length < 4}>Criar sem IA</Button>
+            <small>{script.length} / {MAX_SCRIPT_CHARS} caracteres</small>
+          </div>
           {note && <p className="explainer-note" role="status">{note}</p>}
 
           <div className="explainer-scenes">
@@ -376,6 +444,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                     <select value={s.mood} onChange={(e) => updateScene(i, { mood: e.target.value as Mood })} aria-label="Expressão">
                       {MOODS.map((m) => <option key={m} value={m}>{MOOD_LABEL[m]}</option>)}
                     </select>
+                    {engine === '3d' && <select value={s.presenterPose || ''} onChange={(e) => updateScene(i, { presenterPose: (e.target.value || undefined) as PresenterPose | undefined })} aria-label="Gesto 3D">
+                      <option value="">Gesto automático</option>
+                      {PRESENTER_POSES.map((p) => <option key={p} value={p}>{POSE_LABEL[p]}</option>)}
+                    </select>}
                     <input className="explainer-badge-input" placeholder="Etiqueta" value={s.label || ''} onChange={(e) => updateScene(i, { label: e.target.value || undefined })} aria-label="Etiqueta" />
                     {s.drawing && s.visual === 'custom' && <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); saveDrawing(i); }}><Bookmark />Salvar na galeria</Button>}
                   </div>
@@ -393,7 +465,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <Button size="icon" variant="secondary" onClick={() => { unlockAudio(); setPlaying((p) => !p); }} aria-label={playing ? 'Pausar' : 'Reproduzir'} disabled={recording !== null}>{playing ? <Pause /> : <Play />}</Button>
             <input type="range" min={0} max={total} step={0.01} value={time} onChange={(e) => { setPlaying(false); seek(Number(e.target.value)); }} aria-label="Linha do tempo" disabled={recording !== null} />
             <span className="explainer-time">{fmt(time)} / {fmt(total)}</span>
-            <Button onClick={exportVideo} disabled={recording !== null}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
+            <Button onClick={exportVideo} disabled={recording !== null || busy || voicing !== null}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
           </div>
           {genId && rated !== 'sent' && (
             <div className="explainer-scene" role="group" aria-label="Avaliação">
