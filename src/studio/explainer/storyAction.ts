@@ -117,7 +117,7 @@ export function storyFrame(story: StoryScene, local: number, duration: number): 
   if (story.action === 'pickup') {
     const approach = between(p, 0.05, 0.35), raise = between(p, 0.32, 0.74);
     const x = lerp(-225, -145, approach), propX = lerp(-95, x + 75, raise);
-    const propY = lerp(200, -12, raise);
+    const propY = lerp(220, -12, raise);
     return {
       actors: [{ x, moving: p > 0.05 && p < 0.35, reach: p > 0.24 ? { side: 'right', x: propX, y: propY } : undefined }],
       prop: { x: propX, y: propY, rotation: 0, owner: p >= 0.74 ? 0 : null },
@@ -130,7 +130,7 @@ export function storyFrame(story: StoryScene, local: number, duration: number): 
   const x1 = lerp(lerp(225, 125, enter), 205, leave);
   const lifted = between(p, 0.05, 0.25);
   let x = story.pickupFirst ? lerp(-175, -100, lifted) : -100;
-  let y = story.pickupFirst ? lerp(190, -12, lifted) : -12;
+  let y = story.pickupFirst ? lerp(220, -12, lifted) : -12;
   x = lerp(x, 0, enter);
   x = lerp(x, 80, leave);
   const leftTouch = p >= (story.pickupFirst ? 0.08 : 0) && p <= 0.62;
