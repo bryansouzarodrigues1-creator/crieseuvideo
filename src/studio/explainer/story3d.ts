@@ -63,8 +63,6 @@ function aimHand(
   target: THREE.Vector3,
 ) {
   const arm = side === 'left' ? rig.leftArm : rig.rightArm;
-  const shoulder = new THREE.Vector3();
-  arm.root.getWorldPosition(shoulder);
   // The arm's two segments rotate in the horizontal screen plane (local Z).
   const localTarget = holder.worldToLocal(target.clone());
   const dx = localTarget.x - (side === 'left' ? -.36 : .36);
