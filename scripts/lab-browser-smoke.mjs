@@ -83,15 +83,28 @@ try {
   if (webgl) {
     await page.locator('[data-engine="3d"]').click();
     await page.waitForTimeout(2500);
-    await page.locator('#timeline').evaluate((element) => {
-      element.value = String(Number(element.max) * 0.55);
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await page.waitForTimeout(300);
-    const selected = await page.locator('[data-engine="3d"]').getAttribute('class');
-    assert.match(selected || '', /selected/, '3D não conseguiu iniciar apesar do WebGL disponível');
-    await canvas.screenshot({ path: path.join(output, 'lia-caio-3d.png') });
-    console.log('PASS Toon3D rendered WebGL frame');
+    const frames3d = [];
+    for (const [index, at] of [0.15, 0.55, 0.85].entries()) {
+      await page.locator('#timeline').evaluate((element, fraction) => {
+        element.value = String(Number(element.max) * fraction);
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }, at);
+      await page.waitForTimeout(300);
+      const selected = await page.locator('[data-engine="3d"]').getAttribute('class');
+      assert.match(selected || '', /selected/, '3D não conseguiu iniciar apesar do WebGL disponível');
+      const hash = await canvas.evaluate((element) => {
+        const img = element.getContext('2d').getImageData(0, 0, element.width, element.height).data;
+        let signature = 0;
+        for (let i = 0; i < img.length; i += 768) {
+          signature = (Math.imul(signature, 33) + img[i] + 5 * img[i + 1] + 7 * img[i + 2]) >>> 0;
+        }
+        return signature;
+      });
+      frames3d.push(hash);
+      await canvas.screenshot({ path: path.join(output, `lia-caio-3d-${index}.png`) });
+    }
+    assert.equal(new Set(frames3d).size, 3, 'O Toon3D não reage à linha do tempo.');
+    console.log('PASS Toon3D rendered 3 different WebGL action frames');
   } else {
     console.log('SKIP Toon3D: WebGL not available in CI, browser fallback remains in place');
   }
