@@ -58,3 +58,18 @@ it('all narrative actions animate actual scene nodes and reproduce after out-of-
   }
   expect(actions.size).toBe(STAGED_ACTIONS.length);
 });
+it('the phone screen faces the reader while the camera can move over their shoulder', () => {
+  const scene = buildFallbackPlan('Ele recebeu uma mensagem no celular.').scenes[0];
+  const stage = new Narrative3D(scene, new THREE.Group()); stage.update(3, 10);
+  expect(stage.diagnostics().phoneFacingReader).toBe(true);
+  expect(stage.camera(9 / 16).pos.z).toBeLessThan(0);
+  stage.dispose();
+});
+it('a graph described as continuously rising keeps growing through the last frames', () => {
+  const scene = buildFallbackPlan('No escritório, o gráfico subia sem parar.').scenes[0];
+  const stage = new Narrative3D(scene, new THREE.Group()); stage.update(9, 10);
+  const before = stage.diagnostics().barHeights;
+  stage.update(9.99, 10);
+  stage.diagnostics().barHeights.forEach((h, i) => expect(h).toBeGreaterThan(before[i]));
+  stage.dispose();
+});

@@ -428,7 +428,6 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
             <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
-          <p className="explainer-label">Modo de criação</p>
           <label className="explainer-label" htmlFor="video-duration">Duração do vídeo</label>
           <div className="explainer-row">
             <select id="video-duration" className="explainer-voice-select" value={durationChoice} disabled={busy || recording !== null || voicing !== null} onChange={(e) => {
@@ -446,6 +445,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             }} />}
           </div>
           <p className="explainer-hint">{durationNotice(plan) || 'O tempo organiza as ações e pausas. O roteiro e a voz são preservados.'}</p>
+          <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
             {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
               <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
@@ -478,7 +478,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           {note && <p className="explainer-note" role="status">{note}</p>}
 
           <div className="explainer-scenes">
-            <p className="explainer-label">Cenas ({plan.scenes.length}) · {plan.scenes.filter((s) => s.story || s.staging).length} com encenação</p>
+            <p className="explainer-label">Cenas ({plan.scenes.length}) · {plan.scenes.filter((s) => s.story || s.staging).length} com encenação disponível em 3D</p>
             {plan.scenes.map((s, i) => (
               <div key={i} className={`explainer-scene ${i === current ? 'is-active' : ''}`} onClick={() => jumpTo(i)}>
                 <span className="explainer-scene-n">{i + 1}</span>

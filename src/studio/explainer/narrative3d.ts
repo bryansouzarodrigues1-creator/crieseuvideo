@@ -112,7 +112,8 @@ export class Narrative3D {
       for (let i = 0; i < 5; i++) part(screen, new THREE.BoxGeometry(.55 - (i % 2) * .18, .035, .012), 0x5ab1ac, -.06, .46 - i * .08, -.037);
     }
     if (staging.action === 'growth') {
-      part(this.objects, new THREE.BoxGeometry(3.0, .09, .9), 0x33455b, 0, .12, .3);
+      part(this.objects, new THREE.BoxGeometry(3.0, .09, .9), 0x33455b, 0, 1.02, .3);
+      for (const x of [-1.2, 1.2]) part(this.objects, new THREE.CylinderGeometry(.045, .045, 1, 8), 0x33455b, x, .5, .3);
       for (let i = 0; i < 5; i++) this.bars.push(part(this.objects, new THREE.BoxGeometry(.32, 1, .45), [0x65cbb3, 0x75d3b2, 0xe8bc61][i % 3], -.95 + i * .47, .3, .3));
     }
     if (staging.action === 'money_flow') {
@@ -156,7 +157,7 @@ export class Narrative3D {
       updateCharacterRig(rig, { id: i ? 'friend' + i : staging.actor.id, pose: 'idle', expression: staging.action === 'question' ? 'confused' : i && f.arrival > .2 ? 'happy' : 'neutral', gaze: 'lookAtCamera', prop: 'none', position: { x: 0, y: 0, z: 0 }, rotationY: yaw, scale: 1 }, t, { breathingAmplitude: 0 });
       rig.torso.position.set(0, .006 * Math.sin(t * 2.1 + i), 0);
       rig.torso.rotation.set(moving && !i && f.moving ? (running ? .18 : .06) : 0, 0, 0);
-      rig.head.rotation.set(staging.action === 'phone' || staging.action === 'work' ? .16 : .008 * Math.sin(t * 1.8), i ? -.22 : -.08, .008 * Math.sin(t * 1.2 + i));
+      rig.head.rotation.set(staging.action === 'phone' ? .38 : staging.action === 'work' ? .16 : .008 * Math.sin(t * 1.8), i ? -.22 : staging.action === 'phone' ? -.40 : -.08, .008 * Math.sin(t * 1.2 + i));
       for (const limb of [rig.leftArm, rig.rightArm, rig.leftLeg, rig.rightLeg]) { limb.root.quaternion.identity(); limb.elbow!.quaternion.identity(); limb.hand!.quaternion.identity(); }
       rig.leftArm.root.rotation.set(!i && f.moving ? .55 * Math.sin(phase) : -.06, 0, .09);
       rig.rightArm.root.rotation.set(!i && f.moving ? -.55 * Math.sin(phase) : -.06, 0, -.09);
@@ -186,7 +187,7 @@ export class Narrative3D {
       if (this.phone) {
         reach('left', V(-.30, 1.42, 1.1), beat(t, .15, Math.min(1.1, duration * .3)));
         const hand = rig.leftArm.hand!; if (this.phone.parent !== hand) hand.add(this.phone);
-        const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-.12, -.15, -.08));
+        const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-.45, Math.PI - .5, -.08));
         const objectPosition = pos(hand).sub(V(0, -.18, -.03).applyQuaternion(rotation));
         const matrix = new THREE.Matrix4().compose(objectPosition, rotation, V(1, 1, 1)); hand.updateWorldMatrix(true, false);
         new THREE.Matrix4().copy(hand.matrixWorld).invert().multiply(matrix).decompose(this.phone.position, this.phone.quaternion, this.phone.scale); this.phone.updateWorldMatrix(false, true);
@@ -200,7 +201,7 @@ export class Narrative3D {
       }
       if (this.question) { this.question.position.set(.65, 2.15 + .035 * Math.sin(t * 2), .7); this.question.scale.setScalar(.7 + .3 * beat(t, .1, .7)); reach('right', V(.22, 1.93, 1.04), beat(t, .1, 1.2)); }
     }
-    this.bars.forEach((bar, i) => { const h = .20 + (i + 1) * .34 * beat(t, .25 + i * .2, Math.max(1, duration * .8)); bar.scale.y = h; bar.position.y = .16 + h / 2; });
+    this.bars.forEach((bar, i) => { const h = .20 + (i + 1) * .34 * clamp(t / Math.max(.1, duration)); bar.scale.y = h; bar.position.y = 1.06 + h / 2; });
     this.packets.forEach((packet, i) => { const q = (t * .23 + i / 3) % 1; packet.position.copy(this.routes[i].getPoint(q)); packet.rotation.set(.10, .08 * Math.sin(t + i), -.12 + .08 * Math.sin(t * 2 + i)); });
     this.clockHands.forEach((hand, i) => { hand.rotation.z = -t * (i ? .38 : 2.4); });
     let blockIndex = 0;
@@ -213,13 +214,24 @@ export class Narrative3D {
     const locomotion = staging.action === 'run' || staging.action === 'walk';
     const abstract = ['money_flow', 'growth', 'time'].includes(staging.action);
     const close = !abstract && !locomotion && f.p > .58;
-    const look = V(locomotion ? f.x + .20 + f.arrival * .45 : abstract ? 0 : -.02, close ? 1.80 : 1.16, .55);
-    const width = locomotion && f.arrival > 0 ? 3.9 : close ? 1.7 : abstract ? 2.75 : 2.35;
-    const height = close ? 2.55 : 4.0;
+    if (this.phone && f.p > .18 && f.p < .65) {
+      // Over the reader's shoulder: the screen faces the character, and this
+      // view makes the same screen visible to the audience without cheating its orientation.
+      const look = pos(this.phone).add(V(0, .06, 0));
+      const d = Math.max(1.25 / aspect, 1.7) / (2 * Math.tan(THREE.MathUtils.degToRad(21))) * 1.08;
+      return { look, pos: look.clone().add(V(-d * .62, d * .38, -d * .75)) };
+    }
+    const look = V(locomotion ? f.x + .20 + f.arrival * .45 : abstract ? 0 : -.02, close ? 1.80 : abstract ? 1.48 : 1.16, .55);
+    const width = locomotion && f.arrival > 0 ? 3.9 : close ? 1.7 : staging.action === 'money_flow' ? 2.05 : abstract ? 2.55 : 2.35;
+    const height = close ? 2.55 : staging.action === 'money_flow' ? 3.5 : 4.0;
     const distance = Math.max(width / aspect, height) / (2 * Math.tan(THREE.MathUtils.degToRad(21))) * 1.12;
     const angle = locomotion ? -.14 : staging.action === 'work' ? .28 : abstract ? .12 : -.13;
     return { pos: look.clone().add(V(Math.sin(angle) * distance, distance * .11, Math.cos(angle) * distance)), look };
   }
-  diagnostics() { return { action: this.scene.staging!.action, actors: this.actors.length, board: false, maxContactError: Math.max(0, ...this.contactErrors), positions: this.actors.map((a) => pos(a.rig.root).toArray()) }; }
+  diagnostics() {
+    const phoneFacingReader = this.phone && this.actors[0] ? this.phone.getWorldDirection(V()).dot(pos(this.actors[0].rig.head).sub(pos(this.phone)).normalize()) > .1 : undefined;
+    return { action: this.scene.staging!.action, actors: this.actors.length, board: false, phoneFacingReader,
+      barHeights: this.bars.map((bar) => bar.scale.y), maxContactError: Math.max(0, ...this.contactErrors), positions: this.actors.map((a) => pos(a.rig.root).toArray()) };
+  }
   dispose() { for (const actor of this.actors) actor.rig.dispose(); }
 }

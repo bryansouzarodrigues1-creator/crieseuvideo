@@ -51,7 +51,9 @@ function setPlan(next: ExplainerPlan, label: string) {
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;
   $('scene-count').textContent = String(plan.scenes.length);
   const staged = plan.scenes.filter((s) => s.story || s.staging).length;
-  $('staging-info').textContent = `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais usam ilustrações; confira o storyboard.' : ''}`;
+  $('staging-info').textContent = engine === '3d'
+    ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais usam ilustrações; confira o storyboard.' : ''}`
+    : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
   $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
   const sourceWords = spokenText(script.value), resultWords = spokenText(plan.scenes.map((s) => s.text).join(' '));
   $('fidelity').textContent = sourceWords === resultWords ? '✓ Todas as palavras preservadas' : 'Confira as falas';

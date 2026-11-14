@@ -241,7 +241,7 @@ export class Toon3D {
     this.narrativeStage?.dispose(); this.narrativeStage = null;
     this.world.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); const mat = m.material as THREE.Material & { map?: THREE.Texture }; if (mat && mat !== OUTLINE && (mat as THREE.MeshBasicMaterial).map !== this.boardTex) { mat.map?.dispose(); mat.dispose?.(); } });
     this.world.clear();
-    const night = scene.palette === 'night' || scene.setting === 'night' || scene.setting === 'space' || scene.visual === 'city_night';
+    const night = scene.setting === 'night' || scene.setting === 'space' || (!scene.staging && (scene.palette === 'night' || scene.visual === 'city_night'));
     this.scene.background = new THREE.Color(sky(scene.setting || (night ? 'night' : 'sky_day')));
     this.scene.fog = new THREE.Fog(this.scene.background, 14, 34);
     this.world.add(new THREE.HemisphereLight(night ? 0x8090ff : 0xffffff, 0x705848, night ? 0.9 : 1.4));
@@ -249,7 +249,7 @@ export class Toon3D {
     sun.name = 'story-sun'; this.world.add(sun.target);
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
-    if (!scene.staging || !['money_flow', 'growth', 'time'].includes(scene.staging.action)) buildSet(scene, this.world, night, index + 1);
+    if (!scene.staging || !['money_flow', 'time', 'run', 'walk'].includes(scene.staging.action)) buildSet(scene, this.world, night, index + 1);
     else this.scene.background = new THREE.Color(0x1b2d3d);
     if (scene.story) {
       // Narrative shots occupy the REAL 3D world: no presenter or board duplication.

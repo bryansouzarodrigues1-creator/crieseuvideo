@@ -40,7 +40,7 @@ or a richer story. Uploaded audio remains a lower bound.
 
 ## Verification
 
-156 tests pass locally, including the 144 previous tests and 12 ordinary-flow,
+158 tests pass locally, including the 144 previous tests and 14 ordinary-flow,
 duration, semantic-guard and actual-rig tests. Main/lab TypeScript and builds
 pass. Browser QA must fill the ordinary textarea and click local rehearsal;
 it never clicks the special demo. It checks 15/30/60/90/custom, persistence,
@@ -58,5 +58,8 @@ AI/TTS/connect endpoints and external network calls are blocked. Audio contains
 only original soft effects. Real-provider output is covered by simulated
 contract tests, not a new paid Gemini call.
 
-Visual approval remains pending until those rendered frames/videos have been
-inspected. Keep production main unchanged; use the private lab and a stacked PR.
+The first browser run and 60s/30s exports passed. Sample inspection then
+corrected the phone screen orientation (with an over-shoulder reading shot),
+restored office context, removed an unintended night interpretation of a street
+and kept the growing bars moving through the last frames. The next revision
+requires another actual-frame check before visual approval. Keep production main unchanged; use the private lab and a stacked PR.
