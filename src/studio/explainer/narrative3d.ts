@@ -228,8 +228,8 @@ export class Narrative3D {
       const d = Math.max(1.25 / aspect, 1.7) / (2 * Math.tan(THREE.MathUtils.degToRad(21))) * 1.08;
       return { look, pos: look.clone().add(V(-d * .32, d * .85, -d * .65)) };
     }
-    const look = V(locomotion ? f.x + .20 + f.arrival * .45 : abstract ? 0 : -.02, close ? 1.80 : abstract ? 1.48 : 1.16, .55);
-    const width = locomotion && f.arrival > 0 ? 3.9 : close ? 1.7 : staging.action === 'money_flow' ? 2.05 : abstract ? 2.55 : 2.35;
+    const look = V(locomotion ? f.x + .20 + f.arrival * .45 : this.question ? .18 : abstract ? 0 : -.02, close ? 1.80 : abstract ? 1.48 : 1.16, .55);
+    const width = locomotion && f.arrival > 0 ? 3.9 : close ? this.question ? 1.95 : 1.7 : staging.action === 'money_flow' ? 2.05 : abstract ? 2.55 : 2.35;
     const height = close ? 2.55 : staging.action === 'money_flow' ? 3.5 : 4.0;
     const distance = Math.max(width / aspect, height) / (2 * Math.tan(THREE.MathUtils.degToRad(21))) * 1.12;
     const angle = locomotion ? -.14 : staging.action === 'work' ? .28 : abstract ? .12 : -.13;
@@ -240,5 +240,6 @@ export class Narrative3D {
     return { action: this.scene.staging!.action, actors: this.actors.length, board: false, phoneFacingReader,
       barHeights: this.bars.map((bar) => bar.scale.y), maxContactError: Math.max(0, ...this.contactErrors), positions: this.actors.map((a) => pos(a.rig.root).toArray()) };
   }
+  questionBounds() { return this.question ? new THREE.Box3().setFromObject(this.question) : null; }
   dispose() { for (const actor of this.actors) actor.rig.dispose(); }
 }

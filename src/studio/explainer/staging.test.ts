@@ -87,3 +87,17 @@ it('an abstract topic cannot replace the identity of the human protagonist', () 
   const scenes = buildFallbackPlan('Nina recebeu uma mensagem. Corrupção era o assunto. Ela correu pela rua.').scenes;
   expect(scenes[2].staging?.actor.name).toBe('Nina');
 });
+it('keeps the entire question symbol within both aspect ratios in the final close', () => {
+  const scene = buildFallbackPlan('Mas uma pergunta mudou tudo: e agora?').scenes[0];
+  const stage = new Narrative3D(scene, new THREE.Group());
+  for (const aspect of [9 / 16, 16 / 9]) for (const t of [6, 7, 8, 9.99]) {
+    stage.update(t, 10); const shot = stage.camera(aspect), bounds = stage.questionBounds()!;
+    const camera = new THREE.PerspectiveCamera(42, aspect, .1, 100); camera.setViewOffset(aspect * 1000, 1000, 0, 110, aspect * 1000, 1000);
+    camera.position.copy(shot.pos); camera.lookAt(shot.look); camera.updateMatrixWorld();
+    for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
+      const p = new THREE.Vector3(x, y, z).project(camera);
+      expect(Math.abs(p.x)).toBeLessThan(.94); expect(p.y).toBeLessThan(.94); expect(p.y).toBeGreaterThan(-.48);
+    }
+  }
+  stage.dispose();
+});

@@ -40,7 +40,7 @@ or a richer story. Uploaded audio remains a lower bound.
 
 ## Verification
 
-160 tests pass locally, including the 144 previous tests and 16 ordinary-flow,
+161 tests pass locally, including the 144 previous tests and 17 ordinary-flow,
 duration, semantic-guard and actual-rig tests. Main/lab TypeScript and builds
 pass. Browser QA must fill the ordinary textarea and click local rehearsal;
 it never clicks the special demo. It checks 15/30/60/90/custom, persistence,
@@ -68,3 +68,6 @@ Further semantic guards reject noun-only prop mentions and negated events;
 abstract scenes do not overwrite the named human protagonist. The player starts
 at t=0. The phone reading shot also checks that the head does not occlude its
 centre ray.
+
+A final camera-bounds regression keeps the entire question symbol within the
+portrait and landscape final shot, including caption-safe vertical bounds.
