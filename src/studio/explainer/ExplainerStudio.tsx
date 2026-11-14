@@ -9,6 +9,7 @@ import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, hasNarration, missingNarrationScenes, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import { captureHealthError } from './exportCapture';
 import { scriptError, MAX_SCRIPT_CHARS } from './script';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
@@ -278,7 +279,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     if (!canvas || typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') { setNote('Este navegador não grava vídeo.'); return; }
     if (exportingRef.current || !plan.scenes.length) return;
     exportingRef.current = true; setPlaying(false); setRecording(0); setNote('');
-    let timer = 0, src: AudioBufferSourceNode | null = null, stream: MediaStream | null = null;
+    let timer = 0, src: AudioBufferSourceNode | null = null, stream: MediaStream | null = null, recorder: MediaRecorder | null = null;
+    let hiddenDuringExport = document.hidden;
+    const trackVisibility = () => { if (document.hidden) hiddenDuringExport = true; };
+    document.addEventListener('visibilitychange', trackVisibility);
     try {
       unlockAudio();
       await document.fonts?.load("40px 'Lilita One'").catch(() => {});
@@ -321,6 +325,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
       const { mimeType } = getBestSupportedVideoMimeType();
       const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000, ...(mix ? { audioBitsPerSecond: 128_000 } : {}) });
+      recorder = rec;
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
       const stopped = new Promise<void>((resolve, reject) => {
@@ -335,12 +340,16 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       if (mix && dest) { src = ac.createBufferSource(); src.buffer = mix; src.connect(dest); src.start(startAt); }
       const clock = () => (mix ? ac.currentTime - startAt : (performance.now() - perf0) / 1000);
 
-      let frame = 0, pct = -1;
+      let frame = 0, pct = -1, submittedFrames = 1, skippedFrames = 0, longestGap = 0;
       await new Promise<void>((resolve, reject) => {
         timer = window.setInterval(() => {
           try {
             const now = clock(), t = Math.min(Math.max(0, now), duration), n = Math.floor(t * fps + 1e-6);
-            if (n !== frame) { frame = n; draw(n / fps, true); push(); }
+            if (n !== frame) {
+              const gap = Math.max(0, n - frame - 1);
+              skippedFrames += gap; longestGap = Math.max(longestGap, gap);
+              frame = n; draw(n / fps, true); push(); submittedFrames++;
+            }
             const p = Math.min(99, Math.round((t / duration) * 100)); if (p !== pct) { pct = p; setRecording(p); }
             if (now >= duration) { window.clearInterval(timer); resolve(); }
           } catch (e) { window.clearInterval(timer); reject(e); }
@@ -351,6 +360,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       draw(Math.floor(duration * fps) / fps, true); push();
       await new Promise((r) => setTimeout(r, 150));
       rec.requestData(); rec.stop(); await stopped;
+      const issue = captureHealthError({
+        expectedFrames: Math.floor(duration * fps + 1e-6) + 1,
+        submittedFrames, skippedFrames, longestGap, hiddenDuringExport,
+      }, fps);
+      if (issue) throw new Error(issue);
       const blob = new Blob(chunks, { type: mimeType.split(';')[0] });
       if (!blob.size) throw new Error('A gravação saiu vazia.');
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -361,6 +375,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setNote(`Não consegui exportar: ${e?.message || e}`);
     } finally {
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', trackVisibility);
+      if (recorder && recorder.state !== 'inactive') { try { recorder.stop(); } catch {} }
       try { src?.stop(); } catch {}
       stream?.getTracks().forEach((tr) => tr.stop());
       exportingRef.current = false; setRecording(null); seek(0);
