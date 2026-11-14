@@ -109,6 +109,8 @@ export interface ToonRigOptions {
   bodyColor?: number;
   outlineColor?: number;
   scale?: number;
+  hairColor?: number;
+  hairStyle?: 'wavy' | 'tied';
 }
 
 export interface ToonAnimationOptions {

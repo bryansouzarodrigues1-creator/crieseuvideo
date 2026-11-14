@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - feat/story-action-choreography
+      - feat/grounded-3d-performance
   pull_request:
     branches:
       - work/export-capture-guard-2026-11-14
+      - feat/story-action-choreography
   workflow_dispatch:
 
 concurrency:
@@ -19,7 +21,7 @@ permissions:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       CI: "true"
     steps:
@@ -50,14 +52,16 @@ jobs:
             sudo apt-get install -y -qq ffmpeg
           fi
           ffmpeg -version | head -1
-      - name: Export real animated 2D + 3D MP4 (no AI calls)
-        run: node scripts/export-story-mp4.mjs
+      - name: Export full 18s grounded 3D in both aspects (no AI calls)
+        run: node scripts/export-grounded-mp4.mjs
       - name: Upload animated MP4
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: crieseuvideo-lia-caio-mp4
-          path: tmp/story-video-output/*.mp4
+          path: |
+            tmp/grounded-performance/*.mp4
+            tmp/grounded-performance/*report.json
           if-no-files-found: warn
           retention-days: 7
       - name: Upload visual QA frames
@@ -65,6 +69,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: story-choreography-frames
-          path: tmp/story-browser-qa/
+          path: |
+            tmp/story-browser-qa/
+            tmp/grounded-performance/vertical/f00000.png
+            tmp/grounded-performance/vertical/f00165.png
+            tmp/grounded-performance/vertical/f00270.png
+            tmp/grounded-performance/vertical/f00390.png
+            tmp/grounded-performance/vertical/f00480.png
+            tmp/grounded-performance/horizontal/f00165.png
+            tmp/grounded-performance/horizontal/f00390.png
           if-no-files-found: ignore
           retention-days: 7

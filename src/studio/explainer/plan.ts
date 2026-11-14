@@ -2,6 +2,7 @@ import { normalizeDrawing, type Shape } from './drawing';
 import { normalizeStory, type StoryScene } from './storyAction';
 import { SETTINGS, type Setting } from './settings';
 import { scriptScenes, splitSceneText, spokenText } from './script';
+import { localStory } from './localStory';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -51,8 +52,8 @@ export const MIN_SCENE = 2.4;
 
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 export const VOICE_TAIL = 0.35;
-export const sceneDuration = (s: ExplainerScene) =>
-  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5);
+export const sceneDuration = (s: ExplainerScene) => Math.max(s.story?.performance === 'grounded-v1' ? 18 : 0,
+  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5));
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
 
 /** Spoken weight of a word: longer words and punctuation pauses take more time. */
@@ -60,7 +61,7 @@ export const wordWeight = (w: string) => w.replace(/[^\p{L}\d]/gu, '').length + 
 export function wordTimings(scene: ExplainerScene) {
   const list = words(scene.text);
   const from = SCENE_LEAD + (scene.voice ? scene.voice.start : 0);
-  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : list.length * SECONDS_PER_WORD;
+  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : scene.story?.performance ? sceneDuration(scene) - SCENE_LEAD - .5 : list.length * SECONDS_PER_WORD;
   const total = list.reduce((a, w) => a + wordWeight(w), 0) || 1;
   let acc = 0;
   return list.map((word) => { const start = from + (acc / total) * span; acc += wordWeight(word); return { word, start, end: from + (acc / total) * span }; });
@@ -120,12 +121,13 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
   const sentences = scriptScenes(script);
   const list = sentences.length ? sentences : ['Escreva seu roteiro para começar.'];
   const scenes = list.map((text, i): ExplainerScene => {
-    const visual = pickVisual(text);
+    const story = localStory(text);
+    const visual = story ? 'custom' : pickVisual(text);
     const mood = pickMood(text);
     const num = text.match(/\d+\s+[\p{L}]+/u)?.[0];
     const longest = [...words(text)].sort((a, b) => b.length - a.length)[0]?.replace(/[^\p{L}\d]/gu, '');
     return {
-      text, visual, mood, presenterPose: pickPresenterPose(text),
+      text, visual, mood, story, setting: story ? pickSetting(text) || 'room' : undefined, presenterPose: pickPresenterPose(text),
       palette: visual === 'city_night' || mood === 'sad' ? 'night' : PALETTES[i % 4],
       label: num ? `${num.toUpperCase()}…` : undefined,
       chat: visual === 'phone_chat' ? text : undefined,
