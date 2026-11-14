@@ -33,3 +33,17 @@ jobs:
         run: node lab/build.mjs
       - name: Laboratory typecheck
         run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Playwright browser for isolated visual smoke
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Visual browser smoke (without AI keys)
+        run: node scripts/lab-browser-smoke.mjs
+      - name: Upload visual QA frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-choreography-frames
+          path: tmp/story-browser-qa/
+          if-no-files-found: ignore
+          retention-days: 7
