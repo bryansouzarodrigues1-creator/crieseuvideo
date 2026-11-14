@@ -7,6 +7,7 @@ import { storyFrame, type StoryActor, type StoryActorFrame, type StoryScene, typ
  */
 const INK = '#172236';
 const skin = '#F0C5A4';
+const ACTOR_ZOOM = 1.32;
 const round = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
   c.beginPath(); c.roundRect(x, y, w, h, r);
 };
@@ -25,7 +26,7 @@ const limb = (c: CanvasRenderingContext2D, fromX: number, fromY: number, toX: nu
 };
 
 function drawActor(c: CanvasRenderingContext2D, actor: StoryActor, frame: StoryActorFrame, t: number, index: number) {
-  c.save(); c.translate(frame.x, 0);
+  c.save(); c.translate(frame.x, 0); c.scale(ACTOR_ZOOM, ACTOR_ZOOM);
   const step = frame.moving ? Math.sin(t * 11 + index) : Math.sin(t * 1.4 + index) * 0.1;
   const bob = frame.moving ? Math.abs(Math.sin(t * 11 + index)) * 7 : Math.sin(t * 2 + index) * 2;
   c.translate(0, -bob);
@@ -46,8 +47,8 @@ function drawActor(c: CanvasRenderingContext2D, actor: StoryActor, frame: StoryA
   // Arms. The actor-side hand touches the actual timeline prop location.
   for (const side of [-1, 1]) {
     const isReaching = (side === -1 ? 'left' : 'right') === frame.reach?.side;
-    const x = isReaching ? frame.reach!.x - frame.x : side * 80 + Math.sin(t * 2 + index) * 4;
-    const y = isReaching ? frame.reach!.y : 91;
+    const x = isReaching ? (frame.reach!.x - frame.x) / ACTOR_ZOOM : side * 80 + Math.sin(t * 2 + index) * 4;
+    const y = isReaching ? frame.reach!.y / ACTOR_ZOOM : 91;
     limb(c, side * 52, -4, x, y, actor.color);
   }
   // Distinct hair per actor, readable reactions and blinking.
@@ -124,9 +125,58 @@ function drawProp(c: CanvasRenderingContext2D, prop: StoryProp, x: number, y: nu
 export function drawStory(c: CanvasRenderingContext2D, story: StoryScene, u: number, local: number, duration: number) {
   const state = storyFrame(story, local, duration);
   c.save(); c.scale(u, u);
-  c.beginPath(); c.moveTo(-400, 227); c.lineTo(400, 227);
-  c.strokeStyle = 'rgba(27,41,61,.20)'; c.lineWidth = 4; c.stroke();
   state.actors.forEach((actor, index) => drawActor(c, story.actors[index]!, actor, local, index));
   drawProp(c, story.prop, state.prop.x, state.prop.y, state.prop.rotation);
   c.restore();
+}
+
+/** Warm story-stage art direction: no tall cabinet/window covering the acting zone. */
+export function drawStoryBackdrop(c: CanvasRenderingContext2D, w: number, h: number, t: number) {
+  const floor = h * .562;
+  const wall = c.createLinearGradient(0, 0, 0, floor);
+  wall.addColorStop(0, '#FFF2DF'); wall.addColorStop(.70, '#F8E4CD'); wall.addColorStop(1, '#EACDAE');
+  c.fillStyle = wall; c.fillRect(0, 0, w, floor);
+  // Light from a small window, safely outside the two-person performance area.
+  const light = c.createRadialGradient(w*.20,h*.21,10,w*.30,h*.32,w*.62);
+  light.addColorStop(0, 'rgba(255,244,198,.36)');
+  light.addColorStop(1, 'rgba(255,244,198,0)');
+  c.fillStyle = light; c.fillRect(0,0,w,floor);
+  const x = w*.07, y = h*.11, ww=w*.19, hh=h*.22;
+  const frame = (px:number,py:number,pw:number,ph:number,r:number,fill:string,stroke:string,line=4) => {
+    c.beginPath(); c.roundRect(px,py,pw,ph,r);
+    c.fillStyle=fill; c.fill(); c.lineWidth=line; c.strokeStyle=stroke; c.stroke();
+  };
+  frame(x,y,ww,hh,6,'#F7E8CF','#8B674C',Math.max(3,w*.008));
+  frame(x+5,y+5,ww-10,hh-10,3,'#A4D9E8','#FBF3D7',2);
+  c.fillStyle='#DAF3FC'; c.beginPath(); c.arc(x+ww*.69,y+hh*.33,Math.max(7,w*.024),0,Math.PI*2); c.fill();
+  c.strokeStyle='#F7E9CF'; c.lineWidth=Math.max(3,w*.009);
+  c.beginPath();c.moveTo(x+ww/2,y+4);c.lineTo(x+ww/2,y+hh-4);
+  c.moveTo(x+4,y+hh/2);c.lineTo(x+ww-4,y+hh/2);c.stroke();
+  // A small piece of wall art on the far right replaces the large obstruction.
+  const fx=w*.80, fy=h*.14, fw=w*.125, fh=h*.10;
+  frame(fx,fy,fw,fh,4,'#FFF9E8','#9F7859',Math.max(3,w*.009));
+  c.beginPath(); c.moveTo(fx+fw*.14,fy+fh*.72);
+  c.lineTo(fx+fw*.45,fy+fh*.32); c.lineTo(fx+fw*.62,fy+fh*.52);
+  c.lineTo(fx+fw*.83,fy+fh*.20);
+  c.strokeStyle='#53A99B'; c.lineWidth=Math.max(3,w*.009); c.stroke();
+  // Soft floor and perspective seams, with an unobstructed staging area.
+  const wood=c.createLinearGradient(0,floor,0,h);
+  wood.addColorStop(0,'#D2A17B'); wood.addColorStop(1,'#AB785A');
+  c.fillStyle=wood;c.fillRect(0,floor,w,h-floor);
+  c.strokeStyle='#AD8062';c.lineWidth=Math.max(2,w*.006);
+  c.beginPath();c.moveTo(0,floor);c.lineTo(w,floor);c.stroke();
+  c.strokeStyle='rgba(130,83,55,.16)';c.lineWidth=Math.max(1,w*.002);
+  for(let i=1;i<=4;i++) {
+    const xx=w*i/5, drift=(xx-w/2)*.22;
+    c.beginPath();c.moveTo(xx,floor);c.lineTo(xx+drift,h);c.stroke();
+  }
+  c.strokeStyle='rgba(130,83,55,.12)';
+  for(const f of [.73,.89]) { c.beginPath();c.moveTo(0,h*f);c.lineTo(w,h*f);c.stroke(); }
+  // A quiet sparkle of dust in the window light, never in front of characters.
+  for(let i=0;i<8;i++) {
+    const xx=w*(.09 + (i%4)*.04) + Math.sin(t*.5+i)*3;
+    const yy=h*(.16 + Math.floor(i/4)*.10)+Math.cos(t*.65+i)*2;
+    c.beginPath();c.arc(xx,yy,Math.max(.8,w*.0025),0,Math.PI*2);
+    c.fillStyle='rgba(255,249,225,.65)';c.fill();
+  }
 }
