@@ -85,8 +85,11 @@ export function buildArticulatedAsset(a: ProductionAsset): ArticulatedAsset {
     upper.box([.74, .48, .025], [.68, -.56, 1.414], 0x6a9bad); upper.box([.025, .48, .74], [1.237, -.56, .9], 0x6a9bad);
     upper.box([1.35, .09, 1.14], [.65, -.18, .9], ink);
     upper.box([.95, .6, .65], [-1.3, .35, 0], 0x287aaa);
-    upper.geometry(new THREE.CylinderGeometry(.29, .29, .8, 16), ink, [-1.3, .25, 0], [Math.PI / 2, 0, 0]);
     upper.finish();
+    const winch = group(slew, 'winch', [-1.3, .35, .45]), drum = new ModelBatch(winch);
+    drum.geometry(new THREE.CylinderGeometry(.27, .27, .3, 20), ink, [0, 0, 0], [Math.PI / 2, 0, 0]);
+    for (const z of [-.16, .16]) drum.geometry(new THREE.TorusGeometry(.28, .035, 6, 24), 0xa9b5b6, [0, 0, z]);
+    drum.box([.045, .49, .025], [0, 0, .18], steel); drum.box([.49, .045, .025], [0, 0, .18], steel); drum.finish();
     const trolley = group(slew, 'trolley'), carriage = new ModelBatch(trolley);
     carriage.box([.8, .2, .85], [0, -.14, 0], 0x38546a);
     for (const x of [-.27, .27]) for (const z of [-.42, .42]) carriage.geometry(new THREE.CylinderGeometry(.11, .11, .08, 12), ink, [x, -.02, z], [Math.PI / 2, 0, 0]);
@@ -100,6 +103,7 @@ export function buildArticulatedAsset(a: ProductionAsset): ArticulatedAsset {
     animate = (s) => {
       slew.rotation.y = s.joints.slew; trolley.position.x = s.joints.trolley;
       hook.position.y = s.joints.hoist - CRANE_JIB;
+      winch.rotation.z = -(s.joints.hoist - (a.initial.hoist ?? 1.2)) / .26;
       for (const rope of ropes) { const length = CRANE_JIB - s.joints.hoist - .74; rope.scale.y = Math.max(.02, length); rope.position.y = -.24 - length / 2; }
     };
   } else if (a.kind === 'cargo') {

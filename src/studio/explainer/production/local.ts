@@ -2,9 +2,9 @@ import { CARGO_GRIP, TRUCK_BED, normalizeProduction, rotate, type ProductionSour
 
 const clean = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const quote = (text: string, re: RegExp) => text.match(re)?.[0];
-const negated = (s: string) => /\b(nao|nunca|jamais|caso)\b|^\s*se\b/.test(s);
-const liftUp = /\b(ergue|ergueu|eleva|elevou|levanta|levantou|sobe|subiu|icou|ica)\b/;
-const liftDown = /\b(abaixa|abaixou|baixa|baixou|desce|desceu|coloca|colocou|deposita|depositou)\b/;
+const negated = (s: string) => /\b(nao|nunca|jamais|caso)\b|^\s*se\b|\bsem\s+(erguer|elevar|levantar|girar|subir|descer|baixar|abaixar)\b/.test(s);
+const liftUp = /\b(ergue|ergueu|erguer|eleva|elevou|elevar|levanta|levantou|levantar|sobe|subiu|subir|icou|ica|icar)\b/;
+const liftDown = /\b(abaixa|abaixou|abaixar|baixa|baixou|baixar|desce|desceu|descer|coloca|colocou|colocar|deposita|depositou|depositar)\b/;
 
 /** Conservative offline compiler for the same public score the AI can compose.
  * This is an available subset, not a claim of unrestricted natural-language understanding. */
@@ -47,11 +47,13 @@ export function localProduction(sources: ProductionSource[]): ProductionProgram 
     let trolley = 4, slew = 0, placed = false;
     for (const source of sources) {
       const t = clean(source.text);
-      let socket = /contrapeso/.test(t) ? 'counterweight' : /motor|cabine|operador/.test(t) ? 'cab' : /lanca|triangulo|estrutura/.test(t) ? 'jib' : 'hook';
-      let shot: ProductionShot['kind'] = source === sources[0] ? 'wide' : /lanca|torre|gira|girou/.test(t) ? 'orbit' : 'follow';
+      const motor = /\b(motor|polia|roda)\b/.test(t);
+      if (motor && /\b(gira|girou)\b/.test(t) && !liftUp.test(t) && !liftDown.test(t)) return;
+      let socket = /contrapeso/.test(t) ? 'counterweight' : /\bmotor\b/.test(t) ? 'winch' : /cabine|operador/.test(t) ? 'cab' : /lanca|triangulo|estrutura/.test(t) ? 'jib' : 'hook';
+      let shot: ProductionShot['kind'] = motor ? 'detail' : source === sources[0] ? 'wide' : /lanca|torre|gira|girou/.test(t) ? 'orbit' : 'follow';
       if (liftUp.test(t)) { const height = amount(t, 5.8); if (height < CARGO_GRIP || height > 11.2) return; track(source, 'crane', 'hoist', height); }
       if (/\bcarrinho\b/.test(t) && /\b(leva|levou|desloca|deslocou|avanca|avancou|ponta|aproxima|aproximou|volta|recolhe)\b/.test(t)) { trolley = /aproxima|volta|recolhe/.test(t) ? 3 : amount(t, 7); if (trolley < 2 || trolley > 8) return; track(source, 'crane', 'trolley', trolley); socket = 'trolley'; shot = 'follow'; }
-      if (/\b(gira|girou|giram|rotaciona|rotacionou)\b/.test(t)) {
+      if (!motor && /\b(gira|girou|giram|rotaciona|rotacionou)\b/.test(t)) {
         const degrees = t.match(/(\d+(?:[,.]\d+)?)\s*graus/)?.[1];
         slew = (degrees ? Number(degrees.replace(',', '.')) * Math.PI / 180 : Math.PI / 3) * (/esquerda|anti/.test(t) ? 1 : -1);
         if (Math.abs(slew) > 2.8) return; track(source, 'crane', 'slew', slew);

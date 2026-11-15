@@ -65,6 +65,12 @@ describe('composable production score', () => {
     expect(plan.production).toBeUndefined();
     expect(plan.scenes.some((s) => s.story?.performance === 'grounded-v1')).toBe(true);
   });
+  it('binds motor rotation to hoisting rather than mistakenly rotating the whole crane', () => {
+    const plan = buildFallbackPlan('No guindaste, o motor gira para erguer a carga.');
+    expect(plan.production?.tracks.map((t) => t.channel)).toEqual(['hoist']);
+    expect(plan.production?.shots[0].socket).toBe('winch');
+    expect(buildFallbackPlan('No guindaste, o motor gira sem elevar a carga.').production).toBeUndefined();
+  });
   it('lets validated model direction combine controls in an order not present in the offline compiler', () => {
     const { program, sources } = specimen(), raw = clone(program);
     raw.tracks = raw.tracks.filter((t) => t.channel !== 'trolley');

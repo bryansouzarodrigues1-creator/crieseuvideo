@@ -327,7 +327,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       if (voiceOn && !cues.length) throw new Error('Não encontrei áudio de narração para exportar.');
       const duration = exportDuration(plan, cues);
       if (cues.length && ac.state !== 'running') throw new Error('O navegador bloqueou o áudio. Toque na tela e tente novamente.');
-      const mix = cues.length ? await mixdown(cues, duration, ac.sampleRate) : null;
+      const mix = cues.length ? await mixdown(cues, duration, 48000) : null;
 
       // 2) the first frame is t = 0, on screen before the recorder starts
       timeRef.current = 0; setTime(0); draw(0, true);
@@ -335,12 +335,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       // Offline WebCodecs path: all n/30 frames are encoded, however long each
       // 3D render takes. The guarded realtime recorder remains a compatibility path.
       const { encodeFrames } = await import('./frameEncoder');
-      const encoded = await encodeFrames({ canvas, duration, fps, audio: mix, mp4Only: true, draw: (t) => draw(t, true), onProgress: setRecording });
+      const encoded = await encodeFrames({ canvas, duration, fps, audio: mix, draw: (t) => draw(t, true), onProgress: setRecording });
       if (encoded) {
         const link = document.createElement('a'); link.href = URL.createObjectURL(encoded.blob);
-        link.download = `${plan.title.replace(/[^\p{L}\d]+/gu, '-').slice(0, 40) || 'animacao'}.mp4`; link.click();
+        link.download = `${plan.title.replace(/[^\p{L}\d]+/gu, '-').slice(0, 40) || 'animacao'}.${encoded.extension}`; link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 60000);
-        setNote(`MP4 exportado: ${encoded.duration.toFixed(1)} s, ${encoded.frames} quadros${mix ? ', com voz' : ', sem narração'}.`); return;
+        setNote(`Vídeo ${encoded.extension.toUpperCase()} exportado: ${encoded.duration.toFixed(1)} s, ${encoded.frames} quadros${mix ? ', com voz' : ', sem narração'}.`); return;
       }
       if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') throw new Error('Este navegador não possui um codificador de vídeo compatível.');
 

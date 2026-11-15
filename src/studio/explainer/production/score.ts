@@ -21,7 +21,7 @@ export const CHANNELS: Record<AssetKind, Record<string, number[]>> = {
   worker: { yaw: transform.yaw, gesture: [0, 1, 0] },
   person: { yaw: transform.yaw, pride: [0, 1, 0], laugh: [0, 1, 0], smile: [0, 1, 0], point: [0, 1, 0], talk: [0, 1, 0] },
 };
-export const SOCKETS: Record<AssetKind, string[]> = { tower_crane: ['origin', 'hook', 'trolley', 'jib', 'counterweight', 'cab'], cargo: ['origin', 'base', 'grip'], truck: ['origin', 'bed', 'cab'], lift: ['origin', 'platform', 'doors'], worker: ['origin', 'head'], person: ['origin', 'head'] };
+export const SOCKETS: Record<AssetKind, string[]> = { tower_crane: ['origin', 'hook', 'trolley', 'jib', 'counterweight', 'cab', 'winch'], cargo: ['origin', 'base', 'grip'], truck: ['origin', 'bed', 'cab'], lift: ['origin', 'platform', 'doors'], worker: ['origin', 'head'], person: ['origin', 'head'] };
 export class ProductionError extends Error { constructor(public code: string, message: string) { super(message); this.name = 'ProductionError'; } }
 const reject = (message: string): never => { throw new ProductionError('invalid_production', message); };
 const object = (v: unknown): Record<string, any> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : reject('A direção 3D contém um objeto inválido.');
@@ -103,6 +103,7 @@ export function socketLocal(kind: AssetKind, state: AssetState, socket: string):
     if (socket === 'jib') return { position: rotate([4, CRANE_JIB, 0], j.slew), yaw: j.slew };
     if (socket === 'counterweight') return { position: rotate([-3.2, CRANE_JIB + .2, 0], j.slew), yaw: j.slew };
     if (socket === 'cab') return { position: rotate([.9, CRANE_JIB - .8, .9], j.slew), yaw: j.slew };
+    if (socket === 'winch') return { position: rotate([-1.3, CRANE_JIB + .35, .45], j.slew), yaw: j.slew };
   }
   if (kind === 'cargo' && socket === 'grip') return { position: [0, CARGO_GRIP, 0], yaw: 0 };
   if (kind === 'truck' && socket === 'bed') return { position: [0, TRUCK_BED, 0], yaw: 0 };
@@ -207,6 +208,6 @@ export const PRODUCTION_GUIDE = `Produção 3D COMBINÁVEL (opcional no topo do 
 Modelos: tower_crane (grua articulada), cargo (carga/palete), truck, lift (elevador de obra), worker, person (pessoa genérica SEM profissão inventada).
 Controles: tower_crane/cargo/truck/lift permitem x[-18,18],z[-14,14],yaw[-6.28,6.28]. tower_crane: slew[-2.8,2.8] radianos, trolley[2,8] metros, hoist[1.2,11.2] ALTURA DO GANCHO; lift: lift[0,9],doors[0,1]; worker:yaw/gesture[0,1]; person:yaw e pride/laugh/smile/point/talk[0,1] combináveis. Person/worker não caminham neste programa; para caminhar use a encenação legada staging, sem production. A carga tem cargoStyle=box|sacks|pallet, conforme caixa/sacos/palete literal. Uma frase de orgulho seguida de risada pode aumentar pride e depois laugh, sem inventar esporte ou vitória. Use world=studio para atuação sem local especificado; construction somente quando houver obra/máquinas no roteiro.
 Os valores iniciais vão em initial, sem x/z/yaw. As tracks mudam suavemente do valor anterior até to e preservam o estado entre frases. Não escreva from.
-Sockets: tower_crane=origin/hook/trolley/jib/counterweight/cab; cargo=base/grip/origin (grip fica 1.2m acima da base); truck=bed/cab/origin (bed=1.25m); lift=platform/doors/origin (platform=lift+.25m); worker=head/origin.
+Sockets: tower_crane=origin/hook/trolley/jib/counterweight/cab/winch; cargo=base/grip/origin (grip fica 1.2m acima da base); truck=bed/cab/origin (bed=1.25m); lift=platform/doors/origin (platform=lift+.25m); worker=head/origin.
 Só cargo pode ser acoplada. Alinhe childSocket e socket ANTES de acoplar: distância máxima .005m. O motor preserva orientação e continuidade. Exemplo: guindaste em [0,0,0], slew0,trolley4,hoist1.2 => hook[4,1.2,0]; carga base[4,0,0] => grip[4,1.2,0]. Com carga na caçamba do caminhão, gancho deve ter altura 2.45m antes da troca para truck.bed/cargo.base.
 Cada sourceId deve ser real. Nunca invente personagens, objetos, ações afirmativas para frases negadas, voos ou capacidades fora do catálogo. Use produção somente quando o roteiro pede esses elementos. Cada ação e modelo precisa evidence copiada literalmente do roteiro. A câmera pode mostrar partes e acompanhar objetos. A produção é global: IDs e posse permanecem entre todas as frases; não recrie os objetos a cada cena.`;

@@ -213,7 +213,7 @@ $('download-video').addEventListener('click', async () => {
     if (engine === '3d') await prepare3d();
     await document.fonts.ready;
     const list = cues(), duration = exportDuration(plan, list);
-    const mix = list.length ? await mixdown(list, duration, audio().sampleRate) : null;
+    const mix = list.length ? await mixdown(list, duration, 48000) : null;
     const { encodeFrames } = await import('../src/studio/explainer/frameEncoder');
     const result = await encodeFrames({ canvas, duration, audio: mix, draw: (at) => { time = at; draw(); }, onProgress: (percent) => { $('download-video').textContent = `Renderizando · ${percent}%`; } });
     if (!result) throw new Error('O navegador não possui um codificador compatível. A prévia e o plano continuam disponíveis.');
