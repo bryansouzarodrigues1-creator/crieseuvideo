@@ -11,7 +11,7 @@ const text = { type: 'string' };
 const choices = (values: readonly string[]) => ({ type: 'string', enum: values });
 const object = (properties: Record<string, unknown>, required: string[] = [], additionalProperties: unknown = false) => ({ type: 'object', properties, required, additionalProperties });
 const list = (items: unknown, maxItems: number) => ({ type: 'array', items, maxItems });
-const nullable = (schema: OutputSchema) => ({ ...schema, type: [schema.type, 'null'] });
+const nullable = (schema: OutputSchema) => ({ anyOf: [schema, { type: 'null' }] });
 const number = { type: 'number' };
 const vec3 = { ...list(number, 3), minItems: 3 };
 

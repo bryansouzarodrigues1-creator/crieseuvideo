@@ -17,6 +17,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run test
+      - name: Check the provider JSON Schema independently
+        run: |
+          python3 -m pip install -r scripts/requirements-schema.txt
+          node scripts/director-schema-qa.mjs
       - run: bunx tsc --noEmit
       - run: bun run build
       - run: node lab/build.mjs

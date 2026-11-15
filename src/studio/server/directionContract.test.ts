@@ -38,7 +38,7 @@ describe('director through the real provider adapter with intercepted transport'
     expect(plan.scenes.map((scene) => scene.text)).toEqual(['Ana correu pela rua.', 'Bruno nunca correu.']);
     const [, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const schema = JSON.parse(String(options.body)).generationConfig.responseFormat.text.schema;
-    expect(schema.properties.scenes.prefixItems.map((scene: any) => scene.properties.staging.properties.action.enum)).toEqual([['run'], ['wait']]);
+    expect(schema.properties.scenes.prefixItems.map((scene: any) => scene.properties.staging.anyOf[0].properties.action.enum)).toEqual([['run'], ['wait']]);
     expect(schema.properties.scenes).toMatchObject({ minItems: 2, maxItems: 2 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

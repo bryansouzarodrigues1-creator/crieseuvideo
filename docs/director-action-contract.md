@@ -33,5 +33,10 @@ and preserving the existing plan/pixels when a contradictory action is rejected.
 These provider responses are fixtures. A new live Google generation is not part
 of this verification.
 
+`director-schema-qa.mjs` also checks the actual schema with an independent Draft
+2020-12 validator. Its fixtures cover nullable enums, source/action swaps, source
+order, a complete mechanism graph, legacy drawings and null story performance.
+This catches schema errors that a permissive provider fixture would not detect.
+
 Primary API reference:
 https://ai.google.dev/gemini-api/docs/generate-content/structured-output
