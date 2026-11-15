@@ -14,6 +14,7 @@ import { audioCues, hasNarration, missingNarrationScenes, exportDuration, mixdow
 import { normalizeStory } from './storyAction';
 import { captureHealthError } from './exportCapture';
 import { scriptError, MAX_SCRIPT_CHARS } from './script';
+import { readDirectionResponse } from '../utils/apiResponse';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -250,8 +251,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
       const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, engine, targetDuration: durationRef.current, gallery: [...gallery, ...vaultFor(text)] }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
+      const data = await readDirectionResponse(res);
       const track = trackRef.current;
       const directed: ExplainerPlan = { ...data.plan, engine };
       setPlan(track ? fitToTrack(directed, track.duration) : directed); seek(0);

@@ -5,6 +5,7 @@ import { ACTION_LABELS } from '../src/studio/explainer/staging';
 import { drawExplainerFrame, drawOverlay } from '../src/studio/explainer/render';
 import { scriptError, spokenText } from '../src/studio/explainer/script';
 import type { Toon3D } from '../src/studio/explainer/toon3d';
+import { readApiResponse, readDirectionResponse } from '../src/studio/utils/apiResponse';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const script = $<HTMLTextAreaElement>('script'), canvas = $<HTMLCanvasElement>('canvas');
@@ -52,7 +53,7 @@ function setPlan(next: ExplainerPlan, label: string) {
   $('scene-count').textContent = String(plan.scenes.length);
   const staged = plan.scenes.filter((s) => s.story || s.staging).length;
   $('staging-info').textContent = engine === '3d'
-    ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais usam ilustrações; confira o storyboard.' : ''}`
+    ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais serão ilustradas, sem encenar a ação. Dirigir com Gemini não acrescenta movimentos que ainda não existem no motor.' : ''}`
     : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
   $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
   const sourceWords = spokenText(script.value), resultWords = spokenText(plan.scenes.map((s) => s.text).join(' '));
@@ -127,8 +128,8 @@ $('generate').addEventListener('click', async () => {
   if (busy) return; const error = scriptError(script.value); if (error) return note(error);
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
-    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine }) });
-    const data = await res.json(); if (!res.ok) throw new Error(data.error || 'A direção não foi concluída.');
+    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine }) });
+    const data = await readDirectionResponse(res);
     setPlan(normalizePlan(data.plan, script.value, aspect), 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
   } catch (error) { $('source').textContent = 'PRÉVIA ANTERIOR'; note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
   finally { setBusy(false); }
@@ -136,8 +137,7 @@ $('generate').addEventListener('click', async () => {
 $('connect').addEventListener('click', async () => {
   const button = $<HTMLButtonElement>('connect'); button.disabled = true; note('Conferindo se o Google aceita a conexão, sem gerar conteúdo.');
   try {
-    const res = await fetch('/api/connect', { method: 'POST' }), data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Conexão recusada.');
+    const res = await fetch('/api/connect', { method: 'POST', headers: { Accept: 'application/json' } }), data = await readApiResponse(res);
     $('api-label').textContent = 'Conexão com Google verificada'; $('api-dot').className = 'status-dot ready'; note(data.message);
   } catch (error) { $('api-dot').className = 'status-dot error'; note(error instanceof Error ? error.message : 'Não foi possível verificar.'); }
   finally { button.disabled = false; }
@@ -157,4 +157,4 @@ try {
 } catch { script.value = SAMPLE; local(); }
 counter(); requestAnimationFrame(loop);
 void document.fonts.ready.then(draw);
-void fetch('/api/config').then((r) => r.json()).then((data) => { $('api-label').textContent = data.configured ? 'Chave configurada no servidor' : 'Conexão Gemini pendente'; $('api-dot').className = `status-dot ${data.configured ? 'ready' : ''}`; }).catch(() => { $('api-label').textContent = 'Prévia local · sem conexão'; });
+void fetch('/api/config', { headers: { Accept: 'application/json' } }).then(readApiResponse).then((data) => { $('api-label').textContent = data.configured ? 'Chave configurada no servidor' : 'Conexão Gemini pendente'; $('api-dot').className = `status-dot ${data.configured ? 'ready' : ''}`; }).catch(() => { $('api-label').textContent = 'Prévia local · sem conexão'; });

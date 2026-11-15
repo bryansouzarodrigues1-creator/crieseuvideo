@@ -1,0 +1,35 @@
+name: Director response QA
+on:
+  pull_request:
+    branches: [feat/narrative-staging-duration]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: director-response-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  response-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: bun run build
+      - run: node lab/build.mjs
+      - run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install browser
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Check failure recovery through the ordinary mobile UI
+        run: node scripts/director-response-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: director-response-qa
+          path: tmp/director-response-qa/
+          retention-days: 7
