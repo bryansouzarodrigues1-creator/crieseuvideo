@@ -1,0 +1,2 @@
+# Optional external local speech tool; not bundled into the web application.
+piper-tts[alignment]==1.8.0

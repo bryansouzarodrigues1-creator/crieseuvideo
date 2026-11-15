@@ -1,7 +1,7 @@
 import { cueRule } from '../explainer/keywords';
 import { DRAWING_GUIDE } from '../explainer/drawing';
 import { SETTING_GUIDE } from '../explainer/settings';
-import { normalizePlan, VISUALS, MOODS, PALETTES, type ExplainerPlan } from '../explainer/plan';
+import { normalizePlan, buildFallbackPlan, VISUALS, MOODS, PALETTES, type ExplainerPlan } from '../explainer/plan';
 import { scriptError, spokenText } from '../explainer/script';
 import { sourceBeats, beatChunks, groundScenes, type SourceBeat } from './grounding';
 import { normalizeStory } from '../explainer/storyAction';
@@ -44,6 +44,7 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
   catch (error) { throw new DirectorError(400, 'invalid_duration', (error as Error).message); }
   const script = input.script.trim();
   const aspect = input.aspect === '16:9' ? '16:9' : '9:16';
+  const baseline = input.engine === '2d' ? undefined : buildFallbackPlan(script, aspect).production;
   const mode = input.mode === 'gallery' ? 'gallery' : 'creative';
   const gallery: { id: string; name: string; drawing: unknown }[] = Array.isArray(input.gallery)
     ? input.gallery.slice(0, 80).filter((g: any) => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.drawing)) : [];
@@ -59,6 +60,7 @@ ${cueRule(script)}
 ${lessons}
 ${STAGING_GUIDE}
 ${input.engine === '2d' ? '' : PRODUCTION_GUIDE}
+${baseline ? `Base física executável compilada deste roteiro. Reutilize IDs, modelos, posições e contatos; direcione câmera e atuação. Ao mudar movimentos, preserve a viabilidade dos contatos. Não é necessário calcular de novo a geometria do canteiro. Para este pedido devolva apenas tracks/couplings/shots com os sourceIds listados abaixo, mantendo os assets consistentes no roteiro completo:\n${JSON.stringify({ ...baseline, tracks: baseline.tracks.filter((t) => beats.some((b) => b.sourceId === t.sourceId)), couplings: baseline.couplings.filter((c) => beats.some((b) => b.sourceId === c.at.sourceId)), shots: baseline.shots.filter((s) => beats.some((b) => b.sourceId === s.sourceId)) })}` : ''}
 Se usar production, componha APENAS os sourceIds deste pedido. Mantenha os mesmos IDs, modelos, posições iniciais e cores no roteiro completo. Cada frase recebe uma shot. OMITA story/staging nas cenas dirigidas por production. O grafo de produção tem prioridade sobre os visuais ilustrados.
 ${targetDuration ? `Duração pedida: ${targetDuration} segundos no total. O motor distribuirá esse tempo entre ações e pausas. Não invente falas ou fatos para preencher tempo.` : ''}
 Para cada cena escolha o visual que MELHOR ilustra o significado:

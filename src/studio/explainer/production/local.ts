@@ -50,7 +50,7 @@ export function localProduction(sources: ProductionSource[]): ProductionProgram 
       let socket = /contrapeso/.test(t) ? 'counterweight' : /motor|cabine|operador/.test(t) ? 'cab' : /lanca|triangulo|estrutura/.test(t) ? 'jib' : 'hook';
       let shot: ProductionShot['kind'] = source === sources[0] ? 'wide' : /lanca|torre|gira|girou/.test(t) ? 'orbit' : 'follow';
       if (liftUp.test(t)) { const height = amount(t, 5.8); if (height < CARGO_GRIP || height > 11.2) return; track(source, 'crane', 'hoist', height); }
-      if (/\bcarrinho\b/.test(t) && /\b(leva|levou|desloca|deslocou|avanca|avancou|ponta|aproxima|aproximou|volta|recolhe)\b/.test(t)) { trolley = /aproxima|volta|recolhe/.test(t) ? 3 : amount(t, 7); if (trolley < 2 || trolley > 8) return; track(source, 'crane', 'trolley', trolley); socket = 'trolley'; }
+      if (/\bcarrinho\b/.test(t) && /\b(leva|levou|desloca|deslocou|avanca|avancou|ponta|aproxima|aproximou|volta|recolhe)\b/.test(t)) { trolley = /aproxima|volta|recolhe/.test(t) ? 3 : amount(t, 7); if (trolley < 2 || trolley > 8) return; track(source, 'crane', 'trolley', trolley); socket = 'trolley'; shot = 'follow'; }
       if (/\b(gira|girou|giram|rotaciona|rotacionou)\b/.test(t)) {
         const degrees = t.match(/(\d+(?:[,.]\d+)?)\s*graus/)?.[1];
         slew = (degrees ? Number(degrees.replace(',', '.')) * Math.PI / 180 : Math.PI / 3) * (/esquerda|anti/.test(t) ? 1 : -1);

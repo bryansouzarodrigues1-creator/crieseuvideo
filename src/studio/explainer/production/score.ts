@@ -2,13 +2,13 @@
 export const ASSET_KINDS = ['tower_crane', 'cargo', 'truck', 'lift', 'worker', 'person'] as const;
 export type AssetKind = typeof ASSET_KINDS[number];
 export type Vec3 = [number, number, number];
-export interface ProductionAsset { id: string; kind: AssetKind; position: Vec3; yaw: number; color: string; initial: Record<string, number>; evidence: string }
+export interface ProductionAsset { id: string; kind: AssetKind; position: Vec3; yaw: number; color: string; initial: Record<string, number>; evidence: string; cargoStyle?: 'box' | 'sacks' | 'pallet' }
 export interface Anchor { sourceId: string; phase: number }
 export interface ProductionTrack { asset: string; channel: string; sourceId: string; begin: number; end: number; to: number; evidence: string }
 export interface ProductionCoupling { child: string; parent: string | null; socket: string; childSocket: string; at: Anchor }
 export interface ProductionShot { sourceId: string; subject: string; socket: string; kind: 'wide' | 'detail' | 'follow' | 'orbit' }
 export interface ProductionProgram { version: 1; world: 'construction' | 'studio'; assets: ProductionAsset[]; tracks: ProductionTrack[]; couplings: ProductionCoupling[]; shots: ProductionShot[] }
-export interface ProductionSource { sourceId: string; text: string; duration: number }
+export interface ProductionSource { sourceId: string; text: string; duration: number; voice?: { start: number; end: number } }
 export interface AssetState { position: Vec3; yaw: number; joints: Record<string, number> }
 export interface Pose { position: Vec3; yaw: number }
 export const CARGO_GRIP = 1.2, TRUCK_BED = 1.25, CRANE_JIB = 12.6;
@@ -18,8 +18,8 @@ export const CHANNELS: Record<AssetKind, Record<string, number[]>> = {
   truck: transform,
   lift: { ...transform, lift: [0, 9, 0], doors: [0, 1, 0] },
   cargo: transform,
-  worker: { ...transform, gesture: [0, 1, 0] },
-  person: { ...transform, pride: [0, 1, 0], laugh: [0, 1, 0], smile: [0, 1, 0], point: [0, 1, 0], talk: [0, 1, 0] },
+  worker: { yaw: transform.yaw, gesture: [0, 1, 0] },
+  person: { yaw: transform.yaw, pride: [0, 1, 0], laugh: [0, 1, 0], smile: [0, 1, 0], point: [0, 1, 0], talk: [0, 1, 0] },
 };
 export const SOCKETS: Record<AssetKind, string[]> = { tower_crane: ['origin', 'hook', 'trolley', 'jib', 'counterweight', 'cab'], cargo: ['origin', 'base', 'grip'], truck: ['origin', 'bed', 'cab'], lift: ['origin', 'platform', 'doors'], worker: ['origin', 'head'], person: ['origin', 'head'] };
 export class ProductionError extends Error { constructor(public code: string, message: string) { super(message); this.name = 'ProductionError'; } }
@@ -56,7 +56,9 @@ export function normalizeProduction(raw: unknown, sources: ProductionSource[]): 
     const proof = evidence(a.evidence, fullText);
     const nouns: Partial<Record<AssetKind, RegExp>> = { tower_crane: /guindaste|grua|guincho/, truck: /caminhao|cacamba/, lift: /elevador/, cargo: /carga|caixa|palete|saco|materiais/, worker: /operari|trabalhador|operador|pedreiro/ };
     if (nouns[kind] && !nouns[kind]!.test(clean(proof))) reject('Um modelo 3D não foi mencionado no trecho indicado como evidência.');
-    return { id: id(a.id), kind, position: [number(p[0], -18, 18), number(p[1], 0, 10), number(p[2], -14, 14)], yaw: number(a.yaw ?? 0, -Math.PI * 2, Math.PI * 2), color: typeof a.color === 'string' && /^#[0-9a-f]{6}$/i.test(a.color) ? a.color : '#F4BA3F', initial, evidence: proof };
+    if (a.cargoStyle !== undefined && !['box', 'sacks', 'pallet'].includes(a.cargoStyle)) reject('A variante da carga não tem suporte.');
+    const cargoStyle = kind !== 'cargo' ? undefined : a.cargoStyle ?? (/caixa/.test(clean(proof)) ? 'box' : /sacos?|cimento/.test(clean(fullText)) ? 'sacks' : /palete/.test(clean(proof)) ? 'pallet' : 'box');
+    return { id: id(a.id), kind, position: [number(p[0], -18, 18), number(p[1], 0, 10), number(p[2], -14, 14)], yaw: number(a.yaw ?? 0, -Math.PI * 2, Math.PI * 2), color: typeof a.color === 'string' && /^#[0-9a-f]{6}$/i.test(a.color) ? a.color : '#F4BA3F', initial, evidence: proof, ...(cargoStyle ? { cargoStyle } : {}) };
   });
   if (!assets.length || new Set(assets.map((a) => a.id)).size !== assets.length) reject('Os modelos 3D estão ausentes ou possuem IDs repetidos.');
   const asset = (key: unknown) => assets.find((a) => a.id === id(key)) ?? reject('Uma ação citou um modelo 3D inexistente.');
@@ -169,7 +171,7 @@ export function compileProduction(program: ProductionProgram, sources: Productio
     const target = event.parent ? socketWorld(defs.get(event.parent)!, before.get(event.parent)!, event.socket) : { position: child.position, yaw: child.yaw };
     const contact = socketWorld(defs.get(event.child)!, child, event.childSocket);
     const error = event.parent ? distance(contact.position, target.position) : 0;
-    if (error > .08) throw new ProductionError('contact_mismatch', 'A direção tentou prender uma carga longe do ponto de contato. Nenhuma animação foi substituída.');
+    if (error > .005) throw new ProductionError('contact_mismatch', 'A direção tentou prender uma carga longe do ponto de contato. Nenhuma animação foi substituída.');
     bindings.push({ ...event, time: at, yawOffset: child.yaw - target.yaw, frozen: event.parent ? undefined : { position: [...child.position], yaw: child.yaw }, contactError: error });
     sample(at); // Detect cycles at the moment a binding becomes active.
   }
@@ -191,7 +193,7 @@ export function mergeProduction(parts: unknown[]): unknown {
     result.world = p.world;
     for (const raw of list(p.assets, 12)) {
       const a = object(raw), key = id(a.id), previous = definitions.get(key);
-      const shape = (v: any) => JSON.stringify([v.kind, v.position, v.yaw ?? 0, v.color ?? '#F4BA3F', Object.entries(v.initial ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
+      const shape = (v: any) => JSON.stringify([v.kind, v.position, v.yaw ?? 0, v.color ?? '#F4BA3F', v.cargoStyle, Object.entries(v.initial ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
       if (previous && shape(previous) !== shape(a)) reject('A IA mudou a identidade ou o estado inicial de um objeto entre partes do roteiro.');
       if (!previous) { definitions.set(key, a); result.assets.push(a); }
     }
@@ -203,8 +205,8 @@ export function mergeProduction(parts: unknown[]): unknown {
 export const PRODUCTION_GUIDE = `Produção 3D COMBINÁVEL (opcional no topo do JSON, campo production):
 {version:1,world:"construction|studio",assets:[{id,kind,position:[x,y,z],yaw:0,color:"#F4BA3F",initial:{},evidence:"trecho literal do roteiro"}],tracks:[{asset,channel,sourceId,begin:0.08,end:0.92,to,evidence:"trecho literal desta frase"}],couplings:[{child,parent,socket,childSocket,at:{sourceId,phase:0}}],shots:[{sourceId,subject,socket:"origin",kind:"wide|detail|follow|orbit"}]}.
 Modelos: tower_crane (grua articulada), cargo (carga/palete), truck, lift (elevador de obra), worker, person (pessoa genérica SEM profissão inventada).
-Controles comuns x[-18,18],z[-14,14],yaw[-6.28,6.28]. tower_crane: slew[-2.8,2.8] radianos, trolley[2,8] metros, hoist[1.2,11.2] ALTURA DO GANCHO; lift: lift[0,9],doors[0,1]; worker:gesture[0,1]; person:pride/laugh/smile/point/talk[0,1] combináveis. Uma frase de orgulho seguida de risada pode aumentar pride e depois laugh, sem inventar esporte ou vitória. Use world=studio para atuação sem local especificado; construction somente quando houver obra/máquinas no roteiro.
+Controles: tower_crane/cargo/truck/lift permitem x[-18,18],z[-14,14],yaw[-6.28,6.28]. tower_crane: slew[-2.8,2.8] radianos, trolley[2,8] metros, hoist[1.2,11.2] ALTURA DO GANCHO; lift: lift[0,9],doors[0,1]; worker:yaw/gesture[0,1]; person:yaw e pride/laugh/smile/point/talk[0,1] combináveis. Person/worker não caminham neste programa; para caminhar use a encenação legada staging, sem production. A carga tem cargoStyle=box|sacks|pallet, conforme caixa/sacos/palete literal. Uma frase de orgulho seguida de risada pode aumentar pride e depois laugh, sem inventar esporte ou vitória. Use world=studio para atuação sem local especificado; construction somente quando houver obra/máquinas no roteiro.
 Os valores iniciais vão em initial, sem x/z/yaw. As tracks mudam suavemente do valor anterior até to e preservam o estado entre frases. Não escreva from.
 Sockets: tower_crane=origin/hook/trolley/jib/counterweight/cab; cargo=base/grip/origin (grip fica 1.2m acima da base); truck=bed/cab/origin (bed=1.25m); lift=platform/doors/origin (platform=lift+.25m); worker=head/origin.
-Só cargo pode ser acoplada. Alinhe childSocket e socket ANTES de acoplar: distância máxima .08m. O motor preserva orientação e continuidade. Exemplo: guindaste em [0,0,0], slew0,trolley4,hoist1.2 => hook[4,1.2,0]; carga base[4,0,0] => grip[4,1.2,0]. Com carga na caçamba do caminhão, gancho deve ter altura 2.45m antes da troca para truck.bed/cargo.base.
+Só cargo pode ser acoplada. Alinhe childSocket e socket ANTES de acoplar: distância máxima .005m. O motor preserva orientação e continuidade. Exemplo: guindaste em [0,0,0], slew0,trolley4,hoist1.2 => hook[4,1.2,0]; carga base[4,0,0] => grip[4,1.2,0]. Com carga na caçamba do caminhão, gancho deve ter altura 2.45m antes da troca para truck.bed/cargo.base.
 Cada sourceId deve ser real. Nunca invente personagens, objetos, ações afirmativas para frases negadas, voos ou capacidades fora do catálogo. Use produção somente quando o roteiro pede esses elementos. Cada ação e modelo precisa evidence copiada literalmente do roteiro. A câmera pode mostrar partes e acompanhar objetos. A produção é global: IDs e posse permanecem entre todas as frases; não recrie os objetos a cada cena.`;

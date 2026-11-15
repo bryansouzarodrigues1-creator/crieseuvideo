@@ -11,7 +11,7 @@ export class Production3D {
   private time = 0;
   private states = new Map<string, AssetState>();
   private frameBounds = new THREE.Box3();
-  constructor(readonly program: ProductionProgram, sources: ProductionSource[]) {
+  constructor(readonly program: ProductionProgram, readonly sources: ProductionSource[]) {
     this.score = compileProduction(program, sources);
     const studio = program.world === 'studio';
     this.scene.background = new THREE.Color(studio ? 0xe5e7dc : 0x9ccde1);
@@ -32,6 +32,11 @@ export class Production3D {
     this.states = this.score.sample(this.time);
     for (const [id, asset] of this.assets) {
       const state = this.states.get(id)!;
+      if (asset.definition.kind === 'person' && !this.score.tracks.some((t) => t.asset === id && t.channel === 'talk')) {
+        const span = this.score.spans.find((s, i) => this.time < s.start + s.duration || i === this.score.spans.length - 1), voice = this.sources.find((s) => s.sourceId === span?.sourceId)?.voice;
+        const local = this.time - (span?.start ?? 0);
+        state.joints.talk = voice && local >= voice.start && local <= voice.end ? .5 : 0;
+      }
       let vx = 0, vz = 0, travel = 0;
       for (const track of this.score.tracks) if (track.asset === id && ['x', 'z'].includes(track.channel)) {
         const phase = Math.max(0, Math.min(1, (this.time - track.start) / (track.finish - track.start)));
@@ -54,6 +59,7 @@ export class Production3D {
     const progress = Math.max(0, Math.min(1, (this.time - span.start) / span.duration));
     const port = socketWorld(subject.definition, state, shot?.socket ?? 'origin');
     const box = new THREE.Box3();
+    const fitBoxes: THREE.Box3[] = [];
     if (shot?.kind === 'detail' || shot?.kind === 'follow') {
       const human = !!subject.rig;
       const center = new THREE.Vector3(...port.position);
@@ -61,11 +67,24 @@ export class Production3D {
       if (human && shot.socket === 'origin') center.y += 1.4;
       else if (human) center.y -= .3;
       else if (shot.socket === 'hook') center.y -= .50;
+      else if (subject.definition.kind === 'lift' && shot.socket === 'platform') center.y += 1;
       box.setFromCenterAndSize(center, size);
+      if (subject.definition.kind === 'truck') {
+        box.setFromObject(subject.root);
+        for (const b of this.score.bindings) if (b.parent === subject.definition.id && b.time <= this.time) box.union(new THREE.Box3().setFromObject(this.assets.get(b.child)!.root));
+        box.expandByScalar(.25);
+      }
+      if (subject.definition.kind === 'tower_crane' && shot.socket === 'trolley') {
+        const hook = socketWorld(subject.definition, state, 'hook');
+        box.expandByPoint(new THREE.Vector3(...hook.position).add(new THREE.Vector3(0, -1.4, 0)));
+      }
     } else {
       box.setFromObject(subject.root);
       // Contextual wide views include the cargo and transport, never the huge sky/floor.
-      if (subject.definition.kind === 'tower_crane') for (const asset of this.assets.values()) if (asset.definition.kind !== 'worker') box.union(new THREE.Box3().setFromObject(asset.root));
+      fitBoxes.push(new THREE.Box3().setFromObject(subject.root).expandByScalar(.25));
+      if (subject.definition.kind === 'tower_crane') for (const asset of this.assets.values()) if (asset !== subject && asset.definition.kind !== 'worker') {
+        const part = new THREE.Box3().setFromObject(asset.root).expandByScalar(.25); box.union(part); fitBoxes.push(part);
+      }
       box.expandByScalar(.25);
     }
     this.frameBounds.copy(box);
@@ -76,7 +95,7 @@ export class Production3D {
     const direction = new THREE.Vector3(Math.sin(angle), human ? .08 : .30, Math.cos(angle)).normalize();
     this.camera.aspect = aspect; this.camera.updateProjectionMatrix();
     const corners: THREE.Vector3[] = [];
-    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(new THREE.Vector3(x, y, z));
+    for (const bounds of fitBoxes.length ? fitBoxes : [box]) for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) corners.push(new THREE.Vector3(x, y, z));
     const fits = (distance: number) => {
       this.camera.position.copy(look).addScaledVector(direction, distance); this.camera.lookAt(look); this.camera.updateMatrixWorld(true);
       return corners.every((corner) => { const p = corner.clone().project(this.camera); return p.z > -1 && p.z < 1 && Math.abs(p.x) < .88 && p.y > -.62 && p.y < .91; });

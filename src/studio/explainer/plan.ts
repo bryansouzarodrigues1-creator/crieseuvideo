@@ -6,6 +6,7 @@ import { localStory } from './localStory';
 import { normalizeStaging, type NarrativeStaging } from './staging';
 import { normalizeProduction, type ProductionProgram } from './production/score';
 import { localProduction } from './production/local';
+import type { NarrationWord } from './narrationPackage';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -40,7 +41,7 @@ export interface ExplainerScene {
   /** Animated full-screen scenario behind the scene. */
   setting?: Setting;
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
-  voice?: { duration: number; start: number; end: number };
+  voice?: { duration: number; start: number; end: number; timings?: NarrationWord[] };
 }
 export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; production?: ProductionProgram; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
 
@@ -72,6 +73,9 @@ export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).
 export const wordWeight = (w: string) => w.replace(/[^\p{L}\d]/gu, '').length + 2 + (/[,;:]$/.test(w) ? 3 : /[.!?…]$/.test(w) ? 5 : 0);
 export function wordTimings(scene: ExplainerScene) {
   const list = words(scene.text);
+  if (scene.voice?.timings?.length === list.length && scene.voice.timings.every((w, i) => w.word === list[i])) {
+    return scene.voice.timings.map((w) => ({ word: w.word, start: SCENE_LEAD + w.start, end: SCENE_LEAD + w.end }));
+  }
   const from = SCENE_LEAD + (scene.voice ? scene.voice.start : 0);
   const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : scene.story?.performance || scene.duration ? Math.max(.2, sceneDuration(scene) - SCENE_LEAD - .5) : list.length * SECONDS_PER_WORD;
   const total = list.reduce((a, w) => a + wordWeight(w), 0) || 1;
@@ -189,11 +193,12 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
 }
 
 export function productionSources(scenes: ExplainerScene[]) {
-  return scenes.map((scene, i) => ({ sourceId: scene.sourceId ?? `s${i + 1}`, text: scene.text, duration: sceneDuration(scene) }));
+  return scenes.map((scene, i) => ({ sourceId: scene.sourceId ?? `s${i + 1}`, text: scene.text, duration: sceneDuration(scene), voice: scene.voice ? { start: scene.voice.start + SCENE_LEAD, end: scene.voice.end + SCENE_LEAD } : undefined }));
 }
 function withProduction(plan: ExplainerPlan, raw?: unknown): ExplainerPlan {
   const sources = productionSources(plan.scenes);
   const production = raw === undefined ? localProduction(sources) : normalizeProduction(raw, sources);
+  if (raw === undefined && (plan.scenes.some((s) => s.story) || production?.world === 'studio' && plan.scenes.some((s) => s.staging))) return plan;
   return production ? { ...plan, production, scenes: plan.scenes.map((s) => ({ ...s, productionBeat: true })) } : plan;
 }
 /** Text edits invalidate old action/evidence links instead of keeping stale acting. */

@@ -60,6 +60,11 @@ describe('composable production score', () => {
     expect(plan.scenes[0].text).toBe(text);
     expect(buildFallbackPlan('Esse foi o maior esquema de corrupção.').production).toBeUndefined();
   });
+  it('preserves grounded handoff performance when its source also mentions a smile', () => {
+    const plan = buildFallbackPlan('Lia entra, caminha, agacha-se, pega a lanterna e entrega para Caio, que segura o objeto e sorri.');
+    expect(plan.production).toBeUndefined();
+    expect(plan.scenes.some((s) => s.story?.performance === 'grounded-v1')).toBe(true);
+  });
   it('lets validated model direction combine controls in an order not present in the offline compiler', () => {
     const { program, sources } = specimen(), raw = clone(program);
     raw.tracks = raw.tracks.filter((t) => t.channel !== 'trolley');

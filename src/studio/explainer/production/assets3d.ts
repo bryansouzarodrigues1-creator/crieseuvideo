@@ -100,14 +100,20 @@ export function buildArticulatedAsset(a: ProductionAsset): ArticulatedAsset {
     animate = (s) => {
       slew.rotation.y = s.joints.slew; trolley.position.x = s.joints.trolley;
       hook.position.y = s.joints.hoist - CRANE_JIB;
-      for (const rope of ropes) { const length = CRANE_JIB - s.joints.hoist - .5; rope.scale.y = Math.max(.02, length); rope.position.y = -.5 - length / 2; }
+      for (const rope of ropes) { const length = CRANE_JIB - s.joints.hoist - .74; rope.scale.y = Math.max(.02, length); rope.position.y = -.24 - length / 2; }
     };
   } else if (a.kind === 'cargo') {
     for (const z of [-.48, 0, .48]) base.box([1.4, .14, .15], [0, .07, z], timber);
     for (let i = 0; i < 6; i++) base.box([.19, .07, 1.16], [-.57 + i * .23, .18, 0], 0xc49a62);
-    for (let row = 0; row < 3; row++) for (let x = 0; x < 2; x++) {
+    if (a.cargoStyle === 'sacks') for (let row = 0; row < 3; row++) for (let x = 0; x < 2; x++) {
       base.geometry(new THREE.SphereGeometry(1, 12, 8), row % 2 ? 0xddd9b8 : 0xe9e5c8, [x * .56 - .28, .35 + row * .22, 0], [0, row % 2 ? .1 : -.1, 0], [.31, .15, .48]);
       base.box([.035, .12, .84], [x * .56 - .28, .39 + row * .22, 0], 0xaba98c);
+    }
+    if (!a.cargoStyle || a.cargoStyle === 'box') {
+      base.box([1.18, .82, .96], [0, .65, 0], 0xb88959);
+      base.box([.12, .83, .975], [0, .65, 0], 0xe2cea0);
+      for (const x of [-.43, .43]) base.box([.065, .83, .975], [x, .65, 0], 0x90683f);
+      base.box([1.19, .08, .97], [0, 1.07, 0], 0x9b7149);
     }
     for (const x of [-.6, .6]) for (const z of [-.5, .5]) base.rod([x, .23, z], [0, 1.2, 0], .019, 0x3272a7);
     base.geometry(new THREE.TorusGeometry(.065, .018, 6, 12), ink, [0, 1.18, 0]);
@@ -161,6 +167,7 @@ export function buildArticulatedAsset(a: ProductionAsset): ArticulatedAsset {
       o.material = replacement; material.dispose(); o.castShadow = true; o.receiveShadow = true;
     });
     if (a.kind === 'worker') {
+      rig.head.traverse((o) => { if (o instanceof THREE.Mesh && (o.material as THREE.MeshStandardMaterial).color?.getHex() === 0x52362b) o.visible = false; });
       const cap = new ModelBatch(rig.head);
       cap.geometry(new THREE.SphereGeometry(.42, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), steel, [0, .12, 0]);
       cap.geometry(new THREE.CylinderGeometry(.47, .47, .065, 24), steel, [0, .13, .02]);
@@ -169,6 +176,15 @@ export function buildArticulatedAsset(a: ProductionAsset): ArticulatedAsset {
       for (const x of [-.20, .20]) vest.box([.14, .58, .03], [x, .06, .32], 0xffb12e);
       vest.box([.55, .045, .03], [0, -.16, .345], 0xe8e5c7); vest.finish();
     }
+    const hips = new ModelBatch(rig.root);
+    hips.geometry(new THREE.SphereGeometry(1, 16, 10), 0x293e53, [0, -.4, 0], [0, 0, 0], [.30, .17, .25]); hips.finish();
+    for (const leg of [rig.leftLeg, rig.rightLeg]) {
+      leg.root.traverse((o) => { if (o instanceof THREE.Mesh && o.visible) (o.material as THREE.MeshStandardMaterial).color.setHex(0x293e53); });
+      const joint = new ModelBatch(leg.elbow!); joint.geometry(new THREE.SphereGeometry(.112, 12, 8), 0x293e53); joint.finish();
+      leg.hand!.traverse((o) => { if (o instanceof THREE.Mesh && o.visible) (o.material as THREE.MeshStandardMaterial).color.setHex(0x24313b); });
+    }
+    for (const arm of [rig.leftArm, rig.rightArm]) { const joint = new ModelBatch(arm.elbow!); joint.geometry(new THREE.SphereGeometry(.086, 12, 8), color); joint.finish(); }
+    const teeth = mesh(rig.head, new THREE.BoxGeometry(.12, .028, .018), 0xf6f1dc); teeth.position.set(0, -.102, .352);
     const actor = rig;
     animate = (s, t, speed, travel) => {
       const laugh = s.joints.laugh ?? 0, pride = s.joints.pride ?? 0, smile = Math.max(laugh, s.joints.smile ?? 0), point = s.joints.point ?? s.joints.gesture ?? 0;
@@ -181,9 +197,15 @@ export function buildArticulatedAsset(a: ProductionAsset): ArticulatedAsset {
       actor.rightArm.root.rotation.set(-stride * .45 - .05 - point * .6, 0, -.08 - pride * .5 - point * .7);
       actor.leftArm.elbow!.rotation.set(-.12 - pride * 1.3 - laugh * .25, 0, 0);
       actor.rightArm.elbow!.rotation.set(-.12 - pride * 1.3 - laugh * .25, 0, 0);
-      actor.face.mouth.scale.set(1 + smile * .28, .7 + laugh * (2.5 + Math.abs(Math.sin(t * 13))) + (s.joints.talk ?? 0) * Math.abs(Math.sin(t * 14)) * 2, 1);
+      const mouthOpen = .7 + laugh * (2.5 + Math.abs(Math.sin(t * 13))) + (s.joints.talk ?? 0) * Math.abs(Math.sin(t * 14)) * 2;
+      actor.face.mouth.scale.set(1 + smile * .28, mouthOpen, 1);
+      // Mouth geometry is offset from the head origin. Scaling its group must
+      // preserve its center, otherwise it slides down into the neck/chest.
+      actor.face.mouth.position.set(0, .13 * (mouthOpen - 1), .025);
+      teeth.visible = laugh > .25; teeth.position.y = -.13 + mouthOpen * .016;
       const blink = Math.max(0, 1 - Math.abs((t + a.id.length * .21) % 3.6 - 2.8) / .09);
-      actor.face.leftEye.scale.y = actor.face.rightEye.scale.y = (1 - blink * .92) * (1 - laugh * .22);
+      const eyeOpen = 1.18 * (1 - blink * .92) * (1 - laugh * .15);
+      actor.face.leftEye.scale.set(1.16, eyeOpen, 1); actor.face.rightEye.scale.set(1.16, eyeOpen, 1);
       actor.face.leftBrow.rotation.z = -.12 * pride + .10 * smile; actor.face.rightBrow.rotation.z = .12 * pride - .10 * smile;
       root.updateWorldMatrix(true, true);
       [actor.leftLeg, actor.rightLeg].forEach((leg, i) => {
@@ -208,7 +230,7 @@ export function constructionEnvironment(world: THREE.Object3D) {
   for (const z of [4.5, 10.9]) b.box([90, .18, .35], [0, .06, z], 0xa3b4b6);
   for (let x = -40; x < 40; x += 3) b.box([1.3, .01, .08], [x, .041, 7.7], 0xece4ba);
   for (let i = 0; i < 24; i++) {
-    const side = i < 12 ? -1 : 1, k = i % 12, x = (k - 5.5) * 5.4, z = side * (k % 2 ? 25 : 19), height = 5 + (i * 7 % 9);
+    const side = -1, k = i % 12, x = (k - 5.5) * 5.4 + (i < 12 ? 0 : 2.7), z = -(i < 12 ? 19 + k % 2 * 6 : 31 + k % 2 * 6), height = 5 + (i * 7 % 9);
     const color = [0xd2d5bc, 0x95b5ba, 0xd8b79c, 0xa7b6bd, 0xbbc9a7][i % 5];
     b.box([4.2, height, 4], [x, height / 2, z], color); b.box([4.4, .15, 4.2], [x, height + .06, z], 0xe5e5d4);
     for (let y = 1; y < height - .3; y += 1.25) for (const dx of [-1.3, 0, 1.3]) {

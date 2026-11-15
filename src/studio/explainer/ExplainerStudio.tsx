@@ -294,7 +294,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
    */
   const exportVideo = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') { setNote('Este navegador não grava vídeo.'); return; }
+    if (!canvas) return;
     if (exportingRef.current || !plan.scenes.length) return;
     exportingRef.current = true; setPlaying(false); setRecording(0); setNote('');
     let timer = 0, src: AudioBufferSourceNode | null = null, stream: MediaStream | null = null, recorder: MediaRecorder | null = null;
@@ -331,6 +331,18 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
       // 2) the first frame is t = 0, on screen before the recorder starts
       timeRef.current = 0; setTime(0); draw(0, true);
+
+      // Offline WebCodecs path: all n/30 frames are encoded, however long each
+      // 3D render takes. The guarded realtime recorder remains a compatibility path.
+      const { encodeFrames } = await import('./frameEncoder');
+      const encoded = await encodeFrames({ canvas, duration, fps, audio: mix, mp4Only: true, draw: (t) => draw(t, true), onProgress: setRecording });
+      if (encoded) {
+        const link = document.createElement('a'); link.href = URL.createObjectURL(encoded.blob);
+        link.download = `${plan.title.replace(/[^\p{L}\d]+/gu, '-').slice(0, 40) || 'animacao'}.mp4`; link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+        setNote(`MP4 exportado: ${encoded.duration.toFixed(1)} s, ${encoded.frames} quadros${mix ? ', com voz' : ', sem narração'}.`); return;
+      }
+      if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') throw new Error('Este navegador não possui um codificador de vídeo compatível.');
 
       // 3) video track: frames are pushed by us (requestFrame) when supported, otherwise sampled at fps
       stream = canvas.captureStream(0);

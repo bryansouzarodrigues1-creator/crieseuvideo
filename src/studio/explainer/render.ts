@@ -1,5 +1,5 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
-import { ExplainerPlan, ExplainerScene, sceneAt, sceneDuration, wordAt, words, Mood, MOODS } from './plan';
+import { ExplainerPlan, ExplainerScene, sceneAt, sceneDuration, wordAt, words, Mood, MOODS, SCENE_LEAD } from './plan';
 import { drawStory, drawStoryBackdrop } from './storyRender';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
@@ -79,12 +79,17 @@ export function captionPages(c: CanvasRenderingContext2D, all: string[], maxW: n
  * Word-by-word caption locked to the bottom band of the frame: never more than 2 lines, the last
  * line always sits on the same baseline and nothing else is ever drawn inside the band.
  */
-function caption(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, z: FrameZones, u: number) {
+function caption(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, z: FrameZones, u: number, groupWords = 0) {
   const wd = wordAt(scene, local); if (!wd) return;
   const all = words(scene.text), key = (x: string) => x.toLowerCase().replace(/[^\p{L}\d]/gu, '');
   const hlSet = new Set((scene.highlight || []).map(key));
   const maxW = z.caption.x1 - z.caption.x0;
-  const pages = captionPages(c, all, maxW, z.captionFont, 24 * u);
+  const basic = captionPages(c, all, maxW, z.captionFont, 24 * u);
+  const pages = groupWords ? Array.from({ length: Math.ceil(all.length / groupWords) }, (_, i) => {
+    const from = i * groupWords;
+    return captionPages(c, all.slice(from, from + groupWords), maxW, basic[0]?.size ?? z.captionFont, 24 * u).map((p) => ({ ...p, from: p.from + from, to: p.to + from, lines: p.lines.map((line) => line.map((k) => k + from)) }));
+  }).flat() : basic;
+  if (groupWords && scene.voice?.timings?.length && local > SCENE_LEAD + scene.voice.timings[scene.voice.timings.length - 1].end + .65) return;
   const page = pages.find((p) => wd.index >= p.from && wd.index <= p.to) ?? pages[pages.length - 1]; if (!page) return;
   const lh = page.size * 1.12, fade = pop(local, 0, 0.2);
   c.save(); c.globalAlpha = Math.min(1, fade); c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineJoin = 'round'; c.font = FONT(page.size);
@@ -278,7 +283,7 @@ function profile(c: CanvasRenderingContext2D, u: number, local: number, name?: s
 /** Captions only, drawn over the 3D engine frame, in the same bottom band as the 2D engine. */
 export function drawOverlay(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080, at = sceneAt(plan, t);
-  if (at) caption(c, at.scene, at.local, frameZones(w, h), u);
+  if (at) caption(c, at.scene, at.local, frameZones(w, h), u, plan.production ? 3 : 0);
 }
 
 function laptop(c: CanvasRenderingContext2D, u: number, local: number, label?: string) {
