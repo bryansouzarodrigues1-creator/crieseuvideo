@@ -212,6 +212,7 @@ try {
   // repair click; it must not be rendered, logged or silently regenerated.
   await page.locator('[data-engine="3d"]').click();
   await page.locator('#direction-mode').selectOption('program');
+  await page.locator('#duration').selectOption('30');
   const contextProgram = { version: 1, background: '#B6D7EA', nodes: [{ id: 'object', kind: 'mesh', contextSourceId: 's1', color: '#607F93', geometry: { shape: 'box', size: [1, 1, 1] } }],
     tracks: [{ node: 'object', channel: 'position', keys: [{ sourceId: 's1', phase: 0, value: [0, 0, 0] }, { sourceId: 's1', phase: 1, value: [0, 1, 0] }] }], shots: [{ sourceId: 's1', subjects: ['object'] }], contacts: [] };
   const brokenProgram = JSON.parse(JSON.stringify(contextProgram)); brokenProgram.nodes[0].geometry.code = 'private-model-payload';
