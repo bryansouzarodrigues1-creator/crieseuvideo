@@ -20,11 +20,11 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
-let browser;
+let browser, page;
 const errors = [], paidCalls = [], reports = [];
 try {
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
+  page = await browser.newPage({ viewport: { width: 430, height: 932 } });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.route('**/*', (route) => {
     const url = route.request().url();
@@ -72,9 +72,19 @@ try {
     const exportThis = full && ['guindaste-40s', 'atuacao-jogador-15s', 'elevador-30s'].includes(spec.id) || !full && spec.id === 'guindaste-40s';
     if (exportThis) {
       if (full) {
+        await page.locator('#canvas').evaluate((canvas) => { delete canvas.dataset.lastExport; });
         const downloadPromise = page.waitForEvent('download', { timeout: 900000 });
         await page.locator('#download-video').click();
-        const download = await downloadPromise;
+        const progress = setInterval(() => {
+          void page.evaluate(() => ({ button: document.getElementById('download-video').textContent, message: document.getElementById('message').textContent, busy: document.getElementById('generate').disabled }))
+            .then((state) => console.log(JSON.stringify({ spec: spec.id, exportProgress: state }))).catch(() => {});
+        }, 30000);
+        let download;
+        try {
+          const failure = page.waitForFunction(() => !document.getElementById('generate').disabled && !document.getElementById('canvas').dataset.lastExport, undefined, { timeout: 900000 })
+            .then(async () => { throw new Error('Video download failed: ' + await page.locator('#message').innerText()); });
+          download = await Promise.race([downloadPromise, failure]);
+        } finally { clearInterval(progress); }
         await page.waitForFunction(() => !document.getElementById('generate').disabled, undefined, { timeout: 900000 });
         const encoded = JSON.parse(await page.locator('#canvas').getAttribute('data-last-export'));
         assert.equal(encoded.frames, Math.ceil(actualSeconds * 30 - 1e-8)); assert.equal(encoded.audio, true);
@@ -118,4 +128,8 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(paidCalls, []);
   await fs.writeFile(path.join(output, full ? 'full-report.json' : 'samples-report.json'), JSON.stringify({ mode: full ? 'full' : 'samples', realAiDirectionTested: false, paidCalls, browserErrors: errors, reports }, null, 2));
   console.log('PASS composable production: ordinary scripts, persistent assets, contacts, alternative mechanisms and deterministic seeks.');
+} catch (error) {
+  const state = await page?.evaluate(() => ({ message: document.getElementById('message')?.textContent, progress: document.getElementById('download-video')?.textContent, export: document.getElementById('canvas')?.dataset.lastExport })).catch(() => null);
+  await fs.writeFile(path.join(output, 'export-failure.json'), JSON.stringify({ error: String(error), state, reports }, null, 2));
+  throw error;
 } finally { await browser?.close(); await new Promise((r) => server.close(r)); }

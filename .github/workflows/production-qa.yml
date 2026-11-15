@@ -62,5 +62,6 @@ jobs:
           path: |
             tmp/production-qa/*.mp4
             tmp/production-qa/full-report.json
+            tmp/production-qa/export-failure.json
             tmp/production-voice/*.narration.json
           retention-days: 7
