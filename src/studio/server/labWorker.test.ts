@@ -26,6 +26,17 @@ describe('private lab direction transport', () => {
     expect((await createLabWorker({}).fetch(request({}, 'https://another.example'), {})).status).toBe(403);
     expect(directExplainer).not.toHaveBeenCalled();
   });
+  it('keeps safe scene/action diagnostics in the readable response and failure log', async () => {
+    const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const details = { sourceId: 's2', field: 'staging' as const, receivedAction: 'run', expectedAction: 'wait' };
+    vi.mocked(directExplainer).mockRejectedValue(new DirectorError(502, 'unsupported_action', 'Cena 2: a frase permite esperar.', details));
+    const response = await createLabWorker({}).fetch(request({ script: 'private-script' }), { GEMINI_API_KEY: 'private-key' });
+    const result = await response.json();
+    expect(result).toMatchObject({ ok: false, status: 502, details });
+    expect(JSON.parse(String(logs.mock.calls[0]?.[1]))).toMatchObject({ details });
+    for (const secret of ['private-script', 'private-key']) expect(JSON.stringify(logs.mock.calls)).not.toContain(secret);
+    expect(directExplainer).toHaveBeenCalledTimes(1);
+  });
   it('does not request AI for malformed JSON', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const response = await createLabWorker({}).fetch(new Request(origin + '/api/direct', { method: 'POST', headers: { Origin: origin }, body: '<html>' }), {});

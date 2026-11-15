@@ -13,6 +13,39 @@ const fromSource = (prompt: string) => ({ ...good(''), text: JSON.stringify({ ti
 }) }) });
 
 describe('bounded scene direction', () => {
+  it.each(['staging', 'story', 'production'])('treats optional %s=null as absence and keeps the executable acting', async (field) => {
+    const script = 'Eu sou o maior jogador do mundo hahahaha';
+    const raw = { scenes: [{ sourceId: 's1', visual: 'character', ...(field !== 'production' ? { [field]: null } : {}) }], ...(field === 'production' ? { production: null } : {}) };
+    vi.mocked(askAiResult).mockResolvedValue({ ...good(''), text: JSON.stringify(raw) });
+    const { plan } = await directExplainer({ script, engine: '3d', targetDuration: 15 });
+    expect(plan.scenes[0].text).toBe(script);
+    expect(plan.production?.assets.map((asset) => asset.kind)).toEqual(['person']);
+    expect(plan.production?.tracks.some((track) => track.channel === 'laugh')).toBe(true);
+    expect(askAiResult).toHaveBeenCalledTimes(1);
+  });
+  it('does not let production=null erase a valid handoff or bypass an invalid action', async () => {
+    const script = 'Lia pega a lanterna e entrega para Caio.';
+    const raw = { production: null, scenes: [{ sourceId: 's1', visual: 'custom', story: { action: 'handoff', prop: 'lantern', performance: null, actors: [{ name: 'Lia' }, { name: 'Caio' }] } }] };
+    vi.mocked(askAiResult).mockResolvedValueOnce({ ...good(''), text: JSON.stringify(raw) });
+    const { plan } = await directExplainer({ script });
+    expect(plan.scenes[0].story?.actors.map((actor) => actor.name)).toEqual(['Lia', 'Caio']);
+    expect(plan.scenes[0].story?.action).toBe('handoff');
+    raw.scenes[0].story.action = 'fly';
+    vi.mocked(askAiResult).mockResolvedValueOnce({ ...good(''), text: JSON.stringify(raw) });
+    await expect(directExplainer({ script })).rejects.toMatchObject({ code: 'unsupported_action', details: { sourceId: 's1', field: 'story', receivedAction: 'unrecognized' } });
+    expect(askAiResult).toHaveBeenCalledTimes(2);
+  });
+  it('identifies the source conflict and never echoes arbitrary provider action strings', async () => {
+    const script = 'Ele nunca correu.';
+    for (const [action, receivedAction] of [['run', 'run'], ['private-model-and-source-string', 'unrecognized']] as const) {
+      vi.mocked(askAiResult).mockResolvedValueOnce({ ...good(''), text: JSON.stringify({ scenes: [{ sourceId: 's1', staging: { action } }] }) });
+      const error = await directExplainer({ script }).catch((error) => error);
+      expect(error).toMatchObject({ code: 'unsupported_action', details: { sourceId: 's1', field: 'staging', receivedAction, expectedAction: 'wait' } });
+      expect(error.message).toContain('Cena 1');
+      expect(error.message).toContain('Esperar sem se deslocar');
+      expect(JSON.stringify(error)).not.toContain('private-model-and-source-string');
+    }
+  });
   it('rejects long scripts before requesting AI instead of cutting them', async () => {
     await expect(directExplainer({ script: 'a'.repeat(6001) })).rejects.toMatchObject({ status: 400 });
     expect(askAiResult).not.toHaveBeenCalled();
