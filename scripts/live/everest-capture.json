@@ -1,0 +1,9 @@
+{
+  "provider": "gemini",
+  "model": "gemini-3.6-flash",
+  "authorizedLiveRequestsUsed": 3,
+  "successfulCorrectedAttempt": 3,
+  "programHash": "e940e70c2c68f05016cf88d44d63db94996a5b1f9cec9c9fcf108429e44567f4",
+  "captureType": "Actual server-normalized Gemini response, animation values unedited",
+  "renderInferenceCalls": 0
+}

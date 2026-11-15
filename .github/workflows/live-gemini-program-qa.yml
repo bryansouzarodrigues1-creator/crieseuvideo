@@ -1,0 +1,39 @@
+name: Captured Gemini program render
+on:
+  pull_request:
+    branches: [feat/generative-scene-program]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: live-program-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  captured-program:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: node lab/build.mjs
+      - run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install renderer
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          python3 -m pip install numpy pillow
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Render captured live response without calling an AI service
+        run: node scripts/live-gemini-render.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: captured-gemini-render
+          path: tmp/live-gemini-render/
+          retention-days: 7
