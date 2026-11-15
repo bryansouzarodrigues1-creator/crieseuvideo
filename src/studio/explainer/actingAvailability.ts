@@ -3,7 +3,7 @@ import type { ExplainerPlan } from './plan';
 /** Detects presentation fallbacks, not semantic completeness or visual quality.
  * A supported reaction can still fail to demonstrate another event in the text. */
 export function illustrated3dScenes(plan: ExplainerPlan): number[] {
-  if (plan.production) return [];
+  if (plan.production || plan.sceneProgram) return [];
   return plan.scenes.flatMap((scene, index) => scene.story || scene.staging ? [] : [index + 1]);
 }
 

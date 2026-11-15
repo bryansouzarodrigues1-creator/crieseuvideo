@@ -11,6 +11,8 @@ import { askAiResult, parseJson, type AiEnvironment, type AiResult } from './ai'
 import { PRODUCTION_GUIDE, ProductionError, mergeProduction, CHANNELS } from '../explainer/production/score';
 import { stagingContract } from './directionContract';
 import { actingUnavailableMessage } from '../explainer/actingAvailability';
+import { SCENE_PROGRAM_GUIDE } from '../explainer/sceneProgram/guide';
+import { SceneProgramError } from '../explainer/sceneProgram/score';
 
 export interface ActionFailure { sourceId: string; field: 'story' | 'staging'; receivedAction: string; expectedAction: string | null }
 export class DirectorError extends Error {
@@ -60,6 +62,20 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
   catch (error) { throw new DirectorError(400, 'invalid_duration', (error as Error).message); }
   const script = input.script.trim();
   const aspect = input.aspect === '16:9' ? '16:9' : '9:16';
+  if (input.mode === 'program' && input.engine !== '2d') {
+    const beats = sourceBeats(script);
+    const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, env);
+    if (!result.ok) throw providerError(result);
+    const raw = parseJson(result.text);
+    if (!raw?.sceneProgram || !Array.isArray(raw.scenes) || !raw.scenes.length || !raw.scenes.every((s: unknown) => s && typeof s === 'object' && !Array.isArray(s))) throw new DirectorError(502, 'invalid_scene_program', 'A IA não entregou um programa de cena completo. Seu roteiro foi preservado.');
+    const grounded = groundScenes(raw.scenes, beats);
+    if (!grounded) throw new DirectorError(502, 'source_mismatch', 'A IA alterou ou misturou as falas. O programa foi rejeitado e seu roteiro foi preservado.');
+    try {
+      const plan = withTargetDuration(normalizePlan({ title: raw.title, scenes: grounded, sceneProgram: raw.sceneProgram }, script, aspect), targetDuration);
+      if (spokenText(plan.scenes.map((s) => s.text).join(' ')) !== spokenText(script)) throw new DirectorError(502, 'source_mismatch', 'O programa não preservou o roteiro completo.');
+      return { plan, source: 'ai' as const, provider: result.provider, model: result.model };
+    } catch (error) { if (error instanceof SceneProgramError) throw new DirectorError(502, error.code, error.message + ' Seu roteiro foi preservado.'); throw error; }
+  }
   const rehearsal = input.engine === '2d' ? undefined : buildFallbackPlan(script, aspect);
   const unavailable = input.requireActing && rehearsal ? actingUnavailableMessage(rehearsal) : undefined;
   if (unavailable) throw new DirectorError(422, 'unavailable_3d_scene', unavailable + ' Nenhuma chamada de IA foi feita.');

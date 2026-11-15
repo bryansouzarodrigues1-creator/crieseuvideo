@@ -7,6 +7,7 @@ import { normalizeStaging, type NarrativeStaging } from './staging';
 import { normalizeProduction, type ProductionProgram } from './production/score';
 import { localProduction } from './production/local';
 import type { NarrationWord } from './narrationPackage';
+import { normalizeSceneProgram, SceneProgramError, type SceneProgram } from './sceneProgram/score';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -36,6 +37,7 @@ export interface ExplainerScene {
   story?: StoryScene;
   staging?: NarrativeStaging;
   productionBeat?: boolean;
+  programBeat?: boolean;
   /** Explicit scene time allocated by the user's duration setting. */
   duration?: number;
   /** Animated full-screen scenario behind the scene. */
@@ -43,7 +45,7 @@ export interface ExplainerScene {
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number; timings?: NarrationWord[] };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; production?: ProductionProgram; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; production?: ProductionProgram; sceneProgram?: SceneProgram; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
@@ -64,7 +66,7 @@ export const VOICE_TAIL = 0.35;
 export function sceneDuration(s: ExplainerScene) {
   const explicit = Number.isFinite(s.duration) && s.duration! > 0 ? s.duration! : 0;
   const speech = s.voice ? SCENE_LEAD + s.voice.duration + VOICE_TAIL : 0;
-  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.productionBeat ? 3.6 : 0, explicit,
+  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.programBeat ? 5 : s.productionBeat ? 3.6 : 0, explicit,
     explicit ? speech : s.voice ? Math.max(1.6, speech) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + .5));
 }
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
@@ -187,8 +189,12 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       highlight: Array.isArray(s.highlight) ? s.highlight.map((c: unknown) => str(c, 30)).filter(Boolean).slice(0, 5) : [],
     };
   }).filter(Boolean) as ExplainerScene[];
-  if (!scenes.length) return fb;
+  if (!scenes.length) { if (raw?.sceneProgram != null) throw new SceneProgramError('O programa não possui frases válidas.'); return fb; }
   continueCast(scenes);
+  if (raw?.sceneProgram != null) {
+    const sceneProgram = normalizeSceneProgram(raw.sceneProgram, productionSources(scenes));
+    return { title: str(raw?.title, 80) || fb.title, aspect, sceneProgram, scenes: scenes.map(({ story: _story, staging: _staging, productionBeat: _beat, ...scene }) => ({ ...scene, programBeat: true })) };
+  }
   return withProduction({ title: str(raw?.title, 80) || fb.title, aspect, scenes }, raw?.production);
 }
 
@@ -203,6 +209,10 @@ function withProduction(plan: ExplainerPlan, raw?: unknown): ExplainerPlan {
 }
 /** Text edits invalidate old action/evidence links instead of keeping stale acting. */
 export function refreshProduction(plan: ExplainerPlan) {
+  if (plan.sceneProgram) {
+    try { normalizeSceneProgram(plan.sceneProgram, productionSources(plan.scenes)); return { ...plan, production: undefined }; }
+    catch { const { sceneProgram: _program, ...rest } = plan; plan = { ...rest, scenes: rest.scenes.map(({ programBeat: _b, ...s }) => s) }; }
+  }
   return withProduction({ ...plan, production: undefined, scenes: plan.scenes.map(({ productionBeat: _b, ...scene }) => scene) });
 }
 

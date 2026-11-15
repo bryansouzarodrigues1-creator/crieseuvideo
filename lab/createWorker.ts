@@ -40,8 +40,8 @@ export function createLabWorker(assets: Assets) {
         if (Number(request.headers.get('Content-Length') || 0) > 40000) return failure(413, 'script_too_large', 'O roteiro ultrapassa o tamanho permitido.');
         active = true; lastGeneration = Date.now();
         try {
-          const body = await request.json().catch(() => { throw new DirectorError(400, 'invalid_json', 'O pedido não contém um roteiro válido. Seu roteiro foi preservado.'); }) as { script?: unknown; aspect?: unknown; targetDuration?: unknown; engine?: unknown } | null;
-          return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine, requireActing: body?.engine !== '2d' }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
+          const body = await request.json().catch(() => { throw new DirectorError(400, 'invalid_json', 'O pedido não contém um roteiro válido. Seu roteiro foi preservado.'); }) as { script?: unknown; aspect?: unknown; targetDuration?: unknown; engine?: unknown; mode?: unknown } | null;
+          return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine, mode: body?.mode === 'program' ? 'program' : undefined, requireActing: body?.engine !== '2d' }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
         } catch (error) {
           return error instanceof DirectorError
             ? failure(error.status, error.code, error.message, error.details)

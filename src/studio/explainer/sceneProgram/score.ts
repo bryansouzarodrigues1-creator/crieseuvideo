@@ -1,0 +1,152 @@
+/** An interpreted scene language: new geometry and keyframes, not action IDs.
+ * This module is also the server validator. It never imports/evaluates model code. */
+export type Vec3 = [number, number, number];
+export interface ProgramSource { sourceId: string; text: string; duration?: number }
+export const PROGRAM_CHANNELS = ['position', 'rotation', 'scale', 'bodyRotation', 'headRotation', 'face', 'leftHand', 'rightHand', 'leftFoot', 'rightFoot', 'leftHandRotation', 'rightHandRotation', 'leftFootRotation', 'rightFootRotation'] as const;
+export type ProgramChannel = typeof PROGRAM_CHANNELS[number];
+export const EFFECTORS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const;
+export type Effector = typeof EFFECTORS[number];
+export type Socket = 'root' | 'head' | Effector;
+export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[] }
+export interface ProgramNode {
+  id: string; kind: 'group' | 'mesh' | 'actor'; parent?: string; socket: Socket;
+  position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
+  geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number };
+}
+export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
+export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
+export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number }
+export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
+export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[] }
+export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
+export class SceneProgramError extends Error { readonly code = 'invalid_scene_program'; }
+const fail = (message: string): never => { throw new SceneProgramError(message); };
+const obj = (value: unknown): Record<string, any> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : fail('Uma definição do programa de cena não é um objeto.');
+const list = (value: unknown, max: number): any[] => Array.isArray(value) && value.length <= max ? value : fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+const num = (v: unknown, a: number, b: number) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b ? v : fail('Uma coordenada, tempo ou dimensão do programa é inválida.');
+const vector = (v: unknown, a = -200, b = 200): Vec3 => { const p = list(v, 3); if (p.length !== 3) fail('Uma coordenada precisa de três valores.'); return p.map((x) => num(x, a, b)) as Vec3; };
+const identifier = (v: unknown) => typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v) ? v : fail('Um identificador do programa é inválido.');
+const color = (v: unknown) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : fail('Uma cor do programa é inválida.');
+const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r).some((k) => !keys.includes(k))) fail('O programa contém um campo não suportado. Não envie JavaScript, URLs ou shaders.'); };
+const smooth = (t: number) => t * t * (3 - 2 * t);
+
+export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): SceneProgram {
+  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts']);
+  if (r.version !== 1 || !sources.length) fail('A versão ou as frases do programa são inválidas.');
+  const sourceSignature = JSON.stringify(sources.map((s) => [s.sourceId, s.text]));
+  if (r.sourceSignature !== undefined && r.sourceSignature !== sourceSignature) fail('O programa pertence a outro roteiro. Gere uma nova direção para este texto.');
+  const sourceIndex = new Map(sources.map((s, i) => [s.sourceId, i]));
+  const source = (v: unknown) => typeof v === 'string' && sourceIndex.has(v) ? v : fail('O programa citou uma frase inexistente.');
+  const fullText = sources.map((s) => s.text).join(' ');
+  let vertexBudget = 0;
+  const nodes = list(r.nodes, 160).map((value): ProgramNode => {
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence']);
+    if (!['group', 'mesh', 'actor'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
+    if (typeof n.evidence !== 'string' || !n.evidence.trim() || n.evidence.length > 400 || !fullText.includes(n.evidence)) fail('Cada objeto precisa citar um trecho literal do roteiro como contexto visual.');
+    let geometry: ProgramGeometry | undefined;
+    if (n.kind === 'mesh') {
+      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points']);
+      const arity: Record<string, number> = { box: 3, sphere: 1, capsule: 2, cone: 2, cylinder: 3, plane: 2, torus: 2, tube: 1 };
+      if (g.shape === 'mesh') {
+        const vertices = list(g.vertices, 18000).map((v) => num(v, -200, 200));
+        if (vertices.length < 9 || vertices.length % 3) fail('Uma malha precisa de vértices 3D completos.');
+        const indices = list(g.indices, 24000).map((v) => { const i = num(v, 0, vertices.length / 3 - 1); if (!Number.isInteger(i)) fail('Um índice de triângulo é inválido.'); return i; });
+        if (!indices.length || indices.length % 3) fail('Uma malha precisa de triângulos completos.');
+        let colors: number[] | undefined;
+        if (g.colors !== undefined) { colors = list(g.colors, 18000).map((v) => num(v, 0, 1)); if (colors.length !== vertices.length) fail('As cores dos vértices não correspondem à malha.'); }
+        geometry = { shape: 'mesh', vertices, indices, ...(colors ? { colors } : {}) };
+      } else {
+        const count = arity[g.shape]; if (!count) fail('A geometria do programa não é reconhecida.');
+        const size = list(g.size, count).map((v) => num(v, g.shape === 'cylinder' ? 0 : .005, 200));
+        if (size.length !== count || g.shape === 'cylinder' && (size[2] <= 0 || size[0] + size[1] <= 0)) fail('As dimensões da geometria são inválidas.');
+        let points: Vec3[] | undefined;
+        if (g.shape === 'tube') { points = list(g.points, 64).map((p) => vector(p)); if (points.length < 2) fail('Um tubo precisa de um caminho.'); }
+        geometry = { shape: g.shape, size, ...(points ? { points } : {}) };
+      }
+    } else if (n.geometry !== undefined) fail('Somente malhas definem geometria.');
+    let repeat: ProgramNode['repeat'];
+    if (n.repeat !== undefined) {
+      if (n.kind !== 'mesh') fail('Repetição só é permitida para malhas.');
+      const p = obj(n.repeat); only(p, ['count', 'step', 'jitter', 'seed']);
+      const count = num(p.count, 1, 800), seed = num(p.seed ?? 1, 0, 2147483647);
+      if (!Number.isInteger(count) || !Number.isInteger(seed)) fail('Repetição precisa de contagem e semente inteiras.');
+      repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200) };
+    }
+    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : 500) * (repeat?.count ?? 1);
+    if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
+    const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
+    return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
+      position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
+      color: color(n.color ?? '#F0B44B'), evidence: n.evidence, ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}) };
+  });
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');
+  for (const node of nodes) {
+    const visited = new Set([node.id]); let parent = node.parent;
+    if (node.socket !== 'root' && (!parent || nodeMap.get(parent)?.kind !== 'actor')) fail('Um encaixe corporal precisa de um personagem pai.');
+    while (parent) { if (visited.has(parent) || !nodeMap.has(parent)) fail('A hierarquia da cena tem um ciclo ou um pai inexistente.'); visited.add(parent); parent = nodeMap.get(parent)!.parent; }
+  }
+  let keyBudget = 0;
+  const tracks = list(r.tracks, 256).map((value): ProgramTrack => {
+    const t = obj(value); only(t, ['node', 'channel', 'interpolation', 'keys']);
+    const node = nodeMap.get(t.node) ?? fail('Uma curva citou um objeto inexistente.'); if (!(PROGRAM_CHANNELS as readonly string[]).includes(t.channel)) fail('Uma curva citou uma propriedade inexistente.');
+    if (!['position', 'rotation', 'scale'].includes(t.channel) && node.kind !== 'actor') fail('Somente personagens possuem controles corporais.');
+    if (!['linear', 'smooth', 'step'].includes(t.interpolation ?? 'smooth')) fail('A interpolação de uma curva é inválida.');
+    let previous = -1;
+    const keys = list(t.keys, 160).map((value): ProgramKey => {
+      const k = obj(value); only(k, ['sourceId', 'phase', 'value']);
+      const sourceId = source(k.sourceId), phase = num(k.phase, 0, 1), order = sourceIndex.get(sourceId)! + phase;
+      if (order <= previous) fail('Os pontos de uma curva precisam seguir a ordem do roteiro sem tempos duplicados.'); previous = order;
+      const bounds = t.channel === 'scale' ? [.01, 100] : t.channel === 'face' ? [-1, 1] : /Rotation|rotation/.test(t.channel) ? [-Math.PI * 2, Math.PI * 2] : [-200, 200];
+      return { sourceId, phase, value: vector(k.value, bounds[0], bounds[1]) };
+    });
+    keyBudget += keys.length; if (keys.length < 2 || keyBudget > 3000) fail('Uma curva precisa de dois pontos e o programa deve caber no orçamento de animação.');
+    return { node: node.id, channel: t.channel, interpolation: t.interpolation ?? 'smooth', keys };
+  });
+  if (!tracks.length || new Set(tracks.map((t) => `${t.node}/${t.channel}`)).size !== tracks.length) fail('Defina movimentos sem duplicar uma curva do mesmo objeto.');
+  const shots = list(r.shots, 120).map((value): ProgramShot => {
+    const s = obj(value); only(s, ['sourceId', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance']);
+    const subjects = list(s.subjects, 6).map((v) => nodeMap.has(v) ? v as string : fail('A câmera citou um objeto inexistente.'));
+    if (!subjects.length) fail('A câmera precisa acompanhar pelo menos um objeto.');
+    return { sourceId: source(s.sourceId), subjects, azimuth: num(s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation: num(s.elevation ?? .18, -.35, 1.1), distance: num(s.distance ?? 1.15, 1, 2.5) };
+  });
+  if (shots.length !== sources.length || new Set(shots.map((s) => s.sourceId)).size !== shots.length || sources.some((s) => !shots.some((p) => p.sourceId === s.sourceId))) fail('Cada frase do roteiro precisa da sua própria tomada.');
+  const contacts = list(r.contacts ?? [], 100).map((value): ProgramContact => {
+    const c = obj(value); only(c, ['sourceId', 'actor', 'effector', 'target', 'offset', 'begin', 'end']);
+    if (nodeMap.get(c.actor)?.kind !== 'actor' || !nodeMap.has(c.target) || !(EFFECTORS as readonly string[]).includes(c.effector)) fail('Um contato precisa de personagem, membro e alvo válidos.');
+    let target = nodeMap.get(c.target); while (target) { if (target.id === c.actor) fail('Um contato não pode depender do próprio corpo.'); target = target.parent ? nodeMap.get(target.parent) : undefined; }
+    const begin = num(c.begin ?? 0, 0, 1), end = num(c.end ?? 1, 0, 1); if (end <= begin) fail('Um contato termina antes de começar.');
+    return { sourceId: source(c.sourceId), actor: c.actor, effector: c.effector, target: c.target, offset: vector(c.offset ?? [0, 0, 0]), begin, end };
+  });
+  for (let i = 0; i < contacts.length; i++) for (let j = i + 1; j < contacts.length; j++) {
+    const a = contacts[i], b = contacts[j];
+    if (a.sourceId === b.sourceId && a.actor === b.actor && a.effector === b.effector && Math.max(a.begin, b.begin) < Math.min(a.end, b.end)) fail('Um membro recebeu contatos simultâneos incompatíveis.');
+  }
+  return { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts };
+}
+
+export function compileSceneProgram(program: SceneProgram, sources: ProgramSource[]) {
+  let cursor = 0;
+  const spans = sources.map((s) => { const duration = Math.max(.1, s.duration ?? 3), span = { sourceId: s.sourceId, start: cursor, duration }; cursor += duration; return span; });
+  const at = (key: { sourceId: string; phase: number }) => { const s = spans.find((s) => s.sourceId === key.sourceId)!; return s.start + key.phase * s.duration; };
+  const curves = program.tracks.map((t) => ({ ...t, keys: t.keys.map((k) => ({ time: at(k), value: k.value })) }));
+  const contacts = program.contacts.map((c) => ({ ...c, start: at({ sourceId: c.sourceId, phase: c.begin }), finish: at({ sourceId: c.sourceId, phase: c.end }) }));
+  return { duration: cursor, spans, contacts, sample(time: number) {
+    const t = Number.isFinite(time) ? Math.max(0, Math.min(cursor, time)) : 0;
+    const states = new Map(program.nodes.map((n): [string, ProgramState] => [n.id, { position: [...n.position], rotation: [...n.rotation], scale: [...n.scale], pose: {} }]));
+    for (const curve of curves) {
+      let value = curve.keys[0].value;
+      for (let i = 1; i < curve.keys.length; i++) {
+        const a = curve.keys[i - 1], b = curve.keys[i];
+        if (t >= b.time) { value = b.value; continue; }
+        const phase = Math.max(0, Math.min(1, (t - a.time) / (b.time - a.time)));
+        const u = curve.interpolation === 'step' ? 0 : curve.interpolation === 'smooth' ? smooth(phase) : phase;
+        value = a.value.map((v, axis) => v + (b.value[axis] - v) * u) as Vec3; break;
+      }
+      const state = states.get(curve.node)!;
+      if (curve.channel === 'position' || curve.channel === 'rotation' || curve.channel === 'scale') state[curve.channel] = [...value];
+      else state.pose[curve.channel] = [...value];
+    }
+    return states;
+  }, shot(time: number) { const span = spans.find((s, i) => time < s.start + s.duration || i === spans.length - 1)!; return { span, shot: program.shots.find((s) => s.sourceId === span.sourceId)! }; } };
+}

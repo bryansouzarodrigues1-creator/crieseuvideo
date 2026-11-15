@@ -54,6 +54,7 @@ try {
     return route.continue();
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
+  await page.locator('#direction-mode').selectOption('catalogue');
   assert.equal(await page.locator('#script').inputValue(), '');
   assert.equal(await page.locator('#canvas').isVisible(), false);
   assert.equal(await page.locator('#story-demo').count(), 0);

@@ -1,0 +1,39 @@
+name: Scene program QA
+on:
+  pull_request:
+    branches: [fix/explicit-3d-capability-boundary]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: scene-program-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  authored-programs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: node lab/build.mjs
+      - run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install rendering tools
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          python3 -m pip install numpy pillow
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Programmed scenes through the ordinary mobile creation flow
+        run: bun scripts/scene-program-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scene-program-qa
+          path: tmp/scene-program-qa/
+          retention-days: 7
