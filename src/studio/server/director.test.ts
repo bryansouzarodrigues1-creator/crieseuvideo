@@ -13,6 +13,18 @@ const fromSource = (prompt: string) => ({ ...good(''), text: JSON.stringify({ ti
 }) }) });
 
 describe('bounded scene direction', () => {
+  it('rejects an unavailable 3D scene before billing direction when acting is required', async () => {
+    const script = 'Ele conseguiu escalar o monte Everest mas...';
+    await expect(directExplainer({ script, engine: '3d', requireActing: true })).rejects.toMatchObject({ status: 422, code: 'unavailable_3d_scene' });
+    expect(askAiResult).not.toHaveBeenCalled();
+  });
+  it('preserves explicit 2D illustration for the same text', async () => {
+    const script = 'Ele conseguiu escalar o monte Everest mas...';
+    vi.mocked(askAiResult).mockResolvedValue(good(script));
+    const { plan } = await directExplainer({ script, engine: '2d', requireActing: true });
+    expect(plan.scenes[0].text).toBe(script);
+    expect(askAiResult).toHaveBeenCalledTimes(1);
+  });
   it.each(['staging', 'story', 'production'])('treats optional %s=null as absence and keeps the executable acting', async (field) => {
     const script = 'Eu sou o maior jogador do mundo hahahaha';
     const raw = { scenes: [{ sourceId: 's1', visual: 'character', ...(field !== 'production' ? { [field]: null } : {}) }], ...(field === 'production' ? { production: null } : {}) };

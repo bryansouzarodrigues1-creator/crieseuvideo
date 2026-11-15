@@ -10,6 +10,7 @@ import { normalizeTargetDuration, withTargetDuration } from '../explainer/durati
 import { askAiResult, parseJson, type AiEnvironment, type AiResult } from './ai';
 import { PRODUCTION_GUIDE, ProductionError, mergeProduction, CHANNELS } from '../explainer/production/score';
 import { stagingContract } from './directionContract';
+import { actingUnavailableMessage } from '../explainer/actingAvailability';
 
 export interface ActionFailure { sourceId: string; field: 'story' | 'staging'; receivedAction: string; expectedAction: string | null }
 export class DirectorError extends Error {
@@ -28,7 +29,7 @@ function actionError(scene: Record<string, any>, field: ActionFailure['field']) 
   return new DirectorError(502, 'unsupported_action', `${position ? 'Cena ' + position : 'Uma cena'}: a IA pediu ${requested}. ${explanation} A direção foi rejeitada; seu roteiro foi preservado.`,
     { sourceId, field, receivedAction, expectedAction: expected?.action ?? null });
 }
-export interface DirectorInput { script: string; aspect?: unknown; mode?: unknown; gallery?: unknown; lessons?: string; targetDuration?: unknown; engine?: unknown }
+export interface DirectorInput { script: string; aspect?: unknown; mode?: unknown; gallery?: unknown; lessons?: string; targetDuration?: unknown; engine?: unknown; requireActing?: boolean }
 export function validateDirectorInput(script: unknown): asserts script is string {
   const error = typeof script === 'string' ? scriptError(script) : 'Informe o roteiro em texto.';
   if (error) throw new DirectorError(400, 'invalid_script', error);
@@ -59,7 +60,10 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
   catch (error) { throw new DirectorError(400, 'invalid_duration', (error as Error).message); }
   const script = input.script.trim();
   const aspect = input.aspect === '16:9' ? '16:9' : '9:16';
-  const baseline = input.engine === '2d' ? undefined : buildFallbackPlan(script, aspect).production;
+  const rehearsal = input.engine === '2d' ? undefined : buildFallbackPlan(script, aspect);
+  const unavailable = input.requireActing && rehearsal ? actingUnavailableMessage(rehearsal) : undefined;
+  if (unavailable) throw new DirectorError(422, 'unavailable_3d_scene', unavailable + ' Nenhuma chamada de IA foi feita.');
+  const baseline = rehearsal?.production;
   const mode = input.mode === 'gallery' ? 'gallery' : 'creative';
   const gallery: { id: string; name: string; drawing: unknown }[] = Array.isArray(input.gallery)
     ? input.gallery.slice(0, 80).filter((g: any) => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.drawing)) : [];
@@ -145,5 +149,7 @@ Formato de exemplo sem ação física: {"title":"Título curto","scenes":[{"sour
   if (spokenText(plan.scenes.map((s) => s.text).join(' ')) !== spokenText(script)) {
     throw new DirectorError(502, 'script_mismatch', 'A direção não preservou o roteiro completo. Nenhum vídeo foi substituído.');
   }
+  const missing = input.requireActing && input.engine !== '2d' ? actingUnavailableMessage(plan) : undefined;
+  if (missing) throw new DirectorError(502, 'unavailable_3d_scene', missing);
   return { plan: withTargetDuration(plan, targetDuration), source: 'ai' as const, provider, model };
 }

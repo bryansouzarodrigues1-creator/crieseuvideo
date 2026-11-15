@@ -176,9 +176,40 @@ try {
   assert.equal(await page.locator('#source').innerText(), 'ENSAIO LOCAL');
   assert.equal(await page.locator('#canvas').getAttribute('data-action'), 'question');
   assert.equal(providerCalls, 3);
+  // The reported Everest scene must not turn into a presenter, incur a direction
+  // request, or revive an imported presentation as a 3D action video.
+  const everest = 'Ele conseguiu escalar o monte Everest mas...';
+  expectedScript = everest;
+  await page.locator('#script').fill(everest);
+  const beforeUnavailable = calls;
+  await page.locator('#local').click();
+  assert.match(await page.locator('#message').innerText(), /cena 1 ainda não possui uma ação 3D/);
+  await page.locator('#generate').click();
+  assert.match(await page.locator('#message').innerText(), /Nenhuma chamada de IA foi feita/);
+  assert.equal(calls, beforeUnavailable);
+  assert.equal(await page.locator('#canvas').isVisible(), false);
+  assert.equal(await page.locator('#download-video').isVisible(), false);
+  assert.equal(await page.locator('#script').inputValue(), everest);
+  backendWorker = (await import('../dist/server/index.js?qa=unavailable-everest')).default;
+  const unavailableResponse = await page.request.post(origin + '/api/direct', { headers: { Origin: origin }, data: { script: everest, engine: '3d' } });
+  assert.equal((await unavailableResponse.json()).code, 'unavailable_3d_scene');
+  assert.equal(providerCalls, 3);
+  await page.evaluate(({ project, script }) => {
+    localStorage.setItem('crieseuvideo-lab-v1', JSON.stringify({ ...project, script, engine: '3d', plan: { title: script, aspect: '9:16', engine: '3d', scenes: [{ text: script, visual: 'character', mood: 'neutral', palette: 'orange' }] } }));
+  }, { project: gameProject, script: everest });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('#resume-project').click();
+  assert.equal(await page.locator('#canvas').isVisible(), false);
+  assert.match(await page.locator('#source').innerText(), /ENCENAÇÃO INDISPONÍVEL/);
+  assert.match(await page.locator('#preview-empty-description').innerText(), /apresentador com quadro/);
+  await page.locator('.preview-panel').screenshot({ path: output + '/unavailable-everest-no-presenter.png' });
+  await page.locator('[data-engine="2d"]').click();
+  await page.locator('#local').click();
+  assert.equal(await page.locator('#canvas').isVisible(), true);
+  assert.equal(providerCalls, 3);
   assert.deepEqual(errors, []);
-  await fs.writeFile(output + '/report.json', JSON.stringify({ providerResponses: 'simulated', realProviderGenerationTested: false, paidCalls: 0, requests: calls, interceptedProviderCalls: providerCalls, requestFormat: 'json-mime-v1', viewport: { width: 393, height: 852 }, cases, freshStartsEmpty: true, legacyAutoExampleSuppressed: true, projectsResumeOnlyOnClick: true, editedDraftSurvivesReload: true, stalePreviewHidden: true, gameScriptDirected: true, observedQuestionMetadataReconstructed: true, originalFullProviderBodyAvailable: false, uncertaintyWorksLocally: true, validResponseApplied: true, realControllerNullableActionsApplied: true, sourceSpecificErrorPreserves3d: true, durationPreserved: 30, browserErrors: errors, blockedExternalRequests }, null, 2));
-  console.log('PASS browser: nullable actions through the real director apply as 3D acting; rejected actions identify the source and preserve pixels. No provider generation.');
+  await fs.writeFile(output + '/report.json', JSON.stringify({ providerResponses: 'simulated', realProviderGenerationTested: false, paidCalls: 0, requests: calls, interceptedProviderCalls: providerCalls, requestFormat: 'json-mime-v1', viewport: { width: 393, height: 852 }, cases, unavailable3dBlockedBeforeRequest: true, unavailable3dServerGuardPassed: true, old3dPresenterResumeBlocked: true, explicit2dIllustrationPreserved: true, freshStartsEmpty: true, legacyAutoExampleSuppressed: true, projectsResumeOnlyOnClick: true, editedDraftSurvivesReload: true, stalePreviewHidden: true, gameScriptDirected: true, observedQuestionMetadataReconstructed: true, originalFullProviderBodyAvailable: false, uncertaintyWorksLocally: true, validResponseApplied: true, realControllerNullableActionsApplied: true, sourceSpecificErrorPreserves3d: true, durationPreserved: 30, browserErrors: errors, blockedExternalRequests }, null, 2));
+  console.log('PASS browser: unsupported Everest scene blocked before requests; saved 3D presenters hidden; explicit 2D preserved. These are capability-boundary checks, not new animation quality. No provider generation.');
 } finally {
   globalThis.fetch = originalFetch;
   await browser?.close();
