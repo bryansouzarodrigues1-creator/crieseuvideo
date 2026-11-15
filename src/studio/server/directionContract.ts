@@ -15,9 +15,9 @@ const nullable = (schema: OutputSchema) => ({ anyOf: [schema, { type: 'null' }] 
 const number = { type: 'number' };
 const vec3 = { ...list(number, 3), minItems: 3 };
 
-/** The provider receives the same finite vocabulary that the renderer validates.
- * Prefix items bind each optional staging action to its own source sentence.
- * Semantic grounding and physical contacts are still checked after generation. */
+/** Reference/test schema for the finite renderer vocabulary, not a provider
+ * request option. The compatible transport uses JSON MIME; stagingContract and
+ * server validators bind source meaning, actions, roles and physical contacts. */
 export function directionSchema(beats: SourceBeat[]): OutputSchema {
   const source = choices(beats.map((b) => b.sourceId));
   const story = nullable(object({

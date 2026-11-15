@@ -1,4 +1,5 @@
 import { directExplainer, DirectorError, type ActionFailure } from '../src/studio/server/director';
+import { preflightGemini } from '../src/studio/server/ai';
 
 interface Environment { GEMINI_API_KEY?: string; GEMINI_TEXT_MODEL?: string }
 type Assets = Record<string, { type: string; body: string }>;
@@ -29,15 +30,10 @@ export function createLabWorker(assets: Assets) {
       if (request.method === 'POST' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origem inválida.' }, 403, requestId);
       if (url.pathname === '/api/config' && request.method === 'GET') return json({ configured: Boolean(env.GEMINI_API_KEY), provider: 'gemini', voiceEnabled: false }, 200, requestId);
       if (url.pathname === '/api/connect' && request.method === 'POST') {
-        if (!env.GEMINI_API_KEY) return failure(503, 'missing_key', 'A chave do Gemini ainda não foi configurada no servidor.');
-        try {
-          const result = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', { headers: { 'x-goog-api-key': env.GEMINI_API_KEY }, signal: AbortSignal.timeout(15000) });
-          if (!result.ok) return failure(502, 'connection_rejected', `O Google recusou a conexão (HTTP ${result.status}). Nenhuma geração foi solicitada.`);
-          const data = await result.json() as { models?: { name?: string }[] };
-          const model = env.GEMINI_TEXT_MODEL || 'gemini-3.6-flash';
-          if (!data.models?.some((item) => item.name === `models/${model}`)) return failure(502, 'unsupported_model', 'A conexão foi aceita, mas o modelo selecionado não aparece nesta conta. Nenhuma geração foi solicitada.');
-          return success({ message: 'Conexão aceita pelo Google e modelo disponível. A verificação não gerou texto, voz ou vídeo. A cota de geração será conferida somente quando você dirigir um roteiro.' });
-        } catch { return failure(503, 'connection_unavailable', 'Não foi possível verificar a conexão com Google. Nenhuma geração foi solicitada.'); }
+        const result = await preflightGemini(env);
+        return result.ok
+          ? success({ message: 'Conexão e contagem de teste aceitas pelo Google. Nenhum texto, voz ou vídeo foi gerado. A direção de um roteiro ainda precisa ser conferida.', preflight: { model: result.model, totalTokens: result.totalTokens, requestFormat: 'json-mime-v1', generationRequested: false } })
+          : failure(result.code === 'missing_key' ? 503 : 502, result.code, 'O Google não aceitou a pré-verificação da conexão. Nenhuma geração foi solicitada.');
       }
       if (url.pathname === '/api/direct' && request.method === 'POST') {
         if (active || Date.now() - lastGeneration < 15000) return failure(429, 'busy', 'Aguarde a direção atual terminar antes de tentar novamente.');

@@ -1,7 +1,7 @@
 name: Director response QA
 on:
   pull_request:
-    branches: [feat/narrative-staging-duration, feat/composable-3d-production]
+    branches: [feat/narrative-staging-duration, feat/composable-3d-production, fix/director-action-contract]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run test
-      - name: Check the provider JSON Schema independently
+      - name: Check the reference capability contract independently
         run: |
           python3 -m pip install -r scripts/requirements-schema.txt
           node scripts/director-schema-qa.mjs
@@ -29,8 +29,16 @@ jobs:
         run: |
           bun add --no-save playwright@1.57.0
           bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
       - name: Check failure recovery through the ordinary mobile UI
         run: node scripts/director-response-qa.mjs
+      - name: Preserve ordinary story and native video export
+        run: |
+          node scripts/lab-browser-smoke.mjs
+          node scripts/production-workflow-qa.mjs --samples
       - uses: actions/upload-artifact@v4
         if: always()
         with:

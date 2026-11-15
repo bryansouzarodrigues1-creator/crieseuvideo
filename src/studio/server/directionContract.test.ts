@@ -7,7 +7,7 @@ const env = { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'fixture-only-key' };
 const reply = (raw: unknown) => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(raw) }] } }] });
 
 describe('director through the real provider adapter with intercepted transport', () => {
-  it('accepts explicit absence from Gemini and binds the requested schema to the exact source', async () => {
+  it('accepts explicit absence using the compatible Gemini JSON-MIME request', async () => {
     const script = 'Eu sou o maior jogador do mundo hahahaha';
     const fetchMock = vi.fn(async () => reply({ scenes: [{ sourceId: 's1', visual: 'character', staging: null, story: null }], production: null }));
     vi.stubGlobal('fetch', fetchMock);
@@ -19,12 +19,8 @@ describe('director through the real provider adapter with intercepted transport'
     const [url, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain('gemini-3.6-flash:generateContent');
     const config = JSON.parse(String(options.body)).generationConfig;
-    expect(config.responseFormat.text.mimeType).toBe('APPLICATION_JSON');
-    expect(config.responseMimeType).toBeUndefined();
-    const source = config.responseFormat.text.schema.properties.scenes.prefixItems[0];
-    expect(source.properties.sourceId.enum).toEqual(['s1']);
-    expect(source.properties.text.enum).toEqual([script]);
-    expect(source.properties.staging).toEqual({ type: 'null' });
+    expect(config).toEqual({ responseMimeType: 'application/json', maxOutputTokens: 8192 });
+    expect(JSON.parse(String(options.body)).contents[0].parts[0].text).toContain('"sourceId":"s1","staging":null');
   });
   it('gives different source sentences their own allowed movement and preserves the original order', async () => {
     const script = 'Ana correu pela rua. Bruno nunca correu.';
@@ -37,9 +33,8 @@ describe('director through the real provider adapter with intercepted transport'
     expect(plan.scenes.map((scene) => scene.staging?.action)).toEqual(['run', 'wait']);
     expect(plan.scenes.map((scene) => scene.text)).toEqual(['Ana correu pela rua.', 'Bruno nunca correu.']);
     const [, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    const schema = JSON.parse(String(options.body)).generationConfig.responseFormat.text.schema;
-    expect(schema.properties.scenes.prefixItems.map((scene: any) => scene.properties.staging.anyOf[0].properties.action.enum)).toEqual([['run'], ['wait']]);
-    expect(schema.properties.scenes).toMatchObject({ minItems: 2, maxItems: 2 });
+    const prompt = JSON.parse(String(options.body)).contents[0].parts[0].text;
+    expect(prompt).toContain('[{"sourceId":"s1","staging":"run"},{"sourceId":"s2","staging":"wait"}]');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it('does not retry or silently replace a provider output that still contradicts the source', async () => {
@@ -50,10 +45,10 @@ describe('director through the real provider adapter with intercepted transport'
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-  it('keeps the Lovable transport contract when an output schema is supplied', async () => {
+  it('keeps the Lovable transport contract', async () => {
     const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: '{"scenes":[]}' } }] }));
     vi.stubGlobal('fetch', fetchMock);
-    await askAiResult('Fixture request', undefined, { AI_TEXT_PROVIDER: 'lovable', LOVABLE_API_KEY: 'fixture-only' }, { schema: { type: 'object' } });
+    await askAiResult('Fixture request', undefined, { AI_TEXT_PROVIDER: 'lovable', LOVABLE_API_KEY: 'fixture-only' });
     const [url, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain('ai.gateway.lovable.dev');
     expect(JSON.parse(String(options.body)).response_format).toEqual({ type: 'json_object' });

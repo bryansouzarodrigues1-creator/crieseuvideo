@@ -49,7 +49,8 @@ try {
     return route.continue();
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
-  await page.locator('#story-demo').click();
+  await page.locator('#script').fill('Lia entra, caminha, agacha-se, pega a lanterna e entrega para Caio, que segura o objeto e sorri.');
+  await page.locator('#local').click();
   await page.waitForFunction(() => document.getElementById('canvas').dataset.renderEngine === '3d');
   await page.evaluate(() => document.fonts.ready);
   assert.equal(Number(await page.locator('#timeline').getAttribute('max')), duration);
