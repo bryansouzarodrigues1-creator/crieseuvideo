@@ -12,6 +12,8 @@ import { sceneProgramFixtures } from '../src/studio/explainer/sceneProgram/fixtu
 import worker from '../dist/server/index.js';
 
 const output = path.resolve('tmp/scene-program-qa'); await fs.mkdir(output, { recursive: true });
+const shippedWorker = await fs.readFile('dist/server/index.js', 'utf8');
+for (const spec of sceneProgramFixtures()) assert.ok(!shippedWorker.includes(spec.id), 'A prepared scene was accidentally bundled into the application.');
 let backend = worker, fixture, providerCalls = 0;
 const requests = [], errors = [], report = [];
 const originalFetch = globalThis.fetch;
@@ -107,10 +109,16 @@ try {
       assert.match(await page.locator('#message').innerText(), /fora do alcance/);
       assert.equal(await page.evaluate(() => localStorage.getItem('crieseuvideo-lab-v1')), saved);
       assert.equal((await render(spec.duration * .5)).png, previousPixels);
+      assert.match(await page.locator('#generate').innerText(), /Corrigir com Gemini/);
+      fixture = spec.response; backend = (await import('../dist/server/index.js?program=explicit-contact-repair')).default;
+      await page.locator('#generate').click(); await page.waitForFunction(() => !document.getElementById('generate').disabled);
+      assert.ok(requests.at(-1).previousProgram); assert.match(requests.at(-1).repairIssue, /fora do alcance/);
+      assert.match(await page.locator('#generate').innerText(), /Programar com Gemini/);
+      assert.equal((await render(spec.duration * .5)).data.maxContactError < .025, true);
     }
     report.push({ id: spec.id, script: spec.script, developerAuthoredProgram: true, sourcePreserved: true, duration: spec.duration, export: { codec: video.codec_name, width: video.width, height: video.height, frames: Number(video.nb_read_frames), silent: true, lastFrameMeanPixelError: Number(comparison) }, samples });
   }
-  assert.equal(providerCalls, 4); assert.deepEqual(errors, []);
+  assert.equal(providerCalls, 5); assert.deepEqual(errors, []);
   const files = sceneProgramFixtures().map((s) => path.join(output, s.id + '.mp4'));
   execFileSync('ffmpeg', ['-v', 'error', '-y', ...files.flatMap((file) => ['-i', file]), '-filter_complex', '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]', '-map', '[v]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', path.join(output, 'programas-de-cena-42s.mp4')]);
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ realProviderGenerationTested: false, developerAuthoredPrograms: true, interceptedProviderCalls: providerCalls, paidCalls: 0, browserErrors: errors, fixtures: report }, null, 2));

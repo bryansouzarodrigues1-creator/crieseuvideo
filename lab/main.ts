@@ -16,6 +16,7 @@ const script = $<HTMLTextAreaElement>('script'), canvas = $<HTMLCanvasElement>('
 const timeline = $<HTMLInputElement>('timeline'), context = canvas.getContext('2d')!;
 let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
 let directionMode: 'program' | 'catalogue' = 'program', renderIssue = '';
+let pendingRepair: { script: string; program: NonNullable<ExplainerPlan['sceneProgram']>; issue: string } | null = null;
 let plan: ExplainerPlan = { title: '', aspect: '9:16', scenes: [] }, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
 let resumable: StoredLabProject | null = null, preserved = false;
@@ -107,8 +108,9 @@ function buttons() {
   document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.classList.toggle('selected', b.dataset.engine === engine));
   document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.classList.toggle('selected', b.dataset.aspect === aspect));
   $('creation-mode').hidden = engine !== '3d'; $<HTMLSelectElement>('direction-mode').value = directionMode;
-  if (!busy) $('generate').textContent = engine === '3d' && directionMode === 'program' ? '✦ Programar com Gemini' : '✦ Dirigir com Gemini';
+  if (!busy) $('generate').textContent = generateLabel();
 }
+function generateLabel() { return engine === '3d' && directionMode === 'program' ? pendingRepair?.script === spokenText(script.value) ? '✦ Corrigir com Gemini' : '✦ Programar com Gemini' : '✦ Dirigir com Gemini'; }
 async function prepare3d(requireProgram = false) {
   if (toon || loading3d) return loading3d;
   loading3d = import('../src/studio/explainer/toon3d').then(({ Toon3D }) => { toon = new Toon3D(); draw(); }).catch(() => {
@@ -125,7 +127,7 @@ async function validateNewProgram(next: ExplainerPlan, duration = targetDuration
 }
 function setPlan(next: ExplainerPlan, label: string) {
   if (!next.scenes.length) return;
-  renderIssue = '';
+  renderIssue = ''; pendingRepair = null;
   stopSound();
   playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir');
   const text = spokenText(next.scenes.map((s) => s.text).join(' '));
@@ -165,6 +167,7 @@ function local() {
     : 'Ensaio local pronto. Nenhuma chamada de IA foi feita. Confira os gestos e cada palavra do roteiro.');
 }
 script.addEventListener('input', () => {
+  pendingRepair = null; if (!busy) $('generate').textContent = generateLabel();
   counter(); saveDraft(); preserved = false;
   if (planScript && spokenText(script.value) !== planScript) {
     playing = false; $('play').textContent = '▶';
@@ -198,7 +201,7 @@ $('download').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ script: script.value, plan, source, narration: currentNarration }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'crieseuvideo-projeto.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-function setBusy(value: boolean) { busy = value; if (value) { playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } for (const id of ['local', 'generate', 'sample', 'resume-project', 'download-video', 'narration-file', 'duration', 'duration-custom', 'direction-mode', 'open-project', 'project-file']) ($<HTMLInputElement>(id)).disabled = value; document.querySelectorAll<HTMLButtonElement>('[data-engine],[data-aspect]').forEach((b) => b.disabled = value); script.disabled = value; $('generate').textContent = value ? 'Processando…' : engine === '3d' && directionMode === 'program' ? '✦ Programar com Gemini' : '✦ Dirigir com Gemini'; previewState(); }
+function setBusy(value: boolean) { busy = value; if (value) { playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } for (const id of ['local', 'generate', 'sample', 'resume-project', 'download-video', 'narration-file', 'duration', 'duration-custom', 'direction-mode', 'open-project', 'project-file']) ($<HTMLInputElement>(id)).disabled = value; document.querySelectorAll<HTMLButtonElement>('[data-engine],[data-aspect]').forEach((b) => b.disabled = value); script.disabled = value; $('generate').textContent = value ? 'Processando…' : generateLabel(); previewState(); }
 function durationControl() {
   $<HTMLSelectElement>('duration').value = targetDuration ? (DURATION_PRESETS as readonly number[]).includes(targetDuration) ? String(targetDuration) : 'custom' : 'auto';
   $<HTMLInputElement>('duration-custom').hidden = $<HTMLSelectElement>('duration').value !== 'custom';
@@ -286,15 +289,25 @@ $('generate').addEventListener('click', async () => {
   if (unavailable) return note(unavailable + ' Nenhuma chamada de IA foi feita.');
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
-    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode === 'program' ? 'program' : undefined }) });
+    const repair = engine === '3d' && directionMode === 'program' && pendingRepair?.script === spokenText(script.value) ? pendingRepair : null;
+    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode === 'program' ? 'program' : undefined, ...(repair ? { previousProgram: repair.program, repairIssue: repair.issue } : {}) }) });
     const data = await readDirectionResponse(res);
     const next = normalizePlan(data.plan, script.value, aspect);
     if (engine === '3d' && directionMode === 'program' && !next.sceneProgram) throw new Error('A IA não entregou o programa de cena solicitado. Seu roteiro foi preservado.');
     const unavailable = engine === '3d' ? actingUnavailableMessage(next) : undefined;
     if (unavailable) throw new Error(unavailable);
-    if (engine === '3d') await validateNewProgram(next);
+    if (engine === '3d') {
+      try { await validateNewProgram(next); }
+      catch (error) {
+        if (next.sceneProgram) {
+          const message = error instanceof Error ? error.message : 'Falha na validação da cena.', diagnostic = (error as { diagnostic?: unknown })?.diagnostic;
+          pendingRepair = { script: spokenText(script.value), program: next.sceneProgram, issue: (message + (diagnostic ? ' ' + JSON.stringify(diagnostic) : '')).slice(0, 2000) };
+        }
+        throw error;
+      }
+    }
     setPlan(next, 'GEMINI DIRETO'); note(renderIssue || `Gemini ${next.sceneProgram ? 'programou' : 'dirigiu'} ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
-  } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
+  } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.') + (pendingRepair ? ' A proposta foi guardada nesta sessão. Corrigir com Gemini envia o problema ao modelo em uma nova chamada, somente ao clicar.' : '')); }
   finally { setBusy(false); }
 });
 $('connect').addEventListener('click', async () => {

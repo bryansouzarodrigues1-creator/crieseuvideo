@@ -6,6 +6,15 @@ type Assets = Record<string, { type: string; body: string }>;
 const json = (data: unknown, status = 200, requestId?: string) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store', ...(requestId ? { 'X-CrieSeuVideo-Request-Id': requestId } : {}) },
 });
+async function readDirectionBody(request: Request) {
+  const reader = request.body?.getReader(); if (!reader) throw new DirectorError(400, 'invalid_json', 'O pedido não contém um roteiro válido.');
+  let length = 0; const chunks: Uint8Array[] = [];
+  try {
+    while (true) { const { value, done } = await reader.read(); if (done) break; length += value.byteLength; if (length > 120000) { await reader.cancel(); throw new DirectorError(413, 'script_too_large', 'O pedido ultrapassa o tamanho permitido. Nenhuma geração foi solicitada.'); } chunks.push(value); }
+    const bytes = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    try { return JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new DirectorError(400, 'invalid_json', 'O pedido não contém um roteiro válido. Seu roteiro foi preservado.'); }
+  } finally { reader.releaseLock(); }
+}
 
 /**
  * The private lab uses explicit RPC results for direction/connection failures.
@@ -37,11 +46,11 @@ export function createLabWorker(assets: Assets) {
       }
       if (url.pathname === '/api/direct' && request.method === 'POST') {
         if (active || Date.now() - lastGeneration < 15000) return failure(429, 'busy', 'Aguarde a direção atual terminar antes de tentar novamente.');
-        if (Number(request.headers.get('Content-Length') || 0) > 40000) return failure(413, 'script_too_large', 'O roteiro ultrapassa o tamanho permitido.');
+        if (Number(request.headers.get('Content-Length') || 0) > 120000) return failure(413, 'script_too_large', 'O pedido ultrapassa o tamanho permitido.');
         active = true; lastGeneration = Date.now();
         try {
-          const body = await request.json().catch(() => { throw new DirectorError(400, 'invalid_json', 'O pedido não contém um roteiro válido. Seu roteiro foi preservado.'); }) as { script?: unknown; aspect?: unknown; targetDuration?: unknown; engine?: unknown; mode?: unknown } | null;
-          return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine, mode: body?.mode === 'program' ? 'program' : undefined, requireActing: body?.engine !== '2d' }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
+          const body = await readDirectionBody(request) as { script?: unknown; aspect?: unknown; targetDuration?: unknown; engine?: unknown; mode?: unknown; previousProgram?: unknown; repairIssue?: unknown } | null;
+          return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine, mode: body?.mode === 'program' ? 'program' : undefined, previousProgram: body?.previousProgram, repairIssue: body?.repairIssue, requireActing: body?.engine !== '2d' }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
         } catch (error) {
           return error instanceof DirectorError
             ? failure(error.status, error.code, error.message, error.details)

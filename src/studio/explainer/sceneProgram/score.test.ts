@@ -51,6 +51,8 @@ describe('authored scene programs beyond the action catalogue', () => {
     bad((p) => p.tracks[0].keys.reverse());
     bad((p) => p.shots[0].sourceId = 's99');
     bad((p) => p.contacts.push({ ...p.contacts[0] }));
+    bad((p) => p.nodes[0].material = { shader: 'untrusted' });
+    bad((p) => p.nodes[0].material = { opacity: -1 });
   });
   it.each([0, 1, 2])('poses real Three.js geometry for fixture %i deterministically and frames both aspects', (index) => {
     const { program, sources, sample } = example(index), stage = new SceneProgram3D(program, sources);

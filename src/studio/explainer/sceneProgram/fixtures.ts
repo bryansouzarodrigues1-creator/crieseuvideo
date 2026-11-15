@@ -19,7 +19,8 @@ function climbing() {
   a.add('snow-face', 'mesh', [0, 0, 0], { color: '#EFF5F3', geometry: { shape: 'mesh', vertices: [-2.35, 7.15, -.30, 2.35, 7.15, -.30, 2.35, 4.9, -.30, .8, 5.7, -.30, -.1, 4.8, -.30, -1.2, 5.6, -.30, -2.35, 5.1, -.30], indices: [0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6] } });
   for (let i = 0; i < 8; i++) {
     const x = i % 2 ? -.28 : .28, y = 1.28 + Math.floor(i / 2) * .28;
-    a.shape(`ledge-${i}`, 'box', [.78, .14, .36], i % 2 ? '#D4E0E4' : '#DDE8EB', [x, y, -.30]);
+    a.shape(`ledge-${i}`, 'box', [.43, .12, .32], i % 2 ? '#8F9DAD' : '#98A6B2', [x, y - .01, -.30]);
+    a.shape(`ledge-snow-${i}`, 'box', [.46, .035, .34], '#E6EFF0', [x, y + .06, -.30]);
   }
   for (const [i, x, y, z, radius] of [[0, -6, 4, -9, 4], [1, 7, 5, -12, 5], [2, -11, 3, -17, 6], [3, 13, 3, -20, 7]]) {
     a.shape(`peak-${i}`, 'cone', [radius, y * 3], '#7A94AB', [x, y - 4, z]);
@@ -28,12 +29,20 @@ function climbing() {
   a.shape('snow-specks', 'sphere', [.026], '#FFFFFF', [0, 4, 2], { repeat: { count: 120, step: [0, 0, 0], jitter: [17, 13, 6], seed: 37 } });
   a.curve('snow-specks', 'position', [[0, [0, 5, 2]], [1, [.8, 1.2, 2]]], 'linear');
   a.add('climber', 'actor', [0, .8, 0], { rotation: [0, Math.PI, 0], color: '#DF6B35' });
-  a.shape('helmet', 'cone', [.36, .19], '#F2BD42', [0, .29, -.012], { parent: 'climber', socket: 'head', scale: [1.02, 1, 1.03] });
-  a.shape('helmet-band', 'cylinder', [.36, .36, .08], '#F2BD42', [0, .19, -.012], { parent: 'climber', socket: 'head' });
+  const helmetVertices = [0, .48, 0], helmetIndices: number[] = [];
+  for (let ring = 1; ring <= 6; ring++) for (let segment = 0; segment < 16; segment++) {
+    const phi = ring / 6 * Math.PI / 2, theta = segment / 16 * Math.PI * 2;
+    helmetVertices.push(.37 * Math.sin(phi) * Math.cos(theta), .12 + .36 * Math.cos(phi), .36 * Math.sin(phi) * Math.sin(theta));
+    const current = 1 + (ring - 1) * 16 + segment, next = 1 + (ring - 1) * 16 + (segment + 1) % 16;
+    if (ring === 1) helmetIndices.push(0, current, next);
+    else helmetIndices.push(current - 16, current, next, current - 16, next, next - 16);
+  }
+  a.add('helmet', 'mesh', [0, 0, 0], { parent: 'climber', socket: 'head', color: '#F2BD42', geometry: { shape: 'mesh', vertices: helmetVertices, indices: helmetIndices } });
+  a.shape('helmet-band', 'cylinder', [.37, .37, .08], '#F2BD42', [0, .12, 0], { parent: 'climber', socket: 'head' });
   a.shape('pack', 'box', [.52, .61, .28], '#314C63', [0, 1.24, -.33], { parent: 'climber' });
   a.curve('climber', 'position', [[0, [0, .8, 0]], [.06, [0, .8, 0]], [.94, [0, 1.92, 0]], [1, [0, 1.92, 0]]], 'linear');
   a.curve('climber', 'bodyRotation', [[0, [.12, 0, -.04]], [.25, [.18, 0, .04]], [.5, [.12, 0, -.04]], [.75, [.18, 0, .04]], [1, [.12, 0, -.04]]]);
-  a.curve('climber', 'headRotation', [[0, [0, 0, 0]], [.80, [-.08, 0, 0]], [1, [-.08, -.7, 0]]]);
+  a.curve('climber', 'headRotation', [[0, [-.08, -.65, 0]], [.80, [-.08, -.65, 0]], [1, [-.08, -.85, 0]]]);
   const holds = (effector: string, x: number, initial: number, steps: [number, number][], z: number) => {
     const points: [number, Vec3][] = [[0, [x, initial, z]]]; let height = initial, previous = 0;
     for (const [begin, end] of steps) {
@@ -48,18 +57,20 @@ function climbing() {
   holds('rightHand', -.47, 2.61, [[.40, .48], [.80, .88]], -.27);
   holds('leftFoot', .19, 1.42, [[.12, .20], [.44, .52], [.76, .84]], -.09);
   holds('rightFoot', -.19, 1.42, [[.28, .36], [.60, .68], [.90, .98]], -.09);
-  return a.result('escalada-programa', [a.shot(['climber'], 1.10, .92, .16, 1.24)], 15);
+  return a.result('escalada-programa', [a.shot(['climber'], 1.38, 1.25, .13, 1.20)], 15);
 }
 
 function comet() {
   const a = author('O cometa cruza o céu e deixa uma cauda brilhante.', '#101A35');
   a.add('comet', 'group', [-3, -1, 0], { rotation: [0, 0, .75] });
-  a.shape('nucleus', 'sphere', [.43], '#B8F1F0', [0, 0, 0], { parent: 'comet' });
-  a.shape('hot-core', 'sphere', [.23], '#FFFFFF', [.12, .05, .29], { parent: 'comet' });
-  for (let i = 0; i < 8; i++) a.shape(`trail-${i}`, 'cone', [.32 - i * .028, 1.05], i % 2 ? '#6ECED8' : '#9EE8EC', [-.45 - i * .24, -.03, -.03 * i], { parent: 'comet', rotation: [0, 0, Math.PI / 2], scale: [1, 1.5, .6] });
+  a.add('nucleus', 'mesh', [0, 0, 0], { parent: 'comet', color: '#C8CCD0', geometry: { shape: 'mesh', vertices: [0, .36, 0, .37, .04, 0, .04, -.30, 0, -.33, -.02, 0, 0, 0, .34, .03, .02, -.31], indices: [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 1, 0, 5, 2, 1, 5, 3, 2, 5, 0, 3, 5] } });
+  a.shape('coma', 'sphere', [.49], '#9DE6ED', [0, 0, 0], { parent: 'comet', material: { opacity: .23, emissive: '#64D2F0', emissiveIntensity: .8 } });
+  a.shape('outer-trail', 'cone', [.53, 3.4], '#7DC8F4', [-1.67, 0, 0], { parent: 'comet', rotation: [0, 0, Math.PI / 2], material: { opacity: .18, emissive: '#43B4E9', emissiveIntensity: .9 } });
+  a.shape('inner-trail', 'cone', [.28, 3.7], '#B6ECF4', [-1.8, 0, .015], { parent: 'comet', rotation: [0, 0, Math.PI / 2], material: { opacity: .4, emissive: '#93DDF5', emissiveIntensity: .8 } });
+  a.add('ion-trail', 'mesh', [0, 0, .04], { parent: 'comet', color: '#D9F5FC', geometry: { shape: 'tube', size: [.027], points: [[-.15, 0, 0], [-1, .02, -.02], [-2, .16, -.05], [-3.5, .35, -.12]] }, material: { opacity: .6, emissive: '#BDEAFF', emissiveIntensity: .7 } });
   a.shape('stars', 'sphere', [.027], '#DBE4FF', [0, 0, -6], { repeat: { count: 180, step: [0, 0, 0], jitter: [35, 35, 10], seed: 129 } });
-  a.shape('planet', 'sphere', [1.7], '#514A88', [4, -4, -8]);
-  a.shape('ring', 'torus', [2.3, .11], '#8581BA', [4, -4, -8], { rotation: [1.10, .3, .12] });
+  a.shape('planet', 'sphere', [1.7], '#514A88', [-4, -2.5, -8]);
+  a.shape('ring', 'torus', [2.3, .11], '#8581BA', [-4, -2.5, -8], { rotation: [1.10, .3, .12] });
   a.curve('comet', 'position', [[0, [-3, -1, 0]], [.45, [-.2, 1, 0]], [1, [3.2, 2, 0]]], 'linear');
   a.curve('comet', 'rotation', [[0, [0, 0, .75]], [.5, [0, 0, .6]], [1, [0, 0, .4]]]);
   a.curve('nucleus', 'scale', [[0, [1, 1, 1]], [.5, [1.1, 1.1, 1.1]], [1, [1, 1, 1]]]);
@@ -88,9 +99,10 @@ function robot() {
   a.shape('back-wall', 'box', [18, 7, .4], '#A5BCC4', [0, 3, -5]);
   a.shape('beam', 'box', [.12, 5.8, .12], '#74939E', [-7, 2.8, -4.7], { repeat: { count: 9, step: [1.7, 0, 0], jitter: [0, 0, 0], seed: 1 } });
   a.curve('extension', 'position', [[0, [.40, 0, 0]], [.15, [.40, 0, 0]], [.52, [1.10, 0, 0]], [1, [1.10, 0, 0]]]);
+  a.curve('arm', 'rotation', [[0, [0, 0, .40]], [.5, [0, 0, .55]], [1, [0, 0, .55]]]);
   a.curve('gear', 'rotation', [[0, [0, 0, 0]], [.5, [0, 0, 0]], [1, [0, 0, Math.PI * 1.8]]], 'linear');
   a.curve('head', 'rotation', [[0, [0, -.12, 0]], [.50, [0, .23, -.05]], [1, [0, .23, -.05]]]);
-  return a.result('robo-programa', [a.shot(['robot'], .45, .75, .2, 1.12)], 15);
+  return a.result('robo-programa', [a.shot(['robot'], .75, 1.05, .18, 1.08)], 15);
 }
 
 export const sceneProgramFixtures = () => [climbing(), comet(), robot()];

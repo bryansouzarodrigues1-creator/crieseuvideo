@@ -79,6 +79,13 @@ previous saved project and preview. Rendering and export use absolute time; a
 contact failure during export aborts that export. Model-authored JavaScript,
 network URLs and shaders are not executed inside the signed-in application.
 
+If a returned program has an unreachable contact, its validated graph and numeric
+diagnostic are retained in browser memory for that script. **Correct with Gemini**
+is a separate explicit click: it sends the prior program and measured failure
+back for one new response. It makes no automatic paid retry. Request bodies are
+bounded while streaming. This is numerical feedback for code repair, not automatic
+visual/artistic critique.
+
 ## Verification and its limits
 
 The new fixtures are **authored by the developer**, not by Gemini:
@@ -99,7 +106,7 @@ results are recorded in the pull request after completion.
 A live authorized generation is still needed to evaluate the model's ability to
 author this language. Prompt/contract compatibility cannot be established by
 fixtures alone. Automatic visual critique/repair by Gemini is not implemented;
-render inspection and revision in this change are developer tasks. There is no
+artistic render inspection and revision in this change are developer tasks. There is no
 general collision/gravity simulator, arbitrary JavaScript execution, automatic
 rigged-asset acquisition or guarantee of semantic/artistic completeness. Those
 are distinct capabilities and must be evaluated on new scripts through the normal

@@ -29,27 +29,30 @@ export class SceneProgram3D {
   private time = 0;
   private maxContactError = 0;
   private maxIKError = 0;
+  private contactProblems: unknown[] = [];
   private projectedBounds = { min: [0, 0], max: [0, 0] };
   constructor(readonly program: SceneProgram, sources: ProgramSource[]) {
     this.score = compileSceneProgram(program, sources);
     this.scene.background = new THREE.Color(program.background); this.scene.fog = new THREE.Fog(program.background, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
     const key = new THREE.DirectionalLight(0xffe6c3, 3.0); key.position.set(-12, 22, 18); key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .025; key.shadow.bias = -.0002; this.scene.add(key, key.target);
+    key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .08; key.shadow.bias = -.0015; this.scene.add(key, key.target);
     const rim = new THREE.DirectionalLight(0xb5dcff, 1.8); rim.position.set(8, 10, -12); this.scene.add(rim);
     for (const n of program.nodes) {
       let root: THREE.Object3D;
       if (n.kind === 'actor') { const actor = new ProgramActor3D(n.color); this.actors.set(n.id, actor); root = actor.root; }
       else if (n.kind === 'group') root = new THREE.Group();
       else {
-        const geo = geometry(n.geometry!), material = new THREE.MeshStandardMaterial({ color: n.color, roughness: .85, flatShading: n.geometry!.shape === 'mesh', vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide });
+        const opacity = n.material?.opacity ?? 1;
+        const geo = geometry(n.geometry!), material = new THREE.MeshStandardMaterial({ color: n.color, roughness: n.material?.roughness ?? .85, metalness: n.material?.metalness ?? 0, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
+          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, flatShading: n.geometry!.shape === 'mesh', vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
         if (n.repeat) {
           const instances = new THREE.InstancedMesh(geo, material, n.repeat.count), dummy = new THREE.Object3D(); let seed = n.repeat.seed;
           const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 - .5; };
           for (let i = 0; i < n.repeat.count; i++) { dummy.position.set(...n.repeat.step.map((v, axis) => v * i + random() * n.repeat!.jitter[axis]) as [number, number, number]); dummy.updateMatrix(); instances.setMatrixAt(i, dummy.matrix); }
           instances.instanceMatrix.needsUpdate = true; root = instances;
         } else root = new THREE.Mesh(geo, material);
-        root.castShadow = true; root.receiveShadow = true;
+        root.castShadow = opacity === 1; root.receiveShadow = opacity === 1;
       }
       root.name = n.id; this.nodes.set(n.id, root);
     }
@@ -61,7 +64,7 @@ export class SceneProgram3D {
   }
   update(time: number) {
     this.time = Number.isFinite(time) ? Math.max(0, Math.min(this.score.duration, time)) : 0;
-    this.states = this.score.sample(this.time); this.maxContactError = 0; this.maxIKError = 0;
+    this.states = this.score.sample(this.time); this.maxContactError = 0; this.maxIKError = 0; this.contactProblems = [];
     for (const [id, object] of this.nodes) {
       const state = this.states.get(id)!; object.position.set(...state.position); object.rotation.set(...state.rotation); object.scale.set(...state.scale);
       this.actors.get(id)?.reset(state.pose, this.time);
@@ -74,7 +77,10 @@ export class SceneProgram3D {
         const target = contact ? this.nodes.get(contact.target)!.localToWorld(new THREE.Vector3(...contact.offset))
           : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!)
           : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
-        if (target) { const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error); if (contact) this.maxContactError = Math.max(this.maxContactError, error); }
+        if (target) {
+          const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
+          if (contact) { this.maxContactError = Math.max(this.maxContactError, error); if (error > .025) this.contactProblems.push({ actor: id, effector, target: contact.target, desiredWorld: target.toArray(), actorBase: actor.root.getWorldPosition(V()).toArray(), errorMeters: error, sourceId: contact.sourceId }); }
+        }
         const rotation = state.pose[`${effector}Rotation` as keyof typeof state.pose];
         const end = actor.limbs[effector].hand;
         if (rotation || effector.endsWith('Foot')) {
@@ -92,7 +98,7 @@ export class SceneProgram3D {
     for (const c of this.score.contacts) for (const f of [0, .25, .5, .75, 1]) times.add(c.start + (c.finish - c.start) * f);
     const samples = [...times].sort((a, b) => a - b);
     for (const time of samples.filter((_, i) => i % Math.max(1, Math.ceil(samples.length / 96)) === 0)) {
-      this.update(time); if (this.maxContactError > .025) throw new SceneProgramError('Um contato do programa está fora do alcance do personagem. Ajuste a trajetória do corpo ou o ponto de apoio.');
+      this.update(time); if (this.maxContactError > .025) throw new SceneProgramError('Um contato do programa está fora do alcance do personagem. Ajuste a trajetória do corpo ou o ponto de apoio.', { timeSeconds: time, duration: this.score.duration, problems: this.contactProblems.slice(0, 4) });
     }
     this.update(0);
   }

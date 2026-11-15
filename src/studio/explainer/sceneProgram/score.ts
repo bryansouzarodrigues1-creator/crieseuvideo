@@ -12,6 +12,7 @@ export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor'; parent?: string; socket: Socket;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
   geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number };
+  material?: { roughness: number; metalness: number; opacity: number; emissive: string; emissiveIntensity: number };
 }
 export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
 export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
@@ -19,7 +20,10 @@ export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: nu
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
 export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[] }
 export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
-export class SceneProgramError extends Error { readonly code = 'invalid_scene_program'; }
+export class SceneProgramError extends Error {
+  readonly code = 'invalid_scene_program';
+  constructor(message: string, readonly diagnostic?: unknown) { super(message); }
+}
 const fail = (message: string): never => { throw new SceneProgramError(message); };
 const obj = (value: unknown): Record<string, any> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : fail('Uma definição do programa de cena não é um objeto.');
 const list = (value: unknown, max: number): any[] => Array.isArray(value) && value.length <= max ? value : fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
@@ -40,7 +44,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   const fullText = sources.map((s) => s.text).join(' ');
   let vertexBudget = 0;
   const nodes = list(r.nodes, 160).map((value): ProgramNode => {
-    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence']);
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'material']);
     if (!['group', 'mesh', 'actor'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
     if (typeof n.evidence !== 'string' || !n.evidence.trim() || n.evidence.length > 400 || !fullText.includes(n.evidence)) fail('Cada objeto precisa citar um trecho literal do roteiro como contexto visual.');
     let geometry: ProgramGeometry | undefined;
@@ -64,6 +68,12 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
         geometry = { shape: g.shape, size, ...(points ? { points } : {}) };
       }
     } else if (n.geometry !== undefined) fail('Somente malhas definem geometria.');
+    let material: ProgramNode['material'];
+    if (n.material !== undefined) {
+      if (n.kind !== 'mesh') fail('Somente malhas definem material.');
+      const m = obj(n.material); only(m, ['roughness', 'metalness', 'opacity', 'emissive', 'emissiveIntensity']);
+      material = { roughness: num(m.roughness ?? .85, 0, 1), metalness: num(m.metalness ?? 0, 0, 1), opacity: num(m.opacity ?? 1, .05, 1), emissive: color(m.emissive ?? '#000000'), emissiveIntensity: num(m.emissiveIntensity ?? 0, 0, 3) };
+    }
     let repeat: ProgramNode['repeat'];
     if (n.repeat !== undefined) {
       if (n.kind !== 'mesh') fail('Repetição só é permitida para malhas.');
@@ -77,14 +87,14 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
       position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
-      color: color(n.color ?? '#F0B44B'), evidence: n.evidence, ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}) };
+      color: color(n.color ?? '#F0B44B'), evidence: n.evidence, ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}) };
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');
   for (const node of nodes) {
     const visited = new Set([node.id]); let parent = node.parent;
     if (node.socket !== 'root' && (!parent || nodeMap.get(parent)?.kind !== 'actor')) fail('Um encaixe corporal precisa de um personagem pai.');
-    while (parent) { if (visited.has(parent) || !nodeMap.has(parent)) fail('A hierarquia da cena tem um ciclo ou um pai inexistente.'); visited.add(parent); parent = nodeMap.get(parent)!.parent; }
+    while (parent) { if (visited.has(parent) || !nodeMap.has(parent) || visited.size > 16) fail('A hierarquia da cena tem um ciclo, profundidade excessiva ou um pai inexistente.'); visited.add(parent); parent = nodeMap.get(parent)!.parent; }
   }
   let keyBudget = 0;
   const tracks = list(r.tracks, 256).map((value): ProgramTrack => {
@@ -104,6 +114,9 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     return { node: node.id, channel: t.channel, interpolation: t.interpolation ?? 'smooth', keys };
   });
   if (!tracks.length || new Set(tracks.map((t) => `${t.node}/${t.channel}`)).size !== tracks.length) fail('Defina movimentos sem duplicar uma curva do mesmo objeto.');
+  const maximumScales = new Map(nodes.map((n) => [n.id, Math.max(...n.scale)]));
+  for (const t of tracks) if (t.channel === 'scale') maximumScales.set(t.node, Math.max(maximumScales.get(t.node)!, ...t.keys.flatMap((k) => k.value)));
+  for (const node of nodes) { let current: ProgramNode | undefined = node, product = 1; while (current) { product *= maximumScales.get(current.id)!; if (product > 1000) fail('A escala acumulada de uma hierarquia excedeu o limite da cena.'); current = current.parent ? nodeMap.get(current.parent) : undefined; } }
   const shots = list(r.shots, 120).map((value): ProgramShot => {
     const s = obj(value); only(s, ['sourceId', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance']);
     const subjects = list(s.subjects, 6).map((v) => nodeMap.has(v) ? v as string : fail('A câmera citou um objeto inexistente.'));

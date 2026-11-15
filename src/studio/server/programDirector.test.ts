@@ -37,4 +37,17 @@ describe('scene-program direction uses creation instead of catalogue classificat
     await expect(directExplainer({ script: 'Uma flor abre suas pétalas.', mode: 'program', engine: '3d' })).rejects.toMatchObject({ code: 'quota' });
     expect(askAiResult).toHaveBeenCalledTimes(1);
   });
+  it('sends a validated prior proposal and numeric feedback only on an explicit repair request', async () => {
+    const sample = sceneProgramFixtures()[0]!;
+    vi.mocked(askAiResult).mockResolvedValueOnce(result(sample.response));
+    const response = await directExplainer({ script: sample.script, engine: '3d', mode: 'program', previousProgram: sample.response.sceneProgram, repairIssue: 'Mão esquerda fora do alcance; alvo=[.47,20,-.27].' });
+    expect(response.plan.sceneProgram).toBeDefined(); expect(askAiResult).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(askAiResult).mock.calls[0][0]).toContain('REVISÃO SOLICITADA PELO USUÁRIO');
+    expect(vi.mocked(askAiResult).mock.calls[0][0]).toContain('alvo=[.47,20,-.27]');
+  });
+  it('rejects a prior program bound to another script before making any provider call', async () => {
+    const sample = sceneProgramFixtures()[0]!;
+    await expect(directExplainer({ script: 'Uma flor abre suas pétalas.', engine: '3d', mode: 'program', previousProgram: sample.response.sceneProgram, repairIssue: 'Corrija o contato.' })).rejects.toMatchObject({ code: 'invalid_program_repair' });
+    expect(askAiResult).not.toHaveBeenCalled();
+  });
 });
