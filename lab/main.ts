@@ -2,6 +2,7 @@ import './style.css';
 import { buildFallbackPlan, normalizePlan, totalDuration, sceneAt, sceneStart, sceneDuration, fitToTrack, type ExplainerPlan } from '../src/studio/explainer/plan';
 import { withTargetDuration, normalizeTargetDuration, durationNotice, DURATION_PRESETS } from '../src/studio/explainer/duration';
 import { ACTION_LABELS } from '../src/studio/explainer/staging';
+import { actingUnavailableMessage } from '../src/studio/explainer/actingAvailability';
 import { drawExplainerFrame, drawOverlay } from '../src/studio/explainer/render';
 import { scriptError, spokenText } from '../src/studio/explainer/script';
 import type { Toon3D } from '../src/studio/explainer/toon3d';
@@ -51,23 +52,24 @@ async function startSound() {
 const note = (text: string) => { $('message').textContent = text; };
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function counter() { $('counter').textContent = `${script.value.length.toLocaleString('pt-BR')} / 6.000`; }
-const hasPreview = () => plan.scenes.length > 0 && planScript === spokenText(script.value);
+const hasPreview = () => plan.scenes.length > 0 && planScript === spokenText(script.value) && (engine === '2d' || !actingUnavailableMessage(plan));
 function saveDraft() {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ script: script.value, aspect, engine, targetDuration })); } catch {}
 }
 function previewState() {
   const ready = hasPreview();
+  const unavailable = engine === '3d' && plan.scenes.length > 0 && planScript === spokenText(script.value) ? actingUnavailableMessage(plan) : undefined;
   canvas.hidden = !ready; $('preview-empty').hidden = ready;
   for (const id of ['player', 'preview-foot', 'resolution', 'download-video', 'scenes-panel']) $(id).hidden = !ready;
   for (const id of ['play', 'timeline', 'download', 'download-video', 'narration-file']) ($<HTMLButtonElement>(id)).disabled = busy || !ready;
   $('resume-project').hidden = !resumable;
-  $('source').textContent = ready ? preserved ? 'PRÉVIA PRESERVADA' : source : plan.scenes.length ? 'ROTEIRO ALTERADO' : 'SEM PRÉVIA';
+  $('source').textContent = ready ? preserved ? 'PRÉVIA PRESERVADA' : source : unavailable ? 'ENCENAÇÃO INDISPONÍVEL' : plan.scenes.length ? 'ROTEIRO ALTERADO' : 'SEM PRÉVIA';
   $('scene-count').textContent = String(ready ? plan.scenes.length : 0);
   if (!ready) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     canvas.dataset.renderEngine = ''; canvas.dataset.action = 'empty'; canvas.dataset.production = ''; delete canvas.dataset.lastExport;
-    $('preview-empty-description').textContent = plan.scenes.length ? 'O roteiro mudou. Crie uma prévia para este texto.' : 'Escreva seu roteiro e escolha Ensaiar sem IA ou Dirigir com Gemini.';
-    $('fidelity').textContent = 'Aguardando sua criação'; $('staging-info').textContent = '';
+    $('preview-empty-description').textContent = unavailable || (plan.scenes.length ? 'O roteiro mudou. Crie uma prévia para este texto.' : 'Escreva seu roteiro e escolha Ensaiar sem IA ou Dirigir com Gemini.');
+    $('fidelity').textContent = unavailable ? 'Encenação indisponível' : 'Aguardando sua criação'; $('staging-info').textContent = unavailable || '';
     $('clock').textContent = '0:00 / 0:00'; timeline.value = '0';
     $('duration-info').textContent = targetDuration ? `${targetDuration} s escolhidos. A duração será aplicada quando você criar a prévia.` : '';
     $('narration-info').textContent = 'Crie ou abra uma prévia para importar sua narração.';
@@ -75,7 +77,7 @@ function previewState() {
   }
   const staged = plan.production ? plan.scenes.length : plan.scenes.filter((s) => s.story || s.staging).length;
   $('staging-info').textContent = engine === '3d'
-    ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais serão ilustradas, sem encenar a ação. Dirigir com Gemini não acrescenta movimentos que ainda não existem no motor.' : ''}`
+    ? `${staged} de ${plan.scenes.length} cenas usam movimentos do catálogo. Isso não comprova que toda a ação do roteiro foi encenada; confira o resultado visual.`
     : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
   $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
   $('narration-info').textContent = cues().length ? `Narração importada · ${uploadedTrack ? 'cenas ajustadas ao áudio' : voiceMetadata.size + ' trechos'} · o áudio precisa ser importado novamente após recarregar.` : 'Sem narração. Importe um áudio ou uma narração do projeto para ouvir e exportar com voz.';
@@ -140,6 +142,8 @@ function setPlan(next: ExplainerPlan, label: string) {
 function local() {
   const error = scriptError(script.value); if (error) return note(error);
   const rehearsal = buildFallbackPlan(script.value, aspect);
+  const unavailable = engine === '3d' ? actingUnavailableMessage(rehearsal) : undefined;
+  if (unavailable) { previewState(); return note(unavailable + ' Nenhuma chamada de IA foi feita.'); }
   setPlan(rehearsal, 'ENSAIO LOCAL');
   note(rehearsal.scenes.some((s) => s.story?.performance)
     ? 'História de pegar e entregar a lanterna reconhecida. Ensaio de 18 segundos com os nomes do seu roteiro. Nenhuma chamada de IA.'
@@ -192,7 +196,7 @@ $('resume-project').addEventListener('click', () => {
     try { localStorage.setItem('crieseuvideo-lab-before-resume', localStorage.getItem(DRAFT_KEY) || ''); } catch {}
     script.value = saved.script; aspect = nextAspect; engine = saved.engine === '2d' ? '2d' : '3d'; targetDuration = duration;
     counter(); buttons(); durationControl(); setPlan(next, saved.source === 'GEMINI DIRETO' ? 'GEMINI DIRETO' : 'PROJETO RETOMADO');
-    note('Seu último projeto foi retomado. Nenhuma geração foi solicitada.');
+    note((engine === '3d' ? actingUnavailableMessage(next) : undefined) || 'Seu último projeto foi retomado. Nenhuma geração foi solicitada.');
   } catch { note('Não foi possível retomar esse projeto. Seu rascunho foi preservado.'); }
 });
 $('open-project').addEventListener('click', () => $<HTMLInputElement>('project-file').click());
@@ -214,7 +218,7 @@ $('project-file').addEventListener('change', async () => {
     $<HTMLSelectElement>('duration').value = duration ? (DURATION_PRESETS as readonly number[]).includes(duration) ? String(duration) : 'custom' : 'auto';
     $<HTMLInputElement>('duration-custom').hidden = $<HTMLSelectElement>('duration').value !== 'custom';
     if (duration) $<HTMLInputElement>('duration-custom').value = String(duration);
-    counter(); buttons(); setPlan(next, 'PROJETO IMPORTADO'); note(decoded ? 'Projeto 3D e narração importados. Confira a prévia e baixe o vídeo.' : 'Projeto importado. Nenhuma geração de IA ou voz foi acionada.');
+    counter(); buttons(); setPlan(next, 'PROJETO IMPORTADO'); note((engine === '3d' ? actingUnavailableMessage(next) : undefined) || (decoded ? 'Projeto 3D e narração importados. Confira a prévia e baixe o vídeo.' : 'Projeto importado. Nenhuma geração de IA ou voz foi acionada.'));
   } catch (error) { note(error instanceof Error ? error.message : 'Não foi possível abrir o projeto.'); }
   finally { setBusy(false); input.value = ''; }
 });
@@ -258,11 +262,16 @@ $('download-video').addEventListener('click', async () => {
 });
 $('generate').addEventListener('click', async () => {
   if (busy) return; const error = scriptError(script.value); if (error) return note(error);
+  const unavailable = engine === '3d' ? actingUnavailableMessage(buildFallbackPlan(script.value, aspect)) : undefined;
+  if (unavailable) return note(unavailable + ' Nenhuma chamada de IA foi feita.');
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
     const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine }) });
     const data = await readDirectionResponse(res);
-    setPlan(normalizePlan(data.plan, script.value, aspect), 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
+    const next = normalizePlan(data.plan, script.value, aspect);
+    const unavailable = engine === '3d' ? actingUnavailableMessage(next) : undefined;
+    if (unavailable) throw new Error(unavailable);
+    setPlan(next, 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
   } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
   finally { setBusy(false); }
 });
