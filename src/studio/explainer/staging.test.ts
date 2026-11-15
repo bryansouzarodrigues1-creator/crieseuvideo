@@ -4,6 +4,23 @@ import { inferStaging, normalizeStaging, STAGED_ACTIONS } from './staging';
 import { buildFallbackPlan, normalizePlan } from './plan';
 import { Narrative3D, narrativeFoot } from './narrative3d';
 
+it('accepts the question action observed in the authorized real Gemini response', () => {
+  const text = 'Ele achou que conseguia vencer uma partida de clash royale mas não sabia quem era seu adversário';
+  expect(normalizeStaging({ action: 'question' }, text)?.action).toBe('question');
+  const plan = normalizePlan({ scenes: [{ sourceId: 's1', text, visual: 'character', staging: { action: 'question' } }] }, text, '9:16');
+  expect(plan.scenes[0].text).toBe(text);
+  expect(plan.scenes[0].staging?.action).toBe('question');
+  const stage = new Narrative3D(plan.scenes[0], new THREE.Group()); stage.update(3, 10);
+  expect(stage.diagnostics()).toMatchObject({ action: 'question', board: false }); stage.dispose();
+});
+it.each(['Eu não sei quem é o oponente.', 'Ela não sabe como sair dessa situação.', 'Eles nunca sabiam onde estava a chave.'])('recognizes uncertainty without inventing an outcome: %s', (text) => {
+  expect(inferStaging(text)?.action).toBe('question');
+  expect(normalizeStaging({ action: 'run' }, text)).toBeUndefined();
+});
+it.each(['Ele sabia quem era seu adversário.', 'Ele não sabia perder.', 'Se ele não sabia quem era o adversário, ficaria perdido.'])('does not turn knowledge, another meaning or a hypothesis into a question: %s', (text) => {
+  expect(inferStaging(text)).toBeUndefined();
+});
+
 const sample = 'Ele recebeu uma mensagem no celular. A novidade fez o coração disparar. Ele correu pela rua para contar aos amigos. No escritório, o gráfico subia sem parar. Mas uma pergunta mudou tudo: e agora?';
 it('stages every ordinary sample sentence by its verb rather than placing images on a presenter board', () => {
   const p = buildFallbackPlan(sample);

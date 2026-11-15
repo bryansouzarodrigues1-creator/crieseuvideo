@@ -153,7 +153,9 @@ try {
   assert.equal(providerCalls, 2);
   await page.locator('.script-panel').screenshot({ path: output + '/source-action-diagnostic.png' });
   backendWorker = (await import('../dist/server/index.js?qa=game-story')).default;
-  expectedScript = GAME; providerFixture = { scenes: [{ sourceId: 's1', visual: 'character', staging: null, story: null }] };
+  // Minimal reconstruction from real failure metadata: the original full model
+  // response was not retained. This is a free replay, never another Google call.
+  expectedScript = GAME; providerFixture = { scenes: [{ sourceId: 's1', visual: 'character', staging: { action: 'question' }, story: null }] };
   await page.locator('#script').fill(GAME);
   assert.equal(await page.locator('#canvas').isVisible(), false);
   await page.locator('#generate').click();
@@ -162,10 +164,20 @@ try {
   const gameProject = await page.evaluate(() => JSON.parse(localStorage.getItem('crieseuvideo-lab-v1')));
   assert.equal(gameProject.plan.scenes.length, 1);
   assert.equal(gameProject.plan.scenes[0].text, GAME);
+  assert.equal(gameProject.plan.scenes[0].staging.action, 'question');
   assert.equal(await page.locator('#canvas').isVisible(), true);
+  await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'question');
+  for (const at of [.1, 6, 29.9]) {
+    await page.locator('#timeline').evaluate((element, time) => { element.value = String(time); element.dispatchEvent(new Event('input', { bubbles: true })); }, at);
+    await page.locator('#canvas').screenshot({ path: output + '/question-replay-' + String(at).replace('.', '-') + '.png' });
+  }
+  assert.equal(providerCalls, 3);
+  await page.locator('#local').click();
+  assert.equal(await page.locator('#source').innerText(), 'ENSAIO LOCAL');
+  assert.equal(await page.locator('#canvas').getAttribute('data-action'), 'question');
   assert.equal(providerCalls, 3);
   assert.deepEqual(errors, []);
-  await fs.writeFile(output + '/report.json', JSON.stringify({ providerResponses: 'simulated', realProviderGenerationTested: false, paidCalls: 0, requests: calls, interceptedProviderCalls: providerCalls, requestFormat: 'json-mime-v1', viewport: { width: 393, height: 852 }, cases, freshStartsEmpty: true, legacyAutoExampleSuppressed: true, projectsResumeOnlyOnClick: true, editedDraftSurvivesReload: true, stalePreviewHidden: true, gameScriptDirected: true, validResponseApplied: true, realControllerNullableActionsApplied: true, sourceSpecificErrorPreserves3d: true, durationPreserved: 30, browserErrors: errors, blockedExternalRequests }, null, 2));
+  await fs.writeFile(output + '/report.json', JSON.stringify({ providerResponses: 'simulated', realProviderGenerationTested: false, paidCalls: 0, requests: calls, interceptedProviderCalls: providerCalls, requestFormat: 'json-mime-v1', viewport: { width: 393, height: 852 }, cases, freshStartsEmpty: true, legacyAutoExampleSuppressed: true, projectsResumeOnlyOnClick: true, editedDraftSurvivesReload: true, stalePreviewHidden: true, gameScriptDirected: true, observedQuestionMetadataReconstructed: true, originalFullProviderBodyAvailable: false, uncertaintyWorksLocally: true, validResponseApplied: true, realControllerNullableActionsApplied: true, sourceSpecificErrorPreserves3d: true, durationPreserved: 30, browserErrors: errors, blockedExternalRequests }, null, 2));
   console.log('PASS browser: nullable actions through the real director apply as 3D acting; rejected actions identify the source and preserve pixels. No provider generation.');
 } finally {
   globalThis.fetch = originalFetch;
