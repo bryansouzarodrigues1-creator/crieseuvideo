@@ -34,6 +34,9 @@ add('legacy-drawing-shapes', 'Uma ideia ganhou forma.', {
 add('handoff-with-null-performance', 'Lia pega a lanterna e entrega para Caio.', {
   scenes: [{ sourceId: 's1', visual: 'custom', staging: null, story: { action: 'handoff', prop: 'lantern', performance: null, actors: [{ name: 'Lia' }, { name: 'Caio' }] } }], production: null,
 });
+add('observed-uncertainty-reaction', 'Ele achou que conseguia vencer uma partida de clash royale mas não sabia quem era seu adversário', {
+  scenes: [{ sourceId: 's1', visual: 'character', staging: { action: 'question' } }],
+}, [{ scenes: [{ sourceId: 's1', visual: 'character', staging: { action: 'run' } }] }]);
 const filename = path.join(out, 'fixtures.json'); await fs.writeFile(filename, JSON.stringify(fixtures));
 execFileSync('python3', ['-c', `import json, sys
 from jsonschema import Draft202012Validator

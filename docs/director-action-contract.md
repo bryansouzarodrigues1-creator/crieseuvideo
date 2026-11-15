@@ -51,5 +51,25 @@ button for a matching user project. Editing text hides stale images and export
 controls. Legacy project records are preserved, and the hardcoded Lia/Caio demo
 button is removed. Rehearsal, project imports and video export remain available.
 
+## Authorized live test: uncertainty reaction
+
+One authorized live direction request reached Gemini successfully, but the
+version-8 server rejected its `staging.action = question` for the source ending
+with “não sabia quem era seu adversário”. The raw full provider proposal was not
+retained; the captured rejection identifies source s1, staging, question and an
+empty expected action. The defect was in the local semantic guard: this phrase
+expresses uncertainty, and the existing question rig can execute that reaction.
+
+The guard now recognizes explicit negative-knowledge phrases such as “não sei
+quem”, “não sabe como” and “nunca sabiam onde”. Affirmative knowledge, hypothetical
+knowledge and unrelated “não sabia perder” remain outside this rule. This adds no
+game outcome, opponent identity or unsupported movement.
+
+The regression and mobile tests reconstruct only the minimum observed action
+metadata and original source. They are not a replay of an unavailable complete
+provider proposal. They verify the existing 3D question rig and local rehearsal
+without a second Google generation. A successful new live generation after this
+correction has not been observed.
+
 Primary API reference:
 https://ai.google.dev/gemini-api/docs/generate-content/structured-output

@@ -7,6 +7,16 @@ const env = { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'fixture-only-key' };
 const reply = (raw: unknown) => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(raw) }] } }] });
 
 describe('director through the real provider adapter with intercepted transport', () => {
+  it('reconstructs the minimal action metadata of the real rejected Clash response and accepts the supported reaction', async () => {
+    const script = 'Ele achou que conseguia vencer uma partida de clash royale mas não sabia quem era seu adversário';
+    const fetchMock = vi.fn(async () => reply({ scenes: [{ sourceId: 's1', visual: 'character', staging: { action: 'question' } }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { plan } = await directExplainer({ script, engine: '3d', targetDuration: 30 }, env);
+    expect(plan.scenes[0].staging?.action).toBe('question');
+    expect(plan.scenes[0].text).toBe(script);
+    expect(plan.scenes).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('accepts explicit absence using the compatible Gemini JSON-MIME request', async () => {
     const script = 'Eu sou o maior jogador do mundo hahahaha';
     const fetchMock = vi.fn(async () => reply({ scenes: [{ sourceId: 's1', visual: 'character', staging: null, story: null }], production: null }));

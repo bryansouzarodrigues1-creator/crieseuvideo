@@ -25,6 +25,11 @@ export function inferStaging(text: string): NarrativeStaging | undefined {
   const deniedMotion = /\b(nao|nunca|jamais|sem)\b(?:\s+\S+){0,4}\s+\b(corr\w*|caminh\w*|andou|fug\w*)\b/.test(t);
   if (!deniedMotion && /\b(nao|nunca|jamais)\b(?:\s+\S+){0,4}\s+(receb\w*|leu|digit\w*|abri\w*|criou|dispar\w*|subi\w*|cresc\w*)\b/.test(t)) return;
   if (/\bse\b(?:\s+\S+){0,4}\s+(corr\w*|caminh\w*|receb\w*|digit\w*)\b/.test(t)) return;
+  // Negated knowledge is an affirmative uncertainty reaction, not a denied
+  // physical event. Keep hypothetical knowledge and unrelated "não sabia perder"
+  // outside this capability rather than inventing a question or an outcome.
+  const uncertainKnowledge = /\b(?:nao|nunca)\s+(?:sei|sabe|sabia|sabiam|sabem|sabemos)\s+(?:quem|qual|quais|onde|como|o que|por que)\b/.test(t);
+  const hypotheticalKnowledge = /\b(?:se|caso|talvez)\b(?:\s+\S+){0,5}\s+(?:sei|sabe|sabia|sabiam|sabem|sabemos)\b/.test(t);
   let action: StagedAction | undefined;
   if (deniedMotion || /\b(parad[oa]|esperou|aguardou|ficou imovel)\b/.test(t)) action = 'wait';
   else if (/coracao|palpit|peito dispar/.test(t)) action = 'heartbeat';
@@ -34,7 +39,7 @@ export function inferStaging(text: string): NarrativeStaging | undefined {
   else if (/\b(grafico|vendas|resultado)\b/.test(t) && /subi|cresc|aument|dispar|dobr/.test(t)) action = 'growth';
   else if (/celular|telefone|mensage|notific|whatsapp/.test(t) && /receb|\bleu\b|\bler\b|olhou|\bviu\b|mand|envi|digit|respond|abriu|chegou/.test(t)) action = 'phone';
   else if (/computador|notebook|laptop|\bsite\b/.test(t) && /digit|program|escrev|criou|montou|abriu|trabalh|mostrou/.test(t)) action = 'work';
-  else if (/pergunt|duvida|e agora|pensou|percebeu|surpres|assust/.test(t)) action = 'question';
+  else if (/pergunt|duvida|e agora|pensou|percebeu|surpres|assust/.test(t) || uncertainKnowledge && !hypotheticalKnowledge) action = 'question';
   else if (/\b(horas|meses|dias|semanas|tempo passou|relogio)\b/.test(t)) action = 'time';
   if (!action) return;
   const first = text.trim().match(/^([A-ZÀ-Ý][\p{L}'-]{1,23})\b/u)?.[1];
