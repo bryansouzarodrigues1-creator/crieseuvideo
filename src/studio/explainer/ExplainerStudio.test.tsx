@@ -53,9 +53,7 @@ describe('project narration recovery', () => {
 
   it('saves the selected 3D engine after generating a fresh plan', async () => {
     const plan = buildFallbackPlan('Novo roteiro.');
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
-      ok: true, json: async () => url.includes('feedback') ? {} : { plan, source: 'ai' },
-    })));
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.includes('feedback') ? {} : { plan, source: 'ai' })));
     mount();
     fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: 'Novo roteiro.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Com narração' }));
@@ -71,9 +69,7 @@ describe('project narration recovery', () => {
 describe('explicit generation costs', () => {
   it('does not trigger Lovable narration after direct Gemini direction', async () => {
     const plan = buildFallbackPlan('Um novo roteiro.');
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
-      ok: true, json: async () => url.includes('feedback') ? {} : { plan, source: 'ai', provider: 'gemini' },
-    })));
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => Response.json(url.includes('feedback') ? {} : { plan, source: 'ai', provider: 'gemini' })));
     mount();
     fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: 'Um novo roteiro.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Criar animação' }));
@@ -88,5 +84,18 @@ describe('explicit generation costs', () => {
     expect(screen.getByRole('status')).toHaveTextContent('sem IA e sem narração');
     expect(screen.getByLabelText('Texto da cena 2')).toHaveValue('Outra frase inteira.');
     expect(fetchMock).not.toHaveBeenCalled(); expect(getNarration).not.toHaveBeenCalled();
+  });
+  it('preserves the previous scenes and new script when the direction gateway returns HTML', async () => {
+    const fetchMock = vi.fn(async () => new Response('<!DOCTYPE html><html>private-error-detail</html>', { status: 502, headers: { 'Content-Type': 'text/html' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    saved(); mount();
+    fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: 'Eu sou o maior jogador do mundo hahahaha' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar animação' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('HTTP 502'));
+    expect(screen.getByLabelText('Texto da cena 1')).toHaveValue('Primeira cena.');
+    expect(screen.getByLabelText('Roteiro / narração')).toHaveValue('Eu sou o maior jogador do mundo hahahaha');
+    expect(screen.getByRole('status')).not.toHaveTextContent('private-error-detail');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getNarration).not.toHaveBeenCalled();
   });
 });
