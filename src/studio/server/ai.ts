@@ -6,11 +6,12 @@ export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_
 export type AiResult =
   | { ok: true; text: string; provider: AiProvider; model: string }
   | { ok: false; code: AiFailure; status: number; provider: AiProvider; model: string };
+export interface AiOutputOptions { schema?: Record<string, unknown> }
 
 const ALLOWED_GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite'] as const;
 const runtimeEnv = (): AiEnvironment => typeof process === 'undefined' ? {} : process.env;
 
-async function requestText(prompt: string, provider: AiProvider, model: string, env: AiEnvironment): Promise<AiResult> {
+async function requestText(prompt: string, provider: AiProvider, model: string, env: AiEnvironment, options?: AiOutputOptions): Promise<AiResult> {
   const key = provider === 'gemini' ? env.GEMINI_API_KEY : env.LOVABLE_API_KEY;
   const failure = (code: AiFailure, status = 503): AiResult => {
     console.warn('AI_FAILURE', JSON.stringify({ provider, model, code, status }));
@@ -30,7 +31,9 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(direct ? {
         contents: [{ role: 'user', parts: [{ text: prompt + '\n\nResponda somente com JSON válido.' }] }],
-        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 },
+        generationConfig: { maxOutputTokens: 8192, ...(options?.schema
+          ? { responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: options.schema } } }
+          : { responseMimeType: 'application/json' }) },
       } : {
         model, messages: [{ role: 'user', content: prompt + '\n\nResponda somente com JSON válido.' }],
         response_format: { type: 'json_object' },
@@ -57,16 +60,16 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
 }
 
 /** Detailed failures are used by the director to pause instead of silently replacing AI scenes. */
-export async function askAiResult(prompt: string, model = 'google/gemini-3-flash-preview', env: AiEnvironment = runtimeEnv()): Promise<AiResult> {
+export async function askAiResult(prompt: string, model = 'google/gemini-3-flash-preview', env: AiEnvironment = runtimeEnv(), options?: AiOutputOptions): Promise<AiResult> {
   const configured = env.GEMINI_TEXT_MODEL;
   const geminiModel = configured && (ALLOWED_GEMINI_MODELS as readonly string[]).includes(configured) ? configured : ALLOWED_GEMINI_MODELS[0];
   if (env.AI_TEXT_PROVIDER && !['gemini', 'lovable'].includes(env.AI_TEXT_PROVIDER)) {
     return { ok: false, provider: 'lovable', model, status: 503, code: 'configuration' };
   }
-  if (env.AI_TEXT_PROVIDER === 'gemini') return requestText(prompt, 'gemini', geminiModel, env);
-  const result = await requestText(prompt, 'lovable', model, env);
+  if (env.AI_TEXT_PROVIDER === 'gemini') return requestText(prompt, 'gemini', geminiModel, env, options);
+  const result = await requestText(prompt, 'lovable', model, env, options);
   if (!result.ok && (result.status === 402 || result.status === 429) && env.AI_TEXT_FALLBACK === 'gemini') {
-    return requestText(prompt, 'gemini', geminiModel, env);
+    return requestText(prompt, 'gemini', geminiModel, env, options);
   }
   return result;
 }

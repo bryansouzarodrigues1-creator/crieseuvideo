@@ -1,4 +1,4 @@
-import { directExplainer, DirectorError } from '../src/studio/server/director';
+import { directExplainer, DirectorError, type ActionFailure } from '../src/studio/server/director';
 
 interface Environment { GEMINI_API_KEY?: string; GEMINI_TEXT_MODEL?: string }
 type Assets = Record<string, { type: string; body: string }>;
@@ -21,10 +21,10 @@ export function createLabWorker(assets: Assets) {
     if (url.pathname.startsWith('/api/')) {
       const requestId = crypto.randomUUID();
       const success = (data: object) => json({ ...data, ok: true }, 200, requestId);
-      const failure = (status: number, code: string, error: string) => {
+      const failure = (status: number, code: string, error: string, details?: ActionFailure) => {
         // Fixed fields only: no source text, model output, key, headers or URLs.
-        console.error('LAB_API_FAILURE', JSON.stringify({ requestId, code, status, route: url.pathname }));
-        return json({ ok: false, status, code, error, requestId }, 200, requestId);
+        console.error('LAB_API_FAILURE', JSON.stringify({ requestId, code, status, route: url.pathname, ...(details ? { details } : {}) }));
+        return json({ ok: false, status, code, error, requestId, ...(details ? { details } : {}) }, 200, requestId);
       };
       if (request.method === 'POST' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origem inválida.' }, 403, requestId);
       if (url.pathname === '/api/config' && request.method === 'GET') return json({ configured: Boolean(env.GEMINI_API_KEY), provider: 'gemini', voiceEnabled: false }, 200, requestId);
@@ -48,7 +48,7 @@ export function createLabWorker(assets: Assets) {
           return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
         } catch (error) {
           return error instanceof DirectorError
-            ? failure(error.status, error.code, error.message)
+            ? failure(error.status, error.code, error.message, error.details)
             : failure(503, 'internal', 'Não foi possível concluir a direção. O roteiro foi preservado.');
         } finally { active = false; }
       }

@@ -1,17 +1,32 @@
 import { cueRule } from '../explainer/keywords';
 import { DRAWING_GUIDE } from '../explainer/drawing';
 import { SETTING_GUIDE } from '../explainer/settings';
-import { normalizePlan, buildFallbackPlan, VISUALS, MOODS, PALETTES, type ExplainerPlan } from '../explainer/plan';
+import { normalizePlan, buildFallbackPlan, VISUALS, MOODS, PALETTES, PRESENTER_POSES, type ExplainerPlan } from '../explainer/plan';
 import { scriptError, spokenText } from '../explainer/script';
 import { sourceBeats, beatChunks, groundScenes, type SourceBeat } from './grounding';
-import { normalizeStory } from '../explainer/storyAction';
-import { normalizeStaging, STAGING_GUIDE } from '../explainer/staging';
+import { normalizeStory, STORY_ACTIONS } from '../explainer/storyAction';
+import { normalizeStaging, STAGING_GUIDE, ACTION_LABELS, STAGED_ACTIONS } from '../explainer/staging';
 import { normalizeTargetDuration, withTargetDuration } from '../explainer/duration';
 import { askAiResult, parseJson, type AiEnvironment, type AiResult } from './ai';
-import { PRODUCTION_GUIDE, ProductionError, mergeProduction } from '../explainer/production/score';
+import { PRODUCTION_GUIDE, ProductionError, mergeProduction, CHANNELS } from '../explainer/production/score';
+import { directionSchema, stagingContract } from './directionContract';
 
+export interface ActionFailure { sourceId: string; field: 'story' | 'staging'; receivedAction: string; expectedAction: string | null }
 export class DirectorError extends Error {
-  constructor(public status: number, public code: string, message: string) { super(message); }
+  constructor(public status: number, public code: string, message: string, public details?: ActionFailure) { super(message); }
+}
+function actionError(scene: Record<string, any>, field: ActionFailure['field']) {
+  const value = scene[field]?.action;
+  // Never echo an arbitrary model string into diagnostics, responses or logs.
+  const known = new Set<string>([...STAGED_ACTIONS, ...STORY_ACTIONS, ...PRESENTER_POSES, ...Object.values(CHANNELS).flatMap(Object.keys)]);
+  const receivedAction = typeof value !== 'string' ? 'invalid' : known.has(value) ? value : 'unrecognized';
+  const expected = field === 'staging' ? normalizeStaging(undefined, scene.text) : undefined;
+  const sourceId = scene.sourceId || 'unknown', position = sourceId.match(/^s(\d+)$/)?.[1];
+  const requested = receivedAction === 'invalid' ? 'uma ação em formato inválido' : receivedAction === 'unrecognized' ? 'um movimento que o motor não reconhece' : `a ação "${receivedAction}"`;
+  const explanation = field === 'story' ? 'O movimento, o objeto ou quem entrega e recebe não correspondem ao roteiro.'
+    : expected ? `Esta frase permite "${ACTION_LABELS[expected.action]}".` : 'Esta frase não tem uma encenação desse tipo disponível; a atuação 3D usa seu próprio plano de movimentos.';
+  return new DirectorError(502, 'unsupported_action', `${position ? 'Cena ' + position : 'Uma cena'}: a IA pediu ${requested}. ${explanation} A direção foi rejeitada; seu roteiro foi preservado.`,
+    { sourceId, field, receivedAction, expectedAction: expected?.action ?? null });
 }
 export interface DirectorInput { script: string; aspect?: unknown; mode?: unknown; gallery?: unknown; lessons?: string; targetDuration?: unknown; engine?: unknown }
 export function validateDirectorInput(script: unknown): asserts script is string {
@@ -59,8 +74,11 @@ As frases de origem já possuem sourceId fixo. Devolva EXATAMENTE uma direção 
 ${cueRule(script)}
 ${lessons}
 ${STAGING_GUIDE}
+Contrato de staging por frase (valor null = OMITIR staging; nunca invente talking/laugh/hoist dentro de staging):
+${stagingContract(beats)}
+Campos opcionais sem ação devem ser omitidos ou null, nunca {}, "none", "idle" ou uma ação inventada. Não confunda presenterPose com staging. Atuação pride/laugh e mecanismos são tracks de production, não ações de staging.
 ${input.engine === '2d' ? '' : PRODUCTION_GUIDE}
-${baseline ? `Base física executável compilada deste roteiro. Reutilize IDs, modelos, posições e contatos; direcione câmera e atuação. Ao mudar movimentos, preserve a viabilidade dos contatos. Não é necessário calcular de novo a geometria do canteiro. Para este pedido devolva apenas tracks/couplings/shots com os sourceIds listados abaixo, mantendo os assets consistentes no roteiro completo:\n${JSON.stringify({ ...baseline, tracks: baseline.tracks.filter((t) => beats.some((b) => b.sourceId === t.sourceId)), couplings: baseline.couplings.filter((c) => beats.some((b) => b.sourceId === c.at.sourceId)), shots: baseline.shots.filter((s) => beats.some((b) => b.sourceId === s.sourceId)) })}` : ''}
+${baseline ? `Base física executável compilada deste roteiro. Reutilize IDs, modelos, posições e contatos; direcione câmera e atuação. Ao mudar movimentos, preserve a viabilidade dos contatos. Envie o objeto production completo, incluindo version, world e estes assets; limite tracks/couplings/shots aos sourceIds deste pedido. Mantenha os assets consistentes no roteiro completo:\n${JSON.stringify({ ...baseline, tracks: baseline.tracks.filter((t) => beats.some((b) => b.sourceId === t.sourceId)), couplings: baseline.couplings.filter((c) => beats.some((b) => b.sourceId === c.at.sourceId)), shots: baseline.shots.filter((s) => beats.some((b) => b.sourceId === s.sourceId)) })}` : ''}
 Se usar production, componha APENAS os sourceIds deste pedido. Mantenha os mesmos IDs, modelos, posições iniciais e cores no roteiro completo. Cada frase recebe uma shot. OMITA story/staging nas cenas dirigidas por production. O grafo de produção tem prioridade sobre os visuais ilustrados.
 ${targetDuration ? `Duração pedida: ${targetDuration} segundos no total. O motor distribuirá esse tempo entre ações e pausas. Não invente falas ou fatos para preencher tempo.` : ''}
 Para cada cena escolha o visual que MELHOR ilustra o significado:
@@ -81,7 +99,7 @@ Contexto do roteiro completo (não gere cenas extras a partir dele):
 """${input.script}"""
 Frases de origem a dirigir neste pedido:
 ${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}
-Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose","story","staging"}], "production": opcional}`, undefined, env); };
+Formato de exemplo sem ação física: {"title":"Título curto","scenes":[{"sourceId":"${beats[0]!.sourceId}","visual":"character","mood":"neutral","palette":"teal","staging":null,"story":null}]}. Inclua EXATAMENTE uma cena para CADA sourceId listado, em ordem. Preencha os demais campos somente quando forem usados; production é opcional e, quando usado, deve ser completo.`, undefined, env, { schema: directionSchema(beats) }); };
   const parts = beatChunks(sourceBeats(script));
   const plans: ExplainerPlan[] = new Array(parts.length);
   const productions: unknown[] = new Array(parts.length);
@@ -103,15 +121,16 @@ Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette"
       }
       const grounded = groundScenes(raw.scenes, parts[i]!);
       if (!grounded) { failure ??= new DirectorError(502, 'source_mismatch', 'A IA alterou ou misturou as falas. A direção foi rejeitada; seu roteiro foi preservado.'); return; }
-      for (const scene of grounded) if (raw.production !== undefined) { delete scene.story; delete scene.staging; }
-      for (const scene of grounded) if (scene.story !== undefined) {
+      for (const scene of grounded) if (raw.production != null) { delete scene.story; delete scene.staging; }
+      for (const scene of grounded) if (scene.story != null) {
         const story = normalizeStory(scene.story, scene.text);
-        if (!story || (scene.story.performance !== undefined && story.performance !== scene.story.performance)) {
-          failure ??= new DirectorError(502, 'unsupported_action', 'A IA propôs uma ação sem suporte ou trocou quem faz e recebe a ação. Essa direção foi rejeitada; seu roteiro foi preservado.'); return;
+        if (!story || (scene.story.performance != null && story.performance !== scene.story.performance)) {
+          failure ??= actionError(scene, 'story'); return;
         }
       }
-      if (grounded.some((scene) => scene.staging !== undefined && !normalizeStaging(scene.staging, scene.text))) {
-        failure ??= new DirectorError(502, 'unsupported_action', 'A IA escolheu uma ação sem suporte ou que não corresponde à frase. Seu roteiro foi preservado.'); return;
+      const invalidStaging = grounded.find((scene) => scene.staging != null && !normalizeStaging(scene.staging, scene.text));
+      if (invalidStaging) {
+        failure ??= actionError(invalidStaging, 'staging'); return;
       }
       productions[i] = raw.production;
       plans[i] = normalizePlan({ ...raw, production: undefined, scenes: grounded }, parts[i]!.map((b) => b.text).join(' '), aspect);

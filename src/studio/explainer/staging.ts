@@ -60,7 +60,7 @@ export function normalizeStaging(raw: unknown, text: string): NarrativeStaging |
   return { ...literal, camera: ['follow', 'detail', 'wide'].includes(String(r.camera)) ? r.camera as NarrativeStaging['camera'] : literal.camera };
 }
 
-export const STAGING_GUIDE = `Encenação reutilizável: staging={"action":"${STAGED_ACTIONS.join('|')}","camera":"follow|detail|wide"}.
+export const STAGING_GUIDE = `Encenação reutilizável: escolha UMA action entre [${STAGED_ACTIONS.join(', ')}] e UMA camera entre [follow, detail, wide]. Exemplo para uma frase que afirma corrida: staging={"action":"run","camera":"follow"}. Sem ação compatível, omita staging ou use null.
 Use phone para ler/receber mensagens, heartbeat para coração disparado, walk/run para deslocamento real, work para computador/site,
 growth para gráfico crescendo, money_flow para metáfora visual de corrupção/propina (dinheiro/documentos sem acusar pessoas inventadas),
 question para dúvida/reação, wait para esperar ou NÃO correr, time para passagem do tempo. Escolha somente a ação afirmada nesta frase.
