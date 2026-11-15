@@ -1,7 +1,7 @@
 name: Director response QA
 on:
   pull_request:
-    branches: [feat/narrative-staging-duration, feat/composable-3d-production, fix/director-action-contract, fix/gemini-request-and-empty-start, fix/uncertainty-action-grounding, fix/explicit-3d-capability-boundary]
+    branches: [feat/narrative-staging-duration, feat/composable-3d-production, fix/director-action-contract, fix/gemini-request-and-empty-start, fix/uncertainty-action-grounding, fix/explicit-3d-capability-boundary, feat/generative-scene-program]
   workflow_dispatch:
 permissions:
   contents: read

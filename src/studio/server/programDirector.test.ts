@@ -3,6 +3,7 @@ import { directExplainer } from './director';
 import { askAiResult } from './ai';
 import { sceneProgramFixtures } from '../explainer/sceneProgram/fixtures';
 import { totalDuration } from '../explainer/plan';
+import { makeSceneProgramCandidate } from '../explainer/sceneProgram/candidate';
 
 vi.mock('./ai', async (original) => ({ ...(await original<typeof import('./ai')>()), askAiResult: vi.fn() }));
 afterEach(() => vi.mocked(askAiResult).mockReset());
@@ -49,5 +50,25 @@ describe('scene-program direction uses creation instead of catalogue classificat
     const sample = sceneProgramFixtures()[0]!;
     await expect(directExplainer({ script: 'Uma flor abre suas pétalas.', engine: '3d', mode: 'program', previousProgram: sample.response.sceneProgram, repairIssue: 'Corrija o contato.' })).rejects.toMatchObject({ code: 'invalid_program_repair' });
     expect(askAiResult).not.toHaveBeenCalled();
+  });
+  it('returns rejected JSON only as a non-enumerable feedback candidate and repairs it explicitly', async () => {
+    const sample = sceneProgramFixtures()[1]!, broken = { ...sample.response.sceneProgram, code: 'private-model-payload' };
+    vi.mocked(askAiResult).mockResolvedValueOnce(result({ ...sample.response, sceneProgram: broken }));
+    const error = await directExplainer({ script: sample.script, mode: 'program', engine: '3d' }).catch((error) => error);
+    expect(error.candidate?.program.code).toBe('private-model-payload');
+    expect(JSON.stringify(error)).not.toContain('private-model-payload');
+    vi.mocked(askAiResult).mockResolvedValueOnce(result(sample.response));
+    const repaired = await directExplainer({ script: sample.script, mode: 'program', engine: '3d', previousProposal: error.candidate, repairIssue: error.message });
+    expect(repaired.plan.sceneProgram).toBeDefined(); expect(askAiResult).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(askAiResult).mock.calls[1][0]).toContain('Proposta anterior, NÃO executável');
+  });
+  it('rejects cross-script rejected candidates before inference and accepts feedback without a retained proposal', async () => {
+    const sample = sceneProgramFixtures()[1]!, candidate = makeSceneProgramCandidate(sample.response.sceneProgram, [{ sourceId: 's1', text: sample.script }]);
+    await expect(directExplainer({ script: 'Uma flor abre suas pétalas.', engine: '3d', mode: 'program', previousProposal: candidate, repairIssue: 'Corrigir.' })).rejects.toMatchObject({ code: 'invalid_program_repair' });
+    expect(askAiResult).not.toHaveBeenCalled();
+    vi.mocked(askAiResult).mockResolvedValueOnce(result(sample.response));
+    await directExplainer({ script: sample.script, mode: 'program', engine: '3d', repairIssue: 'Cada objeto deve usar contextSourceId.' });
+    expect(vi.mocked(askAiResult).mock.calls[0][0]).toContain('proposta anterior completa não foi retida');
+    expect(askAiResult).toHaveBeenCalledTimes(1);
   });
 });

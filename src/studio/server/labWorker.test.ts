@@ -11,6 +11,15 @@ const request = (body: unknown = { script: 'Um roteiro novo.' }, source = origin
 });
 
 describe('private lab direction transport', () => {
+  it('returns a rejected proposal to its caller while keeping it out of failure logs', async () => {
+    const logs = vi.spyOn(console, 'error').mockImplementation(() => {}), error = new DirectorError(502, 'invalid_scene_program', 'Programa inválido.');
+    const candidate = { sourceSignature: '[["s1","private-source"]]', program: { code: 'private-model-payload' } };
+    Object.defineProperty(error, 'candidate', { value: candidate, enumerable: false });
+    vi.mocked(directExplainer).mockRejectedValueOnce(error);
+    const response = await createLabWorker({}).fetch(request(), {}), data = await response.json();
+    expect(data.candidate).toEqual(candidate);
+    for (const text of ['private-source', 'private-model-payload']) expect(JSON.stringify(logs.mock.calls)).not.toContain(text);
+  });
   it('checks connection using only a real token-count preflight, never generation', async () => {
     const fetchMock = vi.fn(async () => Response.json({ totalTokens: 20 })); vi.stubGlobal('fetch', fetchMock);
     const response = await createLabWorker({}).fetch(new Request(origin + '/api/connect', { method: 'POST', headers: { Origin: origin } }), { GEMINI_API_KEY: 'fixture-only' });

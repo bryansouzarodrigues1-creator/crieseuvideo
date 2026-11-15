@@ -79,7 +79,8 @@ export class SceneProgram3D {
           : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
         if (target) {
           const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
-          if (contact) { this.maxContactError = Math.max(this.maxContactError, error); if (error > .025) this.contactProblems.push({ actor: id, effector, target: contact.target, desiredWorld: target.toArray(), actorBase: actor.root.getWorldPosition(V()).toArray(), errorMeters: error, sourceId: contact.sourceId }); }
+          if (contact) this.maxContactError = Math.max(this.maxContactError, error);
+          if (error > .025) this.contactProblems.push({ actor: id, effector, target: contact?.target ?? 'authored-target', desiredWorld: target.toArray(), actorBase: actor.root.getWorldPosition(V()).toArray(), errorMeters: error, ...(contact ? { sourceId: contact.sourceId } : {}) });
         }
         const rotation = state.pose[`${effector}Rotation` as keyof typeof state.pose];
         const end = actor.limbs[effector].hand;
@@ -95,10 +96,12 @@ export class SceneProgram3D {
    * checks each actual frame. This is not a semantic or artistic approval. */
   validateContacts() {
     const times = new Set<number>([0, this.score.duration]);
+    for (const span of this.score.spans) for (const f of [0, .25, .5, .75, 1]) times.add(span.start + span.duration * f);
+    for (const track of this.program.tracks) for (const key of track.keys) { const span = this.score.spans.find((s) => s.sourceId === key.sourceId)!; times.add(span.start + key.phase * span.duration); }
     for (const c of this.score.contacts) for (const f of [0, .25, .5, .75, 1]) times.add(c.start + (c.finish - c.start) * f);
     const samples = [...times].sort((a, b) => a - b);
     for (const time of samples.filter((_, i) => i % Math.max(1, Math.ceil(samples.length / 96)) === 0)) {
-      this.update(time); if (this.maxContactError > .025) throw new SceneProgramError('Um contato do programa está fora do alcance do personagem. Ajuste a trajetória do corpo ou o ponto de apoio.', { timeSeconds: time, duration: this.score.duration, problems: this.contactProblems.slice(0, 4) });
+      this.update(time); if (this.maxIKError > .025) throw new SceneProgramError('Um alvo de mão ou pé do programa está fora do alcance do personagem. Ajuste a trajetória do corpo ou o ponto de apoio.', { timeSeconds: time, duration: this.score.duration, problems: this.contactProblems.slice(0, 4) });
     }
     this.update(0);
   }
@@ -125,7 +128,7 @@ export class SceneProgram3D {
     this.projectedBounds = { min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))], max: [Math.max(...projected.map((p) => p.x)), Math.max(...projected.map((p) => p.y))] };
   }
   render(renderer: THREE.WebGLRenderer, time: number, w: number, h: number) {
-    this.update(time); if (this.maxContactError > .025) throw new SceneProgramError('O contato físico saiu do alcance neste quadro. O vídeo não será exportado com essa falha.');
+    this.update(time); if (this.maxIKError > .025) throw new SceneProgramError('Um alvo corporal saiu do alcance neste quadro. O vídeo não será exportado com essa falha.');
     this.frame(w / h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
   }
   diagnostics() {

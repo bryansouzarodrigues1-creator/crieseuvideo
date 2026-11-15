@@ -208,6 +208,27 @@ try {
   await page.locator('#local').click();
   assert.equal(await page.locator('#canvas').isVisible(), true);
   assert.equal(providerCalls, 3);
+  // A structurally rejected model proposal is data for a separate explicit
+  // repair click; it must not be rendered, logged or silently regenerated.
+  await page.locator('[data-engine="3d"]').click();
+  await page.locator('#direction-mode').selectOption('program');
+  await page.locator('#duration').selectOption('30');
+  const contextProgram = { version: 1, background: '#B6D7EA', nodes: [{ id: 'object', kind: 'mesh', contextSourceId: 's1', color: '#607F93', geometry: { shape: 'box', size: [1, 1, 1] } }],
+    tracks: [{ node: 'object', channel: 'position', keys: [{ sourceId: 's1', phase: 0, value: [0, 0, 0] }, { sourceId: 's1', phase: 1, value: [0, 1, 0] }] }], shots: [{ sourceId: 's1', subjects: ['object'] }], contacts: [] };
+  const brokenProgram = JSON.parse(JSON.stringify(contextProgram)); brokenProgram.nodes[0].geometry.code = 'private-model-payload';
+  providerFixture = { scenes: [{ sourceId: 's1', visual: 'character' }], sceneProgram: brokenProgram };
+  backendWorker = (await import('../dist/server/index.js?qa=rejected-program-context')).default;
+  const savedBeforeCandidate = await page.evaluate(() => localStorage.getItem('crieseuvideo-lab-v1'));
+  await page.locator('#generate').click(); await page.waitForFunction(() => !document.getElementById('generate').disabled);
+  assert.match(await page.locator('#generate').innerText(), /Corrigir com Gemini/);
+  assert.equal(await page.evaluate(() => localStorage.getItem('crieseuvideo-lab-v1')), savedBeforeCandidate);
+  assert.equal(providerCalls, 4);
+  providerFixture = { scenes: [{ sourceId: 's1', visual: 'character' }], sceneProgram: contextProgram };
+  backendWorker = (await import('../dist/server/index.js?qa=corrected-program-context')).default;
+  await page.locator('#generate').click(); await page.waitForFunction(() => !document.getElementById('generate').disabled);
+  await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d');
+  assert.match(await page.locator('#generate').innerText(), /Programar com Gemini/);
+  assert.equal(providerCalls, 5);
   assert.deepEqual(errors, []);
   await fs.writeFile(output + '/report.json', JSON.stringify({ providerResponses: 'simulated', realProviderGenerationTested: false, paidCalls: 0, requests: calls, interceptedProviderCalls: providerCalls, requestFormat: 'json-mime-v1', viewport: { width: 393, height: 852 }, cases, unavailable3dBlockedBeforeRequest: true, unavailable3dServerGuardPassed: true, old3dPresenterResumeBlocked: true, explicit2dIllustrationPreserved: true, freshStartsEmpty: true, legacyAutoExampleSuppressed: true, projectsResumeOnlyOnClick: true, editedDraftSurvivesReload: true, stalePreviewHidden: true, gameScriptDirected: true, observedQuestionMetadataReconstructed: true, originalFullProviderBodyAvailable: false, uncertaintyWorksLocally: true, validResponseApplied: true, realControllerNullableActionsApplied: true, sourceSpecificErrorPreserves3d: true, durationPreserved: 30, browserErrors: errors, blockedExternalRequests }, null, 2));
   console.log('PASS browser: unsupported Everest scene blocked before requests; saved 3D presenters hidden; explicit 2D preserved. These are capability-boundary checks, not new animation quality. No provider generation.');

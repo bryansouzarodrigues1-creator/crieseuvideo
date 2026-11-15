@@ -44,9 +44,11 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   const fullText = sources.map((s) => s.text).join(' ');
   let vertexBudget = 0;
   const nodes = list(r.nodes, 160).map((value): ProgramNode => {
-    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'material']);
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material']);
     if (!['group', 'mesh', 'actor'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
-    if (typeof n.evidence !== 'string' || !n.evidence.trim() || n.evidence.length > 400 || !fullText.includes(n.evidence)) fail('Cada objeto precisa citar um trecho literal do roteiro como contexto visual.');
+    const contextSourceId = n.contextSourceId !== undefined ? source(n.contextSourceId) : undefined;
+    const evidence = contextSourceId ? sources[sourceIndex.get(contextSourceId)!].text : n.evidence;
+    if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
     let geometry: ProgramGeometry | undefined;
     if (n.kind === 'mesh') {
       const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points']);
@@ -87,7 +89,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
       position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
-      color: color(n.color ?? '#F0B44B'), evidence: n.evidence, ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}) };
+      color: color(n.color ?? '#F0B44B'), evidence, ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}) };
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');

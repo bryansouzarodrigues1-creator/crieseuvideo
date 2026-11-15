@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { readApiResponse, readDirectionResponse } from './apiResponse';
 
 describe('direction response safety', () => {
+  it('retains a bounded rejected proposal for repair without serializing it into error logs', async () => {
+    const candidate = { sourceSignature: '[["s1","Roteiro"]]', program: { code: 'private-model-payload' } };
+    const error = await readApiResponse(Response.json({ ok: false, status: 502, code: 'invalid_scene_program', error: 'Programa inválido.', candidate })).catch((e) => e);
+    expect(error.programCandidate).toEqual(candidate); expect(JSON.stringify(error)).not.toContain('private-model-payload');
+  });
   it.each([200, 502, 503, 504])('handles an HTML response at HTTP %i without leaking the page or parser error', async (status) => {
     const response = new Response('<!DOCTYPE html><html>private-token private-script</html>', { status, headers: { 'Content-Type': 'text/html' } });
     const error = await readDirectionResponse(response).catch((e) => e);

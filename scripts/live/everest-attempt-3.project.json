@@ -1,0 +1,592 @@
+{
+  "script": "Ele conseguiu escalar o monte Everest mas...",
+  "plan": {
+    "title": "Escalada no Everest",
+    "aspect": "9:16",
+    "sceneProgram": {
+      "version": 1,
+      "sourceSignature": "[[\"s1\",\"Ele conseguiu escalar o monte Everest mas...\"]]",
+      "background": "#A7D9ED",
+      "nodes": [
+        {
+          "id": "mountain_group",
+          "kind": "group",
+          "socket": "root",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#F0B44B",
+          "evidence": "Ele conseguiu escalar o monte Everest mas..."
+        },
+        {
+          "id": "peak_mesh",
+          "kind": "mesh",
+          "parent": "mountain_group",
+          "socket": "root",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#DDEEFF",
+          "evidence": "Ele conseguiu escalar o monte Everest mas...",
+          "geometry": {
+            "shape": "cone",
+            "size": [
+              3.5,
+              2.5
+            ]
+          },
+          "material": {
+            "roughness": 0.9,
+            "metalness": 0.1,
+            "opacity": 1,
+            "emissive": "#000000",
+            "emissiveIntensity": 0
+          }
+        },
+        {
+          "id": "snow_platform",
+          "kind": "mesh",
+          "parent": "mountain_group",
+          "socket": "root",
+          "position": [
+            0,
+            0.8,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#FFFFFF",
+          "evidence": "Ele conseguiu escalar o monte Everest mas...",
+          "geometry": {
+            "shape": "box",
+            "size": [
+              2.5,
+              0.4,
+              2.5
+            ]
+          },
+          "material": {
+            "roughness": 0.9,
+            "metalness": 0,
+            "opacity": 1,
+            "emissive": "#000000",
+            "emissiveIntensity": 0
+          }
+        },
+        {
+          "id": "flag_pole",
+          "kind": "mesh",
+          "parent": "mountain_group",
+          "socket": "root",
+          "position": [
+            0.8,
+            1.8,
+            -0.5
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#888888",
+          "evidence": "Ele conseguiu escalar o monte Everest mas...",
+          "geometry": {
+            "shape": "cylinder",
+            "size": [
+              0.03,
+              0.03,
+              2
+            ]
+          }
+        },
+        {
+          "id": "flag",
+          "kind": "mesh",
+          "parent": "flag_pole",
+          "socket": "root",
+          "position": [
+            0.3,
+            0.8,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#CC2222",
+          "evidence": "Ele conseguiu escalar o monte Everest mas...",
+          "geometry": {
+            "shape": "plane",
+            "size": [
+              0.6,
+              0.4
+            ]
+          }
+        },
+        {
+          "id": "climber",
+          "kind": "actor",
+          "socket": "root",
+          "position": [
+            -0.6,
+            0.4,
+            0.8
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#F0B44B",
+          "evidence": "Ele conseguiu escalar o monte Everest mas..."
+        },
+        {
+          "id": "backpack",
+          "kind": "mesh",
+          "parent": "climber",
+          "socket": "root",
+          "position": [
+            0,
+            1.2,
+            -0.22
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#AA3311",
+          "evidence": "Ele conseguiu escalar o monte Everest mas...",
+          "geometry": {
+            "shape": "box",
+            "size": [
+              0.35,
+              0.45,
+              0.25
+            ]
+          }
+        },
+        {
+          "id": "goggles",
+          "kind": "mesh",
+          "parent": "climber",
+          "socket": "head",
+          "position": [
+            0,
+            0.05,
+            0.12
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "color": "#111111",
+          "evidence": "Ele conseguiu escalar o monte Everest mas...",
+          "geometry": {
+            "shape": "box",
+            "size": [
+              0.22,
+              0.08,
+              0.12
+            ]
+          }
+        }
+      ],
+      "tracks": [
+        {
+          "node": "climber",
+          "channel": "position",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                -0.6,
+                0.4,
+                0.8
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                -0.3,
+                0.8,
+                0.4
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                0,
+                1,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "node": "climber",
+          "channel": "bodyRotation",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                0.2,
+                0.4,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                0.1,
+                0.2,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                -0.1,
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "node": "climber",
+          "channel": "headRotation",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                0.15,
+                0,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                -0.1,
+                0,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                0.2,
+                0,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                -0.3,
+                0.15,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "node": "climber",
+          "channel": "leftHand",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                -0.985,
+                1.4,
+                0.5
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                -0.685,
+                1.7,
+                0.2
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                -0.45,
+                1.9,
+                0.1
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                -0.385,
+                2.2,
+                0.3
+              ]
+            }
+          ]
+        },
+        {
+          "node": "climber",
+          "channel": "rightHand",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                -0.215,
+                1.4,
+                0.5
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                0.085,
+                1.7,
+                0.2
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                0.45,
+                1.9,
+                0.1
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                0.385,
+                1.8,
+                -0.1
+              ]
+            }
+          ]
+        },
+        {
+          "node": "climber",
+          "channel": "leftFoot",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                -0.77,
+                0.46,
+                0.8
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                -0.47,
+                0.86,
+                0.4
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                -0.17,
+                1.06,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                -0.17,
+                1.06,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "node": "climber",
+          "channel": "rightFoot",
+          "interpolation": "smooth",
+          "keys": [
+            {
+              "sourceId": "s1",
+              "phase": 0,
+              "value": [
+                -0.43,
+                0.46,
+                0.8
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.4,
+              "value": [
+                -0.13,
+                0.86,
+                0.4
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 0.7,
+              "value": [
+                0.17,
+                1.06,
+                0
+              ]
+            },
+            {
+              "sourceId": "s1",
+              "phase": 1,
+              "value": [
+                0.17,
+                1.06,
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "shots": [
+        {
+          "sourceId": "s1",
+          "subjects": [
+            "climber",
+            "flag"
+          ],
+          "azimuth": 0.4,
+          "endAzimuth": 0.8,
+          "elevation": 0.25,
+          "distance": 1.6
+        }
+      ],
+      "contacts": []
+    },
+    "scenes": [
+      {
+        "sourceId": "s1",
+        "text": "Ele conseguiu escalar o monte Everest mas...",
+        "visual": "character",
+        "mood": "happy",
+        "palette": "orange",
+        "highlight": [],
+        "programBeat": true,
+        "duration": 15
+      }
+    ],
+    "targetDuration": 15,
+    "engine": "3d"
+  },
+  "source": "GEMINI DIRETO",
+  "engine": "3d",
+  "aspect": "9:16",
+  "directionMode": "program",
+  "createdByUser": true
+}

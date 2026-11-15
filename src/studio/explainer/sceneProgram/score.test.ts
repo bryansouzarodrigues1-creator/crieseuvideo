@@ -13,6 +13,13 @@ const example = (index = 0) => {
 };
 
 describe('authored scene programs beyond the action catalogue', () => {
+  it('derives object context from source IDs without asking the model to repeat quotations', () => {
+    const { program, sources } = example(0);
+    const raw = { ...program, nodes: program.nodes.map(({ evidence: _text, ...node }) => ({ ...node, contextSourceId: 's1' })) };
+    expect(normalizeSceneProgram(raw, sources).nodes.every((n) => n.evidence === sources[0].text)).toBe(true);
+    raw.nodes[0].contextSourceId = 's99';
+    expect(() => normalizeSceneProgram(raw, sources)).toThrow(/frase inexistente/);
+  });
   it.each([0, 1, 2])('compiles fixture %i with new geometry and motions, without a thematic renderer', (index) => {
     const { plan, program, sources } = example(index), score = compileSceneProgram(program, sources);
     expect(plan.production).toBeUndefined(); expect(plan.scenes[0].staging).toBeUndefined();

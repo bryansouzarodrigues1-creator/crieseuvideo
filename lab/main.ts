@@ -6,7 +6,8 @@ import { actingUnavailableMessage } from '../src/studio/explainer/actingAvailabi
 import { drawExplainerFrame, drawOverlay } from '../src/studio/explainer/render';
 import { scriptError, spokenText } from '../src/studio/explainer/script';
 import type { Toon3D } from '../src/studio/explainer/toon3d';
-import { readApiResponse, readDirectionResponse } from '../src/studio/utils/apiResponse';
+import { ApiResponseError, readApiResponse, readDirectionResponse } from '../src/studio/utils/apiResponse';
+import type { SceneProgramCandidate } from '../src/studio/explainer/sceneProgram/candidate';
 import { validateNarrationPackage, alignNarratedActing } from '../src/studio/explainer/narrationPackage';
 import { audioCues, mixdown, exportDuration } from '../src/studio/explainer/exportTimeline';
 import { recoverLabSession, LAB_SAMPLE, DRAFT_KEY, PROJECT_KEY, type StoredLabProject } from './session';
@@ -16,7 +17,7 @@ const script = $<HTMLTextAreaElement>('script'), canvas = $<HTMLCanvasElement>('
 const timeline = $<HTMLInputElement>('timeline'), context = canvas.getContext('2d')!;
 let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
 let directionMode: 'program' | 'catalogue' = 'program', renderIssue = '';
-let pendingRepair: { script: string; program: NonNullable<ExplainerPlan['sceneProgram']>; issue: string } | null = null;
+let pendingRepair: { script: string; program?: NonNullable<ExplainerPlan['sceneProgram']>; proposal?: SceneProgramCandidate; issue: string } | null = null;
 let plan: ExplainerPlan = { title: '', aspect: '9:16', scenes: [] }, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
 let resumable: StoredLabProject | null = null, preserved = false;
@@ -290,7 +291,7 @@ $('generate').addEventListener('click', async () => {
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
     const repair = engine === '3d' && directionMode === 'program' && pendingRepair?.script === spokenText(script.value) ? pendingRepair : null;
-    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode === 'program' ? 'program' : undefined, ...(repair ? { previousProgram: repair.program, repairIssue: repair.issue } : {}) }) });
+    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode === 'program' ? 'program' : undefined, ...(repair ? { ...(repair.program ? { previousProgram: repair.program } : { previousProposal: repair.proposal }), repairIssue: repair.issue } : {}) }) });
     const data = await readDirectionResponse(res);
     const next = normalizePlan(data.plan, script.value, aspect);
     if (engine === '3d' && directionMode === 'program' && !next.sceneProgram) throw new Error('A IA não entregou o programa de cena solicitado. Seu roteiro foi preservado.');
@@ -307,7 +308,10 @@ $('generate').addEventListener('click', async () => {
       }
     }
     setPlan(next, 'GEMINI DIRETO'); note(renderIssue || `Gemini ${next.sceneProgram ? 'programou' : 'dirigiu'} ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
-  } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.') + (pendingRepair ? ' A proposta foi guardada nesta sessão. Corrigir com Gemini envia o problema ao modelo em uma nova chamada, somente ao clicar.' : '')); }
+  } catch (error) {
+    if (engine === '3d' && directionMode === 'program' && error instanceof ApiResponseError && error.programCandidate) pendingRepair = { script: spokenText(script.value), proposal: error.programCandidate, issue: error.message.slice(0, 2000) };
+    preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.') + (pendingRepair ? ' A proposta foi guardada nesta sessão. Corrigir com Gemini envia o problema ao modelo em uma nova chamada, somente ao clicar.' : ''));
+  }
   finally { setBusy(false); }
 });
 $('connect').addEventListener('click', async () => {
