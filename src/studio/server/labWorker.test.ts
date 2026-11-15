@@ -63,4 +63,11 @@ describe('private lab direction transport', () => {
     await expect(readDirectionResponse(await worker.fetch(request(), {}))).rejects.toMatchObject({ code: 'busy' });
     expect(directExplainer).toHaveBeenCalledTimes(1);
   });
+  it('bounds streamed request bytes even without a Content-Length header', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const oversized = request({ script: 'a'.repeat(130000) });
+    expect(oversized.headers.get('Content-Length')).toBeNull();
+    await expect(readDirectionResponse(await createLabWorker({}).fetch(oversized, {}))).rejects.toMatchObject({ status: 413, code: 'script_too_large' });
+    expect(directExplainer).not.toHaveBeenCalled();
+  });
 });

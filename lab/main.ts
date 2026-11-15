@@ -15,6 +15,8 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const script = $<HTMLTextAreaElement>('script'), canvas = $<HTMLCanvasElement>('canvas');
 const timeline = $<HTMLInputElement>('timeline'), context = canvas.getContext('2d')!;
 let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
+let directionMode: 'program' | 'catalogue' = 'program', renderIssue = '';
+let pendingRepair: { script: string; program: NonNullable<ExplainerPlan['sceneProgram']>; issue: string } | null = null;
 let plan: ExplainerPlan = { title: '', aspect: '9:16', scenes: [] }, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
 let resumable: StoredLabProject | null = null, preserved = false;
@@ -52,9 +54,9 @@ async function startSound() {
 const note = (text: string) => { $('message').textContent = text; };
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function counter() { $('counter').textContent = `${script.value.length.toLocaleString('pt-BR')} / 6.000`; }
-const hasPreview = () => plan.scenes.length > 0 && planScript === spokenText(script.value) && (engine === '2d' || !actingUnavailableMessage(plan));
+const hasPreview = () => plan.scenes.length > 0 && planScript === spokenText(script.value) && (engine === '2d' || !renderIssue && !actingUnavailableMessage(plan));
 function saveDraft() {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ script: script.value, aspect, engine, targetDuration })); } catch {}
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ script: script.value, aspect, engine, targetDuration, directionMode })); } catch {}
 }
 function previewState() {
   const ready = hasPreview();
@@ -68,7 +70,7 @@ function previewState() {
   if (!ready) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     canvas.dataset.renderEngine = ''; canvas.dataset.action = 'empty'; canvas.dataset.production = ''; delete canvas.dataset.lastExport;
-    $('preview-empty-description').textContent = unavailable || (plan.scenes.length ? 'O roteiro mudou. Crie uma prévia para este texto.' : 'Escreva seu roteiro e escolha Ensaiar sem IA ou Dirigir com Gemini.');
+    $('preview-empty-description').textContent = renderIssue || unavailable || (plan.scenes.length ? 'O roteiro mudou. Crie uma prévia para este texto.' : 'Escreva seu roteiro e escolha Ensaiar sem IA ou Programar com Gemini.');
     $('fidelity').textContent = unavailable ? 'Encenação indisponível' : 'Aguardando sua criação'; $('staging-info').textContent = unavailable || '';
     $('clock').textContent = '0:00 / 0:00'; timeline.value = '0';
     $('duration-info').textContent = targetDuration ? `${targetDuration} s escolhidos. A duração será aplicada quando você criar a prévia.` : '';
@@ -76,7 +78,7 @@ function previewState() {
     return;
   }
   const staged = plan.production ? plan.scenes.length : plan.scenes.filter((s) => s.story || s.staging).length;
-  $('staging-info').textContent = engine === '3d'
+  $('staging-info').textContent = plan.sceneProgram && engine === '3d' ? 'Cena com objetos e movimentos próprios. Confira se as ações demonstram o roteiro; a validação do programa não comprova qualidade artística.' : engine === '3d'
     ? `${staged} de ${plan.scenes.length} cenas usam movimentos do catálogo. Isso não comprova que toda a ação do roteiro foi encenada; confira o resultado visual.`
     : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
   $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
@@ -88,12 +90,16 @@ function draw() {
   if (engine === '3d' && toon) {
     try {
       toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d';
-      const acting = toon.narrativeDiagnostics(), production = toon.productionDiagnostics(); canvas.dataset.action = production ? 'production3d' : acting?.action || (sceneAt(plan, time)?.scene.story ? 'story' : 'illustration');
-      canvas.dataset.contactError = String(production?.maxContactError ?? acting?.maxContactError ?? 0);
-      canvas.dataset.production = production ? JSON.stringify(production) : '';
+      const acting = toon.narrativeDiagnostics(), production = toon.productionDiagnostics(), program = toon.programDiagnostics(); canvas.dataset.action = program ? 'scene-program3d' : production ? 'production3d' : acting?.action || (sceneAt(plan, time)?.scene.story ? 'story' : 'illustration');
+      canvas.dataset.contactError = String(program?.maxContactError ?? production?.maxContactError ?? acting?.maxContactError ?? 0);
+      canvas.dataset.production = program ? JSON.stringify(program) : production ? JSON.stringify(production) : '';
     }
-    catch { engine = '2d'; buttons(); previewState(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
-  } else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
+    catch (error) {
+      if (plan.sceneProgram) { renderIssue = error instanceof Error ? error.message : 'O programa não pôde ser renderizado.'; playing = false; stopSound(); previewState(); note('Programa não aplicado à prévia. ' + renderIssue); return; }
+      engine = '2d'; buttons(); previewState(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.');
+    }
+  } else if (plan.sceneProgram && engine === '3d') { context.clearRect(0, 0, canvas.width, canvas.height); }
+  else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
   timeline.value = String(time); $('clock').textContent = `${fmt(time)} / ${fmt(totalDuration(plan))}`;
   const i = sceneAt(plan, time)?.index ?? 0;
   if (i !== selectedScene) { selectedScene = i; document.querySelectorAll('.scene-card').forEach((card, k) => card.classList.toggle('active', k === i)); }
@@ -101,16 +107,27 @@ function draw() {
 function buttons() {
   document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.classList.toggle('selected', b.dataset.engine === engine));
   document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.classList.toggle('selected', b.dataset.aspect === aspect));
+  $('creation-mode').hidden = engine !== '3d'; $<HTMLSelectElement>('direction-mode').value = directionMode;
+  if (!busy) $('generate').textContent = generateLabel();
 }
-async function prepare3d() {
+function generateLabel() { return engine === '3d' && directionMode === 'program' ? pendingRepair?.script === spokenText(script.value) ? '✦ Corrigir com Gemini' : '✦ Programar com Gemini' : '✦ Dirigir com Gemini'; }
+async function prepare3d(requireProgram = false) {
   if (toon || loading3d) return loading3d;
   loading3d = import('../src/studio/explainer/toon3d').then(({ Toon3D }) => { toon = new Toon3D(); draw(); }).catch(() => {
+    if (requireProgram || plan.sceneProgram) { if (plan.sceneProgram) { renderIssue = 'WebGL não está disponível para renderizar este programa 3D.'; previewState(); } note('WebGL não está disponível para renderizar este programa 3D.'); return; }
     engine = '2d'; buttons(); previewState(); draw(); note('WebGL não está disponível. O motor 2D está pronto para usar.');
   }).finally(() => { loading3d = null; });
   return loading3d;
 }
+async function validateNewProgram(next: ExplainerPlan, duration = targetDuration) {
+  if (!next.sceneProgram) return;
+  await prepare3d(true);
+  if (!toon) throw new Error('WebGL não está disponível. O projeto anterior foi preservado.');
+  toon.validateProgram(withTargetDuration(next, duration));
+}
 function setPlan(next: ExplainerPlan, label: string) {
   if (!next.scenes.length) return;
+  renderIssue = ''; pendingRepair = null;
   stopSound();
   playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir');
   const text = spokenText(next.scenes.map((s) => s.text).join(' '));
@@ -126,7 +143,7 @@ function setPlan(next: ExplainerPlan, label: string) {
     button.dataset.start = String(sceneStart(plan, i)); button.dataset.duration = String(sceneDuration(scene));
     const small = document.createElement('small'); small.textContent = `CENA ${String(i + 1).padStart(2, '0')}`;
     const text = document.createElement('p'); text.textContent = scene.text;
-    const meta = document.createElement('em'); meta.textContent = `${sceneDuration(scene).toFixed(1)}s · ` + (plan.production ? 'CENA 3D · objetos e estado contínuos' : scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : scene.staging ? `${scene.staging.metaphor ? 'METÁFORA · ' : ''}${ACTION_LABELS[scene.staging.action]}` : 'Ilustração');
+    const meta = document.createElement('em'); meta.textContent = `${sceneDuration(scene).toFixed(1)}s · ` + (plan.sceneProgram ? 'CENA 3D · criação própria' : plan.production ? 'CENA 3D · objetos e estado contínuos' : scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : scene.staging ? `${scene.staging.metaphor ? 'METÁFORA · ' : ''}${ACTION_LABELS[scene.staging.action]}` : 'Ilustração');
     button.append(small, text, meta); button.addEventListener('click', () => { time = sceneStart(plan, i) + .7; draw(); }); list.append(button);
   });
   canvas.width = aspect === '9:16' ? 720 : 1280; canvas.height = aspect === '9:16' ? 1280 : 720;
@@ -134,7 +151,7 @@ function setPlan(next: ExplainerPlan, label: string) {
   draw(); if (engine === '3d' && hasPreview()) void prepare3d();
   saveDraft();
   if (hasPreview()) {
-    resumable = { script: script.value, plan, engine, aspect, source, createdByUser: true };
+    resumable = { script: script.value, plan, engine, aspect, source, createdByUser: true, directionMode };
     try { localStorage.setItem(PROJECT_KEY, JSON.stringify(resumable)); } catch {}
   }
   previewState();
@@ -143,13 +160,14 @@ function local() {
   const error = scriptError(script.value); if (error) return note(error);
   const rehearsal = buildFallbackPlan(script.value, aspect);
   const unavailable = engine === '3d' ? actingUnavailableMessage(rehearsal) : undefined;
-  if (unavailable) { previewState(); return note(unavailable + ' Nenhuma chamada de IA foi feita.'); }
+  if (unavailable) { previewState(); return note(unavailable + ' O ensaio local usa o catálogo existente. Para criar movimentos novos, escolha Programar com Gemini. Nenhuma chamada de IA foi feita.'); }
   setPlan(rehearsal, 'ENSAIO LOCAL');
   note(rehearsal.scenes.some((s) => s.story?.performance)
     ? 'História de pegar e entregar a lanterna reconhecida. Ensaio de 18 segundos com os nomes do seu roteiro. Nenhuma chamada de IA.'
     : 'Ensaio local pronto. Nenhuma chamada de IA foi feita. Confira os gestos e cada palavra do roteiro.');
 }
 script.addEventListener('input', () => {
+  pendingRepair = null; if (!busy) $('generate').textContent = generateLabel();
   counter(); saveDraft(); preserved = false;
   if (planScript && spokenText(script.value) !== planScript) {
     playing = false; $('play').textContent = '▶';
@@ -165,6 +183,7 @@ timeline.addEventListener('input', () => { if (busy || !hasPreview()) return; ti
 function changedSettings() { buttons(); saveDraft(); if (hasPreview()) setPlan(plan, source); else previewState(); }
 document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.addEventListener('click', () => { engine = b.dataset.engine as typeof engine; changedSettings(); }));
 document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.addEventListener('click', () => { aspect = b.dataset.aspect as typeof aspect; changedSettings(); }));
+$('direction-mode').addEventListener('change', () => { directionMode = $<HTMLSelectElement>('direction-mode').value === 'catalogue' ? 'catalogue' : 'program'; buttons(); saveDraft(); });
 function changeDuration() {
   const select = $<HTMLSelectElement>('duration'), input = $<HTMLInputElement>('duration-custom');
   input.hidden = select.value !== 'custom';
@@ -182,22 +201,25 @@ $('download').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ script: script.value, plan, source, narration: currentNarration }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'crieseuvideo-projeto.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-function setBusy(value: boolean) { busy = value; if (value) { playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } for (const id of ['local', 'generate', 'sample', 'resume-project', 'download-video', 'narration-file', 'duration', 'duration-custom', 'open-project', 'project-file']) ($<HTMLInputElement>(id)).disabled = value; document.querySelectorAll<HTMLButtonElement>('[data-engine],[data-aspect]').forEach((b) => b.disabled = value); script.disabled = value; $('generate').textContent = value ? 'Processando…' : '✦ Dirigir com Gemini'; previewState(); }
+function setBusy(value: boolean) { busy = value; if (value) { playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } for (const id of ['local', 'generate', 'sample', 'resume-project', 'download-video', 'narration-file', 'duration', 'duration-custom', 'direction-mode', 'open-project', 'project-file']) ($<HTMLInputElement>(id)).disabled = value; document.querySelectorAll<HTMLButtonElement>('[data-engine],[data-aspect]').forEach((b) => b.disabled = value); script.disabled = value; $('generate').textContent = value ? 'Processando…' : generateLabel(); previewState(); }
 function durationControl() {
   $<HTMLSelectElement>('duration').value = targetDuration ? (DURATION_PRESETS as readonly number[]).includes(targetDuration) ? String(targetDuration) : 'custom' : 'auto';
   $<HTMLInputElement>('duration-custom').hidden = $<HTMLSelectElement>('duration').value !== 'custom';
   if (targetDuration) $<HTMLInputElement>('duration-custom').value = String(targetDuration);
 }
-$('resume-project').addEventListener('click', () => {
+$('resume-project').addEventListener('click', async () => {
   if (busy || !resumable) return;
+  setBusy(true);
   try {
     const saved = resumable, nextAspect = saved.aspect === '16:9' ? '16:9' : '9:16';
     const next = normalizePlan(saved.plan, saved.script, nextAspect), duration = normalizeTargetDuration(saved.plan.targetDuration);
+    if (saved.engine !== '2d') await validateNewProgram(next, duration);
     try { localStorage.setItem('crieseuvideo-lab-before-resume', localStorage.getItem(DRAFT_KEY) || ''); } catch {}
     script.value = saved.script; aspect = nextAspect; engine = saved.engine === '2d' ? '2d' : '3d'; targetDuration = duration;
     counter(); buttons(); durationControl(); setPlan(next, saved.source === 'GEMINI DIRETO' ? 'GEMINI DIRETO' : 'PROJETO RETOMADO');
     note((engine === '3d' ? actingUnavailableMessage(next) : undefined) || 'Seu último projeto foi retomado. Nenhuma geração foi solicitada.');
-  } catch { note('Não foi possível retomar esse projeto. Seu rascunho foi preservado.'); }
+  } catch (error) { note(error instanceof Error ? error.message : 'Não foi possível retomar esse projeto. Seu rascunho foi preservado.'); }
+  finally { setBusy(false); }
 });
 $('open-project').addEventListener('click', () => $<HTMLInputElement>('project-file').click());
 $('project-file').addEventListener('change', async () => {
@@ -209,6 +231,7 @@ $('project-file').addEventListener('change', async () => {
     if (typeof raw.script !== 'string' || scriptError(raw.script) || !raw.plan?.scenes?.length) throw new Error('O arquivo não contém um projeto válido.');
     const nextAspect = raw.plan.aspect === '16:9' ? '16:9' : '9:16';
     const next = normalizePlan(raw.plan, raw.script, nextAspect), duration = normalizeTargetDuration(raw.plan.targetDuration);
+    if (raw.plan.engine !== '2d') await validateNewProgram(next, duration);
     const decoded = raw.narration || raw.clips ? await decodeNarration(raw.narration ?? raw, next) : null;
     try { localStorage.setItem('crieseuvideo-lab-before-import', localStorage.getItem('crieseuvideo-lab-v1') || ''); } catch {}
     voiceBuffers.clear(); voiceMetadata.clear(); uploadedTrack = null;
@@ -242,7 +265,7 @@ $('narration-file').addEventListener('change', async () => {
   finally { setBusy(false); input.value = ''; }
 });
 $('download-video').addEventListener('click', async () => {
-  if (busy || !plan?.scenes.length) return;
+  if (busy || !hasPreview()) return;
   if (spokenText(script.value) !== planScript) return note('Atualize a prévia para o roteiro atual antes de exportar.');
   setBusy(true); playing = false; stopSound(); $('play').textContent = '▶';
   const previousTime = time;
@@ -252,7 +275,7 @@ $('download-video').addEventListener('click', async () => {
     const list = cues(), duration = exportDuration(plan, list);
     const mix = list.length ? await mixdown(list, duration, 48000) : null;
     const { encodeFrames } = await import('../src/studio/explainer/frameEncoder');
-    const result = await encodeFrames({ canvas, duration, audio: mix, draw: (at) => { time = at; draw(); }, onProgress: (percent) => { $('download-video').textContent = `Renderizando · ${percent}%`; } });
+    const result = await encodeFrames({ canvas, duration, audio: mix, draw: (at) => { time = at; draw(); if (renderIssue) throw new Error(renderIssue); }, onProgress: (percent) => { $('download-video').textContent = `Renderizando · ${percent}%`; } });
     if (!result) throw new Error('O navegador não possui um codificador compatível. A prévia e o plano continuam disponíveis.');
     const link = document.createElement('a'); link.href = URL.createObjectURL(result.blob); link.download = `${plan.title.replace(/[^\p{L}\d]+/gu, '-').slice(0, 40) || 'crieseuvideo'}.${result.extension}`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 60000);
     canvas.dataset.lastExport = JSON.stringify({ duration: result.duration, frames: result.frames, fps: result.fps, codec: result.codec, extension: result.extension, audio: !!mix });
@@ -262,17 +285,29 @@ $('download-video').addEventListener('click', async () => {
 });
 $('generate').addEventListener('click', async () => {
   if (busy) return; const error = scriptError(script.value); if (error) return note(error);
-  const unavailable = engine === '3d' ? actingUnavailableMessage(buildFallbackPlan(script.value, aspect)) : undefined;
+  const unavailable = engine === '3d' && directionMode !== 'program' ? actingUnavailableMessage(buildFallbackPlan(script.value, aspect)) : undefined;
   if (unavailable) return note(unavailable + ' Nenhuma chamada de IA foi feita.');
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
-    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine }) });
+    const repair = engine === '3d' && directionMode === 'program' && pendingRepair?.script === spokenText(script.value) ? pendingRepair : null;
+    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode === 'program' ? 'program' : undefined, ...(repair ? { previousProgram: repair.program, repairIssue: repair.issue } : {}) }) });
     const data = await readDirectionResponse(res);
     const next = normalizePlan(data.plan, script.value, aspect);
+    if (engine === '3d' && directionMode === 'program' && !next.sceneProgram) throw new Error('A IA não entregou o programa de cena solicitado. Seu roteiro foi preservado.');
     const unavailable = engine === '3d' ? actingUnavailableMessage(next) : undefined;
     if (unavailable) throw new Error(unavailable);
-    setPlan(next, 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
-  } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
+    if (engine === '3d') {
+      try { await validateNewProgram(next); }
+      catch (error) {
+        if (next.sceneProgram) {
+          const message = error instanceof Error ? error.message : 'Falha na validação da cena.', diagnostic = (error as { diagnostic?: unknown })?.diagnostic;
+          pendingRepair = { script: spokenText(script.value), program: next.sceneProgram, issue: (message + (diagnostic ? ' ' + JSON.stringify(diagnostic) : '')).slice(0, 2000) };
+        }
+        throw error;
+      }
+    }
+    setPlan(next, 'GEMINI DIRETO'); note(renderIssue || `Gemini ${next.sceneProgram ? 'programou' : 'dirigiu'} ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
+  } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.') + (pendingRepair ? ' A proposta foi guardada nesta sessão. Corrigir com Gemini envia o problema ao modelo em uma nova chamada, somente ao clicar.' : '')); }
   finally { setBusy(false); }
 });
 $('connect').addEventListener('click', async () => {
@@ -286,7 +321,7 @@ $('connect').addEventListener('click', async () => {
 function loop(now: number) { if (playing && hasPreview() && !document.hidden && !busy) { if (audioOrigin !== null && audioContext) time = Math.max(0, audioContext.currentTime - audioOrigin); else time += Math.min((now - last) / 1000, .15); if (time >= totalDuration(plan)) { time = totalDuration(plan); playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } draw(); } last = now; requestAnimationFrame(loop); }
 try {
   const recovered = recoverLabSession(localStorage);
-  script.value = recovered.draft.script; aspect = recovered.draft.aspect; engine = recovered.draft.engine; targetDuration = recovered.draft.targetDuration; resumable = recovered.project;
+  script.value = recovered.draft.script; aspect = recovered.draft.aspect; engine = recovered.draft.engine; targetDuration = recovered.draft.targetDuration; directionMode = recovered.draft.directionMode ?? 'program'; resumable = recovered.project;
 } catch { script.value = ''; }
 if (script.value.trim()) note('Seu rascunho foi recuperado. A prévia só será criada quando você pedir.');
 buttons(); durationControl(); counter(); previewState(); requestAnimationFrame(loop);

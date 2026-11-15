@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { updateEnvironment } from './toon/environment';
 import { sceneAt, sceneDuration, productionSources, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
 import { Production3D } from './production/stage3d';
+import { SceneProgram3D } from './sceneProgram/stage3d';
 import { spring, drawBoardArt } from './render';
 
 const INK = 0x1c1824;
@@ -220,6 +221,8 @@ export class Toon3D {
   private narrativeStage: Narrative3D | null = null;
   private productionStage: Production3D | null = null;
   private productionKey = '';
+  private programStage: SceneProgram3D | null = null;
+  private programKey = '';
   private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
   private holder: THREE.Group | null = null;
@@ -308,6 +311,16 @@ export class Toon3D {
   }
   render(plan: ExplainerPlan, t: number, w: number, h: number) {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
+    if (plan.sceneProgram) {
+      const sources = productionSources(plan.scenes), key = JSON.stringify([plan.sceneProgram, sources]);
+      if (key !== this.programKey) {
+        const next = new SceneProgram3D(plan.sceneProgram, sources);
+        try { next.validateContacts(); } catch (error) { next.dispose(); throw error; }
+        this.programStage?.dispose(); this.programStage = next; this.programKey = key;
+      }
+      this.programStage!.render(this.renderer, t, w, h); return;
+    }
+    if (this.programStage) { this.programStage.dispose(); this.programStage = null; this.programKey = ''; }
     if (plan.production) {
       const sources = productionSources(plan.scenes), key = JSON.stringify([plan.production, sources]);
       if (key !== this.productionKey) { this.productionStage?.dispose(); this.productionStage = new Production3D(plan.production, sources); this.productionKey = key; }
@@ -367,5 +380,11 @@ export class Toon3D {
   performanceDiagnostics() { return this.storyStage?.performance?.diagnostics() ?? null; }
   narrativeDiagnostics() { return this.narrativeStage?.diagnostics() ?? null; }
   productionDiagnostics() { return this.productionStage?.diagnostics() ?? null; }
-  dispose() { this.productionStage?.dispose(); this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.renderer.dispose(); }
+  programDiagnostics() { return this.programStage?.diagnostics() ?? null; }
+  validateProgram(plan: ExplainerPlan) {
+    if (!plan.sceneProgram) return;
+    const next = new SceneProgram3D(plan.sceneProgram, productionSources(plan.scenes));
+    try { next.validateContacts(); next.frame(9 / 16); next.frame(16 / 9); } finally { next.dispose(); }
+  }
+  dispose() { this.programStage?.dispose(); this.productionStage?.dispose(); this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.renderer.dispose(); }
 }
