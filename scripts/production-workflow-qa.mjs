@@ -33,7 +33,6 @@ try {
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-engine="3d"]').click();
-  await page.waitForFunction(() => document.getElementById('canvas').dataset.renderEngine === '3d');
   const render = async (time) => page.evaluate((at) => {
     const timeline = document.getElementById('timeline'); timeline.value = String(at); timeline.dispatchEvent(new Event('input', { bubbles: true }));
     const canvas = document.getElementById('canvas');
@@ -44,6 +43,7 @@ try {
     if ([15, 30, 60, 90].includes(spec.seconds)) await page.locator('#duration').selectOption(String(spec.seconds));
     else { await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(spec.seconds)); await page.locator('#duration-custom').dispatchEvent('change'); }
     await page.locator(`[data-aspect="${spec.aspect}"]`).click(); await page.locator('#local').click();
+    await page.waitForFunction(() => document.getElementById('canvas').dataset.renderEngine === '3d');
     await page.evaluate(() => document.fonts.ready);
     assert.equal(Number(await page.locator('#timeline').getAttribute('max')), spec.seconds);
     assert.match(await page.locator('#fidelity').innerText(), /Todas as palavras preservadas/);

@@ -9,7 +9,7 @@ import { normalizeStaging, STAGING_GUIDE, ACTION_LABELS, STAGED_ACTIONS } from '
 import { normalizeTargetDuration, withTargetDuration } from '../explainer/duration';
 import { askAiResult, parseJson, type AiEnvironment, type AiResult } from './ai';
 import { PRODUCTION_GUIDE, ProductionError, mergeProduction, CHANNELS } from '../explainer/production/score';
-import { directionSchema, stagingContract } from './directionContract';
+import { stagingContract } from './directionContract';
 
 export interface ActionFailure { sourceId: string; field: 'story' | 'staging'; receivedAction: string; expectedAction: string | null }
 export class DirectorError extends Error {
@@ -99,7 +99,7 @@ Contexto do roteiro completo (não gere cenas extras a partir dele):
 """${input.script}"""
 Frases de origem a dirigir neste pedido:
 ${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}
-Formato de exemplo sem ação física: {"title":"Título curto","scenes":[{"sourceId":"${beats[0]!.sourceId}","visual":"character","mood":"neutral","palette":"teal","staging":null,"story":null}]}. Inclua EXATAMENTE uma cena para CADA sourceId listado, em ordem. Preencha os demais campos somente quando forem usados; production é opcional e, quando usado, deve ser completo.`, undefined, env, { schema: directionSchema(beats) }); };
+Formato de exemplo sem ação física: {"title":"Título curto","scenes":[{"sourceId":"${beats[0]!.sourceId}","visual":"character","mood":"neutral","palette":"teal","staging":null,"story":null}]}. Inclua EXATAMENTE uma cena para CADA sourceId listado, em ordem. Preencha os demais campos somente quando forem usados; production é opcional e, quando usado, deve ser completo.`, undefined, env); };
   const parts = beatChunks(sourceBeats(script));
   const plans: ExplainerPlan[] = new Array(parts.length);
   const productions: unknown[] = new Array(parts.length);

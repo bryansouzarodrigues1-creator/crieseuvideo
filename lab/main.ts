@@ -8,14 +8,15 @@ import type { Toon3D } from '../src/studio/explainer/toon3d';
 import { readApiResponse, readDirectionResponse } from '../src/studio/utils/apiResponse';
 import { validateNarrationPackage, alignNarratedActing } from '../src/studio/explainer/narrationPackage';
 import { audioCues, mixdown, exportDuration } from '../src/studio/explainer/exportTimeline';
+import { recoverLabSession, LAB_SAMPLE, DRAFT_KEY, PROJECT_KEY, type StoredLabProject } from './session';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const script = $<HTMLTextAreaElement>('script'), canvas = $<HTMLCanvasElement>('canvas');
 const timeline = $<HTMLInputElement>('timeline'), context = canvas.getContext('2d')!;
-const SAMPLE = 'Ele recebeu uma mensagem no celular. A novidade fez o coração disparar. Ele correu pela rua para contar aos amigos. No escritório, o gráfico subia sem parar. Mas uma pergunta mudou tudo: e agora?';
 let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
-let plan: ExplainerPlan, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
+let plan: ExplainerPlan = { title: '', aspect: '9:16', scenes: [] }, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
+let resumable: StoredLabProject | null = null, preserved = false;
 let planScript = '';
 let targetDuration: number | undefined;
 let audioContext: AudioContext | null = null, uploadedTrack: AudioBuffer | null = null, narrationScript = '', audioOrigin: number | null = null;
@@ -50,8 +51,38 @@ async function startSound() {
 const note = (text: string) => { $('message').textContent = text; };
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function counter() { $('counter').textContent = `${script.value.length.toLocaleString('pt-BR')} / 6.000`; }
+const hasPreview = () => plan.scenes.length > 0 && planScript === spokenText(script.value);
+function saveDraft() {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ script: script.value, aspect, engine, targetDuration })); } catch {}
+}
+function previewState() {
+  const ready = hasPreview();
+  canvas.hidden = !ready; $('preview-empty').hidden = ready;
+  for (const id of ['player', 'preview-foot', 'resolution', 'download-video', 'scenes-panel']) $(id).hidden = !ready;
+  for (const id of ['play', 'timeline', 'download', 'download-video', 'narration-file']) ($<HTMLButtonElement>(id)).disabled = busy || !ready;
+  $('resume-project').hidden = !resumable;
+  $('source').textContent = ready ? preserved ? 'PRÉVIA PRESERVADA' : source : plan.scenes.length ? 'ROTEIRO ALTERADO' : 'SEM PRÉVIA';
+  $('scene-count').textContent = String(ready ? plan.scenes.length : 0);
+  if (!ready) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.dataset.renderEngine = ''; canvas.dataset.action = 'empty'; canvas.dataset.production = ''; delete canvas.dataset.lastExport;
+    $('preview-empty-description').textContent = plan.scenes.length ? 'O roteiro mudou. Crie uma prévia para este texto.' : 'Escreva seu roteiro e escolha Ensaiar sem IA ou Dirigir com Gemini.';
+    $('fidelity').textContent = 'Aguardando sua criação'; $('staging-info').textContent = '';
+    $('clock').textContent = '0:00 / 0:00'; timeline.value = '0';
+    $('duration-info').textContent = targetDuration ? `${targetDuration} s escolhidos. A duração será aplicada quando você criar a prévia.` : '';
+    $('narration-info').textContent = 'Crie ou abra uma prévia para importar sua narração.';
+    return;
+  }
+  const staged = plan.production ? plan.scenes.length : plan.scenes.filter((s) => s.story || s.staging).length;
+  $('staging-info').textContent = engine === '3d'
+    ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais serão ilustradas, sem encenar a ação. Dirigir com Gemini não acrescenta movimentos que ainda não existem no motor.' : ''}`
+    : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
+  $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
+  $('narration-info').textContent = cues().length ? `Narração importada · ${uploadedTrack ? 'cenas ajustadas ao áudio' : voiceMetadata.size + ' trechos'} · o áudio precisa ser importado novamente após recarregar.` : 'Sem narração. Importe um áudio ou uma narração do projeto para ouvir e exportar com voz.';
+  $('fidelity').textContent = '✓ Todas as palavras preservadas';
+}
 function draw() {
-  if (!plan) return;
+  if (!hasPreview()) { previewState(); return; }
   if (engine === '3d' && toon) {
     try {
       toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d';
@@ -59,7 +90,7 @@ function draw() {
       canvas.dataset.contactError = String(production?.maxContactError ?? acting?.maxContactError ?? 0);
       canvas.dataset.production = production ? JSON.stringify(production) : '';
     }
-    catch { engine = '2d'; buttons(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
+    catch { engine = '2d'; buttons(); previewState(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
   } else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
   timeline.value = String(time); $('clock').textContent = `${fmt(time)} / ${fmt(totalDuration(plan))}`;
   const i = sceneAt(plan, time)?.index ?? 0;
@@ -72,30 +103,21 @@ function buttons() {
 async function prepare3d() {
   if (toon || loading3d) return loading3d;
   loading3d = import('../src/studio/explainer/toon3d').then(({ Toon3D }) => { toon = new Toon3D(); draw(); }).catch(() => {
-    engine = '2d'; buttons(); draw(); note('WebGL não está disponível. O motor 2D está pronto para usar.');
+    engine = '2d'; buttons(); previewState(); draw(); note('WebGL não está disponível. O motor 2D está pronto para usar.');
   }).finally(() => { loading3d = null; });
   return loading3d;
 }
 function setPlan(next: ExplainerPlan, label: string) {
+  if (!next.scenes.length) return;
   stopSound();
   playing = false; $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir');
   const text = spokenText(next.scenes.map((s) => s.text).join(' '));
   if (text !== narrationScript) { voiceBuffers.clear(); voiceMetadata.clear(); uploadedTrack = null; narrationScript = ''; currentNarration = undefined; }
   const voiced = { ...next, track: uploadedTrack?.duration, scenes: next.scenes.map(({ voice: _v, ...s }) => ({ ...s, voice: voiceMetadata.get(s.text) })) };
   plan = alignNarratedActing(withTargetDuration({ ...(uploadedTrack ? fitToTrack(voiced, uploadedTrack.duration) : voiced), engine, aspect }, targetDuration)); time = 0; selectedScene = -1; source = label;
-  planScript = spokenText(next.scenes.map((s) => s.text).join(' '));
-  canvas.style.opacity = planScript === spokenText(script.value) ? '1' : '.45';
+  planScript = spokenText(next.scenes.map((s) => s.text).join(' ')); preserved = false; delete canvas.dataset.lastExport;
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;
   $('scene-count').textContent = String(plan.scenes.length);
-  const staged = plan.production ? plan.scenes.length : plan.scenes.filter((s) => s.story || s.staging).length;
-  $('staging-info').textContent = engine === '3d'
-    ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais serão ilustradas, sem encenar a ação. Dirigir com Gemini não acrescenta movimentos que ainda não existem no motor.' : ''}`
-    : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
-  $('duration-info').textContent = durationNotice(plan) || `${totalDuration(plan).toFixed(1)} s no total. A prévia e a exportação usam a mesma linha do tempo.`;
-  $('narration-info').textContent = cues().length ? `Narração importada · ${uploadedTrack ? 'cenas ajustadas ao áudio' : voiceMetadata.size + ' trechos'} · o áudio precisa ser importado novamente após recarregar.` : 'Sem narração. Importe um áudio ou uma narração do projeto para ouvir e exportar com voz.';
-  const sourceWords = spokenText(script.value), resultWords = spokenText(plan.scenes.map((s) => s.text).join(' '));
-  $('fidelity').textContent = sourceWords === resultWords ? '✓ Todas as palavras preservadas' : 'Confira as falas';
-  if (sourceWords !== resultWords) $('source').textContent = 'PRÉVIA ANTERIOR';
   const list = $('scenes'); list.replaceChildren();
   plan.scenes.forEach((scene, i) => {
     const button = document.createElement('button'); button.className = 'scene-card';
@@ -107,8 +129,13 @@ function setPlan(next: ExplainerPlan, label: string) {
   });
   canvas.width = aspect === '9:16' ? 720 : 1280; canvas.height = aspect === '9:16' ? 1280 : 720;
   canvas.classList.toggle('wide', aspect === '16:9'); $('resolution').textContent = `${canvas.width} × ${canvas.height} · ${aspect}`;
-  draw(); if (engine === '3d') void prepare3d();
-  try { localStorage.setItem('crieseuvideo-lab-v1', JSON.stringify({ script: script.value, plan, engine, aspect, source })); } catch { /* Storage is optional. */ }
+  draw(); if (engine === '3d' && hasPreview()) void prepare3d();
+  saveDraft();
+  if (hasPreview()) {
+    resumable = { script: script.value, plan, engine, aspect, source, createdByUser: true };
+    try { localStorage.setItem(PROJECT_KEY, JSON.stringify(resumable)); } catch {}
+  }
+  previewState();
 }
 function local() {
   const error = scriptError(script.value); if (error) return note(error);
@@ -119,50 +146,55 @@ function local() {
     : 'Ensaio local pronto. Nenhuma chamada de IA foi feita. Confira os gestos e cada palavra do roteiro.');
 }
 script.addEventListener('input', () => {
-  counter();
+  counter(); saveDraft(); preserved = false;
   if (planScript && spokenText(script.value) !== planScript) {
     playing = false; $('play').textContent = '▶';
     stopSound();
-    $('source').textContent = 'PRÉVIA ANTERIOR'; $('fidelity').textContent = 'Roteiro alterado · gere uma nova prévia'; canvas.style.opacity = '.45';
     note('O roteiro mudou. Ensaie ou dirija novamente para atualizar a animação.');
-  } else { $('source').textContent = source; canvas.style.opacity = '1'; }
+  }
+  previewState(); draw();
 });
-$('sample').addEventListener('click', () => { script.value = SAMPLE; counter(); local(); });
+$('sample').addEventListener('click', () => { script.value = LAB_SAMPLE; script.dispatchEvent(new Event('input')); note('Exemplo carregado no roteiro. Crie a prévia quando quiser.'); });
 $('local').addEventListener('click', local);
-$('story-demo').addEventListener('click', () => {
-  // Deterministic original scene: no Gemini or voice request. Tests actors, contact and ownership.
-  script.value = 'Lia entra, caminha, agacha-se, pega a lanterna e entrega para Caio, que segura o objeto e sorri.';
-  counter(); engine = '3d'; buttons();
-  const sample = normalizePlan({ title: 'Lia e Caio · a lanterna', scenes: [{
-    text: script.value, visual: 'custom', mood: 'happy', palette: 'teal', setting: 'room',
-    story: { action: 'handoff', prop: 'lantern', performance: 'grounded-v1', actors: [
-      { name: 'Lia', color: '#FFB447' }, { name: 'Caio', color: '#4AC6BE' },
-    ] },
-  }] }, script.value, aspect);
-  setPlan(sample, 'ATUAÇÃO 3D · 18s');
-  note('Ensaio 3D de 18 segundos: caminhar, agachar, pegar, transportar e entregar. Confira pés, mãos e posse ao avançar ou voltar a linha do tempo. Nenhuma chamada de IA.');
-});
-$('play').addEventListener('click', () => { if (busy) return; playing = !playing; if (time >= totalDuration(plan)) time = 0; $('play').textContent = playing ? 'Ⅱ' : '▶'; $('play').setAttribute('aria-label', playing ? 'Pausar' : 'Reproduzir'); last = performance.now(); if (playing) void startSound().catch(() => note('Não foi possível iniciar o áudio neste navegador.')); else stopSound(); });
-timeline.addEventListener('input', () => { if (busy) return; time = Number(timeline.value); draw(); if (playing) void startSound().catch(() => {}); });
-document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.addEventListener('click', () => { engine = b.dataset.engine as typeof engine; buttons(); setPlan(plan, source); }));
-document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.addEventListener('click', () => { aspect = b.dataset.aspect as typeof aspect; buttons(); setPlan(plan, source); }));
+$('play').addEventListener('click', () => { if (busy || !hasPreview()) return; playing = !playing; if (time >= totalDuration(plan)) time = 0; $('play').textContent = playing ? 'Ⅱ' : '▶'; $('play').setAttribute('aria-label', playing ? 'Pausar' : 'Reproduzir'); last = performance.now(); if (playing) void startSound().catch(() => note('Não foi possível iniciar o áudio neste navegador.')); else stopSound(); });
+timeline.addEventListener('input', () => { if (busy || !hasPreview()) return; time = Number(timeline.value); draw(); if (playing) void startSound().catch(() => {}); });
+function changedSettings() { buttons(); saveDraft(); if (hasPreview()) setPlan(plan, source); else previewState(); }
+document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.addEventListener('click', () => { engine = b.dataset.engine as typeof engine; changedSettings(); }));
+document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.addEventListener('click', () => { aspect = b.dataset.aspect as typeof aspect; changedSettings(); }));
 function changeDuration() {
   const select = $<HTMLSelectElement>('duration'), input = $<HTMLInputElement>('duration-custom');
   input.hidden = select.value !== 'custom';
   try {
     if (select.value === 'custom' && !input.value.trim()) throw new Error('Informe a duração em segundos.');
-    targetDuration = normalizeTargetDuration(select.value === 'custom' ? input.value : select.value); setPlan(plan, source);
+    targetDuration = normalizeTargetDuration(select.value === 'custom' ? input.value : select.value); changedSettings();
   }
   catch (error) { note((error as Error).message); }
 }
 $('duration').addEventListener('change', changeDuration);
 $('duration-custom').addEventListener('change', changeDuration);
 $('download').addEventListener('click', () => {
+  if (!hasPreview()) return;
   if (spokenText(script.value) !== planScript) return note('Atualize a prévia antes de baixar o projeto.');
   const blob = new Blob([JSON.stringify({ script: script.value, plan, source, narration: currentNarration }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'crieseuvideo-projeto.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-function setBusy(value: boolean) { busy = value; if (value) { playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } for (const id of ['local', 'generate', 'sample', 'story-demo', 'download-video', 'narration-file', 'duration', 'duration-custom', 'open-project', 'project-file']) ($<HTMLInputElement>(id)).disabled = value; document.querySelectorAll<HTMLButtonElement>('[data-engine],[data-aspect]').forEach((b) => b.disabled = value); script.disabled = value; $('generate').textContent = value ? 'Processando…' : '✦ Dirigir com Gemini'; }
+function setBusy(value: boolean) { busy = value; if (value) { playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } for (const id of ['local', 'generate', 'sample', 'resume-project', 'download-video', 'narration-file', 'duration', 'duration-custom', 'open-project', 'project-file']) ($<HTMLInputElement>(id)).disabled = value; document.querySelectorAll<HTMLButtonElement>('[data-engine],[data-aspect]').forEach((b) => b.disabled = value); script.disabled = value; $('generate').textContent = value ? 'Processando…' : '✦ Dirigir com Gemini'; previewState(); }
+function durationControl() {
+  $<HTMLSelectElement>('duration').value = targetDuration ? (DURATION_PRESETS as readonly number[]).includes(targetDuration) ? String(targetDuration) : 'custom' : 'auto';
+  $<HTMLInputElement>('duration-custom').hidden = $<HTMLSelectElement>('duration').value !== 'custom';
+  if (targetDuration) $<HTMLInputElement>('duration-custom').value = String(targetDuration);
+}
+$('resume-project').addEventListener('click', () => {
+  if (busy || !resumable) return;
+  try {
+    const saved = resumable, nextAspect = saved.aspect === '16:9' ? '16:9' : '9:16';
+    const next = normalizePlan(saved.plan, saved.script, nextAspect), duration = normalizeTargetDuration(saved.plan.targetDuration);
+    try { localStorage.setItem('crieseuvideo-lab-before-resume', localStorage.getItem(DRAFT_KEY) || ''); } catch {}
+    script.value = saved.script; aspect = nextAspect; engine = saved.engine === '2d' ? '2d' : '3d'; targetDuration = duration;
+    counter(); buttons(); durationControl(); setPlan(next, saved.source === 'GEMINI DIRETO' ? 'GEMINI DIRETO' : 'PROJETO RETOMADO');
+    note('Seu último projeto foi retomado. Nenhuma geração foi solicitada.');
+  } catch { note('Não foi possível retomar esse projeto. Seu rascunho foi preservado.'); }
+});
 $('open-project').addEventListener('click', () => $<HTMLInputElement>('project-file').click());
 $('project-file').addEventListener('change', async () => {
   const input = $<HTMLInputElement>('project-file'), file = input.files?.[0]; if (!file || busy) return;
@@ -187,6 +219,7 @@ $('project-file').addEventListener('change', async () => {
   finally { setBusy(false); input.value = ''; }
 });
 $('narration-file').addEventListener('change', async () => {
+  if (!hasPreview()) return;
   const input = $<HTMLInputElement>('narration-file'), file = input.files?.[0]; if (!file || busy) return;
   if (file.size > 40 * 1024 * 1024) { note('O arquivo de narração ultrapassa 40 MB.'); return; }
   setBusy(true); playing = false; stopSound();
@@ -230,7 +263,7 @@ $('generate').addEventListener('click', async () => {
     const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine }) });
     const data = await readDirectionResponse(res);
     setPlan(normalizePlan(data.plan, script.value, aspect), 'GEMINI DIRETO'); note(`Gemini dirigiu ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
-  } catch (error) { $('source').textContent = 'PRÉVIA ANTERIOR'; note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
+  } catch (error) { preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.')); }
   finally { setBusy(false); }
 });
 $('connect').addEventListener('click', async () => {
@@ -241,19 +274,12 @@ $('connect').addEventListener('click', async () => {
   } catch (error) { $('api-dot').className = 'status-dot error'; note(error instanceof Error ? error.message : 'Não foi possível verificar.'); }
   finally { button.disabled = false; }
 });
-function loop(now: number) { if (playing && !document.hidden && !busy) { if (audioOrigin !== null && audioContext) time = Math.max(0, audioContext.currentTime - audioOrigin); else time += Math.min((now - last) / 1000, .15); if (time >= totalDuration(plan)) { time = totalDuration(plan); playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } draw(); } last = now; requestAnimationFrame(loop); }
+function loop(now: number) { if (playing && hasPreview() && !document.hidden && !busy) { if (audioOrigin !== null && audioContext) time = Math.max(0, audioContext.currentTime - audioOrigin); else time += Math.min((now - last) / 1000, .15); if (time >= totalDuration(plan)) { time = totalDuration(plan); playing = false; stopSound(); $('play').textContent = '▶'; $('play').setAttribute('aria-label', 'Reproduzir'); } draw(); } last = now; requestAnimationFrame(loop); }
 try {
-  const saved = JSON.parse(localStorage.getItem('crieseuvideo-lab-v1') || 'null');
-  if (saved?.plan?.scenes?.length && typeof saved.script === 'string') {
-    script.value = saved.script; aspect = saved.aspect === '16:9' ? '16:9' : '9:16'; engine = saved.engine === '2d' ? '2d' : '3d';
-    targetDuration = normalizeTargetDuration(saved.plan.targetDuration);
-    $<HTMLSelectElement>('duration').value = targetDuration ? (DURATION_PRESETS as readonly number[]).includes(targetDuration) ? String(targetDuration) : 'custom' : 'auto';
-    $<HTMLInputElement>('duration-custom').hidden = $<HTMLSelectElement>('duration').value !== 'custom';
-    if (targetDuration) $<HTMLInputElement>('duration-custom').value = String(targetDuration);
-    buttons(); setPlan(normalizePlan(saved.plan, script.value, aspect), saved.source === 'GEMINI DIRETO' ? 'GEMINI DIRETO' : 'ENSAIO LOCAL');
-  }
-  else { script.value = SAMPLE; local(); }
-} catch { script.value = SAMPLE; local(); }
-counter(); requestAnimationFrame(loop);
+  const recovered = recoverLabSession(localStorage);
+  script.value = recovered.draft.script; aspect = recovered.draft.aspect; engine = recovered.draft.engine; targetDuration = recovered.draft.targetDuration; resumable = recovered.project;
+} catch { script.value = ''; }
+if (script.value.trim()) note('Seu rascunho foi recuperado. A prévia só será criada quando você pedir.');
+buttons(); durationControl(); counter(); previewState(); requestAnimationFrame(loop);
 void document.fonts.ready.then(draw);
 void fetch('/api/config', { headers: { Accept: 'application/json' } }).then(readApiResponse).then((data) => { $('api-label').textContent = data.configured ? 'Chave configurada no servidor' : 'Conexão Gemini pendente'; $('api-dot').className = `status-dot ${data.configured ? 'ready' : ''}`; }).catch(() => { $('api-label').textContent = 'Prévia local · sem conexão'; });

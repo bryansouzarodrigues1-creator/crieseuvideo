@@ -6,12 +6,43 @@ export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_
 export type AiResult =
   | { ok: true; text: string; provider: AiProvider; model: string }
   | { ok: false; code: AiFailure; status: number; provider: AiProvider; model: string };
-export interface AiOutputOptions { schema?: Record<string, unknown> }
 
 const ALLOWED_GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite'] as const;
 const runtimeEnv = (): AiEnvironment => typeof process === 'undefined' ? {} : process.env;
+export function geminiModel(env: AiEnvironment) {
+  return env.GEMINI_TEXT_MODEL && (ALLOWED_GEMINI_MODELS as readonly string[]).includes(env.GEMINI_TEXT_MODEL)
+    ? env.GEMINI_TEXT_MODEL : ALLOWED_GEMINI_MODELS[0];
+}
+/** Stable GenerateContent wire format previously accepted by the connected model.
+ * Renderer/source validation stays server-side; no experimental schema fields. */
+export function geminiRequestBody(prompt: string) {
+  return { contents: [{ role: 'user', parts: [{ text: prompt + '\n\nResponda somente com JSON válido.' }] }],
+    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } };
+}
+function failureCode(status: number, body: any): AiFailure {
+  const reasons = Array.isArray(body?.error?.details) ? body.error.details.map((item: any) => item?.reason) : [];
+  if (reasons.some((reason: unknown) => ['API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED', 'API_KEY_IP_ADDRESS_BLOCKED'].includes(String(reason)))) return 'auth';
+  return status === 402 || status === 429 ? 'quota' : status === 401 || status === 403 ? 'auth' : status === 400 ? 'invalid_request' : status === 404 ? 'unsupported_model' : 'upstream';
+}
 
-async function requestText(prompt: string, provider: AiProvider, model: string, env: AiEnvironment, options?: AiOutputOptions): Promise<AiResult> {
+/** countTokens performs no inference. This is a real, non-generating connection
+ * preflight using the same request builder, not a guarantee of scene direction. */
+export async function preflightGemini(env: AiEnvironment): Promise<{ ok: true; model: string; totalTokens: number } | { ok: false; code: AiFailure; status: number }> {
+  if (!env.GEMINI_API_KEY) return { ok: false, code: 'missing_key', status: 503 };
+  const model = geminiModel(env);
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:countTokens`, {
+      method: 'POST', headers: { 'x-goog-api-key': env.GEMINI_API_KEY, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ generateContentRequest: { model: `models/${model}`, ...geminiRequestBody('Verificar a conexão do diretor de animação.') } }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return { ok: false, code: failureCode(response.status, data), status: response.status };
+    if (!Number.isInteger(data?.totalTokens) || data.totalTokens < 1) return { ok: false, code: 'invalid_response', status: 502 };
+    return { ok: true, model, totalTokens: data.totalTokens };
+  } catch { return { ok: false, code: 'upstream', status: 503 }; }
+}
+
+async function requestText(prompt: string, provider: AiProvider, model: string, env: AiEnvironment): Promise<AiResult> {
   const key = provider === 'gemini' ? env.GEMINI_API_KEY : env.LOVABLE_API_KEY;
   const failure = (code: AiFailure, status = 503): AiResult => {
     console.warn('AI_FAILURE', JSON.stringify({ provider, model, code, status }));
@@ -29,12 +60,7 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
       headers: direct
         ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' }
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(direct ? {
-        contents: [{ role: 'user', parts: [{ text: prompt + '\n\nResponda somente com JSON válido.' }] }],
-        generationConfig: { maxOutputTokens: 8192, ...(options?.schema
-          ? { responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: options.schema } } }
-          : { responseMimeType: 'application/json' }) },
-      } : {
+      body: JSON.stringify(direct ? geminiRequestBody(prompt) : {
         model, messages: [{ role: 'user', content: prompt + '\n\nResponda somente com JSON válido.' }],
         response_format: { type: 'json_object' },
       }),
@@ -42,9 +68,7 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
     if (!res.ok) {
       // Read only a whitelisted reason; never log the provider message or headers.
       const body=await Promise.resolve().then(() => res.json()).catch(()=>null);
-      const reasons=Array.isArray(body?.error?.details)?body.error.details.map((item:any)=>item?.reason):[];
-      if(reasons.some((reason:unknown)=>['API_KEY_INVALID','API_KEY_SERVICE_BLOCKED','API_KEY_HTTP_REFERRER_BLOCKED','API_KEY_IP_ADDRESS_BLOCKED'].includes(String(reason))))return failure('auth',res.status);
-      return failure(res.status === 402 || res.status === 429 ? 'quota' : res.status === 401 || res.status === 403 ? 'auth' : res.status === 400 ? 'invalid_request' : res.status === 404 ? 'unsupported_model' : 'upstream', res.status);
+      return failure(failureCode(res.status, body), res.status);
     }
     const data = await res.json();
     const candidate = data?.candidates?.[0];
@@ -60,16 +84,15 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
 }
 
 /** Detailed failures are used by the director to pause instead of silently replacing AI scenes. */
-export async function askAiResult(prompt: string, model = 'google/gemini-3-flash-preview', env: AiEnvironment = runtimeEnv(), options?: AiOutputOptions): Promise<AiResult> {
-  const configured = env.GEMINI_TEXT_MODEL;
-  const geminiModel = configured && (ALLOWED_GEMINI_MODELS as readonly string[]).includes(configured) ? configured : ALLOWED_GEMINI_MODELS[0];
+export async function askAiResult(prompt: string, model = 'google/gemini-3-flash-preview', env: AiEnvironment = runtimeEnv()): Promise<AiResult> {
+  const selected = geminiModel(env);
   if (env.AI_TEXT_PROVIDER && !['gemini', 'lovable'].includes(env.AI_TEXT_PROVIDER)) {
     return { ok: false, provider: 'lovable', model, status: 503, code: 'configuration' };
   }
-  if (env.AI_TEXT_PROVIDER === 'gemini') return requestText(prompt, 'gemini', geminiModel, env, options);
-  const result = await requestText(prompt, 'lovable', model, env, options);
+  if (env.AI_TEXT_PROVIDER === 'gemini') return requestText(prompt, 'gemini', selected, env);
+  const result = await requestText(prompt, 'lovable', model, env);
   if (!result.ok && (result.status === 402 || result.status === 429) && env.AI_TEXT_FALLBACK === 'gemini') {
-    return requestText(prompt, 'gemini', geminiModel, env, options);
+    return requestText(prompt, 'gemini', selected, env);
   }
   return result;
 }

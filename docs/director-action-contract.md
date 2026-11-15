@@ -7,13 +7,15 @@ tests reproduced the same error with an otherwise valid response containing
 not an unsupported action. `production: null` could also erase a valid legacy
 story before validation. All three are now handled consistently.
 
-Gemini direction uses the documented GenerateContent structured-output format,
-`generationConfig.responseFormat.text`, with a JSON Schema. Ordered `prefixItems`
-bind each response scene to its source ID and literal text. Each source receives
-only its executable staging action or null. Pride/laughter and mechanism controls
-belong to the production graph; presenter poses have their own vocabulary. The
-schema preserves the existing 40-shape drawing limit and the bounded production
-catalog. The Lovable gateway keeps its existing JSON-object transport.
+The version-7 structured-output request was rejected by the connected Google
+account with HTTP 400. Gemini requests now use the previously accepted
+`responseMimeType: application/json` and `maxOutputTokens: 8192`, without
+`responseFormat`, `responseSchema` or `responseJsonSchema`. No automatic retry
+is made. Source IDs, literal text, action capabilities, actor roles and physical
+contacts remain validated on the server. The prompt still includes each source's
+allowed staging action or null. Pride/laughter and mechanism controls belong to
+the production graph; presenter poses have their own vocabulary. The Lovable
+gateway keeps its existing JSON-object transport.
 
 The request includes an explicit staging contract per source. When a production
 baseline is available it asks for a complete graph, including assets, rather than
@@ -33,10 +35,21 @@ and preserving the existing plan/pixels when a contradictory action is rejected.
 These provider responses are fixtures. A new live Google generation is not part
 of this verification.
 
-`director-schema-qa.mjs` also checks the actual schema with an independent Draft
-2020-12 validator. Its fixtures cover nullable enums, source/action swaps, source
+`directionSchema` is a reference/test description of the renderer's vocabulary,
+not a schema sent to the provider. `director-schema-qa.mjs` checks that reference
+with an independent Draft 2020-12 validator. Its fixtures cover nullable enums, source/action swaps, source
 order, a complete mechanism graph, legacy drawings and null story performance.
-This catches schema errors that a permissive provider fixture would not detect.
+Schema validity alone does not establish upstream request compatibility.
+
+Connection verification calls Google's non-generating `countTokens` endpoint
+with the shared JSON request builder. It checks the key/model and token service;
+it does not establish that a complete generated scene will pass validation.
+
+The laboratory starts without applying any preview, including old cached demo
+plans. It restores draft text/settings separately and offers an explicit resume
+button for a matching user project. Editing text hides stale images and export
+controls. Legacy project records are preserved, and the hardcoded Lia/Caio demo
+button is removed. Rehearsal, project imports and video export remain available.
 
 Primary API reference:
 https://ai.google.dev/gemini-api/docs/generate-content/structured-output

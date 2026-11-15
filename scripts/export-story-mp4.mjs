@@ -45,7 +45,8 @@ try {
     if (/\/api\/(ai|gemini|narrate|transcribe)\b/i.test(req.url())) aiCalls.push(req.url());
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.locator('#story-demo').click();
+  await page.locator('#script').fill('Lia entra, caminha, agacha-se, pega a lanterna e entrega para Caio, que segura o objeto e sorri.');
+  await page.locator('#local').click();
   assert.match(await page.locator('#fidelity').innerText(), /Todas as palavras preservadas/);
   segmentDuration = Number(await page.locator('#timeline').getAttribute('max'));
   assert.ok(Number.isFinite(segmentDuration) && segmentDuration > 2 && segmentDuration < 30, 'Invalid demo scene duration');

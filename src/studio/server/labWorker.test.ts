@@ -11,6 +11,14 @@ const request = (body: unknown = { script: 'Um roteiro novo.' }, source = origin
 });
 
 describe('private lab direction transport', () => {
+  it('checks connection using only a real token-count preflight, never generation', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ totalTokens: 20 })); vi.stubGlobal('fetch', fetchMock);
+    const response = await createLabWorker({}).fetch(new Request(origin + '/api/connect', { method: 'POST', headers: { Origin: origin } }), { GEMINI_API_KEY: 'fixture-only' });
+    const body = await response.json();
+    expect(body).toMatchObject({ ok: true, preflight: { generationRequested: false, requestFormat: 'json-mime-v1', totalTokens: 20 } });
+    expect(String((fetchMock.mock.calls[0] as unknown as [string])[0])).toContain(':countTokens');
+    expect(directExplainer).not.toHaveBeenCalled();
+  });
   it('keeps a rejected direction readable through the RPC boundary without logging private data or retrying', async () => {
     const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(directExplainer).mockRejectedValue(new DirectorError(502, 'unsupported_action', 'A ação ainda não tem suporte.'));

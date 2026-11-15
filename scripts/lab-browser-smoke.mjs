@@ -41,8 +41,9 @@ try {
     if (/\/api\/(direct|narrate|transcribe)/.test(req.url())) forbidden.push(req.url());
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.locator('#story-demo').click();
-  assert.match(await page.locator('#source').innerText(), /ATUAÇÃO 3D/);
+  await page.locator('#script').fill('Lia entra, caminha, agacha-se, pega a lanterna e entrega para Caio, que segura o objeto e sorri.');
+  await page.locator('#local').click();
+  assert.match(await page.locator('#source').innerText(), /ENSAIO LOCAL/);
   assert.equal(await page.locator('#scene-count').innerText(), '1');
   assert.match(await page.locator('#fidelity').innerText(), /Todas as palavras preservadas/);
   const storyboard = await page.locator('.scene-card').first().innerText();
@@ -107,7 +108,8 @@ try {
     assert.equal(new Set(frames3d).size, 3, 'O Toon3D não reage à linha do tempo.');
     console.log('PASS Toon3D rendered 3 different WebGL action frames');
     await page.locator('#script').fill('Nina caminha, agacha-se, pega a lanterna e entrega para Rui, que sorri.');
-    assert.match(await page.locator('#source').innerText(), /PRÉVIA ANTERIOR/);
+    assert.match(await page.locator('#source').innerText(), /ROTEIRO ALTERADO/);
+    assert.equal(await canvas.isVisible(), false);
     await page.locator('#local').click();
     assert.equal(Number(await page.locator('#timeline').getAttribute('max')), 18);
     assert.match(await page.locator('#source').innerText(), /ENSAIO LOCAL/);

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { askAi, askAiResult } from './ai';
+import { askAi, askAiResult, preflightGemini } from './ai';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -14,6 +14,23 @@ const goodGemini = () => ({
 });
 
 describe('AI text provider selection', () => {
+  it('preflights the shared request through countTokens without requesting generation', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ totalTokens: 20 })); vi.stubGlobal('fetch', fetchMock);
+    expect(await preflightGemini({ GEMINI_API_KEY: 'fixture-only-key' })).toEqual({ ok: true, model: 'gemini-3.6-flash', totalTokens: 20 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/gemini-3\.6-flash:countTokens$/);
+    expect(url).not.toContain('generateContent');
+    const body = JSON.parse(String(options.body));
+    expect(body.generateContentRequest.model).toBe('models/gemini-3.6-flash');
+    expect(body.generateContentRequest.generationConfig).toEqual({ responseMimeType: 'application/json', maxOutputTokens: 8192 });
+    expect(body.generateContentRequest.contents[0].parts[0].text).toContain('Verificar a conexão');
+  });
+  it('does not mark a malformed preflight response as a verified connection or retry it', async () => {
+    const fetchMock = vi.fn(async () => Response.json({})); vi.stubGlobal('fetch', fetchMock);
+    expect(await preflightGemini({ GEMINI_API_KEY: 'fixture-only' })).toMatchObject({ ok: false, code: 'invalid_response' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('routes to Gemini directly with server-only key and structured JSON', async () => {
     vi.stubEnv('AI_TEXT_PROVIDER', 'gemini');
     vi.stubEnv('GEMINI_API_KEY', 'test-only-secret');
