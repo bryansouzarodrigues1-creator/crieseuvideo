@@ -1,0 +1,37 @@
+[
+  {
+    "id": "guindaste-40s",
+    "seconds": 40,
+    "aspect": "9:16",
+    "kinds": ["tower_crane", "cargo", "truck"],
+    "script": "No canteiro de obras, o guindaste ergue um palete com sacos de cimento, tirando a carga do chão com o gancho. O carrinho leva a carga até a ponta da lança, mantendo o palete suspenso enquanto ele atravessa o espaço acima da obra. A lança gira para a direita com a carga suspensa, mudando a direção da entrega até o alinhamento com a caçamba do caminhão. O guindaste abaixa a carga na caçamba do caminhão, e o palete termina apoiado na plataforma para continuar o transporte. O caminhão sai levando a carga, enquanto o guindaste permanece no canteiro e encerra esta operação."
+  },
+  {
+    "id": "atuacao-jogador-15s",
+    "seconds": 15,
+    "aspect": "9:16",
+    "kinds": ["person"],
+    "script": "Eu sou o maior jogador do mundo hahahaha"
+  },
+  {
+    "id": "elevador-30s",
+    "seconds": 30,
+    "aspect": "16:9",
+    "kinds": ["lift", "cargo"],
+    "script": "O elevador sobe com uma caixa até 6 metros. As portas se abrem no andar de cima. As portas se fecham. O elevador desce."
+  },
+  {
+    "id": "outra-grua-18s",
+    "seconds": 18,
+    "aspect": "9:16",
+    "kinds": ["tower_crane", "cargo"],
+    "script": "A grua levanta um palete até 7 metros. O carrinho aproxima a carga da torre. A lança gira para a esquerda."
+  },
+  {
+    "id": "caminhao-15s",
+    "seconds": 15,
+    "aspect": "16:9",
+    "kinds": ["truck", "cargo"],
+    "script": "O caminhão sai levando uma carga."
+  }
+]

@@ -24,8 +24,9 @@ function draw() {
   if (engine === '3d' && toon) {
     try {
       toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d';
-      const acting = toon.narrativeDiagnostics(); canvas.dataset.action = acting?.action || (sceneAt(plan, time)?.scene.story ? 'story' : 'illustration');
-      canvas.dataset.contactError = String(acting?.maxContactError ?? 0);
+      const acting = toon.narrativeDiagnostics(), production = toon.productionDiagnostics(); canvas.dataset.action = production ? 'production3d' : acting?.action || (sceneAt(plan, time)?.scene.story ? 'story' : 'illustration');
+      canvas.dataset.contactError = String(production?.maxContactError ?? acting?.maxContactError ?? 0);
+      canvas.dataset.production = production ? JSON.stringify(production) : '';
     }
     catch { engine = '2d'; buttons(); drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; note('O 3D não iniciou neste navegador. A prévia está em Motion 2D.'); }
   } else { drawExplainerFrame(context, plan, time); canvas.dataset.renderEngine = '2d'; }
@@ -51,7 +52,7 @@ function setPlan(next: ExplainerPlan, label: string) {
   canvas.style.opacity = planScript === spokenText(script.value) ? '1' : '.45';
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;
   $('scene-count').textContent = String(plan.scenes.length);
-  const staged = plan.scenes.filter((s) => s.story || s.staging).length;
+  const staged = plan.production ? plan.scenes.length : plan.scenes.filter((s) => s.story || s.staging).length;
   $('staging-info').textContent = engine === '3d'
     ? `${staged} de ${plan.scenes.length} cenas com encenação disponível.${staged < plan.scenes.length ? ' As demais serão ilustradas, sem encenar a ação. Dirigir com Gemini não acrescenta movimentos que ainda não existem no motor.' : ''}`
     : 'As novas ações podem ser encenadas em Toon 3D. Motion 2D usa suas ilustrações e animações atuais.';
@@ -65,7 +66,7 @@ function setPlan(next: ExplainerPlan, label: string) {
     button.dataset.start = String(sceneStart(plan, i)); button.dataset.duration = String(sceneDuration(scene));
     const small = document.createElement('small'); small.textContent = `CENA ${String(i + 1).padStart(2, '0')}`;
     const text = document.createElement('p'); text.textContent = scene.text;
-    const meta = document.createElement('em'); meta.textContent = `${sceneDuration(scene).toFixed(1)}s · ` + (scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : scene.staging ? `${scene.staging.metaphor ? 'METÁFORA · ' : ''}${ACTION_LABELS[scene.staging.action]}` : 'Ilustração');
+    const meta = document.createElement('em'); meta.textContent = `${sceneDuration(scene).toFixed(1)}s · ` + (plan.production ? 'CENA 3D · objetos e estado contínuos' : scene.story ? `AÇÃO ${scene.story.action.toUpperCase()} · ${scene.story.actors.map((a) => a.name).join(' → ')}` : scene.staging ? `${scene.staging.metaphor ? 'METÁFORA · ' : ''}${ACTION_LABELS[scene.staging.action]}` : 'Ilustração');
     button.append(small, text, meta); button.addEventListener('click', () => { time = sceneStart(plan, i) + .7; draw(); }); list.append(button);
   });
   canvas.width = aspect === '9:16' ? 720 : 1280; canvas.height = aspect === '9:16' ? 1280 : 720;

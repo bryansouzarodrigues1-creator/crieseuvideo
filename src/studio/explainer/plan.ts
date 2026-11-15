@@ -4,6 +4,8 @@ import { SETTINGS, type Setting } from './settings';
 import { scriptScenes, splitSceneText, spokenText } from './script';
 import { localStory } from './localStory';
 import { normalizeStaging, type NarrativeStaging } from './staging';
+import { normalizeProduction, type ProductionProgram } from './production/score';
+import { localProduction } from './production/local';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -16,6 +18,7 @@ export type PresenterPose = (typeof PRESENTER_POSES)[number];
 export type Palette = (typeof PALETTES)[number];
 
 export interface ExplainerScene {
+  sourceId?: string;
   text: string;
   visual: Visual;
   mood: Mood;
@@ -31,6 +34,7 @@ export interface ExplainerScene {
   /** Validated object choreography; 2D stage and Toon3D board share these beats. */
   story?: StoryScene;
   staging?: NarrativeStaging;
+  productionBeat?: boolean;
   /** Explicit scene time allocated by the user's duration setting. */
   duration?: number;
   /** Animated full-screen scenario behind the scene. */
@@ -38,7 +42,7 @@ export interface ExplainerScene {
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; production?: ProductionProgram; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
@@ -59,7 +63,7 @@ export const VOICE_TAIL = 0.35;
 export function sceneDuration(s: ExplainerScene) {
   const explicit = Number.isFinite(s.duration) && s.duration! > 0 ? s.duration! : 0;
   const speech = s.voice ? SCENE_LEAD + s.voice.duration + VOICE_TAIL : 0;
-  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : 0, explicit,
+  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.productionBeat ? 3.6 : 0, explicit,
     explicit ? speech : s.voice ? Math.max(1.6, speech) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + .5));
 }
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
@@ -136,7 +140,7 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
     const num = text.match(/\d+\s+[\p{L}]+/u)?.[0];
     const longest = [...words(text)].sort((a, b) => b.length - a.length)[0]?.replace(/[^\p{L}\d]/gu, '');
     return {
-      text, visual, mood, story, staging, setting: story || staging ? pickSetting(text) || stageSetting(staging) : undefined, presenterPose: pickPresenterPose(text),
+      sourceId: `s${i + 1}`, text, visual, mood, story, staging, setting: story || staging ? pickSetting(text) || stageSetting(staging) : undefined, presenterPose: pickPresenterPose(text),
       palette: visual === 'city_night' || mood === 'sad' ? 'night' : PALETTES[i % 4],
       label: num ? `${num.toUpperCase()}…` : undefined,
       chat: visual === 'phone_chat' ? text : undefined,
@@ -144,7 +148,7 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
     };
   });
   continueCast(scenes);
-  return { title: list[0].slice(0, 60), aspect, scenes };
+  return withProduction({ title: list[0].slice(0, 60), aspect, scenes });
 }
 
 const pick = <T extends string>(v: unknown, allowed: readonly T[], fb: T): T => (allowed.includes(v as T) ? (v as T) : fb);
@@ -163,6 +167,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
     let visual = story ? 'custom' as Visual : pick(s.visual, VISUALS, pickVisual(text));
     if (visual === 'custom' && !drawing && !story) visual = pickVisual(text);
     return {
+      sourceId: /^s\d+$/.test(s.sourceId) ? s.sourceId : `s${i + 1}`,
       text,
       visual,
       drawing: visual === 'custom' && !story ? drawing : undefined,
@@ -180,7 +185,20 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
   }).filter(Boolean) as ExplainerScene[];
   if (!scenes.length) return fb;
   continueCast(scenes);
-  return { title: str(raw?.title, 80) || fb.title, aspect, scenes };
+  return withProduction({ title: str(raw?.title, 80) || fb.title, aspect, scenes }, raw?.production);
+}
+
+export function productionSources(scenes: ExplainerScene[]) {
+  return scenes.map((scene, i) => ({ sourceId: scene.sourceId ?? `s${i + 1}`, text: scene.text, duration: sceneDuration(scene) }));
+}
+function withProduction(plan: ExplainerPlan, raw?: unknown): ExplainerPlan {
+  const sources = productionSources(plan.scenes);
+  const production = raw === undefined ? localProduction(sources) : normalizeProduction(raw, sources);
+  return production ? { ...plan, production, scenes: plan.scenes.map((s) => ({ ...s, productionBeat: true })) } : plan;
+}
+/** Text edits invalidate old action/evidence links instead of keeping stale acting. */
+export function refreshProduction(plan: ExplainerPlan) {
+  return withProduction({ ...plan, production: undefined, scenes: plan.scenes.map(({ productionBeat: _b, ...scene }) => scene) });
 }
 
 function stageSetting(staging?: NarrativeStaging): Setting {

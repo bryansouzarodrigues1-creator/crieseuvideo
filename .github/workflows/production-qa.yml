@@ -1,0 +1,55 @@
+name: Composable 3D production QA
+on:
+  pull_request:
+    branches: [fix/director-http-contract]
+  push:
+    branches: ['render/production-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: production-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: bun run build
+      - run: node lab/build.mjs
+      - run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Prepare renderer
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Samples and 5-second preview first
+        run: node scripts/production-workflow-qa.mjs --samples
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-samples
+          path: |
+            tmp/production-qa/*.png
+            tmp/production-qa/production-preview-5s.mp4
+            tmp/production-qa/samples-report.json
+          retention-days: 7
+      - name: Full exports after inspected samples
+        if: startsWith(github.ref, 'refs/heads/render/production-')
+        run: node scripts/production-workflow-qa.mjs --full
+      - uses: actions/upload-artifact@v4
+        if: always() && startsWith(github.ref, 'refs/heads/render/production-')
+        with:
+          name: production-mp4
+          path: |
+            tmp/production-qa/*.mp4
+            tmp/production-qa/full-report.json
+          retention-days: 7

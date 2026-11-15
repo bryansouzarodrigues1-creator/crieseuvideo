@@ -6,7 +6,8 @@ import { Narrative3D } from './narrative3d';
 import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/types';
 import * as THREE from 'three';
 import { updateEnvironment } from './toon/environment';
-import { sceneAt, sceneDuration, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
+import { sceneAt, sceneDuration, productionSources, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
+import { Production3D } from './production/stage3d';
 import { spring, drawBoardArt } from './render';
 
 const INK = 0x1c1824;
@@ -217,6 +218,8 @@ export class Toon3D {
   private rig: ToonCharacterRig | null = null;
   private storyStage: ToonStory3D | null = null;
   private narrativeStage: Narrative3D | null = null;
+  private productionStage: Production3D | null = null;
+  private productionKey = '';
   private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
   private holder: THREE.Group | null = null;
@@ -305,6 +308,13 @@ export class Toon3D {
   }
   render(plan: ExplainerPlan, t: number, w: number, h: number) {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
+    if (plan.production) {
+      const sources = productionSources(plan.scenes), key = JSON.stringify([plan.production, sources]);
+      if (key !== this.productionKey) { this.productionStage?.dispose(); this.productionStage = new Production3D(plan.production, sources); this.productionKey = key; }
+      this.productionStage!.render(this.renderer, t, w, h); return;
+    }
+    if (this.productionStage) { this.productionStage.dispose(); this.productionStage = null; this.productionKey = ''; }
+    this.renderer.toneMapping = THREE.NoToneMapping; this.renderer.toneMappingExposure = 1;
     const at = sceneAt(plan, t);
     if (!at) { this.scene.background = new THREE.Color(0x7b5cd6); this.renderer.render(this.scene, this.camera); return; }
     const { scene, local, index } = at, portrait = h > w;
@@ -356,5 +366,6 @@ export class Toon3D {
   }
   performanceDiagnostics() { return this.storyStage?.performance?.diagnostics() ?? null; }
   narrativeDiagnostics() { return this.narrativeStage?.diagnostics() ?? null; }
-  dispose() { this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.renderer.dispose(); }
+  productionDiagnostics() { return this.productionStage?.diagnostics() ?? null; }
+  dispose() { this.productionStage?.dispose(); this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.renderer.dispose(); }
 }

@@ -4,7 +4,7 @@ import { ACTION_LABELS, normalizeStaging } from './staging';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
-import { ExplainerPlan, VISUALS, MOODS, PRESENTER_POSES, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood, type PresenterPose } from './plan';
+import { ExplainerPlan, VISUALS, MOODS, PRESENTER_POSES, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, refreshProduction, type Visual, type Mood, type PresenterPose } from './plan';
 import { NARRATION_VOICES, getNarration, getCachedNarration, speechBounds } from './voice';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
@@ -277,7 +277,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   };
 
   const updateScene = (i: number, patch: Partial<ExplainerPlan['scenes'][number]>) =>
-    setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined, story: normalizeStory(s.story, patch.text), staging: normalizeStaging(undefined, patch.text) } : {}) } : s)) }));
+    setPlan((p) => {
+      const changed = patch.text !== undefined && patch.text !== p.scenes[i].text;
+      const next = { ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(changed ? { voice: undefined, story: normalizeStory(s.story, patch.text!), staging: normalizeStaging(undefined, patch.text!) } : {}) } : s)) };
+      return changed ? refreshProduction(next) : next;
+    });
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
   const voiced = hasNarration({ plan, voiceKey, buffers: buffers.current, track: trackRef.current });
 
@@ -478,13 +482,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           {note && <p className="explainer-note" role="status">{note}</p>}
 
           <div className="explainer-scenes">
-            <p className="explainer-label">Cenas ({plan.scenes.length}) · {plan.scenes.filter((s) => s.story || s.staging).length} com encenação disponível em 3D</p>
+            <p className="explainer-label">Cenas ({plan.scenes.length}) · {plan.production ? plan.scenes.length : plan.scenes.filter((s) => s.story || s.staging).length} com encenação disponível em 3D</p>
             {plan.scenes.map((s, i) => (
               <div key={i} className={`explainer-scene ${i === current ? 'is-active' : ''}`} onClick={() => jumpTo(i)}>
                 <span className="explainer-scene-n">{i + 1}</span>
                 <div className="explainer-scene-body">
                   <input value={s.text} onChange={(e) => updateScene(i, { text: e.target.value })} aria-label={`Texto da cena ${i + 1}`} />
-                  {s.staging && <small>{s.staging.metaphor ? 'Metáfora visual · ' : ''}{ACTION_LABELS[s.staging.action]}</small>}
+                  {plan.production ? <small>Cena 3D · objetos e estado contínuos</small> : s.staging && <small>{s.staging.metaphor ? 'Metáfora visual · ' : ''}{ACTION_LABELS[s.staging.action]}</small>}
                   <div className="explainer-row">
                     <select value={s.visual} onChange={(e) => updateScene(i, { visual: e.target.value as Visual })} aria-label="Visual">
                       {VISUALS.map((v) => <option key={v} value={v}>{VISUAL_LABEL[v]}</option>)}
