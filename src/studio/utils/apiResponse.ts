@@ -1,5 +1,7 @@
 /** A gateway can return an HTML error/sign-in page even for a JSON API request. */
+import { readSceneProgramCandidate, type SceneProgramCandidate } from '../explainer/sceneProgram/candidate';
 export class ApiResponseError extends Error {
+  declare readonly programCandidate?: SceneProgramCandidate;
   constructor(message: string, public code: string, public status: number, public requestId?: string) {
     super(message);
     this.name = 'ApiResponseError';
@@ -28,7 +30,10 @@ export async function readApiResponse<T extends Record<string, any> = Record<str
     const message = typeof data.error === 'string' && data.error.trim() && data.error.length <= 1000 && !/[<>]/.test(data.error)
       ? data.error : transportMessage(status);
     const requestId = typeof data.requestId === 'string' && /^[\w-]{1,80}$/.test(data.requestId) ? data.requestId : undefined;
-    throw new ApiResponseError(message, typeof data.code === 'string' ? data.code : 'api_failure', status, requestId);
+    const error = new ApiResponseError(message, typeof data.code === 'string' ? data.code : 'api_failure', status, requestId);
+    const candidate = readSceneProgramCandidate(data.candidate);
+    if (candidate) Object.defineProperty(error, 'programCandidate', { value: candidate, enumerable: false });
+    throw error;
   }
   return data;
 }
