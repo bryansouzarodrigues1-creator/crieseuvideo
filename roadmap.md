@@ -1,4 +1,12 @@
 # Evolução profissional do estúdio
+## Revisão das atualizações do GitHub — 15/11/2026
+- [x] Comparar a main do GitHub com o app e identificar as propostas recentes.
+- [x] Revisar a cadeia consolidada dos PRs #6 → #7 → #8 → #9 → #10 → #11, que inclui as correções dos PRs #2–#5.
+- [ ] Integrar e adaptar as correções revisadas: aguarda aprovação do plano de integração.
+- [ ] Validar direção, narração em cache, duração e encenação com respostas simuladas e vídeos locais, sem chamadas pagas: depende da integração.
+- [ ] Ativar Gemini direto: depende de credencial segura e confirmação de faturamento/cota do projeto Google; não usar a chave publicada no chat.
+
+## Histórico das etapas anteriores
 - [x] Criar uma tela de produção livre com estilos 2D, 3D, anime e motion graphics.
 - [x] Integrar geração real de vídeo por IA, com conta, armazenamento privado e histórico.
 - [x] Preservar o editor de cenas e simplificar os controles no celular.
