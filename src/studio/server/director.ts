@@ -1,13 +1,14 @@
 import { cueRule } from '../explainer/keywords';
 import { DRAWING_GUIDE } from '../explainer/drawing';
 import { SETTING_GUIDE } from '../explainer/settings';
-import { normalizePlan, VISUALS, MOODS, PALETTES, type ExplainerPlan } from '../explainer/plan';
+import { normalizePlan, buildFallbackPlan, VISUALS, MOODS, PALETTES, type ExplainerPlan } from '../explainer/plan';
 import { scriptError, spokenText } from '../explainer/script';
 import { sourceBeats, beatChunks, groundScenes, type SourceBeat } from './grounding';
 import { normalizeStory } from '../explainer/storyAction';
 import { normalizeStaging, STAGING_GUIDE } from '../explainer/staging';
 import { normalizeTargetDuration, withTargetDuration } from '../explainer/duration';
 import { askAiResult, parseJson, type AiEnvironment, type AiResult } from './ai';
+import { PRODUCTION_GUIDE, ProductionError, mergeProduction } from '../explainer/production/score';
 
 export class DirectorError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -43,6 +44,7 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
   catch (error) { throw new DirectorError(400, 'invalid_duration', (error as Error).message); }
   const script = input.script.trim();
   const aspect = input.aspect === '16:9' ? '16:9' : '9:16';
+  const baseline = input.engine === '2d' ? undefined : buildFallbackPlan(script, aspect).production;
   const mode = input.mode === 'gallery' ? 'gallery' : 'creative';
   const gallery: { id: string; name: string; drawing: unknown }[] = Array.isArray(input.gallery)
     ? input.gallery.slice(0, 80).filter((g: any) => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.drawing)) : [];
@@ -57,6 +59,9 @@ As frases de origem já possuem sourceId fixo. Devolva EXATAMENTE uma direção 
 ${cueRule(script)}
 ${lessons}
 ${STAGING_GUIDE}
+${input.engine === '2d' ? '' : PRODUCTION_GUIDE}
+${baseline ? `Base física executável compilada deste roteiro. Reutilize IDs, modelos, posições e contatos; direcione câmera e atuação. Ao mudar movimentos, preserve a viabilidade dos contatos. Não é necessário calcular de novo a geometria do canteiro. Para este pedido devolva apenas tracks/couplings/shots com os sourceIds listados abaixo, mantendo os assets consistentes no roteiro completo:\n${JSON.stringify({ ...baseline, tracks: baseline.tracks.filter((t) => beats.some((b) => b.sourceId === t.sourceId)), couplings: baseline.couplings.filter((c) => beats.some((b) => b.sourceId === c.at.sourceId)), shots: baseline.shots.filter((s) => beats.some((b) => b.sourceId === s.sourceId)) })}` : ''}
+Se usar production, componha APENAS os sourceIds deste pedido. Mantenha os mesmos IDs, modelos, posições iniciais e cores no roteiro completo. Cada frase recebe uma shot. OMITA story/staging nas cenas dirigidas por production. O grafo de produção tem prioridade sobre os visuais ilustrados.
 ${targetDuration ? `Duração pedida: ${targetDuration} segundos no total. O motor distribuirá esse tempo entre ações e pausas. Não invente falas ou fatos para preencher tempo.` : ''}
 Para cada cena escolha o visual que MELHOR ilustra o significado:
 - visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando (só para conversa/WhatsApp); profile = celular mostrando perfil de rede social com LINK NA BIO e botão seguir; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
@@ -76,9 +81,10 @@ Contexto do roteiro completo (não gere cenas extras a partir dele):
 """${input.script}"""
 Frases de origem a dirigir neste pedido:
 ${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}
-Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose","story","staging"}]}`, undefined, env); };
+Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette","label","chat","chips","highlight","drawing","gallery","setting","presenterPose","story","staging"}], "production": opcional}`, undefined, env); };
   const parts = beatChunks(sourceBeats(script));
   const plans: ExplainerPlan[] = new Array(parts.length);
+  const productions: unknown[] = new Array(parts.length);
   let next = 0;
   let failure: DirectorError | null = null;
   let provider = '', model = '';
@@ -97,6 +103,7 @@ Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette"
       }
       const grounded = groundScenes(raw.scenes, parts[i]!);
       if (!grounded) { failure ??= new DirectorError(502, 'source_mismatch', 'A IA alterou ou misturou as falas. A direção foi rejeitada; seu roteiro foi preservado.'); return; }
+      for (const scene of grounded) if (raw.production !== undefined) { delete scene.story; delete scene.staging; }
       for (const scene of grounded) if (scene.story !== undefined) {
         const story = normalizeStory(scene.story, scene.text);
         if (!story || (scene.story.performance !== undefined && story.performance !== scene.story.performance)) {
@@ -106,13 +113,16 @@ Formato JSON: {"title": string, "scenes": [{"sourceId","visual","mood","palette"
       if (grounded.some((scene) => scene.staging !== undefined && !normalizeStaging(scene.staging, scene.text))) {
         failure ??= new DirectorError(502, 'unsupported_action', 'A IA escolheu uma ação sem suporte ou que não corresponde à frase. Seu roteiro foi preservado.'); return;
       }
-      plans[i] = normalizePlan({ ...raw, scenes: grounded }, parts[i]!.map((b) => b.text).join(' '), aspect);
+      productions[i] = raw.production;
+      plans[i] = normalizePlan({ ...raw, production: undefined, scenes: grounded }, parts[i]!.map((b) => b.text).join(' '), aspect);
       provider = result.provider; model = result.model;
     }
   };
   await Promise.all(Array.from({ length: Math.min(2, parts.length) }, worker));
   if (failure) throw failure;
-  const plan: ExplainerPlan = { title: plans[0]!.title, aspect, scenes: plans.flatMap((p) => p.scenes) };
+  let plan: ExplainerPlan;
+  try { plan = normalizePlan({ title: plans[0]!.title, scenes: plans.flatMap((p) => p.scenes), production: mergeProduction(productions) }, script, aspect); }
+  catch (error) { if (error instanceof ProductionError) throw new DirectorError(502, error.code, error.message); throw error; }
   if (spokenText(plan.scenes.map((s) => s.text).join(' ')) !== spokenText(script)) {
     throw new DirectorError(502, 'script_mismatch', 'A direção não preservou o roteiro completo. Nenhum vídeo foi substituído.');
   }

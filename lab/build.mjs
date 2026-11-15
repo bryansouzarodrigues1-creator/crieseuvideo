@@ -1,16 +1,18 @@
 import { build } from 'vite';
-import { readdir, readFile, mkdir, writeFile, rm } from 'node:fs/promises';
+import { readdir, readFile, mkdir, writeFile, rm, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 const root = process.cwd(), clientDir = path.join(root, 'lab/generated/client');
 await rm(path.join(root, 'lab/generated'), { recursive: true, force: true });
 await mkdir(path.join(root, 'lab/generated'), { recursive: true });
 await build({ configFile: false, root: path.join(root, 'lab'), build: { outDir: clientDir, emptyOutDir: true }, resolve: { alias: { '@': path.join(root, 'src') } } });
+await mkdir(path.join(clientDir, 'third-party'), { recursive: true });
+for (const file of ['mediabunny-LICENSE.txt', 'NOTICE.txt']) await copyFile(path.join(root, 'public/third-party', file), path.join(clientDir, 'third-party', file));
 const files = {};
 async function collect(dir, relative = '') {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const rel = path.posix.join(relative, entry.name), full = path.join(dir, entry.name);
     if (entry.isDirectory()) await collect(full, rel);
-    else { const ext = path.extname(rel); files['/' + rel] = { type: ext === '.html' ? 'text/html; charset=utf-8' : ext === '.css' ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', body: await readFile(full, 'utf8') }; }
+    else { const ext = path.extname(rel); files['/' + rel] = { type: ext === '.html' ? 'text/html; charset=utf-8' : ext === '.css' ? 'text/css; charset=utf-8' : ext === '.txt' ? 'text/plain; charset=utf-8' : 'text/javascript; charset=utf-8', body: await readFile(full, 'utf8') }; }
   }
 }
 await collect(clientDir);

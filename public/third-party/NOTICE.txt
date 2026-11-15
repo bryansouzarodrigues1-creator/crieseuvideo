@@ -1,0 +1,14 @@
+Mediabunny 1.66.0 by Vanilagy is used under Mozilla Public License 2.0.
+The library is unmodified. License: /third-party/mediabunny-LICENSE.txt
+Source: https://github.com/Vanilagy/mediabunny/tree/v1.66.0
+
+The optional offline narration renderer uses the separately installed Piper
+1.8.0 engine (GPL-3.0) and a separately downloaded pt_BR-faber-medium voice.
+Piper is not bundled into this website. The voice model card identifies its
+training dataset license as CC0. See:
+https://github.com/OHF-Voice/piper1-gpl
+https://huggingface.co/rhasspy/piper-voices/blob/main/pt/pt_BR/faber/medium/MODEL_CARD
+
+The articulated mechanism and environment geometry in production/assets3d.ts
+is original project code. No images or video frames from the reference are
+used as scene assets.

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { directExplainer, DirectorError } from './director';
 import { askAiResult } from './ai';
 import { spokenText } from '../explainer/script';
+import { buildFallbackPlan } from '../explainer/plan';
 
 vi.mock('./ai', async (original) => ({ ...(await original<typeof import('./ai')>()), askAiResult: vi.fn() }));
 afterEach(() => vi.mocked(askAiResult).mockReset());
@@ -89,5 +90,23 @@ describe('bounded scene direction', () => {
     expect(askAiResult).not.toHaveBeenCalled();
     vi.mocked(askAiResult).mockResolvedValue({ ...good(''), text: JSON.stringify({ scenes: [{ sourceId: 's1', staging: { action: 'fly' } }] }) });
     await expect(directExplainer({ script: 'Ele correu.' })).rejects.toMatchObject({ code: 'unsupported_action' });
+  });
+  it('accepts a model-composed parallel mechanism rather than forcing a local keyword recipe', async () => {
+    const text = 'No canteiro, a grua movimenta o carrinho e eleva o palete.';
+    const program = buildFallbackPlan(text).production!;
+    program.tracks.push({ asset: 'crane', channel: 'trolley', sourceId: 's1', begin: .12, end: .88, to: 6, evidence: 'movimenta o carrinho' });
+    vi.mocked(askAiResult).mockResolvedValue({ ...good(''), text: JSON.stringify({ title: 'Grua', scenes: [{ sourceId: 's1', visual: 'custom' }], production: program }) });
+    const result = await directExplainer({ script: text, engine: '3d', targetDuration: 15 });
+    expect(result.plan.production?.tracks.some((t) => t.channel === 'trolley')).toBe(true);
+    expect(result.plan.scenes[0].text).toBe(text);
+    expect(result.plan.scenes[0].duration).toBe(15);
+    expect(askAiResult).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a model production with an unreachable contact before applying its plan', async () => {
+    const text = 'O guindaste ergue uma carga.', program = buildFallbackPlan(text).production!;
+    program.assets.find((a) => a.id === 'cargo')!.position[0] += 2;
+    vi.mocked(askAiResult).mockResolvedValue({ ...good(''), text: JSON.stringify({ scenes: [{ sourceId: 's1' }], production: program }) });
+    await expect(directExplainer({ script: text, engine: '3d' })).rejects.toMatchObject({ code: 'contact_mismatch', status: 502 });
+    expect(askAiResult).toHaveBeenCalledTimes(1);
   });
 });
