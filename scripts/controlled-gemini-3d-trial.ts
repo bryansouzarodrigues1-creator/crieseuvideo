@@ -12,6 +12,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { directExplainer, DirectorError } from '../src/studio/server/director';
 import { SceneProgramError } from '../src/studio/explainer/sceneProgram/score';
+import { summarizeGeminiTrialFailure } from './gemini-trial-diagnostics';
 
 const TRIAL_SCRIPT = 'Uma pequena turbina eólica recebe uma rajada de vento. Suas pás começam a girar, aceleram e depois param.';
 const DURATION = 8;
@@ -80,11 +81,14 @@ try {
   await fs.writeFile(path.join(out,'report.json'),JSON.stringify(report,null,2));
   console.log(JSON.stringify(report,null,2));
 } catch(error) {
-  const code=error instanceof DirectorError ? error.code : 'validation_failed';
-  // Do not log provider bodies, prompts, keys or potentially confidential
-  // scene proposals; only a safe machine-readable failure summary.
-  console.error(JSON.stringify({state:'REJECTED',code,callsMade:sentGenerationRequests,retried:false}));
-  process.exitCode=1;
+  const diagnostic = summarizeGeminiTrialFailure(error, sentGenerationRequests);
+  const output = path.resolve('tmp/authorized-gemini-3d-trial');
+  await fs.mkdir(output, { recursive: true });
+  // This bounded JSON contains only classification and a sanitized
+  // server-side validation message. NEVER write raw Gemini JSON or secrets.
+  await fs.writeFile(path.join(output, 'failure.json'), JSON.stringify(diagnostic, null, 2));
+  console.error(JSON.stringify(diagnostic));
+  process.exitCode = 1;
 } finally {
   globalThis.fetch = originalFetch;
 }
