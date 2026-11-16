@@ -22,7 +22,7 @@ describe('general-purpose 3D machine shafts can spin through multiple revolution
     p.tracks[1]!.keys[2]!.value=[0,201,0];
     expect(()=>normalizeSceneProgram(p,sources)).toThrow(/inválida/i);
     const second=mechanicalDemoProgram();
-    second.nodes[0]!.rotation=[0,999,0];
+    (second.nodes[0]! as Record<string, unknown>).rotation=[0,999,0];
     expect(()=>normalizeSceneProgram(second,sources)).toThrow(/inválida/i);
   });
 });
