@@ -82,8 +82,8 @@ describe('AI-authored generic procedural surfaces', () => {
   };
 
   it('rejects negative radii and non-finite values', () => {
-    rejects((p) => { p.nodes[1]!.geometry.profile[1]![0] = -1; });
-    rejects((p) => { p.nodes[1]!.geometry.profile[1]![1] = Number.NaN; });
+    rejects((p) => { p.nodes[1]!.geometry.profile![1]![0] = -1; });
+    rejects((p) => { p.nodes[1]!.geometry.profile![1]![1] = Number.NaN; });
   });
 
   it('rejects extremely dense or fractional geometry with a bounded vertex budget', () => {
