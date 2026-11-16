@@ -45,7 +45,7 @@ export async function authorizeFreeform3D(
   // Default is OFF even if the production server already has GEMINI_API_KEY.
   if (env.FREEFORM_3D_ENABLED !== 'true') throw disabled();
   const ownerId = env.FREEFORM_3D_OWNER_USER_ID;
-  if (!ownerId || !UUID.test(ownerId) || !env.GEMINI_API_KEY) throw disabled();
+  if (!ownerId || !UUID.test(ownerId) || !env.FREEFORM_3D_GEMINI_API_KEY) throw disabled();
   const limit = Number(env.FREEFORM_3D_DAILY_LIMIT ?? '1');
   if (!Number.isInteger(limit) || limit < 1 || limit > 3) throw disabled();
 
