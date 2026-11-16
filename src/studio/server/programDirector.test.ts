@@ -6,7 +6,7 @@ import { totalDuration } from '../explainer/plan';
 import { makeSceneProgramCandidate } from '../explainer/sceneProgram/candidate';
 
 vi.mock('./ai', async (original) => ({ ...(await original<typeof import('./ai')>()), askAiResult: vi.fn() }));
-afterEach(() => vi.mocked(askAiResult).mockReset());
+afterEach(() => { vi.mocked(askAiResult).mockReset(); vi.unstubAllEnvs(); });
 const result = (raw: unknown) => ({ ok: true as const, provider: 'gemini' as const, model: 'fixture', text: JSON.stringify(raw) });
 
 describe('free-form 3D always uses only Gemini Direct', () => {
@@ -14,10 +14,23 @@ describe('free-form 3D always uses only Gemini Direct', () => {
     const sample = sceneProgramFixtures()[1]!;
     vi.mocked(askAiResult).mockResolvedValueOnce(result(sample.response));
     await directExplainer({ script: sample.script, engine: '3d', mode: 'program' },
-      { AI_TEXT_PROVIDER: 'lovable', LOVABLE_API_KEY: 'must-never-use-this', GEMINI_API_KEY: 'test-key' });
+      { AI_TEXT_PROVIDER: 'lovable', LOVABLE_API_KEY: 'must-never-use-this', GEMINI_API_KEY: 'legacy-key', FREEFORM_3D_GEMINI_API_KEY: 'owner-3d-key' });
     const selected = vi.mocked(askAiResult).mock.calls[0][2];
     expect(selected).toMatchObject({ AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '' });
+    expect(selected).toHaveProperty('GEMINI_API_KEY', 'owner-3d-key');
     expect(askAiResult).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('production route secret separation', () => {
+  it('does not reuse a generic Gemini key for private 3D without the dedicated secret', async () => {
+    const sample=sceneProgramFixtures()[1]!;
+    vi.stubEnv('GEMINI_API_KEY','legacy-shared-key');
+    vi.stubEnv('FREEFORM_3D_GEMINI_API_KEY','');
+    vi.mocked(askAiResult).mockResolvedValueOnce(result(sample.response));
+    await directExplainer({script:sample.script,mode:'program',engine:'3d'});
+    const selected=vi.mocked(askAiResult).mock.calls[0][2];
+    expect(selected).toMatchObject({AI_TEXT_PROVIDER:'gemini',AI_TEXT_FALLBACK:'',GEMINI_API_KEY:''});
   });
 });
 
