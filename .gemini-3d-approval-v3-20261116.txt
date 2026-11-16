@@ -1,0 +1,1 @@
+Owner approved additional real Gemini 3D generation attempts. Third diagnostic attempt tests numeric-path reporting and multi-turn machinery with single GenerateContent call. No retries in this job, no Lovable gateway, no publication or database changes.
