@@ -52,6 +52,8 @@ jobs:
             echo 'A chave exclusiva ainda não foi adicionada em Settings > Secrets and variables > Actions. Nenhuma chamada foi realizada.'
             exit 2
           fi
+      - name: Verify key and model with free metadata GET (no inference)
+        run: bun scripts/preflight-gemini-model.ts
       - name: EXACTLY ONE Gemini GenerateContent request, no retry or fallback
         run: bun scripts/controlled-gemini-3d-trial.ts
       - name: Render returned scene in real React editor and inspect MP4
