@@ -19,6 +19,7 @@ import { makeSceneProgramCandidate, readSceneProgramCandidate, type SceneProgram
 export interface ActionFailure { sourceId: string; field: 'story' | 'staging'; receivedAction: string; expectedAction: string | null }
 export class DirectorError extends Error {
   declare readonly candidate?: SceneProgramCandidate;
+  declare readonly structure?: { parseableJson: boolean; hasProgram: boolean; scenesType: 'array' | 'other'; scenesCount: number; nodesCount: number; tracksCount: number; shotsCount: number };
   constructor(public status: number, public code: string, message: string, public details?: ActionFailure) { super(message); }
 }
 function actionError(scene: Record<string, any>, field: ActionFailure['field']) {
@@ -92,7 +93,24 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
     const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}${repair}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, directGeminiEnv);
     if (!result.ok) throw providerError(result);
     const raw = parseJson(result.text);
-    if (!raw?.sceneProgram || !Array.isArray(raw.scenes) || !raw.scenes.length || !raw.scenes.every((s: unknown) => s && typeof s === 'object' && !Array.isArray(s))) throw new DirectorError(502, 'invalid_scene_program', 'A IA não entregou um programa de cena completo. Seu roteiro foi preservado.');
+    if (!raw?.sceneProgram || !Array.isArray(raw.scenes) || !raw.scenes.length || !raw.scenes.every((s: unknown) => s && typeof s === 'object' && !Array.isArray(s))) {
+      const failure = new DirectorError(502, 'invalid_scene_program',
+        'A IA não entregou um programa de cena completo. Seu roteiro foi preservado.');
+      // Only safe STRUCTURAL counts. Never store arbitrary response fields,
+      // model messages, prompt text, or full JSON from a failed request.
+      const program = raw && typeof raw.sceneProgram === 'object' && !Array.isArray(raw.sceneProgram)
+        ? raw.sceneProgram : null;
+      Object.defineProperty(failure, 'structure', { enumerable: false, value: {
+        parseableJson: !!raw && typeof raw === 'object' && !Array.isArray(raw),
+        hasProgram: !!program,
+        scenesType: Array.isArray(raw?.scenes) ? 'array' : 'other',
+        scenesCount: Array.isArray(raw?.scenes) ? raw.scenes.length : 0,
+        nodesCount: Array.isArray(program?.nodes) ? program.nodes.length : 0,
+        tracksCount: Array.isArray(program?.tracks) ? program.tracks.length : 0,
+        shotsCount: Array.isArray(program?.shots) ? program.shots.length : 0,
+      } });
+      throw failure;
+    }
     const grounded = groundScenes(raw.scenes, beats);
     if (!grounded) throw new DirectorError(502, 'source_mismatch', 'A IA alterou ou misturou as falas. O programa foi rejeitado e seu roteiro foi preservado.');
     try {
