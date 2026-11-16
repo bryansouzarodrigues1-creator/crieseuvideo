@@ -61,6 +61,8 @@ export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
 export const SECONDS_PER_WORD = 0.36;
 export const SCENE_LEAD = 0.3;
 export const MIN_SCENE = 2.4;
+/** Minimum for an explicitly timed 3D program beat. Auto pacing remains 5s. */
+export const TIMED_PROGRAM_BEAT_MIN = 2.8;
 
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 export const VOICE_TAIL = 0.35;
