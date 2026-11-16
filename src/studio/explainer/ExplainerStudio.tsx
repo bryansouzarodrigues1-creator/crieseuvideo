@@ -463,7 +463,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         <section className="explainer-panel">
           <p className="explainer-kicker">HISTÓRIAS EM MOVIMENTO</p>
           <h1>Do roteiro à animação.</h1>
-          <p className="explainer-sub">A IA escreve a direção, o código desenha cada quadro. Sem custo de vídeo: ~0,02 crédito pela direção e ~0,1 crédito por minuto de narração.</p>
+          <p className="explainer-sub">A IA planeja a cena e o motor renderiza os quadros. A direção e a voz usam cotas ou créditos conforme o provedor; confira os custos antes de gerar.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
           <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => setScript(e.target.value)} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
           <div className="explainer-row">
