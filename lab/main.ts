@@ -328,7 +328,7 @@ $('generate').addEventListener('click', async () => {
         throw error;
       }
     }
-    setPlan(next, 'GEMINI DIRETO'); note(renderIssue || `Gemini ${next.sceneProgram ? 'programou' : 'dirigiu'} ${plan.scenes.length} cenas. Todas as palavras foram preservadas. Nenhuma narração foi solicitada.`);
+    setPlan(next, 'GEMINI DIRETO'); note(renderIssue || `Gemini ${next.sceneProgram ? 'programou' : 'dirigiu'} ${plan.scenes.length} cenas. Todas as palavras foram preservadas. ${next.sceneProgram?.motionChecks?.length ? `${next.sceneProgram.motionChecks.length} verificações de movimento passaram.` : next.sceneProgram ? 'Os movimentos ainda precisam de revisão visual.' : ''} Nenhuma narração foi solicitada.`);
   } catch (error) {
     if (engine === '3d' && directionMode === 'program' && error instanceof ApiResponseError && error.programCandidate) pendingRepair = { script: spokenText(script.value), proposal: error.programCandidate, issue: error.message.slice(0, 2000) };
     preserved = hasPreview(); previewState(); note('Direção não aplicada. ' + (error instanceof Error ? error.message : 'Falha na direção. Seu roteiro está preservado.') + (pendingRepair ? ' A proposta foi guardada nesta sessão. Corrigir com Gemini envia o problema ao modelo em uma nova chamada, somente ao clicar.' : ''));
