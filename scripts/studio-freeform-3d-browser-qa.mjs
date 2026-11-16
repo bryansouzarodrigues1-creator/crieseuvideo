@@ -72,7 +72,7 @@ try{
   // must produce 3D with the procedural engine, not remote fonts/images/CDN.
   await page.route('**/*',route=>{
     const url=route.request().url();
-    if(url.startsWith(base+'/') || url===base+'/')return route.continue();
+    if(url.startsWith(base+'/') || url===base+'/')return route.fallback();
     return route.abort();
   });
   await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
