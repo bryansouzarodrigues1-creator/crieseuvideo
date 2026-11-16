@@ -50,9 +50,20 @@ export function mechanicalDemoProgram(){
     {node:'jar-assembly',channel:'rotation',interpolation:'smooth',
       keys:[key(0,[0,-.15,0]),key(.47,[0,0,0]),key(1,[0,0,0])]},
   ];
+  const motionChecks = [
+    // Mechanism-specific names are test data, NOT part of the engine contract.
+    { sourceId:s, node:'jar-assembly', channel:'position', kind:'change',
+      startPhase:.06, endPhase:.51, threshold:1.0 },
+    { sourceId:s, node:'jar-assembly', channel:'position', kind:'hold',
+      startPhase:.57, endPhase:1, threshold:.025 },
+    { sourceId:s, node:'blade-rotor', channel:'rotation', kind:'hold',
+      startPhase:0, endPhase:.53, threshold:.025 },
+    { sourceId:s, node:'blade-rotor', channel:'rotation', kind:'change',
+      startPhase:.57, endPhase:1, threshold:4 },
+  ];
   return {version:1,background:'#D5E6EC',nodes,tracks,
     shots:[{sourceId:s,subjects:['motor-unit','jar-assembly'],
-      azimuth:.48,endAzimuth:.62,elevation:.17,distance:1.18}],contacts:[]};
+      azimuth:.48,endAzimuth:.62,elevation:.17,distance:1.18}],contacts:[],motionChecks};
 }
 
 export const mechanicalDemoResponse=()=>({
