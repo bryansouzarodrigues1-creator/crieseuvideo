@@ -128,10 +128,25 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     if (exportingRef.current && !force) return;
     const c = canvasRef.current?.getContext('2d'); if (!c) return;
     const toon = toonRef.current;
+    if (engine === '3d' && plan.sceneProgram && (!toon || !toon.hasProgramModels(plan))) {
+      c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+      return; // Never render a silently incomplete or substituted model.
+    }
     if (engine === '3d' && toon && plan.scenes.length) { toon.render(plan, t, c.canvas.width, c.canvas.height); c.drawImage(toon.canvas, 0, 0); drawOverlay(c, plan, t); }
     else drawExplainerFrame(c, plan, t);
   };
   useEffect(() => { draw(timeRef.current); }, [plan, engine, toonReady]);
+  useEffect(() => {
+    const toon = toonRef.current;
+    if (engine !== '3d' || !toon || toon.hasProgramModels(plan)) return;
+    let active = true;
+    void toon.preloadProgramAssets(plan).then(() => {
+      if (active) setToonReady((value) => value + 1);
+    }).catch((error) => {
+      if (active) setNote('Não foi possível carregar o modelo 3D: ' + (error instanceof Error ? error.message : String(error)));
+    });
+    return () => { active = false; };
+  }, [plan, engine, toonReady]);
   // Reopening a project must restore the existing WAVs, never silently request new TTS.
   useEffect(() => {
     let cancelled = false;
@@ -302,6 +317,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const trackVisibility = () => { if (document.hidden) hiddenDuringExport = true; };
     document.addEventListener('visibilitychange', trackVisibility);
     try {
+      if (engine === '3d' && plan.sceneProgram) {
+        if (!toonRef.current) throw new Error('O motor 3D ainda não está carregado. Aguarde a prévia antes de exportar.');
+        await toonRef.current.preloadProgramAssets(plan);
+        toonRef.current.validateProgram(plan);
+      }
       unlockAudio();
       await document.fonts?.load("40px 'Lilita One'").catch(() => {});
       const ac = ctx(); await ac.resume();
