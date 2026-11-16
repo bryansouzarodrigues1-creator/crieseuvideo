@@ -68,9 +68,11 @@ try {
   const program=result.plan.sceneProgram;
   if (!program) throw new SceneProgramError('O Gemini não devolveu um SceneProgram 3D.');
   const shapes=[...new Set(program.nodes.filter(n=>n.geometry).map(n=>n.geometry!.shape))];
+  const actualSeconds=result.plan.scenes.reduce((total,scene)=>total+(scene.duration??0),0);
   const report={
     state:'READY_FOR_VISUAL_INSPECTION',
-    provider:result.provider, model:result.model, seconds:DURATION,
+    provider:result.provider, model:result.model, requestedSeconds:DURATION, actualSeconds,
+    durationAdjusted:Math.abs(actualSeconds-DURATION)>.05,
     authoredWithoutPreset:true,
     nodeCount:program.nodes.length,
     trackCount:program.tracks.length,
