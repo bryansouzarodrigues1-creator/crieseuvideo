@@ -2,7 +2,8 @@
 ## Revisão das atualizações do GitHub — 15/11/2026
 - [x] Comparar a main do GitHub com o app e identificar as propostas recentes.
 - [x] Revisar a cadeia consolidada dos PRs #6 → #7 → #8 → #9 → #10 → #11, que inclui as correções dos PRs #2–#5.
-- [ ] Integrar e adaptar as correções revisadas: aguarda aprovação do plano de integração.
+- [ ] Integrar e adaptar as correções revisadas: plano aprovado; incluir a cadeia nova até o PR #19.
+- [ ] Revisar branches #12–#19 e integrar autoria de cenários 3D na hora, com validação, sem exigir criação manual pela plataforma nem limitar criação à galeria.
 - [ ] Validar direção, narração em cache, duração e encenação com respostas simuladas e vídeos locais, sem chamadas pagas: depende da integração.
 - [ ] Ativar Gemini direto: depende de credencial segura e confirmação de faturamento/cota do projeto Google; não usar a chave publicada no chat.
 
