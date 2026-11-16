@@ -1,0 +1,48 @@
+name: Real CrieSeuVideo Studio Browser QA
+
+on:
+  push:
+    branches: [test/3d-real-studio-browser-qa]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-browser-3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Unit tests and type checks
+        run: |
+          bun run test
+          bunx tsc --noEmit
+      - name: Build actual site and laboratory
+        run: |
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Chromium for actual browser/WebGL QA
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Test real editor with simulated Gemini and deliberate API failure
+        run: bun scripts/studio-freeform-3d-browser-qa.mjs
+      - name: Upload real studio screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-studio-3d-browser-evidence
+          path: tmp/real-studio-3d-qa/
+          if-no-files-found: ignore
+          retention-days: 7
