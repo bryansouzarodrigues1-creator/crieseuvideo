@@ -93,7 +93,7 @@ describe('opt-in real-studio free-form 3D', () => {
     fireEvent.click(screen.getByRole('button', { name: /3D livre.*Gemini direto/i }));
     fireEvent.click(screen.getByRole('button', { name: /Motion 2D/i }));
     expect(screen.queryByRole('button', { name: /3D livre.*Gemini direto/i })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Criar animação' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Criar animação' })).toBeDisabled(); // No script entered in this test.
   });
 });
 
