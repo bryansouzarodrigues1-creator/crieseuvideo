@@ -229,13 +229,13 @@ export function validateMotionChecks(program: SceneProgram, sources: ProgramSour
   const timeline = compileSceneProgram(program, sources);
   for (const check of program.motionChecks) {
     const span = timeline.spans.find((item) => item.sourceId === check.sourceId);
-    if (!span) fail('Uma ação verificável cita uma frase inexistente.');
+    if (!span) throw new SceneProgramError('Uma ação verificável cita uma frase inexistente.');
     const points: Vec3[] = [];
     for (let i = 0; i <= 16; i++) {
       const phase = check.startPhase + (check.endPhase - check.startPhase) * (i / 16);
       const time = span.start + span.duration * phase;
       const state = timeline.sample(time).get(check.node);
-      if (!state) fail('Uma ação verificável cita um objeto inexistente.');
+      if (!state) throw new SceneProgramError('Uma ação verificável cita um objeto inexistente.');
       points.push(state[check.channel]);
     }
     // Total travelled path catches rotating parts that return to their
