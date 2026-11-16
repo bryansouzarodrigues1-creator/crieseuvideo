@@ -1,6 +1,7 @@
 import { normalizeDrawing, type Shape } from './drawing';
 import { SETTINGS, type Setting } from './settings';
 import { normalizeDirection, type Direction } from './direction/direction';
+import { normalizeCaptionStyle, type CaptionStyle } from './captionStyles';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -27,7 +28,7 @@ export interface ExplainerScene {
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d'; /** Caption look for the whole video (default: line). */ captionStyle?: CaptionStyle }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
@@ -148,7 +149,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
     };
   }).filter(Boolean) as ExplainerScene[];
   if (!scenes.length) return fb;
-  return { title: str(raw?.title, 80) || fb.title, aspect, scenes };
+  return { title: str(raw?.title, 80) || fb.title, aspect, scenes, ...(raw?.captionStyle ? { captionStyle: normalizeCaptionStyle(raw.captionStyle) } : {}) };
 }
 
 const SETTING_WORDS: [Setting, RegExp][] = [

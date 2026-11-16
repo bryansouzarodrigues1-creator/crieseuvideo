@@ -37,6 +37,9 @@ REGRAS:
 - Ilustre o que a frase diz de forma literal (montanha → summit; dinheiro → office/hold_coins; celular → hold_phone).
 - Varie: nunca repita o mesmo cameraMove com o mesmo shot em cenas seguidas. Alterne planos abertos, médios e fechados.
 - Se a cena pedir algo que as listas não permitem (ex.: personagem nadando, voando, dois personagens), escolha a opção mais próxima e descreva o que faltou em "unsupported" (frase curta em português). Nunca finja que o motor sabe fazer.
+- Ritmo dos vídeos de referência: o quadro nunca fica parado e cada frase mostra uma coisa literal. Alterne plano aberto (situa o lugar), médio (ação) e fechado (reação/rosto, ótimo para revelações e "mas...").
+- Frases curtas e de impacto pedem plano fechado ou intensity alta (0.7-1); frases de contexto pedem plano aberto com câmera lenta (0.3-0.6).
+- Narrativa de personagem (escalar, comprar, discutir) = board=false com cenário; conceito abstrato ou número = board=true.
 - Não escreva nem altere o texto das cenas.
 EXEMPLO: cena "${EXAMPLE_TEXT}" => ${JSON.stringify(EXAMPLE_DIRECTION)}`;
 

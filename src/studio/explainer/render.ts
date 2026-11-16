@@ -1,8 +1,9 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
-import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
+import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, wordTimings, words, Mood, MOODS } from './plan';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
 import { laidOut, foregroundExtent } from './layout';
+import { LOOKS, pagesOf, pageAt, type CaptionStyle } from './captionStyles';
 import { frameZones, fitScale, centerIn, padRect, scaleRect, MAX_CAPTION_LINES, type FrameZones, type Rect } from './safeZone';
 
 const PAL: Record<string, [string, string]> = {
@@ -277,7 +278,43 @@ function profile(c: CanvasRenderingContext2D, u: number, local: number, name?: s
 /** Captions only, drawn over the 3D engine frame, in the same bottom band as the 2D engine. */
 export function drawOverlay(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080, at = sceneAt(plan, t);
-  if (at) caption(c, at.scene, at.local, frameZones(w, h), u);
+  if (!at) return;
+  drawCaption(c, plan.captionStyle, at.scene, at.local, frameZones(w, h), u);
+}
+
+/** Único ponto de entrada de legenda: escolhe o estilo do vídeo (padrão = legenda de duas linhas na base). */
+function drawCaption(c: CanvasRenderingContext2D, style: CaptionStyle | undefined, scene: ExplainerScene, local: number, z: FrameZones, u: number) {
+  if (style && style !== 'line') captionLook(c, scene, local, style, u);
+  else caption(c, scene, local, z, u);
+}
+
+/**
+ * Legendas de referência (uma palavra grande / duas-três palavras amarelas). Fica no meio da tela, fora da faixa
+ * de interface da plataforma; o tamanho encolhe até a página inteira caber na largura segura.
+ */
+function captionLook(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, style: Exclude<CaptionStyle, 'line'>, u: number) {
+  const wd = wordAt(scene, local); if (!wd) return;
+  const look = LOOKS[style], all = words(scene.text), key = (x: string) => x.toLowerCase().replace(/[^\p{L}\d]/gu, '');
+  const page = pageAt(pagesOf(all, look.perPage), wd.index); if (!page) return;
+  const hl = new Set((scene.highlight || []).map(key));
+  const shown = all.slice(page.from, page.to + 1).map((x) => (look.upper ? x.toUpperCase() : x));
+  const maxW = c.canvas.width * 0.84;
+  let size = look.size * u;
+  const measure = () => { c.font = FONT(size); const sp = c.measureText(' ').width; return shown.reduce((a, x) => a + c.measureText(x).width, 0) + sp * (shown.length - 1); };
+  let total = measure();
+  while (total > maxW && size > look.minSize * u) { size -= 2; total = measure(); }
+  const sp = c.measureText(' ').width, y = c.canvas.height * look.yFrac;
+  const k = pop(local - (wordTimings(scene)[page.from]?.start ?? 0), 0, 0.18);
+  c.save(); c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineJoin = 'round'; c.font = FONT(size);
+  c.translate(c.canvas.width / 2, y); c.scale(0.9 + 0.1 * Math.min(1, k), 0.9 + 0.1 * Math.min(1, k)); c.translate(-c.canvas.width / 2, -y);
+  let x = (c.canvas.width - total) / 2;
+  shown.forEach((txt, i) => {
+    const gi = page.from + i, w = c.measureText(txt).width;
+    c.lineWidth = look.strokeWidth * u; c.strokeStyle = look.stroke; c.strokeText(txt, x, y);
+    c.fillStyle = hl.has(key(all[gi]!)) ? look.emphasis : look.fill;
+    c.fillText(txt, x, y); x += w + sp;
+  });
+  c.restore();
 }
 
 function laptop(c: CanvasRenderingContext2D, u: number, local: number, label?: string) {
@@ -451,7 +488,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   // camera impact: short decaying shake as each scene lands
   const kick = Math.max(0, 1 - local / 0.35);
   c.save(); c.translate(Math.sin(local * 70) * 6 * u * kick, Math.cos(local * 55) * 5 * u * kick);
-  try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t); } finally { c.restore(); }
+  try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.captionStyle); } finally { c.restore(); }
 }
 
 /** Drawn extent of each hero visual (px at u = 1, relative to its origin), measured from the draw code. */
@@ -520,7 +557,7 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
   c.restore();
 }
 
-function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
+function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, captionStyle?: CaptionStyle) {
   if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
@@ -553,7 +590,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   // label badge: fixed slot above the hero zone
   if (outerLabel)
     badge(c, scene.label!.toUpperCase(), w / 2, (z.label.y0 + z.label.y1) / 2, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
-  caption(c, scene, local, z, u);
+  drawCaption(c, captionStyle, scene, local, z, u);
 }
 
 function drawObject(c: CanvasRenderingContext2D, type: string, z: number, col: string | undefined, st: string, t: number, lw: number, moving: boolean, text?: string) {

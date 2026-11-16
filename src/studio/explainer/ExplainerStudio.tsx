@@ -7,6 +7,7 @@ import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
 import { ensureDirections } from './direction/direction';
+import type { CaptionStyle } from './captionStyles';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
@@ -201,7 +202,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
-      setPlan(track ? fitToTrack(data.plan, track.duration) : data.plan); seek(0);
+      const keepStyle: ExplainerPlan = plan.captionStyle ? { ...data.plan, captionStyle: plan.captionStyle } : data.plan;
+      setPlan(track ? fitToTrack(keepStyle, track.duration) : keepStyle); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
       setGenId(null); setRated(null); setReason('');
@@ -334,6 +336,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <div className="explainer-row">
             <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d', scenes: ensureDirections(p.scenes) })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
             <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+          </div>
+          <p className="explainer-label">Legenda</p>
+          <div className="explainer-row">
+            {([['line', 'Padrão'], ['single_word', 'Uma palavra'], ['subtitle_yellow', 'Amarela']] as [CaptionStyle, string][]).map(([id, label]) => (
+              <Button key={id} size="sm" variant={(plan.captionStyle ?? 'line') === id ? 'default' : 'secondary'} onClick={() => setPlan((p) => ({ ...p, captionStyle: id }))} aria-pressed={(plan.captionStyle ?? 'line') === id}>{label}</Button>
+            ))}
           </div>
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">

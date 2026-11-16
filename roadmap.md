@@ -1,4 +1,14 @@
 # Evolução profissional do estúdio
+## Estilos de referência (vídeos de TikTok/Reels) — 16/11/2026
+Medido em 4 vídeos de referência: 3D low-poly (Everest), 3D "mundo" (ferraria medieval, escritório) e 2D flat vetorial (cortes a cada ~2,3 s).
+- [x] Estilos de legenda: padrão, uma palavra grande (branca, destaque amarelo) e amarela de 2–3 palavras; vale para 2D, 3D e exportação MP4 (`captionStyles.ts`, seletor "Legenda").
+- [x] Regras de ritmo e enquadramento no prompt do Gemini (alternar aberto/médio/fechado, fechado para revelações).
+- [x] 61 testes da pasta explainer passando (rodados fora do Vitest, com canvas falso para as legendas).
+- [ ] Transição por dissolução entre cenas (o escritório usa): precisa desenhar duas cenas ao mesmo tempo; ainda não está no catálogo.
+- [ ] Cenários e adereços 3D modelados (ferraria, escritório: placas com texto, escudos, moedas, calendário, relógio): exigem uma biblioteca de modelos; entram no catálogo só depois de existirem no renderer.
+- [ ] Estilo 2D flat completo (prédios em paralaxe, carro, rádio, pôr do sol): evoluir `settings.ts`/`render.ts`.
+- [ ] Conferir visualmente as legendas novas no app (não rodei o navegador neste ambiente).
+
 ## Direção 3D pelo Gemini (branch feat/direcao-3d-gemini) — 16/11/2026
 - [x] Catálogo único de capacidades do motor 3D (cenário, ação, entrada, roupa, props, câmera) em `direction/catalog.ts`.
 - [x] Gemini só escolhe itens do catálogo (saída estruturada); o que vier inválido é trocado por padrão seguro e pedidos que o motor não faz vão para `unsupported`.
