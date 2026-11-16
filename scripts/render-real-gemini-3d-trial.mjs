@@ -13,6 +13,8 @@ import { chromium } from 'playwright';
 
 const out = path.resolve('tmp/authorized-gemini-3d-trial');
 const plan = JSON.parse(await fs.readFile(path.join(out, 'program.json'), 'utf8'));
+const fixtureOnly = await fs.stat(path.join(out, 'fixture-only.json')).then(() => true).catch(() => false);
+const evidenceSource = fixtureOnly ? 'OFFLINE_MANUAL_FIXTURE' : 'ONE_REAL_GEMINI_RESPONSE';
 assert.ok(plan.sceneProgram && plan.scenes?.length && plan.engine !== '2d', 'Missing verified real 3D program');
 const script = plan.scenes.map(s=>s.text).join(' ');
 assert.ok(script.length > 20 && script.length < 6000, 'Invalid narration text');
@@ -120,7 +122,7 @@ try{
   }
   const variation=new Set(frames.map(f=>f.sha256)).size;
   await fs.writeFile(path.join(out,'frame-analysis.json'),JSON.stringify({
-    realGeminiPlan:true,externalModelCallsDuringRender:0,
+    evidenceSource,realGeminiPlan:!fixtureOnly,externalModelCallsDuringRender:0,
     interceptedProgramRequests:intercepted,frameCount:frames.length,
     distinctFrames:variation,frames,errors
   },null,2));
@@ -146,13 +148,13 @@ try{
   assert.ok(Number(video.nb_read_frames)>=Math.floor(duration*29));
   assert.deepEqual(errors,[]);
   await fs.writeFile(path.join(out,'video-report.json'),JSON.stringify({
-    status:'VALIDATED_FILE_NOT_ARTISTIC_APPROVAL',
+    status:'VALIDATED_FILE_NOT_ARTISTIC_APPROVAL', evidenceSource,
     modelInferenceCallsDuringRender:0,
     duration:Number(probe.format.duration),resolution:'720x1280',
     videoFrames:Number(video.nb_read_frames),filename:path.basename(mp4),
     bytes:Number(probe.format.size),uniqueWebGLSnapshots:variation,
   },null,2));
-  console.log('PASS: real Gemini scene plan rendered in React Studio and exported as a verified H.264 MP4; no additional model calls.');
+  console.log('PASS: '+evidenceSource+' rendered in React Studio and exported as verified H.264 MP4; no additional model calls.');
 }finally{
   await browser?.close();
   server.kill('SIGTERM');
