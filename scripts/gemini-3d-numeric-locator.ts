@@ -68,10 +68,10 @@ export function locateInvalidSceneNumber(candidate: SceneProgramCandidate | unde
   });
   arr(p.tracks).forEach((t: any,i)=>{
     const channel=String(t?.channel??'');
-    const min=channel==='scale'?.01:channel==='face'?-1:
-      /Rotation|rotation/.test(channel)?-2*Math.PI:-200;
-    const max=channel==='scale'?100:channel==='face'?1:
-      /Rotation|rotation/.test(channel)?2*Math.PI:200;
+    const min=channel==='scale' ? .01 : channel==='face' ? -1 :
+      channel==='rotation' ? -200 : /Rotation/.test(channel) ? -2*Math.PI : -200;
+    const max=channel==='scale' ? 100 : channel==='face' ? 1 :
+      channel==='rotation' ? 200 : /Rotation/.test(channel) ? 2*Math.PI : 200;
     arr(t?.keys).forEach((k:any,j)=>{
       if(k?.phase!==undefined) scalar(k.phase,`tracks[${i}].keys[${j}].phase`,0,1);
       if(k?.value!==undefined) vec(k.value,`tracks[${i}].keys[${j}].value`,min,max);
