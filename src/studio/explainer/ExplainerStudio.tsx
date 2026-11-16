@@ -1,3 +1,4 @@
+import type { CaptionStyle } from './captionStyles';
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
 import { withTargetDuration, normalizeTargetDuration, durationNotice, DURATION_PRESETS } from './duration';
 import { ACTION_LABELS, normalizeStaging } from './staging';
@@ -298,7 +299,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         toonRef.current.validateProgram(directed);
       }
       setPendingRepair(null);
-      setPlan(track ? fitToTrack(directed, track.duration) : directed); seek(0);
+      const styled = plan.captionStyle ? { ...directed, captionStyle: plan.captionStyle } : directed;
+      setPlan(track ? fitToTrack(styled, track.duration) : styled); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
       setGenId(null); setRated(null); setReason('');
@@ -525,6 +527,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             }} />}
           </div>
           <p className="explainer-hint">{durationNotice(plan) || 'O tempo organiza as ações e pausas. O roteiro e a voz são preservados.'}</p>
+          <p className="explainer-label">Legenda</p>
+          <div className="explainer-row">
+            {([['line', 'Padrão'], ['single_word', 'Uma palavra'], ['subtitle_yellow', 'Amarela']] as [CaptionStyle, string][]).map(([id, label]) => (
+              <Button key={id} size="sm" variant={(plan.captionStyle ?? 'line') === id ? 'default' : 'secondary'} onClick={() => setPlan((p) => ({ ...p, captionStyle: id }))} aria-pressed={(plan.captionStyle ?? 'line') === id}>{label}</Button>
+            ))}
+          </div>
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
             {([['creative', 'Criativo', 'direção'], ['gallery', 'Minha galeria', 'recursos']] as const).map(([m, l, c]) => (

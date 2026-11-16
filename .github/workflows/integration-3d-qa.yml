@@ -1,0 +1,50 @@
+name: Integration 3D QA (stack + legendas)
+
+on:
+  push:
+    branches: [integration/3d-all]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: All tests (mocked AI only)
+        run: bun run test
+      - name: TypeScript and build checks
+        run: |
+          bunx tsc --noEmit
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Verify live-trial CLI defaults to dry run with zero credits
+        run: bun scripts/controlled-gemini-3d-trial.ts
+      - name: Browser QA prerequisites
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Owner session and real-studio WebGL with Gemini simulated
+        run: bun scripts/studio-freeform-3d-browser-qa.mjs
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-3d-evidence
+          path: tmp/real-studio-3d-qa/
+          if-no-files-found: ignore
+          retention-days: 7

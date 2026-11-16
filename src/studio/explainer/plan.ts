@@ -3,6 +3,7 @@ import { normalizeStory, type StoryScene } from './storyAction';
 import { SETTINGS, type Setting } from './settings';
 import { scriptScenes, splitSceneText, spokenText } from './script';
 import { localStory } from './localStory';
+import { normalizeCaptionStyle, type CaptionStyle } from './captionStyles';
 import { normalizeStaging, type NarrativeStaging } from './staging';
 import { normalizeProduction, type ProductionProgram } from './production/score';
 import { localProduction } from './production/local';
@@ -45,7 +46,7 @@ export interface ExplainerScene {
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number; timings?: NarrationWord[] };
 }
-export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; production?: ProductionProgram; sceneProgram?: SceneProgram; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
+export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Caption look for the whole video (default: line). */ captionStyle?: CaptionStyle; production?: ProductionProgram; sceneProgram?: SceneProgram; targetDuration?: number; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '3d' }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
@@ -193,9 +194,9 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
   continueCast(scenes);
   if (raw?.sceneProgram != null) {
     const sceneProgram = normalizeSceneProgram(raw.sceneProgram, productionSources(scenes));
-    return { title: str(raw?.title, 80) || fb.title, aspect, sceneProgram, scenes: scenes.map(({ story: _story, staging: _staging, productionBeat: _beat, ...scene }) => ({ ...scene, programBeat: true })) };
+    return { title: str(raw?.title, 80) || fb.title, aspect, sceneProgram, ...(raw?.captionStyle ? { captionStyle: normalizeCaptionStyle(raw.captionStyle) } : {}), scenes: scenes.map(({ story: _story, staging: _staging, productionBeat: _beat, ...scene }) => ({ ...scene, programBeat: true })) };
   }
-  return withProduction({ title: str(raw?.title, 80) || fb.title, aspect, scenes }, raw?.production);
+  return withProduction({ title: str(raw?.title, 80) || fb.title, aspect, scenes, ...(raw?.captionStyle ? { captionStyle: normalizeCaptionStyle(raw.captionStyle) } : {}) }, raw?.production);
 }
 
 export function productionSources(scenes: ExplainerScene[]) {
