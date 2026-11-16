@@ -7,7 +7,7 @@ const inspect = (program: Record<string, unknown>) =>
 
 describe('safe exact-path diagnostics for Gemini-produced 3D numbers',()=>{
   it('returns the correct offending timeline key, without model-provided values',()=>{
-    const report=inspect({tracks:[{channel:'rotation',keys:[{phase:.2,value:[0,0,7.5]}]}]});
+    const report=inspect({tracks:[{channel:'headRotation',keys:[{phase:.2,value:[0,0,7.5]}]}]});
     expect(report).toEqual({
       path:'tracks[0].keys[0].value[2]',
       expected:`number in [${-2*Math.PI}, ${2*Math.PI}]`,
