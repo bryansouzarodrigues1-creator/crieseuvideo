@@ -35,3 +35,17 @@ jobs:
         run: node lab/build.mjs
       - name: Laboratory TypeScript check
         run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Actual WebGL GLB import QA without paid models
+        run: node scripts/approved-glb-browser-qa.mjs
+      - name: Upload GLB QA frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-glb-webgl-frames
+          path: tmp/approved-glb-browser/
+          if-no-files-found: ignore
+          retention-days: 7
