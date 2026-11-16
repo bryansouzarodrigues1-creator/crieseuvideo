@@ -1,6 +1,6 @@
 /** Offline QA fixture, not shipped as a preset or included in the Gemini prompt.
  * SceneProgram already supports all of these pieces generically. */
-export const mechanicalDemoScript = 'Um liquidificador é montado. A jarra encaixa na base e suas lâminas começam a girar.';
+export const mechanicalDemoScript = 'A jarra encaixa na base do liquidificador e suas lâminas começam a girar.';
 
 const s='s1';
 const node=(id: string, kind: 'group'|'mesh', position: number[], other: Record<string,unknown>={})=>
