@@ -1,5 +1,7 @@
 /** An interpreted scene language: new geometry and keyframes, not action IDs.
  * This module is also the server validator. It never imports/evaluates model code. */
+import { approvedModel, type ApprovedModelId } from './modelRegistry';
+
 export type Vec3 = [number, number, number];
 export interface ProgramSource { sourceId: string; text: string; duration?: number }
 export const PROGRAM_CHANNELS = ['position', 'rotation', 'scale', 'bodyRotation', 'headRotation', 'face', 'leftHand', 'rightHand', 'leftFoot', 'rightFoot', 'leftHandRotation', 'rightHandRotation', 'leftFootRotation', 'rightFootRotation'] as const;
@@ -9,7 +11,7 @@ export type Effector = typeof EFFECTORS[number];
 export type Socket = 'root' | 'head' | Effector;
 export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number }
 export interface ProgramNode {
-  id: string; kind: 'group' | 'mesh' | 'actor'; parent?: string; socket: Socket;
+  id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
   geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number };
   material?: { roughness: number; metalness: number; opacity: number; emissive: string; emissiveIntensity: number };
@@ -44,8 +46,11 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   const fullText = sources.map((s) => s.text).join(' ');
   let vertexBudget = 0;
   const nodes = list(r.nodes, 160).map((value): ProgramNode => {
-    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material']);
-    if (!['group', 'mesh', 'actor'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId']);
+    if (!['group', 'mesh', 'actor', 'model'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
+    const assetId = n.kind === 'model' ? n.assetId as ApprovedModelId : undefined;
+    if (n.kind === 'model' && !approvedModel(assetId)) fail('O modelo externo solicitado não está no catálogo autorizado do projeto.');
+    if (n.kind !== 'model' && n.assetId !== undefined) fail('Apenas nós model podem mencionar um modelo GLB.');
     const contextSourceId = n.contextSourceId !== undefined ? source(n.contextSourceId) : undefined;
     const evidence = contextSourceId ? sources[sourceIndex.get(contextSourceId)!].text : n.evidence;
     if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
@@ -102,12 +107,12 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       if (!Number.isInteger(count) || !Number.isInteger(seed)) fail('Repetição precisa de contagem e semente inteiras.');
       repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200) };
     }
-    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : 500) * (repeat?.count ?? 1);
+    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
       position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
-      color: color(n.color ?? '#F0B44B'), evidence, ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}) };
+      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}) };
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');

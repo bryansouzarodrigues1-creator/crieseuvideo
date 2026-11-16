@@ -1,0 +1,51 @@
+name: Approved GLB Runtime QA
+
+on:
+  push:
+    branches: [feat/approved-glb-runtime]
+  pull_request:
+    branches: [feat/hybrid-procedural-geometry]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: approved-glb-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies without changes to lockfile
+        run: bun install --frozen-lockfile
+      - name: Unit tests including GLB import and animation
+        run: bun run test
+      - name: TypeScript check
+        run: bunx tsc --noEmit
+      - name: Production build
+        run: bun run build
+      - name: Laboratory build
+        run: node lab/build.mjs
+      - name: Laboratory TypeScript check
+        run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Actual WebGL GLB import QA without paid models
+        run: node scripts/approved-glb-browser-qa.mjs
+      - name: Upload GLB QA frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-glb-webgl-frames
+          path: tmp/approved-glb-browser/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -88,6 +88,11 @@ function previewState() {
 }
 function draw() {
   if (!hasPreview()) { previewState(); return; }
+  if (engine === '3d' && toon && !toon.hasProgramModels(plan)) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.dataset.action = 'model-loading';
+    return;
+  }
   if (engine === '3d' && toon) {
     try {
       toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d';
@@ -113,9 +118,24 @@ function buttons() {
 }
 function generateLabel() { return engine === '3d' && directionMode === 'program' ? pendingRepair?.script === spokenText(script.value) ? '✦ Corrigir com Gemini' : '✦ Programar com Gemini' : '✦ Dirigir com Gemini'; }
 async function prepare3d(requireProgram = false) {
-  if (toon || loading3d) return loading3d;
-  loading3d = import('../src/studio/explainer/toon3d').then(({ Toon3D }) => { toon = new Toon3D(); draw(); }).catch(() => {
-    if (requireProgram || plan.sceneProgram) { if (plan.sceneProgram) { renderIssue = 'WebGL não está disponível para renderizar este programa 3D.'; previewState(); } note('WebGL não está disponível para renderizar este programa 3D.'); return; }
+  if (loading3d) return loading3d;
+  loading3d = (async () => {
+    if (!toon) { const { Toon3D } = await import('../src/studio/explainer/toon3d'); toon = new Toon3D(); }
+    // Scene-plan assets come from the reviewed same-origin registry, not AI URLs.
+    // If the project changes while loading, preload the new plan before drawing.
+    let target = plan;
+    do {
+      await toon.preloadProgramAssets(target);
+      if (target === plan) break;
+      target = plan;
+    } while (true);
+    renderIssue = '';
+    draw();
+  })().catch((error) => {
+    if (requireProgram || plan.sceneProgram) {
+      renderIssue = error instanceof Error ? error.message : 'O modelo 3D não pôde ser importado.';
+      previewState(); note('Importação 3D não concluída. ' + renderIssue); return;
+    }
     engine = '2d'; buttons(); previewState(); draw(); note('WebGL não está disponível. O motor 2D está pronto para usar.');
   }).finally(() => { loading3d = null; });
   return loading3d;
@@ -124,6 +144,7 @@ async function validateNewProgram(next: ExplainerPlan, duration = targetDuration
   if (!next.sceneProgram) return;
   await prepare3d(true);
   if (!toon) throw new Error('WebGL não está disponível. O projeto anterior foi preservado.');
+  await toon.preloadProgramAssets(next);
   toon.validateProgram(withTargetDuration(next, duration));
 }
 function setPlan(next: ExplainerPlan, label: string) {
