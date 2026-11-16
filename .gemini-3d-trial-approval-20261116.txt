@@ -1,0 +1,4 @@
+CrieSeuVideo — one owner-approved Gemini 3D creative trial on 2026-11-16.
+The workflow preflights the dedicated GitHub Secret and model metadata first.
+Authorized: a single generateContent request for an eight-second wind turbine 3D animation.
+No automatic retry, no Lovable AI credit use, no TTS, no deployment or database migration.
