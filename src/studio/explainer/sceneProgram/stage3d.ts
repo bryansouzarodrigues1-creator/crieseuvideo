@@ -246,7 +246,7 @@ export class SceneProgram3D {
     this.frame(w / h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
   }
   diagnostics() {
-    return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,
+    return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,
       projectedBounds: this.projectedBounds, camera: this.camera.position.toArray(), states: [...this.states].map(([id, s]) => ({ id, ...s })) };
   }
   dispose() {

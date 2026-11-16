@@ -1,0 +1,52 @@
+name: Generative 3D Motion Contracts QA
+
+on:
+  push:
+    branches: [feat/3d-motion-contracts]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: motion-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install lockfile dependencies
+        run: bun install --frozen-lockfile
+      - name: All unit and regression tests
+        run: bun run test
+      - name: TypeScript
+        run: bunx tsc --noEmit
+      - name: Application and laboratory builds
+        run: |
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Prepare Chromium and FFmpeg
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null 2>&1; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Real WebGL mechanical 3D playback and export
+        run: bun scripts/mechanical-3d-qa.mjs
+      - name: Upload inspected MP4
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-motion-3d-mp4
+          path: |
+            tmp/mechanical-3d-qa/*.png
+            tmp/mechanical-3d-qa/*.mp4
+            tmp/mechanical-3d-qa/report.json
+          if-no-files-found: ignore
+          retention-days: 7
