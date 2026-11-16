@@ -13,8 +13,9 @@ import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, hasNarration, missingNarrationScenes, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
 import { normalizeStory } from './storyAction';
 import { captureHealthError } from './exportCapture';
-import { scriptError, MAX_SCRIPT_CHARS } from './script';
-import { readDirectionResponse } from '../utils/apiResponse';
+import { scriptError, spokenText, MAX_SCRIPT_CHARS } from './script';
+import type { SceneProgramCandidate } from './sceneProgram/candidate';
+import { ApiResponseError, readDirectionResponse } from '../utils/apiResponse';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -29,6 +30,13 @@ const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_ch
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
 const POSE_LABEL: Record<PresenterPose, string> = { idle: 'Parado', talking: 'Falando', pointing: 'Apontando', running: 'Correndo', shocked: 'Assustado' };
 
+/** Invalid AI data is retained as FEEDBACK, never rendered as a scene. */
+interface Pending3DRepair {
+  script: string;
+  issue: string;
+  program?: NonNullable<ExplainerPlan['sceneProgram']>;
+  proposal?: SceneProgramCandidate;
+}
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
   const [script, setScript] = useState('');
   const [vaultCount, setVaultCount] = useState(0);
@@ -55,6 +63,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [rated, setRated] = useState<'yes' | 'no' | 'sent' | null>(null);
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'creative' | 'gallery' | 'program'>('creative');
+  const [pendingRepair, setPendingRepair] = useState<Pending3DRepair | null>(null);
   const [provider, setProvider] = useState<'gemini' | 'eleven'>('gemini');
   const [elevenId, setElevenId] = useState('');
   const [projectId, setProjectId] = useState(() => `p${Date.now().toString(36)}`);
@@ -264,11 +273,16 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       durationRef.current = normalizeTargetDuration(durationChoice === 'custom' ? customSeconds : durationChoice);
     } catch (error) { setNote((error as Error).message); return; }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
+    // Repair is deliberately opt-in. No background attempts and no fallback
+    // to Lovable credits; the owner must click the button again.
+    const repair = engine === '3d' && mode === 'program' && pendingRepair?.script === spokenText(text) ? pendingRepair : null;
+    let rejectedPlan: ExplainerPlan | undefined;
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, engine, targetDuration: durationRef.current, gallery: [...gallery, ...vaultFor(text)] }) });
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, engine, targetDuration: durationRef.current, gallery: [...gallery, ...vaultFor(text)], ...(repair ? { repairIssue: repair.issue, ...(repair.program ? { previousProgram: repair.program } : repair.proposal ? { previousProposal: repair.proposal } : {}) } : {}) }) });
       const data = await readDirectionResponse(res);
       const track = trackRef.current;
       const directed: ExplainerPlan = { ...data.plan, engine };
+      rejectedPlan = directed;
       if (engine === '3d' && mode === 'program') {
         if (!directed.sceneProgram) throw new Error('A IA não forneceu uma cena 3D programável. O projeto anterior foi preservado.');
         // Do not replace the previous working preview with broken geometry,
@@ -281,6 +295,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         await toonRef.current.preloadProgramAssets(directed);
         toonRef.current.validateProgram(directed);
       }
+      setPendingRepair(null);
       setPlan(track ? fitToTrack(directed, track.duration) : directed); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
@@ -291,13 +306,28 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       // Gemini text must never silently trigger the paid Lovable speech gateway.
       if (voiceOn && !track && data.provider !== 'gemini' && mode !== 'program') await narrate(directed);
       setPlaying(true);
-    } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error('Erro ao produzir a cena 3D.');
+      const diagnostic = (e as { diagnostic?: unknown } | null)?.diagnostic;
+      // Do not retain credentials, URLs, or unrelated responses; only a
+      // bounded program returned for the SAME script plus the engine diagnosis.
+      if (engine === '3d' && mode === 'program') {
+        const issue = (error.message + (diagnostic ? ' ' + JSON.stringify(diagnostic) : '')).slice(0, 1900);
+        if (e instanceof ApiResponseError && ['invalid_scene_program', 'source_mismatch'].includes(e.code)) {
+          setPendingRepair({ script: spokenText(text), issue,
+            ...(e.programCandidate ? { proposal: e.programCandidate } : {}) });
+        } else if (rejectedPlan?.sceneProgram) {
+          setPendingRepair({ script: spokenText(text), issue, program: rejectedPlan.sceneProgram });
+        }
+      }
+      setNote('Direção não aplicada. ' + error.message + (engine === '3d' && mode === 'program' ? ' Se a cena estiver inválida, use Corrigir com Gemini para solicitar uma nova tentativa.' : ''));
+    } finally { setBusy(false); }
   };
 
   const createLocal = () => {
     const invalid = scriptError(script);
     if (invalid) { setNote(invalid); return; }
-    setPlaying(false); trackRef.current = null; setTrackName(''); setVoiceOn(false);
+    setPendingRepair(null); setPlaying(false); trackRef.current = null; setTrackName(''); setVoiceOn(false);
     setPlan({ ...buildFallbackPlan(script, aspect), engine }); seek(0);
     setGenId(null); setRated(null);
     setNote('Cenas locais criadas, sem IA e sem narração. Você pode editar cada cena.');
@@ -465,7 +495,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <h1>Do roteiro à animação.</h1>
           <p className="explainer-sub">A IA planeja a cena e o motor renderiza os quadros. A direção e a voz usam cotas ou créditos conforme o provedor; confira os custos antes de gerar.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
-          <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => setScript(e.target.value)} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
+          <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => { setScript(e.target.value); setPendingRepair(null); }} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
           <div className="explainer-row">
             <Button size="sm" variant={listening === 'rec' ? 'destructive' : 'secondary'} onClick={toggleDictation} disabled={listening === 'busy'}>{listening === 'busy' ? <Loader2 className="animate-spin" /> : listening === 'rec' ? <MicOff /> : <Mic />}{listening === 'rec' ? 'Parar e transcrever' : listening === 'busy' ? 'Transcrevendo…' : 'Ditar roteiro'}</Button>
             <label className="explainer-file-btn"><Upload />{trackName ? 'Trocar áudio' : 'Usar meu áudio'}<input type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void useOwnAudio(f); }} /></label>
@@ -474,7 +504,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-label">Estilo de animação</p>
           <div className="explainer-row">
             <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
-            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setMode((previous) => previous === 'program' ? 'creative' : previous); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setMode((previous) => previous === 'program' ? 'creative' : previous); setPendingRepair(null); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
           <label className="explainer-label" htmlFor="video-duration">Duração do vídeo</label>
           <div className="explainer-row">
@@ -496,9 +526,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
             {([['creative', 'Criativo', 'direção'], ['gallery', 'Minha galeria', 'recursos']] as const).map(([m, l, c]) => (
-              <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
+              <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => { setMode(m); setPendingRepair(null); }} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
             ))}
-            {engine === '3d' && <Button size="sm" variant={mode === 'program' ? 'default' : 'secondary'} onClick={() => setMode('program')} aria-pressed={mode === 'program'}>3D livre <small>Gemini direto</small></Button>}
+            {engine === '3d' && <Button size="sm" variant={mode === 'program' ? 'default' : 'secondary'} onClick={() => { setMode('program'); setPendingRepair(null); }} aria-pressed={mode === 'program'}>3D livre <small>Gemini direto</small></Button>}
           </div>
           <p className="explainer-sub">{mode === 'program' && engine === '3d' ? 'O Gemini cria geometrias, trajetórias e câmeras 3D novas. A IA só é chamada ao tocar em Programar 3D. Requer GEMINI_API_KEY no servidor; consulte sua cota Google. O sistema valida movimentos e contatos antes de mostrar o resultado, sem substituir falhas por slides.' : mode === 'creative' ? `A IA dirige cada cena e reaproveita desenhos quando combinarem; ${gallery.length} na galeria, ${vaultCount} no cofre.` : `A IA reutiliza seus ${gallery.length} desenhos e recursos existentes.`}</p>
           <div className="explainer-row">
@@ -518,7 +548,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             {voiceOn && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>
           <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < 4}>
-            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : mode === 'program' && engine === '3d' ? 'Programar 3D com Gemini' : 'Criar animação'}
+            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : mode === 'program' && engine === '3d' ? pendingRepair?.script === spokenText(script) ? 'Corrigir com Gemini' : 'Programar 3D com Gemini' : 'Criar animação'}
           </Button>
           <div className="explainer-row">
             <Button size="sm" variant="secondary" onClick={createLocal} disabled={busy || voicing !== null || recording !== null || script.trim().length < 4}>Criar sem IA</Button>
