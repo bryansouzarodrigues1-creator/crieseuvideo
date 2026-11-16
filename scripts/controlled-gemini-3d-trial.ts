@@ -59,6 +59,10 @@ try {
     AI_TEXT_FALLBACK: '',
     FREEFORM_3D_GEMINI_API_KEY: process.env.FREEFORM_3D_GEMINI_API_KEY,
     GEMINI_TEXT_MODEL: model,
+    // The model's output cap includes reasoning tokens. The owner-approved
+    // trial uses LOW thinking and a bounded 16k total output allowance.
+    GEMINI_THINKING_LEVEL: 'low',
+    GEMINI_MAX_OUTPUT_TOKENS: '16384',
   });
   if (sentGenerationRequests !== 1) throw new Error('A prova não fez exatamente uma chamada de geração.');
   const program=result.plan.sceneProgram;
