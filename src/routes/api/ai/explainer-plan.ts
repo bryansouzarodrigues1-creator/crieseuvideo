@@ -14,7 +14,7 @@ export const Route = createFileRoute('/api/ai/explainer-plan')({
       } catch { /* Feedback is optional; a missing database does not block direction. */ }
       return Response.json(await directExplainer({ ...body, lessons }));
     } catch (error) {
-      if (error instanceof DirectorError) return Response.json({ error: error.message, code: error.code, ...(error.details ? { details: error.details } : {}) }, { status: error.status });
+      if (error instanceof DirectorError) return Response.json({ error: error.message, code: error.code, ...(error.details ? { details: error.details } : {}), ...(error.candidate ? { candidate: error.candidate } : {}) }, { status: error.status });
       return Response.json({ error: 'Não foi possível concluir a direção. Seu roteiro foi preservado.' }, { status: 503 });
     }
   } } },

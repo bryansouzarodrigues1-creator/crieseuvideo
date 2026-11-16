@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExplainerStudio } from './ExplainerStudio';
 import { buildFallbackPlan } from './plan';
 import { getNarration } from './voice';
+import { mechanicalDemoProgram, mechanicalDemoScript } from './sceneProgram/mechanicalDemo';
+import { makeSceneProgramCandidate } from './sceneProgram/candidate';
 
 vi.mock('./voice', () => ({
   NARRATION_VOICES: [{ id: 'Algieba', label: 'Voz de teste' }],
@@ -94,6 +96,59 @@ describe('opt-in real-studio free-form 3D', () => {
     fireEvent.click(screen.getByRole('button', { name: /Motion 2D/i }));
     expect(screen.queryByRole('button', { name: /3D livre.*Gemini direto/i })).toBeNull();
     expect(screen.getByRole('button', { name: 'Criar animação' })).toBeDisabled(); // No script entered in this test.
+  });
+});
+
+describe('explicit Gemini repair in the real editor', () => {
+  it('only sends the rejected scene to Gemini when the user clicks Corrigir', async () => {
+    const program = { ...mechanicalDemoProgram(), javascript: 'untrusted' };
+    const candidate = makeSceneProgramCandidate(program, [{ sourceId: 's1', text: mechanicalDemoScript }]);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({
+        error: 'O programa contém um campo não suportado.', code: 'invalid_scene_program', candidate,
+      }, { status: 502 }))
+      .mockResolvedValueOnce(Response.json({
+        error: 'A direção ainda está inválida.', code: 'invalid_scene_program', candidate,
+      }, { status: 502 }));
+    vi.stubGlobal('fetch', fetchMock);
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: /3D livre.*Gemini direto/i }));
+    fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: mechanicalDemoScript } });
+    fireEvent.click(screen.getByRole('button', { name: 'Programar 3D com Gemini' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Corrigir com Gemini' })).toBeEnabled());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getNarration).not.toHaveBeenCalled();
+    const first = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(first).not.toHaveProperty('previousProposal');
+
+    // A rejected candidate is inert feedback; it cannot become a preview.
+    expect(screen.queryByLabelText('Texto da cena 1')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Corrigir com Gemini' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const second = JSON.parse(String(fetchMock.mock.calls[1][1].body));
+    expect(second.previousProposal).toEqual(candidate);
+    expect(second).not.toHaveProperty('previousProgram');
+    expect(second.repairIssue).toContain('campo não suportado');
+    expect(second.script).toBe(mechanicalDemoScript);
+    expect(getNarration).not.toHaveBeenCalled();
+  });
+
+  it('invalidates an old repair after even a small script edit; no cross-script repair', async () => {
+    const candidate = makeSceneProgramCandidate(mechanicalDemoProgram(), [
+      { sourceId: 's1', text: mechanicalDemoScript },
+    ]);
+    const mock = vi.fn().mockResolvedValueOnce(Response.json({
+      error: 'Cena 3D rejeitada.', code: 'invalid_scene_program', candidate,
+    }, { status: 502 }));
+    vi.stubGlobal('fetch', mock);
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: /3D livre.*Gemini direto/i }));
+    fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: mechanicalDemoScript } });
+    fireEvent.click(screen.getByRole('button', { name: 'Programar 3D com Gemini' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Corrigir com Gemini' })).toBeEnabled());
+    fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: mechanicalDemoScript + ' Outra frase.' } });
+    expect(screen.getByRole('button', { name: 'Programar 3D com Gemini' })).toBeEnabled();
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 });
 
