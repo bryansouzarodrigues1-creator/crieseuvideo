@@ -1,0 +1,57 @@
+name: Three-dimensional mechanical animation QA
+
+on:
+  push:
+    branches: [feat/3d-mechanical-assembly-qa]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mechanical-3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  animate-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Unit tests
+        run: bun run test
+      - name: TypeScript validation
+        run: bunx tsc --noEmit
+      - name: Build CrieSeuVideo and lab
+        run: |
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install headless Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          command -v ffmpeg
+          command -v ffprobe
+      - name: Render mechanical 3D assembly and verify MP4
+        run: bun scripts/mechanical-3d-qa.mjs
+      - name: Upload video and inspected frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-mechanical-3d-demo
+          path: |
+            tmp/mechanical-3d-qa/*.png
+            tmp/mechanical-3d-qa/*.mp4
+            tmp/mechanical-3d-qa/report.json
+          if-no-files-found: ignore
+          retention-days: 7
