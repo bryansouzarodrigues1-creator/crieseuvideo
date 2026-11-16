@@ -1,0 +1,3 @@
+Authorized Gemini 3D diagnostic generation attempt 2.
+Run a single GenerateContent request after checking secret and model. Record bounded failure reason if rejected.
+Do not retry, publish, merge, edit Claude work, or change the main site.
