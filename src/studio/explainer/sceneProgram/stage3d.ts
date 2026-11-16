@@ -19,6 +19,7 @@ function geometry(g: ProgramGeometry): THREE.BufferGeometry {
   if (g.shape === 'plane') return new THREE.PlaneGeometry(d[0], d[1]);
   if (g.shape === 'torus') return new THREE.TorusGeometry(d[0], d[1], 8, 24);
   if (g.shape === 'tube') return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(g.points!.map((p) => new THREE.Vector3(...p))), 48, d[0], 8, false);
+  if (g.shape === 'lathe') return new THREE.LatheGeometry(g.profile!.map(([radius, height]) => new THREE.Vector2(radius, height)), g.segments!);
   const mesh = new THREE.BufferGeometry(); mesh.setAttribute('position', new THREE.Float32BufferAttribute(g.vertices!, 3)); mesh.setIndex(g.indices!);
   if (g.colors) mesh.setAttribute('color', new THREE.Float32BufferAttribute(g.colors, 3)); mesh.computeVertexNormals(); return mesh;
 }

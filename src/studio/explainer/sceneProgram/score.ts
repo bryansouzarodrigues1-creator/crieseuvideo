@@ -7,7 +7,7 @@ export type ProgramChannel = typeof PROGRAM_CHANNELS[number];
 export const EFFECTORS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const;
 export type Effector = typeof EFFECTORS[number];
 export type Socket = 'root' | 'head' | Effector;
-export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[] }
+export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number }
 export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor'; parent?: string; socket: Socket;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
@@ -51,9 +51,27 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
     let geometry: ProgramGeometry | undefined;
     if (n.kind === 'mesh') {
-      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points']);
+      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'segments']);
       const arity: Record<string, number> = { box: 3, sphere: 1, capsule: 2, cone: 2, cylinder: 3, plane: 2, torus: 2, tube: 1 };
-      if (g.shape === 'mesh') {
+      if (g.shape === 'lathe') {
+        // Generic surface-of-revolution: jars, bottles, gears, vases, wheels, etc.
+        // All values are data. No JavaScript, remote resources or arbitrary shaders.
+        if (g.size !== undefined || g.vertices !== undefined || g.indices !== undefined ||
+            g.colors !== undefined || g.points !== undefined) fail('A geometria lathe só aceita profile e segments.');
+        const profile = list(g.profile, 64).map((value): [number, number] => {
+          const pair = list(value, 2);
+          if (pair.length !== 2) fail('Cada ponto do perfil precisa conter raio e altura.');
+          return [num(pair[0], 0, 200), num(pair[1], -200, 200)];
+        });
+        if (profile.length < 2 || Math.max(...profile.map((p) => p[0])) < .005 ||
+            Math.max(...profile.map((p) => p[1])) - Math.min(...profile.map((p) => p[1])) < .005)
+          fail('O perfil lathe precisa de pelo menos dois pontos e dimensão 3D não degenerada.');
+        if (profile.some((p, i) => i > 0 && p[0] === profile[i - 1][0] && p[1] === profile[i - 1][1]))
+          fail('O perfil lathe contém pontos consecutivos duplicados.');
+        const segments = num(g.segments ?? 24, 8, 64);
+        if (!Number.isInteger(segments)) fail('A resolução do perfil lathe precisa ser inteira.');
+        geometry = { shape: 'lathe', profile, segments };
+      } else if (g.shape === 'mesh') {
         const vertices = list(g.vertices, 18000).map((v) => num(v, -200, 200));
         if (vertices.length < 9 || vertices.length % 3) fail('Uma malha precisa de vértices 3D completos.');
         const indices = list(g.indices, 24000).map((v) => { const i = num(v, 0, vertices.length / 3 - 1); if (!Number.isInteger(i)) fail('Um índice de triângulo é inválido.'); return i; });
@@ -84,7 +102,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       if (!Number.isInteger(count) || !Number.isInteger(seed)) fail('Repetição precisa de contagem e semente inteiras.');
       repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200) };
     }
-    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : 500) * (repeat?.count ?? 1);
+    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,

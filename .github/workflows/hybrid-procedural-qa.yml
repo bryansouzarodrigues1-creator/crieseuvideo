@@ -1,0 +1,52 @@
+name: Hybrid procedural 3D QA
+
+on:
+  push:
+    branches:
+      - feat/hybrid-procedural-geometry
+  pull_request:
+    branches:
+      - fix/grounded-ascent-physical-audit
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hybrid-procedural-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Complete unit tests (no Gemini calls)
+        run: bun run test
+      - name: TypeScript check
+        run: bunx tsc --noEmit
+      - name: Build CrieSeuVideo
+        run: bun run build
+      - name: Build laboratory
+        run: node lab/build.mjs
+      - name: Laboratory TypeScript
+        run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Chromium for real WebGL visual QA
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Render a new procedural 3D blender in Chromium (without Gemini calls)
+        run: node scripts/hybrid-procedural-preview.mjs
+      - name: Upload WebGL screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-procedural-blender-webgl
+          path: tmp/hybrid-procedural-preview/
+          if-no-files-found: ignore
+          retention-days: 7
