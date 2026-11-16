@@ -1,0 +1,1 @@
+Owner authorized repeated Gemini 3D tests; this marker enables one fresh real request after deterministic keyframe sort/dedup, numeric bounds, build and metadata checks. No auto retries; keep Claude's code and live site unchanged.
