@@ -54,7 +54,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [genId, setGenId] = useState<string | null>(null);
   const [rated, setRated] = useState<'yes' | 'no' | 'sent' | null>(null);
   const [reason, setReason] = useState('');
-  const [mode, setMode] = useState<'creative' | 'gallery'>('creative');
+  const [mode, setMode] = useState<'creative' | 'gallery' | 'program'>('creative');
   const [provider, setProvider] = useState<'gemini' | 'eleven'>('gemini');
   const [elevenId, setElevenId] = useState('');
   const [projectId, setProjectId] = useState(() => `p${Date.now().toString(36)}`);
@@ -269,15 +269,27 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const data = await readDirectionResponse(res);
       const track = trackRef.current;
       const directed: ExplainerPlan = { ...data.plan, engine };
+      if (engine === '3d' && mode === 'program') {
+        if (!directed.sceneProgram) throw new Error('A IA não forneceu uma cena 3D programável. O projeto anterior foi preservado.');
+        // Do not replace the previous working preview with broken geometry,
+        // unreachable IK or a missing external model.
+        if (!toonRef.current) {
+          const { Toon3D } = await import('./toon3d');
+          toonRef.current = new Toon3D();
+          setToonReady((value) => value + 1);
+        }
+        await toonRef.current.preloadProgramAssets(directed);
+        toonRef.current.validateProgram(directed);
+      }
       setPlan(track ? fitToTrack(directed, track.duration) : directed); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
       setGenId(null); setRated(null); setReason('');
       fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: text, plan: data.plan, engine, keywords: detectCues(text).map((c) => c.tag) }) })
         .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
-      setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.${data.provider === 'gemini' && voiceOn && !track ? ' A narração é uma etapa separada; use Gerar voz quando quiser.' : ''}` : 'Cenas locais criadas pelas palavras do roteiro.');
+      setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.${mode === 'program' && engine === '3d' ? ` 3D livre: ${directed.sceneProgram?.motionChecks?.length ?? 0} ações verificadas matematicamente; confira também a prévia visual.` : ''}${data.provider === 'gemini' && voiceOn && !track ? ' A narração é uma etapa separada; use Gerar voz quando quiser.' : ''}` : 'Cenas locais criadas pelas palavras do roteiro.');
       // Gemini text must never silently trigger the paid Lovable speech gateway.
-      if (voiceOn && !track && data.provider !== 'gemini') await narrate(directed);
+      if (voiceOn && !track && data.provider !== 'gemini' && mode !== 'program') await narrate(directed);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
   };
@@ -462,7 +474,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-label">Estilo de animação</p>
           <div className="explainer-row">
             <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
-            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setMode((previous) => previous === 'program' ? 'creative' : previous); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
           <label className="explainer-label" htmlFor="video-duration">Duração do vídeo</label>
           <div className="explainer-row">
@@ -483,11 +495,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-hint">{durationNotice(plan) || 'O tempo organiza as ações e pausas. O roteiro e a voz são preservados.'}</p>
           <p className="explainer-label">Modo de criação</p>
           <div className="explainer-row">
-            {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
+            {([['creative', 'Criativo', 'direção'], ['gallery', 'Minha galeria', 'recursos']] as const).map(([m, l, c]) => (
               <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
             ))}
+            {engine === '3d' && <Button size="sm" variant={mode === 'program' ? 'default' : 'secondary'} onClick={() => setMode('program')} aria-pressed={mode === 'program'}>3D livre <small>Gemini direto</small></Button>}
           </div>
-          <p className="explainer-sub">{mode === 'creative' ? `A IA programa um cenário único para cada cena e reaproveita seus ${gallery.length} desenhos salvos e os ${vaultCount} do cofre automático quando combinarem. Sem custo de vídeo.` : mode === 'gallery' ? `A IA reaproveita seus ${gallery.length} desenhos salvos e os visuais prontos, o modo mais barato.` : ''}</p>
+          <p className="explainer-sub">{mode === 'program' && engine === '3d' ? 'O Gemini cria geometrias, trajetórias e câmeras 3D novas. A IA só é chamada ao tocar em Programar 3D. Requer GEMINI_API_KEY no servidor; consulte sua cota Google. O sistema valida movimentos e contatos antes de mostrar o resultado, sem substituir falhas por slides.' : mode === 'creative' ? `A IA dirige cada cena e reaproveita desenhos quando combinarem; ${gallery.length} na galeria, ${vaultCount} no cofre.` : `A IA reutiliza seus ${gallery.length} desenhos e recursos existentes.`}</p>
           <div className="explainer-row">
             {(['9:16', '16:9'] as const).map((a) => (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
@@ -505,7 +518,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             {voiceOn && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>
           <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < 4}>
-            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : 'Criar animação'}
+            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : mode === 'program' && engine === '3d' ? 'Programar 3D com Gemini' : 'Criar animação'}
           </Button>
           <div className="explainer-row">
             <Button size="sm" variant="secondary" onClick={createLocal} disabled={busy || voicing !== null || recording !== null || script.trim().length < 4}>Criar sem IA</Button>
