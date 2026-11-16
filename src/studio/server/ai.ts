@@ -1,6 +1,6 @@
 // Server-only provider router. The optional environment also lets the private
 // test deployment reuse this code without copying secrets into browser bundles.
-export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY' | 'FREEFORM_3D_GEMINI_API_KEY', string>>;
+export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY' | 'FREEFORM_3D_GEMINI_API_KEY' | 'GEMINI_MAX_OUTPUT_TOKENS' | 'GEMINI_THINKING_LEVEL', string>>;
 export type AiProvider = 'gemini' | 'lovable';
 export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_response' | 'upstream' | 'configuration' | 'invalid_request' | 'unsupported_model' | 'blocked' | 'truncated';
 export type AiResult =
@@ -15,9 +15,16 @@ export function geminiModel(env: AiEnvironment) {
 }
 /** Stable GenerateContent wire format previously accepted by the connected model.
  * Renderer/source validation stays server-side; no experimental schema fields. */
-export function geminiRequestBody(prompt: string) {
+export function geminiRequestBody(prompt: string, options: {
+  maxOutputTokens?: number;
+  thinkingLevel?: 'minimal' | 'low' | 'medium' | 'high';
+} = {}) {
   return { contents: [{ role: 'user', parts: [{ text: prompt + '\n\nResponda somente com JSON válido.' }] }],
-    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } };
+    generationConfig: {
+      responseMimeType: 'application/json',
+      maxOutputTokens: options.maxOutputTokens ?? 8192,
+      ...(options.thinkingLevel ? { thinkingConfig: { thinkingLevel: options.thinkingLevel } } : {}),
+    } };
 }
 function failureCode(status: number, body: any): AiFailure {
   const reasons = Array.isArray(body?.error?.details) ? body.error.details.map((item: any) => item?.reason) : [];
@@ -53,6 +60,16 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
   const timeout = setTimeout(() => ctrl.abort(), 60000);
   try {
     const direct = provider === 'gemini';
+    // These settings apply ONLY when explicitly supplied by a server-side
+    // caller. The legacy Gemini and Lovable routes retain previous defaults.
+    // Gemini output quotas include thinking tokens, so smaller jobs can use
+    // low thinking and a bounded extra output allowance rather than truncating.
+    const configuredCap = Number(env.GEMINI_MAX_OUTPUT_TOKENS || '8192');
+    const maxOutputTokens = Number.isFinite(configuredCap)
+      ? Math.min(16384, Math.max(1024, Math.floor(configuredCap))) : 8192;
+    const level = env.GEMINI_THINKING_LEVEL;
+    const thinkingLevel = level && ['minimal', 'low', 'medium', 'high'].includes(level)
+      ? level as 'minimal' | 'low' | 'medium' | 'high' : undefined;
     const res = await fetch(direct
       ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
       : 'https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -60,7 +77,7 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
       headers: direct
         ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' }
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(direct ? geminiRequestBody(prompt) : {
+      body: JSON.stringify(direct ? geminiRequestBody(prompt, { maxOutputTokens, thinkingLevel }) : {
         model, messages: [{ role: 'user', content: prompt + '\n\nResponda somente com JSON válido.' }],
         response_format: { type: 'json_object' },
       }),

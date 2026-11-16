@@ -1,0 +1,33 @@
+name: Gemini 3D Compact Output Unit QA
+
+on:
+  push:
+    branches: [feat/gemini-3d-compact-output]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gemini-3d-compact-output-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-and-typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Test all scene programs and regressions without Gemini calls
+        run: bun run test
+      - name: TypeScript and app + laboratory builds
+        run: |
+          bunx tsc --noEmit
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
