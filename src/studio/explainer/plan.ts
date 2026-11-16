@@ -69,7 +69,7 @@ export const VOICE_TAIL = 0.35;
 export function sceneDuration(s: ExplainerScene) {
   const explicit = Number.isFinite(s.duration) && s.duration! > 0 ? s.duration! : 0;
   const speech = s.voice ? SCENE_LEAD + s.voice.duration + VOICE_TAIL : 0;
-  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.programBeat ? 5 : s.productionBeat ? 3.6 : 0, explicit,
+  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.programBeat ? (explicit ? TIMED_PROGRAM_BEAT_MIN : 5) : s.productionBeat ? 3.6 : 0, explicit,
     explicit ? speech : s.voice ? Math.max(1.6, speech) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + .5));
 }
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
