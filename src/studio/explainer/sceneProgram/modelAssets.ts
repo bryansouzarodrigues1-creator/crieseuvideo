@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { SceneProgramError } from './score';
+import { approvedModel, type ApprovedModelId } from './modelRegistry';
 
 /**
  * Never let an AI plan provide arbitrary URLs. Names resolve ONLY to reviewed,
@@ -10,26 +11,9 @@ import { SceneProgramError } from './score';
  * This pre-existing Lovable upload is a private QA candidate. Before publishing
  * it, verify user ownership and license as well as access from the deployed site.
  */
-export const APPROVED_MODELS = Object.freeze({
-  'expressive-robot-v1': {
-    url: '/__l5e/assets-v1/9878ecc5-49b2-4d40-92d0-0116735797d1/expressive-robot.glb',
-    bytes: 463988,
-    source: 'existing-lovable-upload',
-    licensing: 'pending-owner-review',
-    display: 'Robô expressivo (upload existente)',
-  },
-} as const);
-
-export type ApprovedModelId = keyof typeof APPROVED_MODELS;
-export const approvedModelIds = Object.keys(APPROVED_MODELS) as ApprovedModelId[];
 const MAX_GLB_BYTES = 16 * 1024 * 1024;
 const MAX_TRIANGLES = 180_000;
 const MAX_CLIPS = 24;
-
-export function approvedModel(id: unknown): (typeof APPROVED_MODELS)[ApprovedModelId] | undefined {
-  return typeof id === 'string' && Object.prototype.hasOwnProperty.call(APPROVED_MODELS, id)
-    ? APPROVED_MODELS[id as ApprovedModelId] : undefined;
-}
 
 /** Reject remote resources and unsupported compressed geometry before GLTFLoader. */
 export function inspectGLB(buffer: ArrayBuffer): { triangles: number; nodes: number } {
