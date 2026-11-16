@@ -1,4 +1,4 @@
-import { sceneDuration, words, SCENE_LEAD, VOICE_TAIL, type ExplainerPlan, type ExplainerScene } from './plan';
+import { sceneDuration, words, SCENE_LEAD, VOICE_TAIL, TIMED_PROGRAM_BEAT_MIN, type ExplainerPlan, type ExplainerScene } from './plan';
 
 export const DURATION_PRESETS = [15, 30, 60, 90] as const;
 export const MAX_TARGET_DURATION = 600;
