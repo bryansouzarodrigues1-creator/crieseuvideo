@@ -92,7 +92,7 @@ describe('measurable 3D action contracts (not thematic presets)', () => {
   });
 
   it('accepts historical scene programs without opt-in claims (migration safe)', () => {
-    const raw = clone() as ReturnType<typeof mechanicalDemoProgram> & { motionChecks?: unknown };
+    const raw: { motionChecks?: unknown } = clone();
     delete raw.motionChecks;
     expect(normalizeSceneProgram(raw, source).motionChecks).toBeUndefined();
   });
