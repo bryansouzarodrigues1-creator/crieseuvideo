@@ -9,6 +9,8 @@ import { updateEnvironment } from './toon/environment';
 import { sceneAt, sceneDuration, productionSources, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
 import { Production3D } from './production/stage3d';
 import { SceneProgram3D } from './sceneProgram/stage3d';
+import { loadApprovedModel, type PreparedModel } from './sceneProgram/modelAssets';
+import type { ApprovedModelId } from './sceneProgram/modelRegistry';
 import { spring, drawBoardArt } from './render';
 
 const INK = 0x1c1824;
@@ -223,6 +225,8 @@ export class Toon3D {
   private productionKey = '';
   private programStage: SceneProgram3D | null = null;
   private programKey = '';
+  private modelCache = new Map<ApprovedModelId, PreparedModel>();
+  private modelLoading = new Map<ApprovedModelId, Promise<PreparedModel>>();
   private rigPos = { x: 0, y: 0, z: 0 };
   private prop: THREE.Group | null = null;
   private holder: THREE.Group | null = null;
@@ -232,6 +236,23 @@ export class Toon3D {
   private boardCtx: CanvasRenderingContext2D;
   private boardTex: THREE.CanvasTexture;
   private shot: { from: Shot; to: Shot } | null = null;
+  hasProgramModels(plan: ExplainerPlan) {
+    return !plan.sceneProgram || plan.sceneProgram.nodes.every((n) => n.kind !== 'model' || this.modelCache.has(n.assetId!));
+  }
+  async preloadProgramAssets(plan: ExplainerPlan) {
+    if (!plan.sceneProgram) return;
+    const ids = [...new Set(plan.sceneProgram.nodes.filter((n) => n.kind === 'model').map((n) => n.assetId!))];
+    await Promise.all(ids.map(async (id) => {
+      if (this.modelCache.has(id)) return;
+      let job = this.modelLoading.get(id);
+      if (!job) {
+        job = loadApprovedModel(id);
+        this.modelLoading.set(id, job);
+      }
+      try { this.modelCache.set(id, await job); }
+      finally { this.modelLoading.delete(id); }
+    }));
+  }
   constructor() {
     this.canvas = document.createElement('canvas');
     this.boardCanvas = document.createElement('canvas'); this.boardCanvas.width = 1024; this.boardCanvas.height = 772;
@@ -314,7 +335,7 @@ export class Toon3D {
     if (plan.sceneProgram) {
       const sources = productionSources(plan.scenes), key = JSON.stringify([plan.sceneProgram, sources]);
       if (key !== this.programKey) {
-        const next = new SceneProgram3D(plan.sceneProgram, sources);
+        const next = new SceneProgram3D(plan.sceneProgram, sources, this.modelCache);
         try { next.validateContacts(); } catch (error) { next.dispose(); throw error; }
         this.programStage?.dispose(); this.programStage = next; this.programKey = key;
       }
@@ -383,8 +404,8 @@ export class Toon3D {
   programDiagnostics() { return this.programStage?.diagnostics() ?? null; }
   validateProgram(plan: ExplainerPlan) {
     if (!plan.sceneProgram) return;
-    const next = new SceneProgram3D(plan.sceneProgram, productionSources(plan.scenes));
+    const next = new SceneProgram3D(plan.sceneProgram, productionSources(plan.scenes), this.modelCache);
     try { next.validateContacts(); next.frame(9 / 16); next.frame(16 / 9); } finally { next.dispose(); }
   }
-  dispose() { this.programStage?.dispose(); this.productionStage?.dispose(); this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.renderer.dispose(); }
+  dispose() { this.programStage?.dispose(); this.productionStage?.dispose(); this.storyStage?.dispose(); this.narrativeStage?.dispose(); this.modelCache.clear(); this.renderer.dispose(); }
 }
