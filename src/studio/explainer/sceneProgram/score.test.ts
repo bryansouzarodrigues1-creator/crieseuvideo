@@ -80,6 +80,30 @@ describe('authored scene programs beyond the action catalogue', () => {
       expect(stage.diagnostics().board).toBe(false);
     } finally { stage.dispose(); }
   });
+  it('rejects an actor travelling through a solid platform during an otherwise supported climb', () => {
+    const { program, sources } = example(0);
+    const changed = JSON.parse(JSON.stringify(program));
+    changed.nodes.push({
+      id: 'blocking-platform', kind: 'mesh', socket: 'root',
+      position: [0, 1.2, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+      geometry: { shape: 'box', size: [2, .6, 1.2] },
+      color: '#FFFFFF', evidence: sources[0].text,
+    });
+    const stage = new SceneProgram3D(normalizeSceneProgram(changed, sources), sources);
+    try { expect(() => stage.validateContacts()).toThrow(/atravessa uma plataforma sólida/); }
+    finally { stage.dispose(); }
+  });
+
+  it('rejects fake rock supports that have reachable but interior or floating contact anchors', () => {
+    const { program, sources } = example(0);
+    const changed = JSON.parse(JSON.stringify(program));
+    // Move the rock forward, keeping explicit IK anchors nearby; they now float in air.
+    changed.nodes.find((node: { id: string }) => node.id === 'rock').position[2] -= 1.6;
+    const stage = new SceneProgram3D(normalizeSceneProgram(changed, sources), sources);
+    try { expect(() => stage.validateContacts()).toThrow(/fora do alcance|não toca a superfície/); }
+    finally { stage.dispose(); }
+  });
+
   it('rejects a geometrically unreachable hand contact before accepting the preview', () => {
     const { program, sources } = example(0); const raw = JSON.parse(JSON.stringify(program)); raw.contacts[0].offset[1] += 20;
     const stage = new SceneProgram3D(normalizeSceneProgram(raw, sources), sources);

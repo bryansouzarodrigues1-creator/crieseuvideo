@@ -1,0 +1,51 @@
+name: Physically grounded 3D QA
+
+on:
+  push:
+    branches: [fix/grounded-ascent-physical-audit]
+  pull_request:
+    branches: [fix/live-program-context]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: physical-grounding-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Regression tests including captured real Gemini program
+        run: bun run test
+      - name: Strict TypeScript validation
+        run: bunx tsc --noEmit
+      - name: Build main site
+        run: bun run build
+      - name: Build laboratory
+        run: node lab/build.mjs
+      - name: Type-check laboratory
+        run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install browser renderer (no keys)
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          python3 -m pip install numpy pillow
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Existing generic authored-scene browser QA
+        run: bun scripts/scene-program-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grounded-scene-qa
+          path: tmp/scene-program-qa/
+          if-no-files-found: ignore
+          retention-days: 7
