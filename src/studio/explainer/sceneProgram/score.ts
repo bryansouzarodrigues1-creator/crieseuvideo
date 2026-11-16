@@ -20,7 +20,19 @@ export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
 export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
 export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number }
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
-export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[] }
+/** A measurable on-screen action, not a thematic action ID or AI assertion.
+ * change => sufficient movement; hold => small movement for the whole interval.
+ * Coordinates are LOCAL to the named node, including when its parent moves. */
+export interface ProgramMotionCheck {
+  sourceId: string;
+  node: string;
+  channel: 'position' | 'rotation' | 'scale';
+  kind: 'change' | 'hold';
+  startPhase: number;
+  endPhase: number;
+  threshold: number;
+}
+export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
 export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
 export class SceneProgramError extends Error {
   readonly code = 'invalid_scene_program';
@@ -37,7 +49,7 @@ const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): SceneProgram {
-  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts']);
+  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks']);
   if (r.version !== 1 || !sources.length) fail('A versão ou as frases do programa são inválidas.');
   const sourceSignature = JSON.stringify(sources.map((s) => [s.sourceId, s.text]));
   if (r.sourceSignature !== undefined && r.sourceSignature !== sourceSignature) fail('O programa pertence a outro roteiro. Gere uma nova direção para este texto.');
@@ -160,7 +172,24 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     const a = contacts[i], b = contacts[j];
     if (a.sourceId === b.sourceId && a.actor === b.actor && a.effector === b.effector && Math.max(a.begin, b.begin) < Math.min(a.end, b.end)) fail('Um membro recebeu contatos simultâneos incompatíveis.');
   }
-  return { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts };
+  const motionChecks = r.motionChecks === undefined ? undefined : list(r.motionChecks, 60).map((value): ProgramMotionCheck => {
+    const check = obj(value);
+    only(check, ['sourceId', 'node', 'channel', 'kind', 'startPhase', 'endPhase', 'threshold']);
+    const sourceId = source(check.sourceId);
+    if (!nodeMap.has(check.node)) fail('Uma verificação de movimento citou um objeto que não existe.');
+    if (!['position', 'rotation', 'scale'].includes(check.channel)) fail('A verificação usa um eixo de movimento não permitido.');
+    if (!['change', 'hold'].includes(check.kind)) fail('A verificação de movimento precisa indicar mudança ou estabilidade.');
+    const startPhase = num(check.startPhase, 0, 1), endPhase = num(check.endPhase, 0, 1);
+    if (endPhase - startPhase < .05) fail('A verificação de movimento precisa de uma janela temporal positiva.');
+    const threshold = num(check.threshold, .001, 100);
+    if (!tracks.some((t) => t.node === check.node && t.channel === check.channel))
+      fail('A IA declarou uma ação sem animar a propriedade correspondente.');
+    return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold };
+  });
+  const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
+    ...(motionChecks ? { motionChecks } : {}) };
+  validateMotionChecks(normalized, sources);
+  return normalized;
 }
 
 export function compileSceneProgram(program: SceneProgram, sources: ProgramSource[]) {
@@ -187,4 +216,44 @@ export function compileSceneProgram(program: SceneProgram, sources: ProgramSourc
     }
     return states;
   }, shot(time: number) { const span = spans.find((s, i) => time < s.start + s.duration || i === spans.length - 1)!; return { span, shot: program.shots.find((s) => s.sourceId === span.sourceId)! }; } };
+}
+
+/**
+ * Independently evaluates the returned animation, rather than trusting the
+ * AI's statement that an action happens. Works for any Three.js object/rig
+ * with position, rotation or scale tracks, not only predefined scene types.
+ * Runs both in server normalization and client when a saved program loads.
+ */
+export function validateMotionChecks(program: SceneProgram, sources: ProgramSource[]): void {
+  if (!program.motionChecks?.length) return;
+  const timeline = compileSceneProgram(program, sources);
+  for (const check of program.motionChecks) {
+    const span = timeline.spans.find((item) => item.sourceId === check.sourceId);
+    if (!span) fail('Uma ação verificável cita uma frase inexistente.');
+    const points: Vec3[] = [];
+    for (let i = 0; i <= 16; i++) {
+      const phase = check.startPhase + (check.endPhase - check.startPhase) * (i / 16);
+      const time = span.start + span.duration * phase;
+      const state = timeline.sample(time).get(check.node);
+      if (!state) fail('Uma ação verificável cita um objeto inexistente.');
+      points.push(state[check.channel]);
+    }
+    // Total travelled path catches rotating parts that return to their
+    // starting angle; max displacement catches holds that briefly wander.
+    const distance = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    const travelled = points.slice(1).reduce((total, point, index) => total + distance(point, points[index]!), 0);
+    const wandered = Math.max(...points.map((point) => distance(point, points[0]!)));
+    if (check.kind === 'change' && travelled + 1e-7 < check.threshold) {
+      throw new SceneProgramError(
+        'A animação promete uma ação, mas o objeto não se move o suficiente no momento indicado. Ajuste as curvas antes de exportar.',
+        { kind: 'missing_motion', sourceId: check.sourceId, node: check.node, channel: check.channel, expectedMinimum: check.threshold, actual: travelled },
+      );
+    }
+    if (check.kind === 'hold' && wandered > check.threshold + 1e-7) {
+      throw new SceneProgramError(
+        'Uma peça deveria permanecer parada ou encaixada, mas continua se movendo. Corrija a ordem e a sincronização dos movimentos.',
+        { kind: 'motion_during_hold', sourceId: check.sourceId, node: check.node, channel: check.channel, maximumAllowed: check.threshold, actual: wandered },
+      );
+    }
+  }
 }
