@@ -32,6 +32,8 @@ jobs:
           bun run build
           node lab/build.mjs
           bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Verify live-trial CLI defaults to dry run with zero credits
+        run: bun scripts/controlled-gemini-3d-trial.ts
       - name: Browser QA prerequisites
         run: |
           bun add --no-save playwright@1.57.0
