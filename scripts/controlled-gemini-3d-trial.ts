@@ -25,8 +25,8 @@ if (!approved) {
   }, null, 2));
   process.exit(0);
 }
-if (!process.env.GEMINI_API_KEY) {
-  console.error('Falta GEMINI_API_KEY no ambiente PRIVADO. Nenhuma chamada foi feita.');
+if (!process.env.FREEFORM_3D_GEMINI_API_KEY) {
+  console.error('Falta FREEFORM_3D_GEMINI_API_KEY no ambiente PRIVADO. Nenhuma chamada foi feita.');
   process.exit(2);
 }
 if (!['gemini-3.6-flash','gemini-3.5-flash-lite'].includes(model)) {
@@ -42,7 +42,7 @@ try {
   }, {
     AI_TEXT_PROVIDER: 'gemini',
     AI_TEXT_FALLBACK: '',
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    FREEFORM_3D_GEMINI_API_KEY: process.env.FREEFORM_3D_GEMINI_API_KEY,
     GEMINI_TEXT_MODEL: model,
   });
   const program=result.plan.sceneProgram;
