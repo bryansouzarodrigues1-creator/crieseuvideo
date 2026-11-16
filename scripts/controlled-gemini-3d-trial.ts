@@ -34,6 +34,20 @@ if (!['gemini-3.6-flash','gemini-3.5-flash-lite'].includes(model)) {
   process.exit(2);
 }
 
+const originalFetch = globalThis.fetch;
+let sentGenerationRequests = 0;
+const onlyPermittedUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
+// Hard network firewall: the trial process can send at most one outbound
+// request, and ONLY to the approved model's GenerateContent endpoint.
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  if (url !== onlyPermittedUrl || (init?.method || 'GET') !== 'POST')
+    throw new Error('Saída de rede não autorizada durante a prova 3D.');
+  if (++sentGenerationRequests > 1)
+    throw new Error('A segunda chamada de IA foi bloqueada pelo teste de solicitação única.');
+  return originalFetch(input, init);
+}) as typeof fetch;
+
 try {
   // No fallbacks, no correction loop, no other tools and NO TTS.
   const result = await directExplainer({
@@ -45,6 +59,7 @@ try {
     FREEFORM_3D_GEMINI_API_KEY: process.env.FREEFORM_3D_GEMINI_API_KEY,
     GEMINI_TEXT_MODEL: model,
   });
+  if (sentGenerationRequests !== 1) throw new Error('A prova não fez exatamente uma chamada de geração.');
   const program=result.plan.sceneProgram;
   if (!program) throw new SceneProgramError('O Gemini não devolveu um SceneProgram 3D.');
   const shapes=[...new Set(program.nodes.filter(n=>n.geometry).map(n=>n.geometry!.shape))];
@@ -56,7 +71,7 @@ try {
     trackCount:program.tracks.length,
     shotCount:program.shots.length,
     verifiedMotionCheckCount:program.motionChecks?.length ?? 0,
-    shapes, callsMade:1, narrationGenerated:false,
+    shapes, callsMade:sentGenerationRequests, narrationGenerated:false,
   };
   const out=path.resolve('tmp/authorized-gemini-3d-trial');
   await fs.mkdir(out,{recursive:true});
@@ -68,6 +83,8 @@ try {
   const code=error instanceof DirectorError ? error.code : 'validation_failed';
   // Do not log provider bodies, prompts, keys or potentially confidential
   // scene proposals; only a safe machine-readable failure summary.
-  console.error(JSON.stringify({state:'REJECTED',code,callsMade:1,retried:false}));
+  console.error(JSON.stringify({state:'REJECTED',code,callsMade:sentGenerationRequests,retried:false}));
   process.exitCode=1;
+} finally {
+  globalThis.fetch = originalFetch;
 }
