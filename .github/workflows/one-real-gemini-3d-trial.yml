@@ -1,0 +1,66 @@
+# NOT an automatic deployment or scheduled generation.
+# Only a single, specifically named approval commit on a disposable branch
+# can cause this workflow to call the Gemini API.
+name: One authorized real Gemini 3D trial
+
+on:
+  push:
+    branches:
+      - run/approved-gemini-3d-once-20261116
+    paths:
+      - .gemini-3d-trial-approval-20261116.txt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: single-approved-gemini-3d-20261116
+  cancel-in-progress: false
+
+jobs:
+  one-generation:
+    if: "${{ github.event.head_commit.message == 'trial: one approved Gemini 3D request 2026-11-16' }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      CONFIRM_ONE_GEMINI_CALL: I_APPROVE_ONE_CALL
+      GEMINI_TEXT_MODEL: gemini-3.6-flash
+      FREEFORM_3D_GEMINI_API_KEY: ${{ secrets.FREEFORM_3D_GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install exact project dependencies
+        run: bun install --frozen-lockfile
+      - name: TypeScript and product build, before paid AI request
+        run: |
+          bunx tsc --noEmit
+          bun run build
+      - name: Install Chromium and FFmpeg, before paid AI request
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          command -v ffmpeg
+          command -v ffprobe
+      - name: Preflight secret presence without printing it
+        run: |
+          if [ -z "$FREEFORM_3D_GEMINI_API_KEY" ]; then
+            echo 'A chave exclusiva ainda não foi adicionada em Settings > Secrets and variables > Actions. Nenhuma chamada foi realizada.'
+            exit 2
+          fi
+      - name: EXACTLY ONE Gemini GenerateContent request, no retry or fallback
+        run: bun scripts/controlled-gemini-3d-trial.ts
+      - name: Render returned scene in real React editor and inspect MP4
+        run: bun scripts/render-real-gemini-3d-trial.mjs
+      - name: Preserve plan, WebGL frames, MP4 and failure diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: single-gemini-3d-20261116-evidence
+          path: tmp/authorized-gemini-3d-trial/
+          if-no-files-found: ignore
+          retention-days: 14
