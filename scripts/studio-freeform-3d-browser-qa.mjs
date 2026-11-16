@@ -80,7 +80,8 @@ try{
   await page.getByRole('button',{name:/3D livre.*Gemini direto/i}).click();
   assert.equal(providerRequests,0,'Selecting 3D mode must not call Gemini or Lovable');
   await page.getByLabel('Roteiro / narração').fill(mechanicalDemoScript);
-  await page.getByLabel('Duração do vídeo').selectOption('8');
+  await page.getByLabel('Duração do vídeo').selectOption('custom');
+  await page.getByRole('spinbutton',{name:'Duração em segundos'}).fill('8');
   const narrate=page.getByRole('button',{name:'Com narração'});
   if(await narrate.isVisible())await narrate.click();
   await page.getByRole('button',{name:'Programar 3D com Gemini'}).click();
