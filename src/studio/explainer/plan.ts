@@ -1,5 +1,6 @@
 import { normalizeDrawing, type Shape } from './drawing';
 import { SETTINGS, type Setting } from './settings';
+import { normalizeDirection, type Direction } from './direction/direction';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
@@ -21,6 +22,8 @@ export interface ExplainerScene {
   drawing?: Shape[];
   /** Animated full-screen scenario behind the scene. */
   setting?: Setting;
+  /** 3D Toon staging chosen by the AI from the capability catalog (validated); absent in 2D-only plans. */
+  direction?: Direction;
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
   voice?: { duration: number; start: number; end: number };
 }
@@ -135,6 +138,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       visual,
       drawing: visual === 'custom' ? drawing : undefined,
       setting: (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
+      direction: s.direction ? normalizeDirection(s.direction, text).direction : undefined,
       mood: pick(s.mood, MOODS, pickMood(text)),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),

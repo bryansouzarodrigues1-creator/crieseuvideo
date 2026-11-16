@@ -1,6 +1,7 @@
 import { cueRule } from "@/studio/explainer/keywords";
 import { createFileRoute } from "@tanstack/react-router";
 import { askAi, parseJson } from "@/studio/server/ai";
+import { directScenes } from "@/studio/server/direct";
 import { DRAWING_GUIDE } from "@/studio/explainer/drawing";
 import { SETTING_GUIDE } from "@/studio/explainer/settings";
 import { buildFallbackPlan, normalizePlan, keepScriptWords, VISUALS, MOODS, PALETTES } from "@/studio/explainer/plan";
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
         const script = String(body.script ?? "").slice(0, 6000).trim();
         const aspect = body.aspect === "16:9" ? "16:9" : "9:16";
         const mode = body.mode === "gallery" ? "gallery" : "creative";
+        const engine = body.engine === "3d" ? "3d" : "2d";
         const gallery: { id: string; name: string; drawing: unknown }[] = Array.isArray(body.gallery) ? body.gallery.slice(0, 80).filter((g: any) => g && typeof g.id === "string" && typeof g.name === "string" && Array.isArray(g.drawing)) : [];
         const modeRule = mode === "creative"
           ? `MODO CRIATIVO: use visual=custom em TODAS as cenas e desenhe composições limpas (4 a 12 formas, no máximo 6 objetos, um foco claro por cena, nada sobreposto). Nunca repita a mesma composição. ALTERNÂNCIA: nunca use o mesmo tipo de plano em duas cenas seguidas; alterne entre close do personagem (bust grande reagindo), objeto herói gigante (phone, laptop, scale, chart, clock...), metáfora/carimbo (stamp, xmark, check), plano aberto (skyline, crowd, cenário com personagem). Um HERÓI grande por cena ocupando 60-70% da área.${gallery.length ? ` GALERIA/COFRE (desenhos já prontos, custo zero): se um deles ilustrar bem a cena, responda "gallery": "<id>" e omita drawing (economiza). Caso contrário desenhe do zero. Galeria: ${gallery.map((g) => `${g.id}=${g.name}`).join("; ")}.` : ""}`
@@ -59,8 +61,15 @@ Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","la
           const hit = sc && gallery.find((g) => g.id === sc.gallery);
           if (hit) { sc.visual = "custom"; sc.drawing = hit.drawing; }
         }
-        if (!raw) return Response.json({ plan: buildFallbackPlan(script, aspect), source: "fallback" });
-        return Response.json({ plan: normalizePlan(raw, script, aspect), source: "ai" });
+        const plan = raw ? normalizePlan(raw, script, aspect) : buildFallbackPlan(script, aspect);
+        // 3D Toon: uma chamada extra e barata dirige cenário, ação e câmera de todas as cenas (validada contra o catálogo; sem IA, usa as palavras da cena).
+        let directionSource: "ai" | "fallback" | undefined;
+        if (engine === "3d") {
+          const d = await directScenes(plan.scenes.map((s) => s.text));
+          plan.scenes = plan.scenes.map((s, i) => ({ ...s, direction: d.directions[i] }));
+          directionSource = d.source;
+        }
+        return Response.json({ plan, source: raw ? "ai" : "fallback", directionSource });
       },
     },
   },

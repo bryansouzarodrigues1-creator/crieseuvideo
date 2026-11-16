@@ -1,7 +1,7 @@
 /**
  * Full-screen animated scenarios drawn in code (sky, city, beach, road...). The AI only names one per scene.
  */
-export const SETTINGS = ['sunburst', 'sky_day', 'sunset', 'night', 'city_day', 'beach', 'forest', 'road', 'room', 'office', 'space', 'rain'] as const;
+export const SETTINGS = ['sunburst', 'sky_day', 'sunset', 'night', 'city_day', 'beach', 'forest', 'road', 'room', 'office', 'space', 'rain', 'summit'] as const;
 export type Setting = (typeof SETTINGS)[number];
 
 const INK = '#1B1B24';
@@ -117,6 +117,19 @@ export function drawSetting(c: CanvasRenderingContext2D, setting: Setting, w: nu
       c.fillStyle = '#FF7F50'; c.beginPath(); c.arc(w * 0.84, h * 0.4, 80 * u, 0, Math.PI * 2); c.fill();
       c.strokeStyle = '#FFD7A8'; c.lineWidth = 10 * u; c.beginPath(); c.ellipse(w * 0.84, h * 0.4, 140 * u, 30 * u, -0.3, 0, Math.PI * 2); c.stroke();
       c.fillStyle = '#6C63FF'; c.beginPath(); c.arc(w * 0.08, h * 0.95, 200 * u, 0, Math.PI * 2); c.fill(); break;
+    case 'summit': {
+      // Topo nevado: céu azul liso, montanha low-poly branca, plataforma e bandeira (estilo do vídeo de referência).
+      c.fillStyle = '#A6D8EE'; c.fillRect(0, 0, w, h);
+      const px = w * 0.5, py = ground - 90 * u;
+      c.fillStyle = '#F4F7FB'; c.beginPath(); c.moveTo(px - 150 * u, py + 40 * u); c.lineTo(px - 330 * u, py + 150 * u); c.lineTo(-w * 0.2, h); c.lineTo(w * 1.2, h); c.lineTo(px + 330 * u, py + 150 * u); c.lineTo(px + 150 * u, py + 40 * u); c.closePath(); c.fill();
+      c.fillStyle = '#DCE6F0'; c.beginPath(); c.moveTo(px + 20 * u, py + 40 * u); c.lineTo(px + 150 * u, py + 40 * u); c.lineTo(px + 330 * u, py + 150 * u); c.lineTo(w * 1.2, h); c.lineTo(px + 90 * u, h); c.closePath(); c.fill();
+      c.fillStyle = '#FFFFFF'; c.fillRect(px - 180 * u, py, 360 * u, 44 * u);
+      c.fillStyle = '#D5DEE9'; c.fillRect(px - 180 * u, py + 44 * u, 360 * u, 28 * u);
+      c.strokeStyle = '#6B7280'; c.lineWidth = 6 * u; c.beginPath(); c.moveTo(px + 125 * u, py); c.lineTo(px + 125 * u, py - 260 * u); c.stroke();
+      const wv = Math.sin(t * 4) * 8 * u;
+      c.fillStyle = '#E63946'; c.beginPath(); c.moveTo(px + 125 * u, py - 260 * u); c.lineTo(px + 215 * u, py - 244 * u + wv); c.lineTo(px + 125 * u, py - 200 * u); c.closePath(); c.fill();
+      break;
+    }
     case 'rain':
       c.fillStyle = grad(c, h, ['#4B5563', '#9CA3AF']); c.fillRect(0, 0, w, h); clouds(c, w, h, u, t, '#6B7280');
       skyline(c, w, h, u, t, ground, true); c.fillStyle = '#374151'; c.fillRect(0, ground, w, h - ground);

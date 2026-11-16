@@ -5,6 +5,9 @@ import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/type
 import * as THREE from 'three';
 import { sceneAt, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
 import { spring, drawBoardArt } from './render';
+import { cameraPose, type CameraSpec, type Vec3 } from './direction/camera';
+import { OUTFITS } from './direction/catalog';
+import type { Direction } from './direction/direction';
 
 const INK = 0x1c1824;
 const HOODIE: Record<string, number> = { orange: 0xf28c28, purple: 0x7b5cd6, teal: 0x23a59a, pink: 0xe5578f, night: 0x3b4a7a };
@@ -92,6 +95,12 @@ function buildSet(scene: ExplainerScene, world: THREE.Group, night: boolean, see
   const s = scene.setting || (scene.visual === 'city_night' ? 'night' : 'office');
   let rnd = seed * 9301 + 49297; const R = () => ((rnd = (rnd * 9301 + 49297) % 233280) / 233280);
   const indoor = s === 'office' || s === 'room' || s === 'sunburst' || !scene.setting;
+  if (s === 'summit') {
+    // Topo nevado (estilo do vídeo de referência): cone low-poly branco com uma plataforma no cume; o céu é liso.
+    const mountain = toon(new THREE.ConeGeometry(7, 6, 9), 0xf4f7fb, { outline: 0 }); mountain.position.y = -3; world.add(mountain);
+    const slab = toon(new THREE.BoxGeometry(3, 0.36, 3), 0xffffff, { outline: 0.02 }); slab.position.y = -0.18; world.add(slab);
+    return { indoor: false };
+  }
   if (indoor) {
     const wallC = s === 'room' ? 0xf3d9b1 : 0xe6ecef;
     const floor = toon(new THREE.BoxGeometry(14, 0.2, 10), s === 'room' ? 0xb7825a : 0xc99b6d, { outline: 0 }); floor.position.set(0, -0.1, 0); world.add(floor);
@@ -137,6 +146,19 @@ function buildSet(scene: ExplainerScene, world: THREE.Group, night: boolean, see
   if (s !== 'night' && s !== 'space' && s !== 'rain') { const sun = new THREE.Mesh(new THREE.SphereGeometry(1.2, 24, 16), new THREE.MeshBasicMaterial({ color: s === 'sunset' ? 0xff7a45 : 0xffe066 })); sun.position.set(6, 8, -14); world.add(sun); }
   for (let i = 0; i < 4; i++) { const cl = new THREE.Group(); [0, 0.7, -0.7].forEach((dx, k) => { const p = toon(new THREE.SphereGeometry(0.7 - k * 0.1, 14, 10), s === 'rain' ? 0x7c8696 : 0xffffff, { outline: 0.02 }); p.position.x = dx; cl.add(p); }); cl.position.set(-8 + i * 5, 6 + R() * 2, -10); cl.userData.drift = 0.2 + R() * 0.3; world.add(cl); }
   return { indoor: false };
+}
+
+/** Itens de cenário pedidos pela direção (só os do catálogo). A bandeira ondula pelo userData.wave. */
+function addSceneProps(world: THREE.Group, dir: Direction) {
+  if (dir.props.includes('flag')) {
+    const x = dir.placement === 'right' ? -1.15 : 1.15;
+    const pole = toon(new THREE.CylinderGeometry(0.03, 0.03, 2.4, 8), 0x6b7280, { outline: 0.05 }); pole.position.set(x, 1.2, -0.4); world.add(pole);
+    const cloth = new THREE.Group(); cloth.position.set(x, 2.2, -0.4); cloth.userData.wave = true;
+    const flag = toon(new THREE.BoxGeometry(0.75, 0.42, 0.03), 0xe63946, { outline: 0.04 }); flag.position.x = 0.38; cloth.add(flag); world.add(cloth);
+  }
+  if (dir.props.includes('tent')) {
+    const tent = toon(new THREE.ConeGeometry(0.9, 1.1, 4), 0xe9843b); tent.position.set(dir.placement === 'left' ? 1.2 : -1.2, 0.55, -0.6); tent.rotation.y = Math.PI / 4; world.add(tent);
+  }
 }
 
 // ---------- hero props ----------
@@ -221,6 +243,10 @@ export class Toon3D {
   private boardCtx: CanvasRenderingContext2D;
   private boardTex: THREE.CanvasTexture;
   private shot: { from: Shot; to: Shot } | null = null;
+  /** Direção 3D da cena atual (null = encenação clássica com quadro). */
+  private dir: Direction | null = null;
+  private dirShot: { spec: CameraSpec; focus: Vec3; dist: number } | null = null;
+  private baseHolder = { x: 0, y: 1.05, z: 0.9 };
   constructor() {
     this.canvas = document.createElement('canvas');
     this.boardCanvas = document.createElement('canvas'); this.boardCanvas.width = 1024; this.boardCanvas.height = 772;
@@ -234,23 +260,30 @@ export class Toon3D {
   private build(scene: ExplainerScene, index: number, portrait: boolean) {
     this.world.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); const mat = m.material as THREE.Material & { map?: THREE.Texture }; if (mat && mat !== OUTLINE && (mat as THREE.MeshBasicMaterial).map !== this.boardTex) { mat.map?.dispose(); mat.dispose?.(); } });
     this.world.clear();
-    const night = scene.palette === 'night' || scene.setting === 'night' || scene.setting === 'space' || scene.visual === 'city_night';
-    this.scene.background = new THREE.Color(sky(scene.setting || (night ? 'night' : 'sky_day')));
+    const dir = scene.direction ?? null; this.dir = dir; this.dirShot = null;
+    // Com direção, o cenário vem do catálogo (dir.environment); sem ela, tudo funciona como antes.
+    const eff: ExplainerScene = dir ? { ...scene, setting: dir.environment } : scene;
+    const night = eff.palette === 'night' || eff.setting === 'night' || eff.setting === 'space' || eff.visual === 'city_night';
+    this.scene.background = new THREE.Color(sky(eff.setting || (night ? 'night' : 'sky_day')));
     this.scene.fog = new THREE.Fog(this.scene.background, 14, 34);
     this.world.add(new THREE.HemisphereLight(night ? 0x8090ff : 0xffffff, 0x705848, night ? 0.9 : 1.4));
     const sun = new THREE.DirectionalLight(night ? 0xaab8ff : 0xfff1d6, night ? 1.4 : 2.4); sun.position.set(-4, 8, 6); sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.bias = -0.0005; this.world.add(sun);
     const rim = new THREE.DirectionalLight(night ? 0xff8ad8 : 0xbfe3ff, 1.1); rim.position.set(5, 4, -5); this.world.add(rim);
-    buildSet(scene, this.world, night, index + 1);
-    const handProp = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
+    buildSet(eff, this.world, night, index + 1);
+    if (dir) addSceneProps(this.world, dir);
+    const handProp = dir ? (dir.action === 'hold_phone' ? 'phone' : dir.action === 'hold_coins' ? 'coin_stack' : 'none') : scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
     // Composition: the host stands in front; the scene illustration lives on a big presentation board
     // (portrait: above the host, landscape: beside him), so any script line has a matching visual.
     const L = portrait
       ? { host: new THREE.Vector3(0, 0, 0.9), board: new THREE.Vector3(0, 3.45, -0.6), bw: 2.15, bh: 1.62 }
       : { host: new THREE.Vector3(-1.35, 0, 0.6), board: new THREE.Vector3(1.05, 2.25, -0.4), bw: 2.7, bh: 2.03 };
-    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: 0x22325a }, handProp); this.rigPos = { x: 0, y: 0, z: 0 };
+    this.rig?.dispose(); this.rig = createCharacterRig({ bodyColor: dir ? OUTFITS[dir.outfit].color : 0x22325a }, handProp); this.rigPos = { x: 0, y: 0, z: 0 };
     const holder = new THREE.Group(); holder.position.set(L.host.x, portrait ? 1.05 : 1.62, L.host.z); holder.scale.setScalar(1.15); holder.add(this.rig.root); this.world.add(holder);
     this.holder = holder;
+    const world3d = !!dir && !dir.board; // cena "de mundo": personagem + cenário, câmera dirigida, sem quadro
+    if (world3d) { const hx = dir!.placement === 'left' ? -0.9 : dir!.placement === 'right' ? 0.9 : 0; holder.position.set(hx, 1.05, 0); }
+    this.baseHolder = { x: holder.position.x, y: holder.position.y, z: holder.position.z };
     // board: dark bezel + live 2D illustration texture + two stand legs down to the floor
     const board = new THREE.Group(); board.position.copy(L.board); this.world.add(board);
     const bezel = toon(new THREE.BoxGeometry(L.bw + 0.16, L.bh + 0.16, 0.08), 0x1c1824, { outline: 0.02 }); bezel.position.z = -0.05; board.add(bezel);
@@ -276,13 +309,17 @@ export class Toon3D {
     const from = { pos: to.pos.clone().add(new THREE.Vector3(-Math.sin(ang) * 0.6, 0.15, 0.7)), look: look.clone() };
     this.shot = { from, to };
     holder.visible = kind !== 'board'; // board close-ups are clean cutaways: no half-cut host under the caption
+    if (world3d) {
+      board.visible = false; holder.visible = true; this.shot = null;
+      this.dirShot = { spec: { move: dir!.cameraMove, shot: dir!.shot, intensity: dir!.intensity }, focus: { x: holder.position.x, y: 1.55, z: holder.position.z }, dist: portrait ? 6.4 : 5.6 };
+    }
   }
   render(plan: ExplainerPlan, t: number, w: number, h: number) {
     if (this.canvas.width !== w || this.canvas.height !== h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
     const at = sceneAt(plan, t);
     if (!at) { this.scene.background = new THREE.Color(0x7b5cd6); this.renderer.render(this.scene, this.camera); return; }
-    const { scene, local, index } = at, portrait = h > w;
-    const key = `${index}|${scene.text}|${scene.visual}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}`;
+    const { scene, local, index, duration } = at, portrait = h > w;
+    const key = `${index}|${scene.text}|${scene.visual}|${scene.setting}|${scene.palette}|${scene.label}|${portrait}|${JSON.stringify(scene.direction ?? null)}`;
     if (key !== this.key) { this.key = key; this.build(scene, index, portrait); }
     // live board illustration (same code-drawn art as the 2D engine)
     const bc = this.boardCanvas, bw = 1024, bh = Math.round(1024 * (this.boardSize.h / this.boardSize.w));
@@ -292,19 +329,32 @@ export class Toon3D {
     const wd = wordAt(scene, local);
     const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) : 0;
     if (this.rig) {
-      const expression: FacialExpression = scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
-      const hasHandProp = scene.visual === 'phone_chat' || scene.visual === 'profile' || scene.visual === 'money';
+      const d = this.dir;
+      const expression: FacialExpression = d ? (d.expression === 'happy' ? 'smirk_patrick' : d.expression === 'angry' ? 'angry' : d.expression === 'confused' ? 'confused' : 'neutral') : scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
+      const hasHandProp = d ? d.action === 'hold_phone' || d.action === 'hold_coins' : scene.visual === 'phone_chat' || scene.visual === 'profile' || scene.visual === 'money';
       // present the board for the first beat of each scene, then talk to camera
-      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle';
-      const prop = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
+      const worldPose: CharacterPose | null = d && !d.board ? (d.action === 'run' ? 'running' : d.action === 'shocked' ? 'shocked' : hasHandProp ? 'holding_prop' : d.action === 'idle' ? 'idle' : talk > 0 ? 'talking' : 'idle') : null;
+      const pose: CharacterPose = worldPose ?? scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle';
+      const prop = d ? (d.action === 'hold_phone' ? 'phone' : d.action === 'hold_coins' ? 'coin_stack' : 'none') : scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
       const ch: ToonCharacter = { id: 'host', pose, expression, gaze: hasHandProp ? 'lookAtProp' : 'lookAtCamera', prop, position: this.rigPos, rotationY: 0, scale: 1 };
       updateCharacterRig(this.rig, ch, t);
       // turn slightly toward the board while pointing at it
-      if (this.holder) this.holder.rotation.y = pose === 'pointing' ? (portrait ? 0 : 0.35) : (portrait ? 0 : 0.18);
+      if (this.holder) this.holder.rotation.y = worldPose ? 0 : pose === 'pointing' ? (portrait ? 0 : 0.35) : (portrait ? 0 : 0.18);
+      if (this.holder && d && !d.board) {
+        // entrada do personagem (rise_from_below: sobe da encosta até o topo)
+        const inv = 1 - ease(local / 1.4), b = this.baseHolder;
+        const dx = d.entrance === 'slide_in_left' ? -3.2 * inv : d.entrance === 'slide_in_right' ? 3.2 * inv : 0;
+        const dy = d.entrance === 'rise_from_below' ? -1.9 * inv : d.entrance === 'drop_in' ? 3 * inv : 0;
+        const dz = d.entrance === 'rise_from_below' ? 1.4 * inv : 0;
+        this.holder.position.set(b.x + dx, b.y + dy, b.z + dz);
+      }
       if (pose === 'pointing' && portrait) this.rig.head.rotation.x -= 0.18; // glance up at the board
     }
-    this.world.children.forEach((o) => { if (o.userData.drift) o.position.x += 0.004 * o.userData.drift; });
-    if (this.shot) {
+    this.world.children.forEach((o) => { if (o.userData.drift) o.position.x += 0.004 * o.userData.drift; if (o.userData.wave) o.rotation.y = Math.sin(t * 3) * 0.2; });
+    if (this.dirShot) {
+      const cam = cameraPose(this.dirShot.spec, local / Math.max(0.5, duration), this.dirShot.focus, this.dirShot.dist);
+      this.camera.position.set(cam.pos.x, cam.pos.y, cam.pos.z); this.camera.lookAt(cam.look.x, cam.look.y, cam.look.z);
+    } else if (this.shot) {
       const k = ease(local / 0.9), push = Math.min(local, 8) * 0.025;
       const pos = this.shot.from.pos.clone().lerp(this.shot.to.pos, k);
       const dir = this.shot.to.look.clone().sub(pos).normalize(); pos.addScaledVector(dir, push);

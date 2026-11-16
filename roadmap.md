@@ -1,4 +1,14 @@
 # Evolução profissional do estúdio
+## Direção 3D pelo Gemini (branch feat/direcao-3d-gemini) — 16/11/2026
+- [x] Catálogo único de capacidades do motor 3D (cenário, ação, entrada, roupa, props, câmera) em `direction/catalog.ts`.
+- [x] Gemini só escolhe itens do catálogo (saída estruturada); o que vier inválido é trocado por padrão seguro e pedidos que o motor não faz vão para `unsupported`.
+- [x] Plano B determinístico pelas palavras da cena (a cena do Everest vira topo nevado + jaqueta amarela + bandeira) e câmera dirigida determinística por tempo (`direction/camera.ts`).
+- [x] Testes unitários da direção e da câmera (50 testes de lógica pura passando, rodados fora do Vitest).
+- [x] Formato REST do Gemini conferido na documentação oficial (`generationConfig.responseFormat.text`); modelo padrão `gemini-3.5-flash` (sobrescreva com GEMINI_MODEL).
+- [ ] Verificar o renderer 3D (`toon3d.ts`: topo nevado, bandeira, entrada, câmera) rodando o app: não foi possível sem instalar dependências.
+- [ ] Rodar `npm test`, `npm run lint` e `npm run build` completos antes de ir para a main.
+- [ ] Ativar o Gemini: pelo gateway da Lovable (padrão, LOVABLE_API_KEY) ou direto (AI_PROVIDER=gemini + GEMINI_API_KEY em Secrets, nunca no repositório).
+
 ## Revisão das atualizações do GitHub — 15/11/2026
 - [x] Comparar a main do GitHub com o app e identificar as propostas recentes.
 - [x] Revisar a cadeia consolidada dos PRs #6 → #7 → #8 → #9 → #10 → #11, que inclui as correções dos PRs #2–#5.

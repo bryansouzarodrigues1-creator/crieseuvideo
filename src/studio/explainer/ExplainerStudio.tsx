@@ -6,6 +6,7 @@ import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDura
 import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
+import { ensureDirections } from './direction/direction';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
@@ -196,7 +197,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const generate = async (text = script) => {
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: [...gallery, ...vaultFor(text)] }) });
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, engine, gallery: [...gallery, ...vaultFor(text)] }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
@@ -206,7 +207,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setGenId(null); setRated(null); setReason('');
       fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: text, plan: data.plan, engine, keywords: detectCues(text).map((c) => c.tag) }) })
         .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
-      setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
+      setNote((data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.') + (data.directionSource === 'ai' ? ' Câmera e cenário 3D dirigidos pela IA.' : data.directionSource === 'fallback' ? ' Câmera e cenário 3D montados pelas palavras da cena.' : ''));
       if (voiceOn && !track) await narrate(data.plan);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
@@ -331,7 +332,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           </div>
           <p className="explainer-label">Estilo de animação</p>
           <div className="explainer-row">
-            <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
+            <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d', scenes: ensureDirections(p.scenes) })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
             <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
           <p className="explainer-label">Modo de criação</p>
