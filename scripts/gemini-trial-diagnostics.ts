@@ -23,6 +23,7 @@ export function summarizeGeminiTrialFailure(error: unknown, requestsSent: number
     phase,
     validatorMessage: safeText,
     hasInertCandidate,
+    ...(director?.structure ? { structure: director.structure } : {}),
     callsMade: requestsSent,
     retried: false,
     noRenderingAttempted: true,
