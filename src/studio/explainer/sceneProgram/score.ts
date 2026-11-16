@@ -139,19 +139,37 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     const node = nodeMap.get(t.node) ?? fail('Uma curva citou um objeto inexistente.'); if (!(PROGRAM_CHANNELS as readonly string[]).includes(t.channel)) fail('Uma curva citou uma propriedade inexistente.');
     if (!['position', 'rotation', 'scale'].includes(t.channel) && node.kind !== 'actor') fail('Somente personagens possuem controles corporais.');
     if (!['linear', 'smooth', 'step'].includes(t.interpolation ?? 'smooth')) fail('A interpolação de uma curva é inválida.');
-    let previous = -1;
-    const keys = list(t.keys, 160).map((value): ProgramKey => {
+    // Models frequently emit a useful key at the end of one phrase and
+    // another key at the exact start of the next. Both describe the SAME
+    // absolute time; blindly rejecting them wastes a valid scene.
+    // Normalize only ordering and duplicate timestamps. We never invent
+    // a position, alter a value, or generate any new action.
+    const submitted = list(t.keys, 160).map((value, originalIndex) => {
       const k = obj(value); only(k, ['sourceId', 'phase', 'value']);
-      const sourceId = source(k.sourceId), phase = num(k.phase, 0, 1), order = sourceIndex.get(sourceId)! + phase;
-      if (order <= previous) fail('Os pontos de uma curva precisam seguir a ordem do roteiro sem tempos duplicados.'); previous = order;
-      // Mechanical rotation tracks must support multiple full revolutions (a turbine/rotor),
-      // while static part orientation, camera angles and joint poses stay bounded.
+      const sourceId = source(k.sourceId), phase = num(k.phase, 0, 1);
+      // Mechanical shaft rotation tracks can span multiple revolutions;
+      // static orientation and human joints retain tighter safety bounds.
       const bounds = t.channel === 'scale' ? [.01, 100] : t.channel === 'face' ? [-1, 1]
         : t.channel === 'rotation' ? [-200, 200]
         : /Rotation/.test(t.channel) ? [-Math.PI * 2, Math.PI * 2] : [-200, 200];
-      return { sourceId, phase, value: vector(k.value, bounds[0], bounds[1]) };
-    });
-    keyBudget += keys.length; if (keys.length < 2 || keyBudget > 3000) fail('Uma curva precisa de dois pontos e o programa deve caber no orçamento de animação.');
+      return {
+        sourceId, phase, value: vector(k.value, bounds[0], bounds[1]),
+        order: sourceIndex.get(sourceId)! + phase, originalIndex,
+      };
+    }).sort((a, b) => a.order - b.order
+      || sourceIndex.get(a.sourceId)! - sourceIndex.get(b.sourceId)!
+      || a.originalIndex - b.originalIndex);
+    const keys: ProgramKey[] = [];
+    let previousOrder = -Infinity;
+    for (const key of submitted) {
+      const parsed: ProgramKey = { sourceId: key.sourceId, phase: key.phase, value: key.value };
+      if (Math.abs(key.order - previousOrder) < 1e-9) keys[keys.length - 1] = parsed;
+      else keys.push(parsed);
+      previousOrder = key.order;
+    }
+    keyBudget += keys.length;
+    if (keys.length < 2 || keyBudget > 3000)
+      fail('Uma curva precisa de pelo menos dois instantes distintos e respeitar o orçamento de animação.');
     return { node: node.id, channel: t.channel, interpolation: t.interpolation ?? 'smooth', keys };
   });
   if (!tracks.length || new Set(tracks.map((t) => `${t.node}/${t.channel}`)).size !== tracks.length) fail('Defina movimentos sem duplicar uma curva do mesmo objeto.');
