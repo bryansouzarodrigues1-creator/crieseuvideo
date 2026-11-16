@@ -20,7 +20,11 @@ const output = path.resolve('tmp/real-studio-3d-qa');
 await fs.mkdir(output, {recursive:true});
 
 const server = spawn('bun',['run','dev','--','--host','127.0.0.1','--port',String(PORT),'--strictPort'],{
-  env:{...process.env, CI:'true', NO_COLOR:'1'},stdio:['ignore','pipe','pipe'],
+  env:{...process.env, CI:'true', NO_COLOR:'1',
+    // Dummy browser-side Supabase config. No real token or network connection.
+    VITE_SUPABASE_URL:'https://qa3d.supabase.co',
+    VITE_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test_only',
+  },stdio:['ignore','pipe','pipe'],
 });
 let serverTail = '';
 for (const stream of [server.stdout,server.stderr]) stream.on('data', buffer=>{
@@ -47,6 +51,19 @@ try{
   ]});
   const page=await browser.newPage({viewport:{width:393,height:852},deviceScaleFactor:1,
     acceptDownloads:true});
+  // The demo uses the actual browser Supabase getSession() path. This fixture
+  // is not a verified identity: the backend never receives it, because API
+  // calls are intercepted. Real authorization is covered by gate unit tests.
+  const syntheticJWT='eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.qa3d-not-a-real-token';
+  await page.addInitScript(({key,token})=>{
+    localStorage.setItem(key,JSON.stringify({
+      access_token:token,refresh_token:'qa3d-refresh-only',token_type:'bearer',
+      expires_in:1800000000,expires_at:4100000000,
+      user:{id:'123e4567-e89b-42d3-a456-426614174000',aud:'authenticated',
+        role:'authenticated',email:'qa3d@example.invalid',app_metadata:{},user_metadata:{},
+        created_at:'2026-01-01T00:00:00.000Z'},
+    }));
+  },{key:'sb-qa3d-auth-token',token:syntheticJWT});
   page.on('pageerror',err=>errors.push('pageerror: '+err.message));
   page.on('console',msg=>{
     if(msg.type()!=='error')return;
@@ -61,6 +78,8 @@ try{
   await page.route('**/api/ai/explainer-plan',async route=>{
     providerRequests++;
     const data=route.request().postDataJSON();
+    const auth=route.request().headers()['authorization'];
+    assert.equal(auth,'Bearer '+syntheticJWT,'Expected browser owner session header, not a Google API key.');
     seenRequests.push(data);
     if(providerRequests===1){
       const normalized=withTargetDuration(normalizePlan(mechanicalDemoResponse(),

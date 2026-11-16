@@ -1,6 +1,6 @@
 // Server-only provider router. The optional environment also lets the private
 // test deployment reuse this code without copying secrets into browser bundles.
-export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY', string>>;
+export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY' | 'FREEFORM_3D_GEMINI_API_KEY', string>>;
 export type AiProvider = 'gemini' | 'lovable';
 export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_response' | 'upstream' | 'configuration' | 'invalid_request' | 'unsupported_model' | 'blocked' | 'truncated';
 export type AiResult =

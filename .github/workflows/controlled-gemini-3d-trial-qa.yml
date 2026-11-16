@@ -1,0 +1,60 @@
+name: Controlled Gemini 3D Trial Security and Browser QA
+
+on:
+  push:
+    branches: [feat/controlled-gemini-3d-trial]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controlled-3d-trial-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secure-trial:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: All tests (mocked AI only)
+        run: bun run test
+      - name: TypeScript and build checks
+        run: |
+          bunx tsc --noEmit
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Verify live-trial CLI defaults to dry run with zero credits
+        run: bun scripts/controlled-gemini-3d-trial.ts
+      - name: Browser QA prerequisites
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Offline output fixture for the future real Gemini renderer
+        run: bun scripts/prepare-offline-3d-render-qa.ts
+      - name: Render the offline fixture through actual editor to H.264 MP4
+        run: bun scripts/render-real-gemini-3d-trial.mjs
+      - name: Owner session and real-studio WebGL with Gemini simulated
+        run: bun scripts/studio-freeform-3d-browser-qa.mjs
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: controlled-gemini-3d-trial-evidence
+          path: |
+            tmp/real-studio-3d-qa/
+            tmp/authorized-gemini-3d-trial/
+          if-no-files-found: ignore
+          retention-days: 7

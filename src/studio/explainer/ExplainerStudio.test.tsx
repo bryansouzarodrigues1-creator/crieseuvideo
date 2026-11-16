@@ -14,6 +14,8 @@ vi.mock('./voice', () => ({
 }));
 vi.mock('./render', () => ({ drawExplainerFrame: vi.fn(), drawOverlay: vi.fn() }));
 vi.mock('./toon3d', () => ({ Toon3D: class {} }));
+// Owner identity is mocked in UI tests only; the actual API verifies the JWT server-side.
+vi.mock('./freeform3dAuth', () => ({ freeform3dAuthHeaders: vi.fn(async () => ({ Authorization: 'Bearer mocked.test.owner' })) }));
 
 beforeEach(() => {
   localStorage.clear();

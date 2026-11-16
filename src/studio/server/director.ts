@@ -79,9 +79,15 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
     }
     // Free-form 3D is an explicit Gemini Direct feature. Never spend Lovable
     // gateway credits or silently switch providers for this one-click request.
+    const configured = env ?? (typeof process === 'undefined' ? {} : process.env);
+    // On the production HTTP route (no explicit env), use ONLY the dedicated
+    // owner-trial key. Generic GEMINI_API_KEY remains for legacy provider paths
+    // and cannot be consumed by this experimental feature.
+    // Private lab/test call-sites may pass an explicit env for compatibility.
+    const trialKey = configured.FREEFORM_3D_GEMINI_API_KEY ?? (env ? env.GEMINI_API_KEY : undefined) ?? '';
     const directGeminiEnv: AiEnvironment = {
-      ...(env ?? (typeof process === 'undefined' ? {} : process.env)),
-      AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '',
+      ...configured, AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '',
+      GEMINI_API_KEY: trialKey,
     };
     const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}${repair}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, directGeminiEnv);
     if (!result.ok) throw providerError(result);
