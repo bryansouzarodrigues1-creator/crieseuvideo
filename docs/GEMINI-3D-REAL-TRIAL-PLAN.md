@@ -19,14 +19,17 @@ A rota HTTP /api/ai/explainer-plan anterior não tinha uma autorização especia
 2. FREEFORM_3D_OWNER_USER_ID deve corresponder à identidade verificada no Supabase Auth. Não basta informar o ID; um JWT deve ser validado pelo servidor.
 3. FREEFORM_3D_DAILY_LIMIT aceita 1 a 3 chamadas por dia UTC; o padrão é 1. Uma correção solicitada manualmente também consome uma chamada.
 4. Migração SQL 0002_freeform_3d_daily_quota.sql prepara uma RPC que reserva cota de forma atômica num banco persistente. Não aplicá-la à base principal antes de autorização. Falhas na RPC bloqueiam geração.
-5. O navegador só envia o token de sessão; o segredo GEMINI_API_KEY fica exclusivamente no servidor. Nenhum fallback automático para Lovable ou fal.
+5. O navegador só envia o token de sessão; o segredo FREEFORM_3D_GEMINI_API_KEY fica exclusivamente no servidor. Nenhum fallback automático para Lovable ou fal.
 6. O editor ainda não possui login público universal: antes de homologar será necessário confirmar uma sessão Supabase válida e, se preciso, habilitar entrada de conta.
 
 Outros endpoints pagos legados também merecem endurecimento antes do lançamento público; este PR protege especificamente a criação livre 3D.
 
+
+Observação de isolamento: a credencial FREEFORM_3D_GEMINI_API_KEY é **separada** da variável legada GEMINI_API_KEY. O editor 3D público não pode usar a chave antiga por acidente, mesmo que outras rotas ainda a utilizem. O laboratório isolado continua podendo receber um ambiente explícito de teste, mas não altera essa regra na rota de produção.
+
 ## Ambiente de homologação — nunca configurar chaves no chat
 
-Variáveis privadas do servidor: FREEFORM_3D_ENABLED=false; FREEFORM_3D_OWNER_USER_ID=UUID do proprietário; FREEFORM_3D_DAILY_LIMIT=1 ou 2; GEMINI_API_KEY=credencial atual em Secret; GEMINI_TEXT_MODEL=gemini-3.6-flash; SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY de homologação.
+Variáveis privadas do servidor: FREEFORM_3D_ENABLED=false; FREEFORM_3D_OWNER_USER_ID=UUID do proprietário; FREEFORM_3D_DAILY_LIMIT=1 ou 2; FREEFORM_3D_GEMINI_API_KEY=credencial exclusiva e nova em Secret; GEMINI_TEXT_MODEL=gemini-3.6-flash; SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY de homologação.
 
 Revisar e aplicar a migração da quota SOMENTE numa base de homologação. A tabela tem RLS e não concede acesso a usuários normais. Verificar manualmente a autenticação e uma tentativa acima do limite antes de liberar a API.
 
