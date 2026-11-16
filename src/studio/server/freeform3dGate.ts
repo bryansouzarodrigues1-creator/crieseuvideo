@@ -12,7 +12,7 @@ export interface Freeform3DGateEnv {
   FREEFORM_3D_ENABLED?: string;
   FREEFORM_3D_OWNER_USER_ID?: string;
   FREEFORM_3D_DAILY_LIMIT?: string;
-  GEMINI_API_KEY?: string;
+  FREEFORM_3D_GEMINI_API_KEY?: string;
 }
 
 export class Freeform3DGateError extends Error {
