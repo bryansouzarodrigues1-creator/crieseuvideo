@@ -48,18 +48,40 @@ describe('authored scene programs beyond the action catalogue', () => {
     const { program, sources } = example(1);
     expect(() => normalizeSceneProgram({ ...program, [field]: 'untrusted' }, sources)).toThrow(/campo não suportado/);
   });
-  it('rejects invalid hierarchy, triangle indices, resources and reordered timeline keys', () => {
+  it('rejects invalid hierarchy, triangle indices and untrusted resources', () => {
     const { program, sources } = example(0);
     const bad = (edit: (p: any) => void) => { const p = JSON.parse(JSON.stringify(program)); edit(p); expect(() => normalizeSceneProgram(p, sources)).toThrow(); };
     bad((p) => p.nodes[0].parent = p.nodes[0].id);
     bad((p) => p.nodes[0].parent = 'missing');
     bad((p) => p.nodes[1].geometry.indices[0] = 90000);
     bad((p) => p.nodes.find((n: any) => n.repeat).repeat.count = 900000);
-    bad((p) => p.tracks[0].keys.reverse());
+
     bad((p) => p.shots[0].sourceId = 's99');
     bad((p) => p.contacts.push({ ...p.contacts[0] }));
     bad((p) => p.nodes[0].material = { shader: 'untrusted' });
     bad((p) => p.nodes[0].material = { opacity: -1 });
+  });
+  it('sorts out-of-order keyframes without changing their sampled movement', () => {
+    const { program, sources } = example(0);
+    const raw = JSON.parse(JSON.stringify(program));
+    const baseline = normalizeSceneProgram(raw, sources);
+    raw.tracks[0].keys.reverse();
+    const corrected = normalizeSceneProgram(raw, sources);
+    expect(corrected.tracks[0].keys).toEqual(baseline.tracks[0].keys);
+    const before = compileSceneProgram(baseline,sources), after = compileSceneProgram(corrected,sources);
+    for(const fraction of [0,.12,.3,.56,.8,1])
+      expect(after.sample(after.duration*fraction)).toEqual(before.sample(before.duration*fraction));
+  });
+  it('collapses coincident keyframes but still rejects a track with only one distinct instant', () => {
+    const { program, sources } = example(0);
+    const raw = JSON.parse(JSON.stringify(program));
+    const first=raw.tracks[0].keys[0];
+    raw.tracks[0].keys.splice(1,0,JSON.parse(JSON.stringify(first)));
+    const corrected=normalizeSceneProgram(raw,sources);
+    expect(corrected.tracks[0].keys).toHaveLength(program.tracks[0].keys.length);
+    const invalid=JSON.parse(JSON.stringify(program));
+    invalid.tracks[0].keys=[first,JSON.parse(JSON.stringify(first))];
+    expect(()=>normalizeSceneProgram(invalid,sources)).toThrow(/dois instantes distintos/);
   });
   it.each([0, 1, 2])('poses real Three.js geometry for fixture %i deterministically and frames both aspects', (index) => {
     const { program, sources, sample } = example(index), stage = new SceneProgram3D(program, sources);
