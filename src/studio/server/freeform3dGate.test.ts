@@ -9,7 +9,7 @@ const OTHER = '123e4567-e89b-42d3-a456-426614174099';
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzaWduZWQifQ.verifiedonlyattheauthserver';
 const config: Freeform3DGateEnv = {
   FREEFORM_3D_ENABLED: 'true', FREEFORM_3D_OWNER_USER_ID: OWNER,
-  GEMINI_API_KEY: 'server-only-qa-key', FREEFORM_3D_DAILY_LIMIT: '1',
+  FREEFORM_3D_GEMINI_API_KEY: 'server-only-qa-key', FREEFORM_3D_DAILY_LIMIT: '1',
 };
 const request = (token = TOKEN) => ({ headers: new Headers({ authorization: 'Bearer ' + token }) });
 const deps = (user = OWNER, quota = true): Freeform3DGateDependencies => ({
@@ -23,7 +23,7 @@ const assertDenied = async (run: Promise<unknown>, code: string) => {
 describe('owner-only, opt-in Gemini 3D budget gate', () => {
   it('defaults to OFF even when a Gemini API key exists (no authentication or DB calls)', async () => {
     const d = deps();
-    await assertDenied(authorizeFreeform3D(request(), { GEMINI_API_KEY: 'private' }, d), 'freeform_3d_disabled');
+    await assertDenied(authorizeFreeform3D(request(), { FREEFORM_3D_GEMINI_API_KEY: 'private' }, d), 'freeform_3d_disabled');
     expect(d.verifyUser).not.toHaveBeenCalled();
     expect(d.consumeDailyQuota).not.toHaveBeenCalled();
   });
@@ -31,7 +31,7 @@ describe('owner-only, opt-in Gemini 3D budget gate', () => {
     for (const change of [
       { FREEFORM_3D_OWNER_USER_ID: '' },
       { FREEFORM_3D_OWNER_USER_ID: 'owner@email.invalid' },
-      { GEMINI_API_KEY: '' },
+      { FREEFORM_3D_GEMINI_API_KEY: '' },
       { FREEFORM_3D_DAILY_LIMIT: '4' },
       { FREEFORM_3D_DAILY_LIMIT: '0' },
       { FREEFORM_3D_DAILY_LIMIT: 'NaN' },
@@ -83,6 +83,6 @@ describe('owner-only, opt-in Gemini 3D budget gate', () => {
     try { await authorizeFreeform3D(request(),config,d); } catch(e) { error=e; }
     expect(error).toBeInstanceOf(Freeform3DGateError);
     expect(JSON.stringify(error)).not.toContain(TOKEN);
-    expect((error as Error).message).not.toContain(config.GEMINI_API_KEY);
+    expect((error as Error).message).not.toContain(config.FREEFORM_3D_GEMINI_API_KEY);
   });
 });
