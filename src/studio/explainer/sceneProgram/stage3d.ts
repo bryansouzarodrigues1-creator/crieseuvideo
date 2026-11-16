@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { ProgramActor3D } from './actor3d';
+import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
+import type { ApprovedModelId } from './modelRegistry';
 import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -32,13 +34,14 @@ export class SceneProgram3D {
   readonly score;
   readonly nodes = new Map<string, THREE.Object3D>();
   readonly actors = new Map<string, ProgramActor3D>();
+  readonly importedModels = new Map<string, ModelInstance>();
   private states = new Map<string, ProgramState>();
   private time = 0;
   private maxContactError = 0;
   private maxIKError = 0;
   private contactProblems: unknown[] = [];
   private projectedBounds = { min: [0, 0], max: [0, 0] };
-  constructor(readonly program: SceneProgram, readonly sources: ProgramSource[]) {
+  constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
     this.score = compileSceneProgram(program, sources);
     this.scene.background = new THREE.Color(program.background); this.scene.fog = new THREE.Fog(program.background, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
@@ -48,6 +51,12 @@ export class SceneProgram3D {
     for (const n of program.nodes) {
       let root: THREE.Object3D;
       if (n.kind === 'actor') { const actor = new ProgramActor3D(n.color); this.actors.set(n.id, actor); root = actor.root; }
+      else if (n.kind === 'model') {
+        const loaded = loadedModels.get(n.assetId!);
+        if (!loaded) throw new SceneProgramError('O modelo 3D autorizado ainda não foi carregado. Aguarde a importação antes de renderizar.');
+        const instance = instantiateModel(loaded);
+        this.importedModels.set(n.id, instance); root = instance.root;
+      }
       else if (n.kind === 'group') root = new THREE.Group();
       else {
         const opacity = n.material?.opacity ?? 1;
@@ -76,6 +85,7 @@ export class SceneProgram3D {
       const state = this.states.get(id)!; object.position.set(...state.position); object.rotation.set(...state.rotation); object.scale.set(...state.scale);
       this.actors.get(id)?.reset(state.pose, this.time);
     }
+    for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
     for (const [id, actor] of this.actors) {
       const state = this.states.get(id)!;
@@ -242,6 +252,6 @@ export class SceneProgram3D {
   dispose() {
     const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();
     this.scene.traverse((node) => { if (node instanceof THREE.InstancedMesh) node.dispose(); if (node instanceof THREE.Mesh) { geometries.add(node.geometry); for (const m of Array.isArray(node.material) ? node.material : [node.material]) materials.add(m); } if (node instanceof THREE.DirectionalLight) node.shadow.map?.dispose(); });
-    geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); this.scene.clear(); this.nodes.clear(); this.actors.clear();
+    geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); this.scene.clear(); this.nodes.clear(); this.actors.clear(); this.importedModels.clear();
   }
 }
