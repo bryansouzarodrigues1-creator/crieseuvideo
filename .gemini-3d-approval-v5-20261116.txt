@@ -1,0 +1,1 @@
+Owner authorized repeated Gemini 3D diagnostics. Fifth generation uses compact scene prompt, low thinking level and strictly capped 16384 output tokens. One GenerateContent request, no automatic retry, no Lovable credit usage, no deployment.
