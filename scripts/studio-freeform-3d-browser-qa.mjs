@@ -11,7 +11,8 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { normalizePlan } from '../src/studio/explainer/plan.ts';
 import { withTargetDuration } from '../src/studio/explainer/duration.ts';
-import { mechanicalDemoScript, mechanicalDemoResponse } from '../src/studio/explainer/sceneProgram/mechanicalDemo.ts';
+import { mechanicalDemoScript, mechanicalDemoResponse, mechanicalDemoProgram } from '../src/studio/explainer/sceneProgram/mechanicalDemo.ts';
+import { makeSceneProgramCandidate } from '../src/studio/explainer/sceneProgram/candidate.ts';
 
 const PORT = 4173;
 const base = 'http://127.0.0.1:' + PORT;
@@ -53,7 +54,7 @@ try{
     // Expected: external fonts intentionally blocked by the offline QA browser,
     // and the deliberate HTTP 503 fixture used to test failure recovery.
     if(/Failed to load resource: net::ERR_FAILED/.test(message) ||
-       /Failed to load resource: the server responded with a status of 503/.test(message))return;
+       /Failed to load resource: the server responded with a status of 50[23]/.test(message))return;
     errors.push('console: '+message.slice(0,250));
   });
   let providerRequests=0;
@@ -69,6 +70,27 @@ try{
         engine:'3d',targetDuration:8,gallery:[]});
       await route.fulfill({status:200,contentType:'application/json',
         body:JSON.stringify({plan,source:'ai',provider:'gemini',model:'simulated'})});
+      return;
+    }
+    if(providerRequests===3){
+      const invalid={...mechanicalDemoProgram(),javascript:'unsafe code must never run'};
+      const candidate=makeSceneProgramCandidate(invalid,[{sourceId:'s1',text:mechanicalDemoScript}]);
+      await route.fulfill({status:502,contentType:'application/json',
+        body:JSON.stringify({error:'O programa contém um campo não suportado.',
+          code:'invalid_scene_program',candidate})});
+      return;
+    }
+    if(providerRequests===4){
+      assert.equal(data.mode,'program');
+      assert.ok(data.previousProposal,'Explicit repair did not send rejected Gemini program');
+      assert.equal(data.previousProposal.program.javascript,'unsafe code must never run');
+      assert.match(data.repairIssue,/campo não suportado/);
+      assert.equal(data.script,mechanicalDemoScript);
+      const normalized=withTargetDuration(normalizePlan(mechanicalDemoResponse(),
+        mechanicalDemoScript,data.aspect),8);
+      await route.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify({plan:{...normalized,engine:'3d'},source:'ai',
+          provider:'gemini',model:'simulated-repair'})});
       return;
     }
     await route.fulfill({status:503,contentType:'application/json',
@@ -149,16 +171,28 @@ try{
   const landscape=await canvas.evaluate(c=>({w:c.width,h:c.height,empty:c.getContext('2d').getImageData(10,10,1,1).data[3]===0}));
   assert.deepEqual(landscape,{w:1280,h:720,empty:false});
   assert.equal(providerRequests,2);
+  // The first retry to program a NEW scene is a manual request. When the
+  // server rejects the generated JSON it must return inert feedback and offer
+  // a *separate* button, not silently spend another Gemini call.
+  await page.getByRole('button',{name:'Programar 3D com Gemini'}).click();
+  await page.getByRole('button',{name:'Corrigir com Gemini'}).waitFor({timeout:30000});
+  assert.equal(providerRequests,3,'Invalid program must not trigger automatic retries');
+  assert.equal(await page.getByLabel('Texto da cena 1').inputValue(),mechanicalDemoScript);
+  await page.getByRole('button',{name:'Corrigir com Gemini'}).click();
+  await page.getByRole('status').getByText(/3D livre: 4 ações verificadas matematicamente/).waitFor({timeout:60000});
+  assert.equal(providerRequests,4,'Only the user may start the repair call');
+  await page.getByRole('button',{name:'Programar 3D com Gemini'}).waitFor();
+  assert.equal(await page.getByLabel('Texto da cena 1').inputValue(),mechanicalDemoScript);
 
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify({
     result:'PASS',source:'production React editor',provider:'Gemini mocked at route',
-    paidCalls:0,unpromptedCalls:0,manualCalls:providerRequests,planPreservedOnError:true,
+    paidCalls:0,unpromptedCalls:0,manualCalls:providerRequests,planPreservedOnError:true,manualRepairValidated:true,
     preservesExactNarration:true,program:'lathe+hierarchical-mechanical-timeline',
     aspectRatios:['9:16','16:9'],frames,landscape,
     errors,requestedData:seenRequests
   },null,2));
   assert.deepEqual(errors,[],'Unhandled errors in real React Studio');
-  console.log('PASS real CrieSeuVideo studio dynamic 3D; 3 different frames, preservation on 503, landscape, zero real AI calls.');
+  console.log('PASS real CrieSeuVideo studio dynamic 3D; 3 different frames, preservation on 503, opt-in repair on 502, landscape, zero real AI calls.');
 }finally{
   await browser?.close();
   server.kill('SIGTERM');
