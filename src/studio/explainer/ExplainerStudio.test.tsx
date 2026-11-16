@@ -66,6 +66,37 @@ describe('project narration recovery', () => {
 });
 
 
+describe('opt-in real-studio free-form 3D', () => {
+  it('exposes 3D program mode but never makes a Gemini request on mode selection', async () => {
+    const fetchMock = vi.fn(async () => Response.json({
+      plan: buildFallbackPlan('Uma máquina monta suas peças.'),
+      source: 'ai', provider: 'gemini',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    mount();
+    const studio = screen.getByRole('button', { name: /3D livre.*Gemini direto/i });
+    fireEvent.click(studio);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Roteiro / narração'), { target: { value: 'Uma máquina monta suas peças.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Programar 3D com Gemini' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, request] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/ai/explainer-plan');
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      mode: 'program', engine: '3d', script: 'Uma máquina monta suas peças.',
+    });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/A IA não forneceu uma cena 3D programável/));
+    expect(getNarration).not.toHaveBeenCalled();
+  });
+  it('hides the experimental 3D option after switching to Motion 2D', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: /3D livre.*Gemini direto/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Motion 2D/i }));
+    expect(screen.queryByRole('button', { name: /3D livre.*Gemini direto/i })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Criar animação' })).toBeDisabled(); // No script entered in this test.
+  });
+});
+
 describe('explicit generation costs', () => {
   it('does not trigger Lovable narration after direct Gemini direction', async () => {
     const plan = buildFallbackPlan('Um novo roteiro.');

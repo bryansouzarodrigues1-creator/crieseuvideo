@@ -9,6 +9,18 @@ vi.mock('./ai', async (original) => ({ ...(await original<typeof import('./ai')>
 afterEach(() => vi.mocked(askAiResult).mockReset());
 const result = (raw: unknown) => ({ ok: true as const, provider: 'gemini' as const, model: 'fixture', text: JSON.stringify(raw) });
 
+describe('free-form 3D always uses only Gemini Direct', () => {
+  it('overrides a configured Lovable provider instead of silently using gateway credits', async () => {
+    const sample = sceneProgramFixtures()[1]!;
+    vi.mocked(askAiResult).mockResolvedValueOnce(result(sample.response));
+    await directExplainer({ script: sample.script, engine: '3d', mode: 'program' },
+      { AI_TEXT_PROVIDER: 'lovable', LOVABLE_API_KEY: 'must-never-use-this', GEMINI_API_KEY: 'test-key' });
+    const selected = vi.mocked(askAiResult).mock.calls[0][2];
+    expect(selected).toMatchObject({ AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '' });
+    expect(askAiResult).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('scene-program direction uses creation instead of catalogue classification', () => {
   it.each([0, 1, 2])('accepts fixture %i from one provider response through the ordinary director', async (index) => {
     const sample = sceneProgramFixtures()[index]!;

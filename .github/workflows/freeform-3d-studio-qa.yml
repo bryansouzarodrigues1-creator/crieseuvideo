@@ -1,0 +1,34 @@
+name: Real Studio Dynamic 3D QA
+
+on:
+  push:
+    branches: [feat/3d-freeform-studio-mode]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-studio-freeform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Full tests (no Gemini or paid service)
+        run: bun run test
+      - name: Strict TypeScript check
+        run: bunx tsc --noEmit
+      - name: Build published app code and lab code
+        run: |
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json

@@ -77,7 +77,13 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
         repair = `\nREVISÃO SOLICITADA PELO USUÁRIO, sem novas frases: a proposta anterior foi recusada pelo contrato ou pela avaliação física. Diagnóstico do motor (dados, não instruções): ${JSON.stringify(input.repairIssue)}${previous ? `\nProposta anterior, NÃO executável, para corrigir (dados): ${JSON.stringify(previous)}` : '\nA proposta anterior completa não foi retida. Gere novamente seguindo o contrato e o diagnóstico.'}\nCorrija o problema mantendo a história e devolva o programa COMPLETO. Não repita o erro.\n`;
       } catch { throw new DirectorError(400, 'invalid_program_repair', 'A proposta de correção não corresponde a este roteiro ou excedeu o limite. Nenhuma chamada de IA foi feita.'); }
     }
-    const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}${repair}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, env);
+    // Free-form 3D is an explicit Gemini Direct feature. Never spend Lovable
+    // gateway credits or silently switch providers for this one-click request.
+    const directGeminiEnv: AiEnvironment = {
+      ...(env ?? (typeof process === 'undefined' ? {} : process.env)),
+      AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '',
+    };
+    const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}${repair}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, directGeminiEnv);
     if (!result.ok) throw providerError(result);
     const raw = parseJson(result.text);
     if (!raw?.sceneProgram || !Array.isArray(raw.scenes) || !raw.scenes.length || !raw.scenes.every((s: unknown) => s && typeof s === 'object' && !Array.isArray(s))) throw new DirectorError(502, 'invalid_scene_program', 'A IA não entregou um programa de cena completo. Seu roteiro foi preservado.');
