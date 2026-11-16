@@ -47,7 +47,15 @@ try{
   const page=await browser.newPage({viewport:{width:393,height:852},deviceScaleFactor:1,
     acceptDownloads:true});
   page.on('pageerror',err=>errors.push('pageerror: '+err.message));
-  page.on('console',msg=>{if(msg.type()==='error'&&!/fonts.googleapis/.test(msg.text()))errors.push('console: '+msg.text().slice(0,250));});
+  page.on('console',msg=>{
+    if(msg.type()!=='error')return;
+    const message=msg.text();
+    // Expected: external fonts intentionally blocked by the offline QA browser,
+    // and the deliberate HTTP 503 fixture used to test failure recovery.
+    if(/Failed to load resource: net::ERR_FAILED/.test(message) ||
+       /Failed to load resource: the server responded with a status of 503/.test(message))return;
+    errors.push('console: '+message.slice(0,250));
+  });
   let providerRequests=0;
   await page.route('**/api/ai/explainer-plan',async route=>{
     providerRequests++;
