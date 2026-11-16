@@ -3,6 +3,12 @@ import { ProgramActor3D } from './actor3d';
 import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+/** Motion-specific safety gate, not a fixed library of animation actions. */
+const needsGroundedClimb = (text: string) => /\b(escal\w*|subi\w*|subiu|subindo|trep\w*|climb\w*)\b/.test(
+  text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+);
+const SURFACE_TOLERANCE = .36;
+
 function geometry(g: ProgramGeometry): THREE.BufferGeometry {
   const d = g.size ?? [];
   if (g.shape === 'box') return new THREE.BoxGeometry(d[0], d[1], d[2]);
@@ -31,7 +37,7 @@ export class SceneProgram3D {
   private maxIKError = 0;
   private contactProblems: unknown[] = [];
   private projectedBounds = { min: [0, 0], max: [0, 0] };
-  constructor(readonly program: SceneProgram, sources: ProgramSource[]) {
+  constructor(readonly program: SceneProgram, readonly sources: ProgramSource[]) {
     this.score = compileSceneProgram(program, sources);
     this.scene.background = new THREE.Color(program.background); this.scene.fog = new THREE.Fog(program.background, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
@@ -103,8 +109,101 @@ export class SceneProgram3D {
     for (const time of samples.filter((_, i) => i % Math.max(1, Math.ceil(samples.length / 96)) === 0)) {
       this.update(time); if (this.maxIKError > .025) throw new SceneProgramError('Um alvo de mão ou pé do programa está fora do alcance do personagem. Ajuste a trajetória do corpo ou o ponto de apoio.', { timeSeconds: time, duration: this.score.duration, problems: this.contactProblems.slice(0, 4) });
     }
+    this.validateGroundedAscent();
     this.update(0);
   }
+
+  /**
+   * Physical staging QA for genuinely ascending human characters. Reaching an
+   * IK target is not evidence of a planted hand/foot or a collision-free climb.
+   * Examines actual Three.js world transforms, not text-keyword props.
+   */
+  private validateGroundedAscent() {
+    for (const span of this.score.spans) {
+      const source = this.sources.find((s) => s.sourceId === span.sourceId);
+      if (!source || !needsGroundedClimb(source.text)) continue;
+      for (const [actorId, actor] of this.actors) {
+        const samples: Array<{ time: number; height: number }> = [];
+        for (let i = 0; i <= 30; i++) {
+          const time = span.start + span.duration * (i / 30);
+          this.update(time);
+          samples.push({ time, height: actor.root.getWorldPosition(V()).y });
+        }
+        const ascent = Math.max(...samples.map((s) => s.height)) - samples[0].height;
+        if (ascent < .35) continue; // A static or already-summited character isn't climbing here.
+        const contacts = this.score.contacts.filter((c) => c.actor === actorId && c.sourceId === span.sourceId);
+        const hands = contacts.filter((c) => c.effector.endsWith('Hand'));
+        const feet = contacts.filter((c) => c.effector.endsWith('Foot'));
+        const supportSamples = samples.filter(({ time }) => contacts.some((c) => time >= c.start - 1e-5 && time <= c.finish + 1e-5));
+        if (!hands.length || !feet.length || supportSamples.length < Math.ceil(samples.length * .65)) {
+          throw new SceneProgramError(
+            'A escalada move o corpo para cima sem apoios suficientes de mãos e pés. Programe contatos alternados com a superfície e apoios estáveis durante a subida.',
+            { kind: 'missing_climb_support', sourceId: span.sourceId, actor: actorId, ascentMeters: ascent, handContacts: hands.length, footContacts: feet.length, coverage: supportSamples.length / samples.length },
+          );
+        }
+
+        // IK may reach a point hidden deep inside a rock. Require declared
+        // contact offsets to be near a visible boundary of their target.
+        for (const contact of contacts) {
+          this.update((contact.start + contact.finish) / 2);
+          const object = this.nodes.get(contact.target)!;
+          const bounds = new THREE.Box3().setFromObject(object);
+          const point = object.localToWorld(new THREE.Vector3(...contact.offset));
+          if (bounds.isEmpty()) continue;
+          const surfaceDistance = Math.min(
+            Math.abs(point.x - bounds.min.x), Math.abs(point.x - bounds.max.x),
+            Math.abs(point.y - bounds.min.y), Math.abs(point.y - bounds.max.y),
+            Math.abs(point.z - bounds.min.z), Math.abs(point.z - bounds.max.z),
+          );
+          const outside = bounds.distanceToPoint(point);
+          if (outside > SURFACE_TOLERANCE || surfaceDistance > SURFACE_TOLERANCE) {
+            throw new SceneProgramError(
+              'Um apoio da escalada não toca a superfície do objeto. Posicione mãos e pés sobre pontos reais da geometria, não dentro da rocha ou no ar.',
+              { kind: 'unsupported_contact_surface', sourceId: span.sourceId, actor: actorId, effector: contact.effector, target: contact.target, surfaceDistanceMeters: surfaceDistance, outsideMeters: outside },
+            );
+          }
+        }
+        for (const sample of samples) {
+          this.update(sample.time);
+          this.rejectSolidAscentPenetration(span.sourceId, actorId);
+        }
+      }
+    }
+  }
+
+  /** Conservative check: a character's foot/base must not pass through the
+   * interior of a substantial box platform during an explicitly grounded climb.
+   * Only simple box solids are audited; detailed meshes require future physics.
+   */
+  private rejectSolidAscentPenetration(sourceId: string, actorId: string) {
+    const actor = this.actors.get(actorId);
+    if (!actor) return;
+    this.scene.updateMatrixWorld(true);
+    const footBase = actor.root.getWorldPosition(V());
+    for (const node of this.program.nodes) {
+      if (node.kind !== 'mesh' || node.geometry?.shape !== 'box' || node.material?.opacity && node.material.opacity < 1) continue;
+      if (node.repeat || node.geometry.size!.some((v) => v <= .16)) continue;
+      let parent = node.parent, attached = false;
+      while (parent) {
+        const ancestor = this.program.nodes.find((candidate) => candidate.id === parent);
+        if (ancestor?.kind === 'actor') { attached = true; break; }
+        parent = ancestor?.parent;
+      }
+      if (attached) continue;
+      const object = this.nodes.get(node.id)!;
+      const box = new THREE.Box3().setFromObject(object);
+      const margin = .075;
+      if (footBase.x > box.min.x + margin && footBase.x < box.max.x - margin &&
+          footBase.y > box.min.y + margin && footBase.y < box.max.y - margin &&
+          footBase.z > box.min.z + margin && footBase.z < box.max.z - margin) {
+        throw new SceneProgramError(
+          'O personagem atravessa uma plataforma sólida durante a escalada. Ajuste a trajetória do corpo e apoie os pés na superfície, sem atravessar o objeto.',
+          { kind: 'solid_platform_penetration', sourceId, actor: actorId, target: node.id, timeSeconds: this.time, actorFootBase: footBase.toArray(), solidBounds: { min: box.min.toArray(), max: box.max.toArray() } },
+        );
+      }
+    }
+  }
+
   frame(aspect: number) {
     const { span, shot } = this.score.shot(this.time), box = new THREE.Box3();
     for (const id of shot.subjects) box.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
@@ -129,6 +228,10 @@ export class SceneProgram3D {
   }
   render(renderer: THREE.WebGLRenderer, time: number, w: number, h: number) {
     this.update(time); if (this.maxIKError > .025) throw new SceneProgramError('Um alvo corporal saiu do alcance neste quadro. O vídeo não será exportado com essa falha.');
+    const span = this.score.shot(this.time).span, source = this.sources.find((s) => s.sourceId === span.sourceId);
+    if (source && needsGroundedClimb(source.text)) {
+      for (const id of this.actors.keys()) this.rejectSolidAscentPenetration(span.sourceId, id);
+    }
     this.frame(w / h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
   }
   diagnostics() {
