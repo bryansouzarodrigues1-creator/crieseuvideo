@@ -144,7 +144,11 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       const k = obj(value); only(k, ['sourceId', 'phase', 'value']);
       const sourceId = source(k.sourceId), phase = num(k.phase, 0, 1), order = sourceIndex.get(sourceId)! + phase;
       if (order <= previous) fail('Os pontos de uma curva precisam seguir a ordem do roteiro sem tempos duplicados.'); previous = order;
-      const bounds = t.channel === 'scale' ? [.01, 100] : t.channel === 'face' ? [-1, 1] : /Rotation|rotation/.test(t.channel) ? [-Math.PI * 2, Math.PI * 2] : [-200, 200];
+      // Mechanical rotation tracks must support multiple full revolutions (a turbine/rotor),
+      // while static part orientation, camera angles and joint poses stay bounded.
+      const bounds = t.channel === 'scale' ? [.01, 100] : t.channel === 'face' ? [-1, 1]
+        : t.channel === 'rotation' ? [-200, 200]
+        : /Rotation/.test(t.channel) ? [-Math.PI * 2, Math.PI * 2] : [-200, 200];
       return { sourceId, phase, value: vector(k.value, bounds[0], bounds[1]) };
     });
     keyBudget += keys.length; if (keys.length < 2 || keyBudget > 3000) fail('Uma curva precisa de dois pontos e o programa deve caber no orçamento de animação.');
