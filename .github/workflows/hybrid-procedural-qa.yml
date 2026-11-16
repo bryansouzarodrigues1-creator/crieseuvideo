@@ -36,3 +36,17 @@ jobs:
         run: node lab/build.mjs
       - name: Laboratory TypeScript
         run: bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Chromium for real WebGL visual QA
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Render a new procedural 3D blender in Chromium (without Gemini calls)
+        run: node scripts/hybrid-procedural-preview.mjs
+      - name: Upload WebGL screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-procedural-blender-webgl
+          path: tmp/hybrid-procedural-preview/
+          if-no-files-found: ignore
+          retention-days: 7
