@@ -48,6 +48,28 @@ describe('AI text provider selection', () => {
     expect(body.contents[0].parts[0].text).toContain('Crie uma cena');
   });
 
+  it('uses lower thinking and a bounded output allowance only when the owner trial opts in', async () => {
+    const fetchMock = vi.fn(async () => goodGemini());
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await askAiResult('Direção 3D experimental', undefined, {
+      AI_TEXT_PROVIDER:'gemini', GEMINI_API_KEY:'private-test',
+      GEMINI_THINKING_LEVEL:'low', GEMINI_MAX_OUTPUT_TOKENS:'16384',
+    })).toMatchObject({ok:true});
+    const body=JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string,RequestInit])[1].body));
+    expect(body.generationConfig).toMatchObject({
+      responseMimeType:'application/json',maxOutputTokens:16384,
+      thinkingConfig:{thinkingLevel:'low'},
+    });
+    fetchMock.mockClear();
+    await askAiResult('Legacy request', undefined, {
+      AI_TEXT_PROVIDER:'gemini', GEMINI_API_KEY:'private-test',
+      GEMINI_MAX_OUTPUT_TOKENS:'9999999', GEMINI_THINKING_LEVEL:'invalid-level',
+    });
+    const capped=JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string,RequestInit])[1].body));
+    expect(capped.generationConfig.maxOutputTokens).toBe(16384);
+    expect(capped.generationConfig).not.toHaveProperty('thinkingConfig');
+  });
+
   it('never falls back to Lovable when direct Gemini is missing a key', async () => {
     vi.stubEnv('AI_TEXT_PROVIDER', 'gemini');
     vi.stubEnv('GEMINI_API_KEY', '');
