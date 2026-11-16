@@ -16,6 +16,7 @@ import { captureHealthError } from './exportCapture';
 import { scriptError, spokenText, MAX_SCRIPT_CHARS } from './script';
 import type { SceneProgramCandidate } from './sceneProgram/candidate';
 import { ApiResponseError, readDirectionResponse } from '../utils/apiResponse';
+import { freeform3dAuthHeaders } from './freeform3dAuth';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -278,7 +279,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const repair = engine === '3d' && mode === 'program' && pendingRepair?.script === spokenText(text) ? pendingRepair : null;
     let rejectedPlan: ExplainerPlan | undefined;
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, engine, targetDuration: durationRef.current, gallery: [...gallery, ...vaultFor(text)], ...(repair ? { repairIssue: repair.issue, ...(repair.program ? { previousProgram: repair.program } : repair.proposal ? { previousProposal: repair.proposal } : {}) } : {}) }) });
+      const ownerHeaders = engine === '3d' && mode === 'program' ? await freeform3dAuthHeaders() : {};
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json', ...ownerHeaders }, body: JSON.stringify({ script: text, aspect, mode, engine, targetDuration: durationRef.current, gallery: [...gallery, ...vaultFor(text)], ...(repair ? { repairIssue: repair.issue, ...(repair.program ? { previousProgram: repair.program } : repair.proposal ? { previousProposal: repair.proposal } : {}) } : {}) }) });
       const data = await readDirectionResponse(res);
       const track = trackRef.current;
       const directed: ExplainerPlan = { ...data.plan, engine };
@@ -530,7 +532,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             ))}
             {engine === '3d' && <Button size="sm" variant={mode === 'program' ? 'default' : 'secondary'} onClick={() => { setMode('program'); setPendingRepair(null); }} aria-pressed={mode === 'program'}>3D livre <small>Gemini direto</small></Button>}
           </div>
-          <p className="explainer-sub">{mode === 'program' && engine === '3d' ? 'O Gemini cria geometrias, trajetórias e câmeras 3D novas. A IA só é chamada ao tocar em Programar 3D. Requer GEMINI_API_KEY no servidor; consulte sua cota Google. O sistema valida movimentos e contatos antes de mostrar o resultado, sem substituir falhas por slides.' : mode === 'creative' ? `A IA dirige cada cena e reaproveita desenhos quando combinarem; ${gallery.length} na galeria, ${vaultCount} no cofre.` : `A IA reutiliza seus ${gallery.length} desenhos e recursos existentes.`}</p>
+          <p className="explainer-sub">{mode === 'program' && engine === '3d' ? 'O Gemini programa geometrias, movimentos e câmeras 3D. Teste privado: requer sessão autorizada e cota diária ativa no servidor; escolher este modo não solicita IA. Corrigir uma cena exige outro clique e usa outra vaga da cota.' : mode === 'creative' ? `A IA dirige cada cena e reaproveita desenhos quando combinarem; ${gallery.length} na galeria, ${vaultCount} no cofre.` : `A IA reutiliza seus ${gallery.length} desenhos e recursos existentes.`}</p>
           <div className="explainer-row">
             {(['9:16', '16:9'] as const).map((a) => (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
