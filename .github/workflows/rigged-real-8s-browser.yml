@@ -1,0 +1,78 @@
+name: Real rigged two-human motion 8s browser lab
+# Only real CC0, source-pinned GLBs. QA-only, not shipped by CrieSeuVideo.
+# No Gemini, ElevenLabs, paid credentials, or production deployment.
+on:
+  push:
+    branches: [experiment/rigged-characters-real-clips-20261117]
+    paths:
+      - 'src/studio/explainer/sceneProgram/riggedClipPlayer.ts'
+      - 'src/studio/explainer/sceneProgram/modelAssets.ts'
+      - 'src/studio/explainer/sceneProgram/stage3d.ts'
+      - 'lab/rigged-research/**'
+      - 'scripts/rigged-human-browser-qa.mjs'
+      - '.github/workflows/rigged-real-8s-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Pull only two human CC0 GLB models, pinned by upstream commit and blob checksum
+        run: |
+          mkdir -p lab/rigged-research/public tmp/rigged-lab
+          base="https://raw.githubusercontent.com/nishit47/Blender-Pre-vis-Pipeline---Screenplay-to-Animatic/6d6de54a1d7143cf5487462d147bbef039de4837/assets/Ultimate%20Modular%20Men%20Pack-glb"
+          curl --fail --location --retry 3 --silent --show-error "$base/Worker.glb" -o lab/rigged-research/public/Worker.glb
+          curl --fail --location --retry 3 --silent --show-error "$base/Casual%20Character.glb" -o lab/rigged-research/public/Casual.glb
+          python3 scripts/audit-real-rig-assets.py --out tmp/rigged-lab/models.json \
+            lab/rigged-research/public/Worker.glb:eb29e2adb795972e1f475cd25a000975fe260aa9 \
+            lab/rigged-research/public/Casual.glb:f31ba8b389268d4df6005cc62d4d7011de728bce
+      - name: Test existing rendering contract and TypeScript
+        run: |
+          bun run test
+          bunx tsc --noEmit
+      - name: Bundle the verified real-GLB lab for independent offline inspection
+        run: bunx vite build lab/rigged-research --outDir ../../tmp/rigged-bundle --emptyOutDir
+      - name: Preserve offline browser bundle and original CC0 assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: rigged-human-offline-browser-bundle
+          path: tmp/rigged-bundle/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Install browser with software WebGL and H264 encoder
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Serve isolated real-GLB laboratory
+        run: |
+          bunx vite lab/rigged-research --host 127.0.0.1 --port 4175 --strictPort >tmp/rigged-lab/vite.log 2>&1 &
+          echo $! > tmp/rigged-lab/server.pid
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:4175/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/rigged-lab/vite.log
+          exit 1
+      - name: Render actual 8-second, two-human, skinned, handoff MP4 in Chromium
+        run: bun scripts/rigged-human-browser-qa.mjs
+      - name: Save MP4, frames, validation and browser logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rigged-humans-real-8s-qa
+          path: |
+            tmp/rigged-lab/*.mp4
+            tmp/rigged-lab/*.png
+            tmp/rigged-lab/*.json
+            tmp/rigged-lab/vite.log
+          if-no-files-found: warn
+          retention-days: 7

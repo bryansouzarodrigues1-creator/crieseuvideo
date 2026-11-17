@@ -1,0 +1,40 @@
+name: Rigged humanoid CC0 asset inspection (offline)
+# Real Quaternius humanoids; provenance must be checked before integration.
+# Assets are downloaded only for CI inspection and NOT bundled into production.
+on:
+  push:
+    branches: [experiment/rigged-characters-real-clips-20261117]
+    paths:
+      - scripts/audit-real-rig-assets.py
+      - .github/workflows/rigged-real-asset-inspection.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain two source-pinned CC0 rigged humans
+        run: |
+          mkdir -p tmp/rigged
+          base="https://raw.githubusercontent.com/nishit47/Blender-Pre-vis-Pipeline---Screenplay-to-Animatic/6d6de54a1d7143cf5487462d147bbef039de4837/assets/Ultimate%20Modular%20Men%20Pack-glb"
+          curl --fail --location --retry 3 --silent --show-error "$base/Worker.glb" -o tmp/rigged/Worker.glb
+          curl --fail --location --retry 3 --silent --show-error "$base/Casual%20Character.glb" -o tmp/rigged/Casual.glb
+      - name: Verify blob SHA, skinning, clips, bones and textures
+        run: |
+          python3 scripts/audit-real-rig-assets.py --out tmp/rigged/report.json \
+            tmp/rigged/Worker.glb:eb29e2adb795972e1f475cd25a000975fe260aa9 \
+            tmp/rigged/Casual.glb:f31ba8b389268d4df6005cc62d4d7011de728bce
+      - name: Save audited metadata for follow-up implementation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rigged-human-inspection-metadata
+          path: |
+            tmp/rigged/report.json
+            tmp/rigged/Worker.glb
+            tmp/rigged/Casual.glb
+          if-no-files-found: warn
+          retention-days: 7
