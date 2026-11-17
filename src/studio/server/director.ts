@@ -12,6 +12,8 @@ import { PRODUCTION_GUIDE, ProductionError, mergeProduction, CHANNELS } from '..
 import { stagingContract } from './directionContract';
 import { actingUnavailableMessage } from '../explainer/actingAvailability';
 import { SCENE_PROGRAM_GUIDE } from '../explainer/sceneProgram/guide';
+import { applyUses, candidateRoots, harvest, offerFor, offerPrompt, stripAssetMarkers } from '../explainer/sceneProgram/vault/flow';
+import type { VaultStore } from '../explainer/sceneProgram/vault/store';
 import { SceneProgramError } from '../explainer/sceneProgram/score';
 import { normalizeSceneProgram } from '../explainer/sceneProgram/score';
 import { makeSceneProgramCandidate, readSceneProgramCandidate, type SceneProgramCandidate } from '../explainer/sceneProgram/candidate';
@@ -59,7 +61,7 @@ function providerError(result: Extract<AiResult, { ok: false }>): DirectorError 
 }
 
 /** Shared by the production route and the isolated test site. At most two requests in flight. */
-export async function directExplainer(input: DirectorInput, env?: AiEnvironment) {
+export async function directExplainer(input: DirectorInput, env?: AiEnvironment, options: { vault?: VaultStore } = {}) {
   validateDirectorInput(input.script);
   let targetDuration: number | undefined;
   try { targetDuration = normalizeTargetDuration(input.targetDuration); }
@@ -90,7 +92,9 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
       ...configured, AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '',
       GEMINI_API_KEY: trialKey,
     };
-    const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}${repair}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, directGeminiEnv);
+    // Reusable pieces from earlier generations: exact keyword + context match, offered as data. Never blocks direction.
+    const offered = options.vault ? offerFor(await options.vault.list().catch(() => []), beats) : [];
+    const result = await askAiResult(`${SCENE_PROGRAM_GUIDE}${offerPrompt(offered)}${repair}\n${targetDuration ? `Duração total escolhida: ${targetDuration} segundos. Distribua a ação sem inventar novas falas ou fatos.` : 'A duração será calculada pelo roteiro. As fases dos movimentos serão ajustadas a essa duração.'}\nFrases de origem (IDs fixos; texto a preservar):\n${beats.map((b) => `${b.sourceId}: ${JSON.stringify(b.text)}`).join('\n')}`, undefined, directGeminiEnv);
     if (!result.ok) throw providerError(result);
     const raw = parseJson(result.text);
     if (!raw?.sceneProgram || !Array.isArray(raw.scenes) || !raw.scenes.length || !raw.scenes.every((s: unknown) => s && typeof s === 'object' && !Array.isArray(s))) {
@@ -111,11 +115,17 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment)
       } });
       throw failure;
     }
+    const reuse = applyUses(raw.sceneProgram, offered.map((m) => m.entry), beats), roots = candidateRoots(raw.sceneProgram ?? {});
+    stripAssetMarkers(raw.sceneProgram);
     const grounded = groundScenes(raw.scenes, beats);
     if (!grounded) throw new DirectorError(502, 'source_mismatch', 'A IA alterou ou misturou as falas. O programa foi rejeitado e seu roteiro foi preservado.');
     try {
       const plan = withTargetDuration(normalizePlan({ title: raw.title, scenes: grounded, sceneProgram: raw.sceneProgram }, script, aspect), targetDuration);
       if (spokenText(plan.scenes.map((s) => s.text).join(' ')) !== spokenText(script)) throw new DirectorError(502, 'source_mismatch', 'O programa não preservou o roteiro completo.');
+      if (options.vault && plan.sceneProgram) {
+        const vault = options.vault;
+        await Promise.allSettled([...reuse.used.map((id) => vault.recordUse(id)), ...harvest(plan.sceneProgram, roots, new Set(reuse.usedIds)).map((entry) => vault.put(entry))]);
+      }
       return { plan, source: 'ai' as const, provider: result.provider, model: result.model };
     } catch (error) {
       if (error instanceof SceneProgramError) {
