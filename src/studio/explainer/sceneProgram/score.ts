@@ -224,7 +224,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
           elevation:num(cut.elevation??elevation,-.35,1.1),distance:num(cut.distance??distance,1,2.5),
           ...(hide.length?{hide}:{})};
       });
-      if (!cuts.length || cuts[0].phase !== 0 || cuts.some((cut,i)=>i>0 && cut.phase-cuts![i-1].phase<.035))
+      if (!cuts.length || cuts[0].phase !== 0 || cuts.some((cut,i)=>i>0 && cut.phase-cuts![i-1].phase<.08))
         fail('Os cortes da câmera precisam começar em 0 e ter intervalos distintos.');
     }
     return { sourceId: source(s.sourceId), subjects, azimuth, endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation, distance, motion, ...(cuts?{cuts}:{}) };
