@@ -1,9 +1,9 @@
-name: Crane procedural walking 20s offline browser QA
+name: Crane humanized locomotion 20s browser QA
 # An authored calibration for the director; NEVER calls Gemini, ElevenLabs or Lovable.
 # Output is a QA MP4, not proof that a live model generated the same quality.
 on:
   push:
-    branches: [experiment/procedural-walk-crane-20261117]
+    branches: [experiment/human-gait-crane-20261117]
     paths:
       - 'src/studio/explainer/sceneProgram/craneExperiment.ts'
       - 'src/studio/explainer/sceneProgram/craneExperiment.test.ts'
@@ -49,7 +49,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: crane-walk-v2-20s-engine-qa
+          name: crane-human-walk-v3-20s-engine-qa
           path: |
             tmp/scene-program-qa/grua-tres-etapas.mp4
             tmp/scene-program-qa/grua-tres-etapas-*.png
