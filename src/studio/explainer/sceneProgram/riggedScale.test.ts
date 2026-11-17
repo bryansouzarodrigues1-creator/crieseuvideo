@@ -38,7 +38,7 @@ describe('rigged humanoid scaling, independent from mesh bounds', () => {
   it('rejects impossible rig calibration and dimensions',()=>{
     const {model,head}=riggedFixture();
     expect(()=>calibrateRiggedHumanoid(model,3.4)).toThrow(HumanoidCalibrationError);
-    head.position.y=.00001;
+    head.position.y=-.007;
     expect(()=>calibrateRiggedHumanoid(model)).toThrow(HumanoidCalibrationError);
   });
 });
