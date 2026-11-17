@@ -28,3 +28,11 @@ Este teste é um **programa de cena escrito pelo agente como fixture de calibra�
 ## Próximo controle
 
 Manter o PR #42 como DRAFT. Rodar suíte completa de regressão sobre as outras fixtures de SceneProgram, especialmente escalada/contatos, antes de considerar merge em branch de integração. Não alterar `main` sem autorização do usuário.
+
+## Regressão completa após correção do pé
+
+GitHub Actions: https://github.com/bryansouzarodrigues1-creator/crieseuvideo/actions/runs/44095999217
+
+**55 arquivos de teste e 383 testes aprovados**, TypeScript aprovado. O teste renderizado final permanece https://github.com/bryansouzarodrigues1-creator/crieseuvideo/actions/runs/44095004778 — ambos sem chamadas reais ao provedor.
+
+O PR #42 continua rascunho; ainda falta a aprovação da qualidade visual e um teste real de geração de SceneProgram. A animação humanizada tem passos mais coerentes, mas não usa captura profissional de movimento e ainda tem visual estilizado e cenário simples.
