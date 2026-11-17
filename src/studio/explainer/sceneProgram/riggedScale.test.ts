@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { calibrateRiggedHumanoid, HumanoidCalibrationError } from './riggedScale';
+import { calibrateRiggedHumanoid, HumanoidCalibrationError, localGripOffsetMetres } from './riggedScale';
 
 function riggedFixture() {
   const scene=new THREE.Group();
@@ -29,6 +29,18 @@ describe('rigged humanoid scaling, independent from mesh bounds', () => {
     expect(h-f).toBeGreaterThan(1.5);
     expect(Math.abs(right.getWorldPosition(new THREE.Vector3()).y)).toBeLessThan(.05);
     expect(Math.abs(report.newFootHeight)).toBeLessThan(.05);
+  });
+  it('converts 10cm grip to real metres for 100x Blender bone scale',()=>{
+    const {model,head}=riggedFixture();
+    calibrateRiggedHumanoid(model,1.88);
+    const wrist=new THREE.Bone();wrist.name='Wrist.R';
+    wrist.position.set(0,.001,0);head.add(wrist);
+    model.updateMatrixWorld(true,true);
+    const origin=wrist.getWorldPosition(new THREE.Vector3());
+    const local=localGripOffsetMetres(wrist,new THREE.Vector3(.01,.02,.10));
+    const world=wrist.localToWorld(local);
+    expect(world.distanceTo(origin)).toBeCloseTo(Math.hypot(.01,.02,.10),3);
+    expect(local.z).toBeLessThan(.002); // NOT a raw .10 bone unit!
   });
   it('rejects a rigid box with no animated skeleton rather than pretending it is humanoid',()=>{
     const o=new THREE.Group();
