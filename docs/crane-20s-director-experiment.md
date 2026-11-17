@@ -127,3 +127,24 @@ visuais**, consistente com a sensação de vídeo lento/parado relatada.
 
 Não copiar nem incluir o vídeo de referência no repositório. Guardar somente
 o diagnóstico e usar a referência para inspeção privada/estudo de linguagem.
+
+## Fechamento da prova A1 — CI verde
+
+Execução final: https://github.com/bryansouzarodrigues1-creator/crieseuvideo/actions/runs/44080778857
+
+O workflow **passou** no motor real de navegador com o script opt-in,
+incluindo 1 resposta **simulada** do provedor, zero cobranças, validação do
+programa, montagem, frames 9:16 e 16:9, navegação aleatória, recuperação
+de projeto e MP4 H.264 com **600 quadros / 20 s**, 720 × 1280.
+Erro médio no último quadro exportado versus preview: **1,39/255**.
+
+O auditor de curvas registrou três trechos com múltiplas propriedades
+animadas (5, 5, 8) e **zero avisos** de corpo imóvel/glide. A mediana de
+alteração visual foi somente **4,6%**, contra **49,7%** da referência nos
+mesmos 20 segundos. Isso prova que **a verificação de curvas, isoladamente,
+ainda não mede a energia visual da animação**.
+
+Próxima camada necessária: auditoria de quadros/ótica em conjunto com
+verificação semântica de ação e avaliação visual multimodal, antes de concluir
+que um vídeo está pronto. A aprovação técnica não se converte em aprovação
+artística automática.
