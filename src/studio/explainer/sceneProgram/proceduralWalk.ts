@@ -17,6 +17,13 @@ export interface ProceduralWalkFrame {
   speed: number;
   bob: number;
   lean: number;
+  /** Pelvis transfers a little weight to the supporting leg, in local X. */
+  weightShift: number;
+  /** Opposite rotation of the upper torso and subtle head counter-motion. */
+  torsoTwist: number;
+  headCounter: number;
+  leftFootRoll: number;
+  rightFootRoll: number;
   leftFoot: Vec3;
   rightFoot: Vec3;
   leftHand: Vec3;  // actor-root LOCAL (ready to be transformed by root matrix)
@@ -57,6 +64,9 @@ export function buildProceduralWalk(
   if (program.tracks.some((t) => t.node === actorId &&
     ['leftFoot', 'rightFoot', 'leftFootRotation', 'rightFootRotation', 'rotation'].includes(t.channel))) return;
   if (program.contacts.some((c) => c.actor === actorId)) return;
+  // A hand carrying a tool or bag must not swing through the body as though free.
+  const holdingLeft = program.nodes.some((n) => n.parent === actorId && n.socket === 'leftHand');
+  const holdingRight = program.nodes.some((n) => n.parent === actorId && n.socket === 'rightHand');
 
   const score = compileSceneProgram(program, sources);
   const steps = Math.max(2, Math.min(2400, Math.ceil(score.duration / .09)));
@@ -109,6 +119,18 @@ export function buildProceduralWalk(
     return anchored;
   };
 
+  // A small toe-off / heel-down rotation helps the shoe read as a step.
+  // A final, stationary foot is neutral to avoid an eternal raised heel.
+  const footRoll = (s: number, side: -1 | 1): number => {
+    const first = side === -1 ? .025 : .275;
+    if (s < first || s >= distance - .025) return 0;
+    const cycle = (s - first) % .50;
+    if (cycle < .19) return lerp(.095, -.07, smooth(cycle / .19));
+    if (cycle < .31) return -.07 * (1 - smooth((cycle - .19) / .12));
+    if (cycle > .44) return .095 * smooth((cycle - .44) / .06);
+    return 0;
+  };
+
   return {
     actorId,
     totalDistance: distance,
@@ -120,11 +142,16 @@ export function buildProceduralWalk(
       const cycle = arc / .50 * Math.PI * 2;
       return {
         heading: headingAt(arc), speed,
-        bob: .018 * effort * Math.sin(cycle * 2),
-        lean: .022 * effort * Math.sin(cycle),
+        bob: .016 * effort * Math.sin(cycle * 2),
+        lean: .016 * effort * Math.sin(cycle),
+        weightShift: .015 * effort * Math.sin(cycle),
+        torsoTwist: .055 * effort * Math.sin(cycle + .2),
+        headCounter: -.035 * effort * Math.sin(cycle + .2),
+        leftFootRoll: footRoll(arc, -1) * effort,
+        rightFootRoll: footRoll(arc, 1) * effort,
         leftFoot: feet(arc, -1), rightFoot: feet(arc, 1),
-        leftHand: [-.45, .85, .035 + .15 * effort * Math.sin(cycle + Math.PI)],
-        rightHand: [.45, .85, .035 + .15 * effort * Math.sin(cycle)],
+        leftHand: [-.45, .85, holdingLeft ? .02 : .035 + .145 * effort * Math.sin(cycle + Math.PI)],
+        rightHand: [.45, .85, holdingRight ? .02 : .035 + .145 * effort * Math.sin(cycle)],
       };
     },
   };

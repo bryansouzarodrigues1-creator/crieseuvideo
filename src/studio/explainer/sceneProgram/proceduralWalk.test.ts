@@ -95,4 +95,54 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
     const p=normalizeSceneProgram(raw,source);
     expect(buildProceduralWalk(p,source,'person')).toBeUndefined();
   });
+
+  it('moves pelvis and torso in opposing directions without losing deterministic poses', () => {
+    const p = base();
+    const walk = buildProceduralWalk(p, craneExperimentSources, 'worker')!;
+    const moving = walk.at(1.2);
+    expect(Math.abs(moving.weightShift)).toBeGreaterThan(.001);
+    expect(Math.abs(moving.torsoTwist)).toBeGreaterThan(.001);
+    expect(moving.torsoTwist * moving.headCounter).toBeLessThan(0);
+    const stopped = walk.at(5.5);
+    expect(stopped.speed).toBeLessThan(.01);
+    expect(stopped.weightShift).toBe(0);
+    expect(stopped.torsoTwist).toBe(0);
+
+    const stage = new SceneProgram3D(p, craneExperimentSources);
+    try {
+      stage.update(1.2);
+      const actor = stage.actors.get('worker')!;
+      expect(actor.spine.rotation.y).toBeCloseTo(moving.torsoTwist);
+      expect(actor.hips.position.x).toBeCloseTo(moving.weightShift);
+      const first = actor.spine.rotation.y;
+      stage.update(15);
+      stage.update(.1);
+      stage.update(1.2);
+      expect(actor.spine.rotation.y).toBeCloseTo(first);
+    } finally {
+      stage.dispose();
+    }
+  });
+
+  it('holds a carrying hand steady instead of swinging a heavy bag', () => {
+    const walk = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
+    const a = walk.at(.7), b = walk.at(1.8);
+    expect(a.rightHand).toEqual(b.rightHand);
+    expect(Math.abs(a.leftHand[2] - b.leftHand[2])).toBeGreaterThan(.01);
+  });
+
+  it('turns shoes with the walking direction, adding only a small foot roll', () => {
+    const stage = new SceneProgram3D(base(), craneExperimentSources);
+    try {
+      stage.update(1.3);
+      const actor = stage.actors.get('worker')!;
+      const bodyWorld = actor.root.getWorldQuaternion(new THREE.Quaternion());
+      for(const foot of ['leftFoot','rightFoot'] as const) {
+        const shoeWorld = actor.limbs[foot].hand.getWorldQuaternion(new THREE.Quaternion());
+        expect(bodyWorld.angleTo(shoeWorld)).toBeLessThan(.16);
+      }
+      expect(stage.diagnostics().maxIKError).toBeLessThan(.025);
+      stage.validateContacts();
+    } finally { stage.dispose(); }
+  });
 });
