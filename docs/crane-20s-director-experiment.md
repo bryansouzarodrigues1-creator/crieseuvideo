@@ -1,6 +1,6 @@
 # Experimento isolado — grua em três etapas (20 segundos)
 
-Data: 17/11/2026. Base: branch \`feat/3d-toon-look\` / PR #39.
+Data: 17/11/2026. Base: branch `feat/3d-toon-look` / PR #39.
 
 ## Pergunta
 
@@ -27,26 +27,26 @@ ambos os formatos, comparação de quadros renderizados e busca em tempo aleató
 
 ## Como rodar
 
-No GitHub Actions, o workflow \`Crane 20s offline browser experiment\`
-é executado apenas na branch \`experiment/crane-action-audit-20261117\`.
+No GitHub Actions, o workflow `Crane 20s offline browser experiment`
+é executado apenas na branch `experiment/crane-action-audit-20261117`.
 Ele não usa credenciais Gemini/ElevenLabs/Lovable. O arquivo
-\`crane-20s-agent-authored-offline-qa\` contém MP4 e frames de auditoria
-**somente se o workflow passar**.
+`crane-20s-agent-authored-offline-qa` contém MP4 e frames de auditoria
+se os arquivos forem produzidos, mesmo se uma verificação final falhar.
 
 Localmente, depois de instalar as dependências e o Chromium do Playwright:
 
-\`\`\`sh
+```sh
 bunx vitest run src/studio/explainer/sceneProgram/actionDensity.test.ts \
   src/studio/explainer/sceneProgram/craneExperiment.test.ts
 bun run build
 node lab/build.mjs
 SCENE_PROGRAM_EXPERIMENT=crane bun scripts/scene-program-qa.mjs
-\`\`\`
+```
 
 ## Auditoria geral incluída
 
-\`actionDensity.ts\` calcula movimentos medidos da timeline sem confiar
-nos \`motionChecks\` enviados pelo modelo. Emite avisos sobre frases
+`actionDensity.ts` calcula movimentos medidos da timeline sem confiar
+nos `motionChecks` enviados pelo modelo. Emite avisos sobre frases
 praticamente imóveis, intervalos imóveis >=1,5 s e translação de
 ator sem movimento correspondente das pernas. Não força correções nem
 modifica projetos salvos.
@@ -58,7 +58,7 @@ movem. Aprovação humana deve inspecionar o MP4 e frames.
 
 ## Comparação A/B proposta
 
-- **A / baseline:** \`craneExperiment.ts\`, autoria programática controlada.
+- **A / baseline:** `craneExperiment.ts`, autoria programática controlada.
 - **B / IA:** exatamente o mesmo texto e duração com o Gemini real escrevendo
   o SceneProgram em uma sessão autorizada e isolada, sem fallback e sem retries
   inesperados, após avaliar o orçamento. Ainda NÃO executada neste PR.
@@ -70,5 +70,38 @@ Pontuação de revisão: correção da ação (0–10), movimento visível (0–
 legibilidade do mecanismo (0–10), consistência do cenário (0–10),
 câmera e ritmo (0–10), aparência (0–10).
 
-Não mesclar no \`main\`/não publicar no Lovable antes de revisão humana e
+Não mesclar no `main`/não publicar no Lovable antes de revisão humana e
 validação de fluxos reais. Não confundir fixture, CI e geração Gemini real.
+
+
+## Evidência de revisão do primeiro MP4 (rodada A1)
+
+Run: https://github.com/bryansouzarodrigues1-creator/crieseuvideo/actions/runs/44079757662
+
+- O navegador exportou 600 quadros / 20.000 s, H.264 720 × 1280 a 30 FPS.
+  O MP4 e oito capturas 9:16/16:9 foram recuperados do artefato
+  `crane-20s-agent-authored-offline-qa`.
+- O job terminou vermelho **após a exportação** por uma asserção antiga:
+  exigia 5 solicitações simuladas para as 3 fixtures do conjunto padrão.
+  O experimento opt-in corretamente faz 1 solicitação simulada. A asserção e
+  o concat do conjunto normal foram condicionados no commit seguinte.
+- Revisão humana da planilha de quadros 8%, 34%, 67% e 98%:
+  - **Movimento/continuidade:** carga persistente sobe, roldana e engrenagem
+    recebem animação; a primeira frase tem movimento de pernas e reação.
+  - **Composição:** muito céu/área vazia em todos os planos; o objeto que importa
+    fica relativamente pequeno, e partes do prédio e da máquina são cortadas.
+  - **Demonstração:** no trecho de guincho, o motor aparece tarde ou é
+    parcialmente obstruído; ainda falta mostrar claramente a ligação física
+    entre motor, tambor, cabo, roldana e carga.
+  - **Legendas:** as falas de várias palavras cobrem a faixa dos objetos,
+    ao contrário do ritmo palavra por palavra do vídeo de referência.
+  - **Arte:** blocos muito simples, fundo pouco detalhado e nenhum trabalho
+    de texturas, cenário encenado ou efeitos físicos convincentes.
+
+**Veredito:** sucesso técnico de renderização; **reprovação visual/narrativa**
+frente à referência. Não usar como publicidade de "qualidade profissional".
+
+Prioridades após esta revisão: (1) mostrar o mecanismo certo na palavra certa,
+(2) enquadrar o sujeito e abrir espaço para legenda, (3) evitar fundos vazios,
+(4) fazer cabo e carga seguirem causalmente o motor, (5) adicionar modelos
+reutilizáveis e rigging, (6) revisar vídeo novamente antes de qualquer merge.
