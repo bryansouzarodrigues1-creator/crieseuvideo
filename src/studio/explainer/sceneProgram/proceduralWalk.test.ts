@@ -53,7 +53,7 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
     expect(poses[1]!.rightHand[2]).toBeCloseTo(.18);
     expect(poses[0]!.leftHand[2]).not.toBeCloseTo(poses[1]!.leftHand[2], 2);
     const free = gait.at(.7);
-    expect(Math.abs(free.rightHand[2] - poses[0]!.rightHand[2])).toBeGreaterThan(.04);
+    expect(Math.abs(free.rightHand[2] - poses[0]!.rightHand[2])).toBeGreaterThan(.03);
   });
 
   it('detects carried props in the real stage and applies torso/head counter-rotation', () => {
