@@ -6,7 +6,8 @@ import { SceneProgram3D } from './stage3d';
 const sources: ProgramSource[] = [{ sourceId: 's1', text: 'Uma caixa descansa sobre um campo aberto.', duration: 4 }];
 const mesh = (id: string, shape: string, size: number[], position: number[], extra: Record<string, unknown> = {}) =>
   ({ id, kind: 'mesh', contextSourceId: 's1', position, color: '#88aa66', geometry: { shape, size, ...(extra.geometry as object) }, ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== 'geometry')) });
-const program = (nodes: unknown[], tracks: unknown[] = []) => normalizeSceneProgram({ version: 1, background: '#A7D9ED', nodes, tracks, contacts: [],
+const boxTrack = { node: 'box', channel: 'position', interpolation: 'linear', keys: [{ sourceId: 's1', phase: 0, value: [0, .5, 0] }, { sourceId: 's1', phase: 1, value: [0, .8, 0] }] };
+const program = (nodes: unknown[], tracks: unknown[] = []) => normalizeSceneProgram({ version: 1, background: '#A7D9ED', nodes, tracks: [boxTrack, ...tracks], contacts: [],
   shots: [{ sourceId: 's1', subjects: ['box'], azimuth: .2, endAzimuth: .2, elevation: .2, distance: 1.2 }] }, sources);
 const stage = (nodes: unknown[], tracks?: unknown[]) => new SceneProgram3D(program(nodes, tracks), sources);
 
