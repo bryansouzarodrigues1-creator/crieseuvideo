@@ -1,11 +1,12 @@
-name: Real rigged two-human motion 8s browser lab
+name: Real rigged humans bone-calibrated handoff 8s
 # Only real CC0, source-pinned GLBs. QA-only, not shipped by CrieSeuVideo.
 # No Gemini, ElevenLabs, paid credentials, or production deployment.
 on:
   push:
-    branches: [experiment/rigged-characters-real-clips-20261117]
+    branches: [experiment/rigged-clip-matrix-audit-20261117]
     paths:
       - 'src/studio/explainer/sceneProgram/riggedClipPlayer.ts'
+      - 'src/studio/explainer/sceneProgram/riggedScale.ts'
       - 'src/studio/explainer/sceneProgram/modelAssets.ts'
       - 'src/studio/explainer/sceneProgram/stage3d.ts'
       - 'lab/rigged-research/**'
@@ -68,7 +69,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rigged-humans-real-8s-qa
+          name: rigged-humans-calibrated-8s-qa
           path: |
             tmp/rigged-lab/*.mp4
             tmp/rigged-lab/*.png
