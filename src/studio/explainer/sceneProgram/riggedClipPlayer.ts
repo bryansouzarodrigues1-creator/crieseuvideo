@@ -41,6 +41,7 @@ export class RiggedClipPlayer {
   readonly root: THREE.Object3D;
   private cues: RiggedClipCue[];
   private readonly sources: THREE.AnimationClip[];
+  private readonly actions: Map<string, THREE.AnimationAction>;
   private activeName: string | null = null;
   constructor(root: THREE.Object3D, clips: THREE.AnimationClip[], cues: RiggedClipCue[]) {
     this.root=root;
@@ -48,7 +49,12 @@ export class RiggedClipPlayer {
     this.mixer=new THREE.AnimationMixer(root);
     this.clips=clips.map(c=>c.name);
     this.cues=validateRiggedCues(clips,cues);
-    for (const clip of clips) this.mixer.clipAction(clip);
+    this.actions = new Map(clips.map(clip => {
+      const action=this.mixer.clipAction(clip);
+      action.setEffectiveWeight(0);
+      action.play();
+      return [clip.name, action] as const;
+    }));
   }
   setCues(cues: RiggedClipCue[]) {
     // No dynamic URL or eval. Only named clips already loaded from this GLB.
@@ -65,20 +71,19 @@ export class RiggedClipPlayer {
     if (!clip) throw new RiggedClipError('O clip selecionado desapareceu.');
     const elapsed=(t-cue.start)*(cue.speed??1);
     const clipTime=cue.loop===false?Math.min(elapsed,clip.duration):elapsed%clip.duration;
-    // stopAllAction removes all other tracks (unlike the previous implementation).
-    // reset/replay on every seek avoids order-dependent playback state.
-    this.mixer.stopAllAction();
-    // Imported GLBs often have separate, sparse clips: Walk animates leg/wrist
-    // bones while Interact does not animate every ancestor. A previous clip's
-    // residual transforms can distort the next clip by metres. Restore the
-    // ORIGINAL skeleton bind pose before each absolute-time evaluation.
-    this.root.traverse(object => {
-      if (object instanceof THREE.SkinnedMesh) object.skeleton.pose();
-    });
-    const action=this.mixer.clipAction(clip);
-    action.reset().setLoop(cue.loop===false?THREE.LoopOnce:THREE.LoopRepeat, cue.loop===false?1:Infinity);
-    action.clampWhenFinished=true;
-    action.play();
+    // Keep actions/bindings active. Repeated stop/play on every output frame
+    // can leave sparse clip channels in an inconsistent cached rest pose.
+    // Absolute time + exclusive weights is deterministic and avoids
+    // simultaneous playback of competing full-body animation clips.
+    for(const [name, action] of this.actions) {
+      action.enabled=true;
+      action.paused=false;
+      action.setEffectiveWeight(name === cue.clip ? 1 : 0);
+      action.setEffectiveTimeScale(1);
+      action.setLoop(cue.loop===false ? THREE.LoopOnce : THREE.LoopRepeat,
+        cue.loop===false ? 1 : Infinity);
+      action.clampWhenFinished=cue.loop===false;
+    }
     this.mixer.setTime(clipTime);
     this.activeName=cue.clip;
     this.root.updateMatrixWorld(true);
