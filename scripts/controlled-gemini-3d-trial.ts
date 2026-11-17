@@ -14,8 +14,8 @@ import { directExplainer, DirectorError } from '../src/studio/server/director';
 import { SceneProgramError } from '../src/studio/explainer/sceneProgram/score';
 import { summarizeGeminiTrialFailure } from './gemini-trial-diagnostics';
 
-const TRIAL_SCRIPT = 'Uma pequena turbina eólica recebe uma rajada de vento. Suas pás começam a girar, aceleram e depois param.';
-const DURATION = 8;
+const TRIAL_SCRIPT = 'Na obra, um trabalhador caminha até uma caixa de ferramentas, se abaixa e a pega do chão. Depois ele entrega a caixa ao colega, que a recebe e a leva até uma bancada.';
+const DURATION = 12;
 const model = process.env.GEMINI_TEXT_MODEL || 'gemini-3.6-flash';
 const approved = process.env.CONFIRM_ONE_GEMINI_CALL === 'I_APPROVE_ONE_CALL';
 if (!approved) {
