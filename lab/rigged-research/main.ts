@@ -90,7 +90,7 @@ const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
     {start:4.55,clip:'CharacterArmature|Idle_Neutral'}
   ]:[
     {start:0,clip:'CharacterArmature|Idle_Neutral'},
-    {start:5.2,clip:'CharacterArmature|Interact',loop:false},
+    {start:5.78,clip:'CharacterArmature|Interact',loop:false},
     {start:6.9,clip:'CharacterArmature|Idle_Neutral'}
   ]);
   return {holder,director,size:height,clipNames:director.clips,ratio};
