@@ -6,6 +6,7 @@ on:
     branches: [experiment/rigged-clip-matrix-audit-20261117]
     paths:
       - '.github/workflows/cc0-pickup-inspection.yml'
+      - 'lab/rigged-research/retarget-map.json'
   workflow_dispatch:
 permissions:
   contents: read
@@ -95,6 +96,19 @@ jobs:
           dst_names=[dst_nodes[i].get('name','') for i in worker_bones]
           target_map={normalize(x):x for x in dst_names}
           common=[x for x in src_names if normalize(x) in target_map]
+          declared=json.loads(Path('lab/rigged-research/retarget-map.json').read_text())
+          name_map=declared['targetToSourceBoneNames']
+          bad_targets=[name for name in name_map if name not in dst_names]
+          bad_sources=[name for name in name_map.values() if name not in src_names]
+          actual_unmapped=sorted(set(dst_names)-set(name_map))
+          mapped_sources=list(name_map.values())
+          if bad_targets or bad_sources or len(set(mapped_sources))!=len(mapped_sources):
+              raise SystemExit('Incompatible retarget mapping: '+json.dumps({
+                  'bad_targets':bad_targets,'bad_sources':bad_sources,
+                  'duplicate_sources':len(mapped_sources)-len(set(mapped_sources))}))
+          if actual_unmapped!=declared['unmappedTargetBones']:
+              raise SystemExit('Undocumented target bones excluded from mapping: '+str(actual_unmapped))
+          print('MAPPING_VALIDATED',len(name_map),'of',len(dst_names),'target bones; omitted:',actual_unmapped)
           report={
             'source':'GLB/Action_pick_up_from_a_table.glb',
             'target':'Quaternius Worker.glb SHA eb29e2adb795972e1f475cd25a000975fe260aa9',
@@ -104,6 +118,10 @@ jobs:
             'matchFraction':round(len(common)/max(1,len(src_names)),4),
             'sourceNodeCount':len(src_nodes),
             'targetJointCount':len(worker_bones),
+            'declaredMap':name_map,
+            'declaredCoverage':round(len(name_map)/max(1,len(dst_names)),4),
+            'unmappedTargetBones':actual_unmapped,
+            'motionTransferred':False,
             'recommendation':'Never copy keyframes onto unrelated joints. Calibrate bind-pose and retarget in a new isolated browser proof.'
           }
           Path('tmp/cc0-motion-audit/retarget-audit.json').write_text(json.dumps(report,indent=2))
