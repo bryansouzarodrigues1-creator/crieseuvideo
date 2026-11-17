@@ -21,7 +21,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - name: Independent movement audit tests
-        run: bunx vitest run src/studio/explainer/sceneProgram/actionDensity.test.ts
+        run: bunx vitest run src/studio/explainer/sceneProgram/actionDensity.test.ts src/studio/explainer/sceneProgram/craneExperiment.test.ts
       - name: Type check
         run: bunx tsc --noEmit
       - name: Build without model generation
