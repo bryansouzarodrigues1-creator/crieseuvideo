@@ -93,7 +93,11 @@ export class SceneProgram3D {
       root.name = n.id; this.nodes.set(n.id, root);
     }
     for (const n of program.nodes) {
-      const parent = n.parent ? this.actors.get(n.parent)?.socket(n.socket) ?? this.nodes.get(n.parent)! : this.scene;
+      const parent = n.parent
+        ? this.actors.get(n.parent)?.socket(n.socket)
+          ?? this.importedModels.get(n.parent)?.socket(n.socket)
+          ?? this.nodes.get(n.parent)!
+        : this.scene;
       parent.add(this.nodes.get(n.id)!);
     }
     this.update(0); this.extendGround();
