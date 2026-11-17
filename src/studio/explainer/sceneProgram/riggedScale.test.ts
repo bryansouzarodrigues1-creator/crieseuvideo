@@ -38,7 +38,7 @@ describe('rigged humanoid scaling, independent from mesh bounds', () => {
     model.updateWorldMatrix(true,true);
     const origin=wrist.getWorldPosition(new THREE.Vector3());
     const local=localGripOffsetMetres(wrist,new THREE.Vector3(.01,.02,.10));
-    const world=wrist.localToWorld(local);
+    const world=wrist.localToWorld(local.clone());
     expect(world.distanceTo(origin)).toBeCloseTo(Math.hypot(.01,.02,.10),3);
     expect(local.z).toBeLessThan(.002); // NOT a raw .10 bone unit!
   });
