@@ -19,7 +19,8 @@ export interface ProgramNode {
 export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
 export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
 /** Default framing is locked. A deliberate orbit must be requested explicitly; endAzimuth alone never drifts the camera. */
-export interface ProgramShotCut { phase: number; subjects: string[]; azimuth: number; elevation: number; distance: number }
+/** hide isolates irrelevant foreground sets in a shot without deleting their 3D meshes or animation. */
+export interface ProgramShotCut { phase: number; subjects: string[]; azimuth: number; elevation: number; distance: number; hide?: string[] }
 export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number; motion?: 'locked' | 'orbit'; cuts?: ProgramShotCut[] }
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
 /** A measurable on-screen action, not a thematic action ID or AI assertion.
@@ -205,13 +206,23 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     if (s.cuts !== undefined) {
       if (motion !== 'locked') fail('Uma cena com cortes de câmera não pode orbitar ao mesmo tempo.');
       cuts = list(s.cuts, 10).map((raw): ProgramShotCut => {
-        const cut = obj(raw); only(cut,['phase','subjects','azimuth','elevation','distance']);
+        const cut = obj(raw); only(cut,['phase','subjects','azimuth','elevation','distance','hide']);
         const phase = num(cut.phase,0,.98);
         const cutSubjects = list(cut.subjects,6).map((v)=>
           nodeMap.has(v) ? v as string : fail('Um corte da câmera citou objeto inexistente.'));
         if (!cutSubjects.length) fail('Cada corte da câmera precisa focar um objeto real.');
+        const hide=cut.hide===undefined?[]:list(cut.hide,32).map(v=>nodeMap.has(v)?v as string:fail('Um objeto oculto da tomada não existe.'));
+        if (new Set(hide).size!==hide.length) fail('A câmera não aceita objetos ocultos duplicados.');
+        for(const subject of cutSubjects) for(const hidden of hide){
+          let current:ProgramNode|undefined=nodeMap.get(subject);
+          while(current) {
+            if(current.id===hidden)fail('Não oculte um objeto importante ou seu ancestral durante a própria tomada.');
+            current=current.parent?nodeMap.get(current.parent):undefined;
+          }
+        }
         return {phase,subjects:cutSubjects,azimuth:num(cut.azimuth??azimuth,-Math.PI*2,Math.PI*2),
-          elevation:num(cut.elevation??elevation,-.35,1.1),distance:num(cut.distance??distance,1,2.5)};
+          elevation:num(cut.elevation??elevation,-.35,1.1),distance:num(cut.distance??distance,1,2.5),
+          ...(hide.length?{hide}:{})};
       });
       if (!cuts.length || cuts[0].phase !== 0 || cuts.some((cut,i)=>i>0 && cut.phase-cuts![i-1].phase<.035))
         fail('Os cortes da câmera precisam começar em 0 e ter intervalos distintos.');
