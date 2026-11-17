@@ -49,3 +49,27 @@ Nos testes isolados, o pulso ficou dentro da escala humana. Na cena completa, a 
 A função localGripOffsetMetres converte um deslocamento solicitado em metros reais para a unidade local do osso usando sua escala mundial. Um teste independente reproduz e previne esse erro dimensional. O laboratório também rejeita a pega se ela ficar a mais de 16 cm do pulso.
 
 Essa correção não cria um agachamento ou uma entrega convincente por si só. A prova de dois humanos e ferramenta continua separada e exige frames reais.
+
+## Status auditado da continuidade — 17/11/2026
+
+**PR #45 (DRAFT), apenas em branch experimental. Nenhum merge na main, nenhum deploy no Lovable, nenhuma nova chamada Gemini.**
+
+### O que o GitHub provou
+
+- Workflow `44168443337`: 392 testes unitários, TypeScript, GLB Worker/Casual com escala de esqueleto correta, render real 192 quadros/8s 720×1280 H.264, e transferência do objeto sem teleporte > 2,1 mm — **prova técnica de render, não de atuação**.
+- Inspeção independente dos frames do MP4: personagens se sobrepõem e a ação de pegar/entregar não é legível. O objeto preso no punho não prova que a mão pegou um objeto.
+- Novo `scripts/rigged-human-browser-qa.mjs` reprova interseção de posicionamento de atores, cabeças que se ocultam na câmera e ausência de gesto de pegar comprovado. Execução `44170371823`: falha **esperada** por distância entre centros de atores de 0,635 m, cabeças a 18–36 px entre si na câmera e ausência de animação Pickup/Crouch. O vídeo/relatório continuam exportados, mas o resultado NÃO deve ser aprovado.
+- Fonte de movimento CC0 separada `Kinemiq/free-game-animations`, GLB ZIP SHA256 `64ca5ab4a92c9da079c5e88ca509391b0a58a24ccf2a1307b16e2f0fc6b23ffc`. A auditoria `44170798605` encontrou 36 GLBs válidos, incluindo `Action_pick_up_from_a_table`, `Idle_crouching` e `Walk_carrying`, com movimentos esqueléticos reais.
+- São arquivos de animação com **0 skins** e **67 canais**, isto é, sem personagem/skinned mesh próprio: requerem rig e retarget, não podem ser ligados diretamente ao Worker.
+- Auditoria `44171085645`: apenas 8 de 66 nomes originais têm correspondência direta entre esqueleto fonte e Worker. Os dois rigs são diferentes.
+- Mapeamento explícito `lab/rigged-research/retarget-map.json` validado na execução `44171463086`: 61 dos 62 ossos alvos referenciam nomes de ossos animados reais na fonte; `Body` permanece fora de propósito. **Isso valida nomes, NÃO a adaptação da pose, o contato ou o vídeo**.
+
+### Próxima implementação, não concluída
+
+1. Em laboratório isolado, converter a fonte GLB esquelética para um esqueleto reproduzível e gerar clip retargetado aplicando **correção de pose de repouso** (bind pose), escala do quadril e orientação de eixos — não copiar keyframes crus.
+2. Verificar num MP4 curto movimentos reais de agachar e pegar sem distorção do tronco, pés, mãos; avaliar contato antes da troca de posse.
+3. Fazer correção de raiz/root motion, transição suave entre clips e IK de mãos/pés; uma animação de 0,8s de pickup pode não casar com a geometria de cada objeto.
+4. Construir direção semântica (`walk_to`, `pickup`, `carry`, `handoff`, `put_down`) com pré/pós-condições e recusa de ações sem clip/IK válidos; só então ligar o plano Gemini ao motor testado.
+5. Repetir QA visual do MP4 para contato, colisão entre pessoas, pés apoiados e enquadramento antes de promover algo ao produto.
+
+**Não confundir 61/62 nomes correspondidos com 61/62 ossos animando corretamente. Nenhuma demonstração de pickup retargetado foi aprovada até esta data.**
