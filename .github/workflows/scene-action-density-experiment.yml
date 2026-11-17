@@ -1,0 +1,28 @@
+name: Scene action density research QA
+# Offline, no provider calls, no secrets, no publish to main or Lovable.
+on:
+  push:
+    branches: [experiment/crane-action-audit-20261117]
+    paths:
+      - 'src/studio/explainer/sceneProgram/**'
+      - '.github/workflows/scene-action-density-experiment.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Independent movement audit tests
+        run: bunx vitest run src/studio/explainer/sceneProgram/actionDensity.test.ts src/studio/explainer/sceneProgram/craneExperiment.test.ts
+      - name: Type check
+        run: bunx tsc --noEmit
+      - name: Build without model generation
+        run: bun run build

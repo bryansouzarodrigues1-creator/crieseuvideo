@@ -9,11 +9,18 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import { sceneProgramFixtures } from '../src/studio/explainer/sceneProgram/fixtures.ts';
+import { craneExperimentFixture } from '../src/studio/explainer/sceneProgram/craneExperiment.ts';
+import { auditSceneActionDensity } from '../src/studio/explainer/sceneProgram/actionDensity.ts';
+import { productionSources } from '../src/studio/explainer/plan.ts';
+// Calibration scenes stay outside the shipped studio and never trigger an AI call.
+const qaFixtures = process.env.SCENE_PROGRAM_EXPERIMENT === 'crane'
+  ? [craneExperimentFixture()]
+  : sceneProgramFixtures();
 import worker from '../dist/server/index.js';
 
 const output = path.resolve('tmp/scene-program-qa'); await fs.mkdir(output, { recursive: true });
 const shippedWorker = await fs.readFile('dist/server/index.js', 'utf8');
-for (const spec of sceneProgramFixtures()) assert.ok(!shippedWorker.includes(spec.id), 'A prepared scene was accidentally bundled into the application.');
+for (const spec of qaFixtures) assert.ok(!shippedWorker.includes(spec.id), 'A prepared scene was accidentally bundled into the application.');
 let backend = worker, fixture, providerCalls = 0;
 const requests = [], errors = [], report = [];
 const originalFetch = globalThis.fetch;
@@ -50,7 +57,7 @@ try {
     const canvas = document.getElementById('canvas');
     return { png: canvas.toDataURL('image/png').split(',')[1], data: JSON.parse(canvas.dataset.production || 'null'), action: canvas.dataset.action };
   }, at);
-  for (const spec of sceneProgramFixtures()) {
+  for (const spec of qaFixtures) {
     console.log('Checking authored fixture through programming UI:', spec.id);
     fixture = spec.response; backend = (await import('../dist/server/index.js?program=' + spec.id)).default;
     await page.locator('#script').fill(spec.script);
@@ -65,6 +72,8 @@ try {
     const project = await page.evaluate(() => JSON.parse(localStorage.getItem('crieseuvideo-lab-v1')));
     assert.equal(project.plan.scenes.map((s) => s.text).join(' '), spec.script);
     assert.ok(project.plan.sceneProgram); assert.equal(project.plan.production, undefined);
+    const independentAudit = auditSceneActionDensity(project.plan.sceneProgram, productionSources(project.plan.scenes));
+    await fs.writeFile(path.join(output, spec.id + '-action-audit.json'), JSON.stringify(independentAudit, null, 2));
     await fs.writeFile(path.join(output, spec.id + '.json'), JSON.stringify(project, null, 2));
     const samples = [];
     for (const aspect of ['9:16', '16:9']) {
@@ -116,11 +125,13 @@ try {
       assert.match(await page.locator('#generate').innerText(), /Programar com Gemini/);
       assert.equal((await render(spec.duration * .5)).data.maxContactError < .025, true);
     }
-    report.push({ id: spec.id, script: spec.script, developerAuthoredProgram: true, sourcePreserved: true, duration: spec.duration, export: { codec: video.codec_name, width: video.width, height: video.height, frames: Number(video.nb_read_frames), silent: true, lastFrameMeanPixelError: Number(comparison) }, samples });
+    report.push({ id: spec.id, script: spec.script, developerAuthoredProgram: true, sourcePreserved: true, duration: spec.duration, independentActionFindings: independentAudit.findings, export: { codec: video.codec_name, width: video.width, height: video.height, frames: Number(video.nb_read_frames), silent: true, lastFrameMeanPixelError: Number(comparison) }, samples });
   }
-  assert.equal(providerCalls, 5); assert.deepEqual(errors, []);
+  assert.equal(providerCalls, process.env.SCENE_PROGRAM_EXPERIMENT === 'crane' ? 1 : 5); assert.deepEqual(errors, []);
+  if (process.env.SCENE_PROGRAM_EXPERIMENT !== 'crane') {
   const files = sceneProgramFixtures().map((s) => path.join(output, s.id + '.mp4'));
   execFileSync('ffmpeg', ['-v', 'error', '-y', ...files.flatMap((file) => ['-i', file]), '-filter_complex', '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]', '-map', '[v]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', path.join(output, 'programas-de-cena-42s.mp4')]);
+  }
   await fs.writeFile(path.join(output, 'report.json'), JSON.stringify({ realProviderGenerationTested: false, developerAuthoredPrograms: true, interceptedProviderCalls: providerCalls, paidCalls: 0, browserErrors: errors, fixtures: report }, null, 2));
-  console.log('PASS new scene-program renderer/controller/mobile/native export. THREE developer-authored fixtures; no real provider generation.');
+  console.log('PASS scene-program renderer/controller/mobile/native export. Developer-authored offline fixtures only; no real provider generation.');
 } finally { globalThis.fetch = originalFetch; await browser?.close(); await new Promise((resolve) => server.close(resolve)); }
