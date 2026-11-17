@@ -12,8 +12,8 @@ const key = (phase: number, value: number[]) => ({sourceId,phase,value});
 
 export function stylizedPropsProgram() {
   const nodes = [
-    mesh('earth','box',[12,.18,9],'#7F9B72',[0,-.12,0]),
-    mesh('backdrop','box',[10,5,.14],'#E3D5BF',[0,2.5,-3.9]),
+    mesh('earth','box',[140,.18,140],'#7F9B72',[0,-.12,0]),
+    mesh('hedgerow','sphere',[1.65],'#7BA77C',[0,.48,-5.5],{scale:[4,.38,.8]}),
     node('plant','group',[-1.14,0,-.1]),
     mesh('vine','tube',[.065],'#477D45',[0,0,0],{parent:'plant',geometry:{
       shape:'tube',size:[.065],points:[[0,.02,0],[-.10,.50,0],[.06,1.18,.02],[.23,2.04,.03]]}}),
@@ -49,7 +49,7 @@ export function stylizedPropsProgram() {
     tracks:[
       {node:'tomato',channel:'position',interpolation:'smooth',
         keys:[key(0,[-.92,1.72,.15]),key(.24,[-.92,1.72,.15]),key(.47,[-.18,.48,.15]),
-          key(.55,[.06,.41,.15]),key(.77,[.85,.41,.15]),key(1,[.98,.41,.15])]},
+          key(.55,[.06,.41,.15]),key(.77,[.72,.41,.15]),key(1,[.80,.41,.15])]},
       {node:'tomato',channel:'rotation',interpolation:'smooth',
         keys:[key(0,[0,0,-.2]),key(.28,[0,0,-.2]),key(.48,[0,0,0]),key(.78,[0,0,-2.7]),key(1,[0,0,-2.9])]},
     ],
