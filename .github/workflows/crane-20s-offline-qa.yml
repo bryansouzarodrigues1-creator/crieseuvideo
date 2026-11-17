@@ -1,0 +1,54 @@
+name: Crane 20s offline browser experiment
+# An authored calibration for the director; NEVER calls Gemini, ElevenLabs or Lovable.
+# Output is a QA MP4, not proof that a live model generated the same quality.
+on:
+  push:
+    branches: [experiment/crane-action-audit-20261117]
+    paths:
+      - 'src/studio/explainer/sceneProgram/craneExperiment.ts'
+      - 'src/studio/explainer/sceneProgram/craneExperiment.test.ts'
+      - 'scripts/scene-program-qa.mjs'
+      - '.github/workflows/crane-20s-offline-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+      SCENE_PROGRAM_EXPERIMENT: 'crane'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Schema, movement and types
+        run: |
+          bunx vitest run src/studio/explainer/sceneProgram/craneExperiment.test.ts
+          bunx tsc --noEmit
+      - name: Build real app and preview
+        run: |
+          bun run build
+          node lab/build.mjs
+      - name: Install headless browser and encoder
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          python3 -m pip install numpy pillow
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Render actual 20-second scene, check random seeking and H264 MP4
+        run: bun scripts/scene-program-qa.mjs
+      - name: Save original renders, notes and program for human inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crane-20s-agent-authored-offline-qa
+          path: |
+            tmp/scene-program-qa/grua-tres-etapas.mp4
+            tmp/scene-program-qa/grua-tres-etapas-*.png
+            tmp/scene-program-qa/grua-tres-etapas*.json
+            tmp/scene-program-qa/report.json
+          if-no-files-found: warn
+          retention-days: 7
