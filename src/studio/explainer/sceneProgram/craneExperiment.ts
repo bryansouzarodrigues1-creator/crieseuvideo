@@ -46,8 +46,8 @@ export function craneExperimentProgram() {
       box('window-' + f + '-' + col, [3.75 + col * 2.0, 1.85 + f * 1.40, -2.55],
         [.88, .85, .075], '#74BED9');
   }
-  for (const x of [2.55, 9.05]) {
-    cyl('scaffold-' + String(x), [x, 3.7, -.75], [.08, .08, 7.4], '#477184');
+  for (const [i, x] of [2.55, 9.05].entries()) {
+    cyl('scaffold-' + i, [x, 3.7, -.75], [.08, .08, 7.4], '#477184');
   }
   box('top-scaffold', [5.8, 7.43, -.75], [7.4, .12, .22], '#F1C349');
 
