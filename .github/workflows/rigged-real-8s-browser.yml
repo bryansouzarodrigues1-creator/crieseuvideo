@@ -38,6 +38,15 @@ jobs:
         run: |
           bun run test
           bunx tsc --noEmit
+      - name: Bundle the verified real-GLB lab for independent offline inspection
+        run: bunx vite build lab/rigged-research --outDir ../../tmp/rigged-bundle --emptyOutDir
+      - name: Preserve offline browser bundle and original CC0 assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: rigged-human-offline-browser-bundle
+          path: tmp/rigged-bundle/
+          if-no-files-found: error
+          retention-days: 7
       - name: Install browser with software WebGL and H264 encoder
         run: |
           bun add --no-save playwright@1.57.0
