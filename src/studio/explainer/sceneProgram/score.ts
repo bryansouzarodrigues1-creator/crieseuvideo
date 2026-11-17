@@ -34,7 +34,12 @@ export interface ProgramMotionCheck {
   endPhase: number;
   threshold: number;
 }
-export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
+/** A dynamic cable remains geometrically connected between two existing 3D nodes.
+ * Its carrier mesh must be a vertical cylinder (unit height is recommended).
+ * Entirely declarative: no scripts, remote URLs, physics timestep or action name.
+ */
+export interface ProgramCable { node: string; from: string; to: string }
+export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; cables?: ProgramCable[]; motionChecks?: ProgramMotionCheck[] }
 export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
 export class SceneProgramError extends Error {
   readonly code = 'invalid_scene_program';
@@ -51,7 +56,7 @@ const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): SceneProgram {
-  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks']);
+  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'cables', 'motionChecks']);
   if (r.version !== 1 || !sources.length) fail('A versão ou as frases do programa são inválidas.');
   const sourceSignature = JSON.stringify(sources.map((s) => [s.sourceId, s.text]));
   if (r.sourceSignature !== undefined && r.sourceSignature !== sourceSignature) fail('O programa pertence a outro roteiro. Gere uma nova direção para este texto.');
@@ -199,7 +204,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     let cuts: ProgramShotCut[] | undefined;
     if (s.cuts !== undefined) {
       if (motion !== 'locked') fail('Uma cena com cortes de câmera não pode orbitar ao mesmo tempo.');
-      cuts = list(s.cuts, 5).map((raw): ProgramShotCut => {
+      cuts = list(s.cuts, 10).map((raw): ProgramShotCut => {
         const cut = obj(raw); only(cut,['phase','subjects','azimuth','elevation','distance']);
         const phase = num(cut.phase,0,.98);
         const cutSubjects = list(cut.subjects,6).map((v)=>
@@ -208,12 +213,31 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
         return {phase,subjects:cutSubjects,azimuth:num(cut.azimuth??azimuth,-Math.PI*2,Math.PI*2),
           elevation:num(cut.elevation??elevation,-.35,1.1),distance:num(cut.distance??distance,1,2.5)};
       });
-      if (!cuts.length || cuts[0].phase !== 0 || cuts.some((cut,i)=>i>0 && cut.phase-cuts![i-1].phase<.08))
+      if (!cuts.length || cuts[0].phase !== 0 || cuts.some((cut,i)=>i>0 && cut.phase-cuts![i-1].phase<.035))
         fail('Os cortes da câmera precisam começar em 0 e ter intervalos distintos.');
     }
     return { sourceId: source(s.sourceId), subjects, azimuth, endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation, distance, motion, ...(cuts?{cuts}:{}) };
   });
   if (shots.length !== sources.length || new Set(shots.map((s) => s.sourceId)).size !== shots.length || sources.some((s) => !shots.some((p) => p.sourceId === s.sourceId))) fail('Cada frase do roteiro precisa da sua própria tomada.');
+  const cables = r.cables === undefined ? undefined : list(r.cables, 32).map((value): ProgramCable => {
+    const c=obj(value); only(c,['node','from','to']);
+    const carrier = nodeMap.get(c.node), from=nodeMap.get(c.from), to=nodeMap.get(c.to);
+    if (!carrier || carrier.kind !== 'mesh' || carrier.geometry?.shape !== 'cylinder' ||
+      !from || !to || c.node === c.from || c.node === c.to || c.from === c.to)
+      fail('O cabo 3D precisa ser um cilindro entre dois objetos existentes.');
+    if (tracks.some(t=>t.node===c.node && ['position','rotation','scale'].includes(t.channel)))
+      fail('Não anime o cabo manualmente: o motor conecta as duas extremidades automaticamente.');
+    for (const endpoint of [from,to]) {
+      let parent = endpoint.parent;
+      while(parent) {
+        if(parent===c.node)fail('O cabo não pode ser ancestral da própria extremidade.');
+        parent=nodeMap.get(parent)?.parent;
+      }
+    }
+    return {node:carrier.id,from:from.id,to:to.id};
+  });
+  if (cables && new Set(cables.map(c=>c.node)).size!==cables.length)
+    fail('Cada cabo físico deve possuir uma única ligação.');
   const contacts = list(r.contacts ?? [], 100).map((value): ProgramContact => {
     const c = obj(value); only(c, ['sourceId', 'actor', 'effector', 'target', 'offset', 'begin', 'end']);
     if (nodeMap.get(c.actor)?.kind !== 'actor' || !nodeMap.has(c.target) || !(EFFECTORS as readonly string[]).includes(c.effector)) fail('Um contato precisa de personagem, membro e alvo válidos.');
@@ -240,7 +264,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold };
   });
   const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
-    ...(motionChecks ? { motionChecks } : {}) };
+    ...(cables ? { cables } : {}), ...(motionChecks ? { motionChecks } : {}) };
   validateMotionChecks(normalized, sources);
   return normalized;
 }
