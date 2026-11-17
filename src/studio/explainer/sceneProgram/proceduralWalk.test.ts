@@ -31,6 +31,45 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
     expect(vec(a.leftFoot).distanceTo(vec(b.leftFoot))).toBeGreaterThan(.03);
   });
 
+  it('counter-rotates shoulders and head during steps without jitter at rest', () => {
+    const gait = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
+    const moving = Array.from({ length: 35 }, (_, i) => gait.at(.3 + i * .08));
+    expect(moving.some(f => Math.abs(f.torsoYaw) > .005)).toBe(true);
+    for (const f of moving) {
+      expect(Math.abs(f.torsoYaw)).toBeLessThanOrEqual(.046);
+      expect(f.headYaw).toBeCloseTo(-f.torsoYaw * .65, 8);
+      expect(Math.abs(f.headPitch)).toBeLessThanOrEqual(.011);
+    }
+    const stopped = gait.at(5);
+    expect(stopped.speed).toBeLessThan(.01);
+    expect(stopped.torsoYaw).toBeCloseTo(0);
+    expect(stopped.headYaw).toBeCloseTo(0);
+  });
+
+  it('keeps the hand carrying a prop stable while the opposite arm swings', () => {
+    const gait = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
+    const poses = [gait.at(.7, { rightHand: true }), gait.at(2.1, { rightHand: true })];
+    expect(poses[0]!.rightHand[2]).toBeCloseTo(.18);
+    expect(poses[1]!.rightHand[2]).toBeCloseTo(.18);
+    expect(poses[0]!.leftHand[2]).not.toBeCloseTo(poses[1]!.leftHand[2], 2);
+    const free = gait.at(.7);
+    expect(Math.abs(free.rightHand[2] - poses[0]!.rightHand[2])).toBeGreaterThan(.04);
+  });
+
+  it('detects carried props in the real stage and applies torso/head counter-rotation', () => {
+    const stage = new SceneProgram3D(base(), craneExperimentSources);
+    try {
+      expect(stage.carriedHands.get('worker')).toEqual({ leftHand: false, rightHand: true });
+      const gait = stage.proceduralWalks.get('worker')!;
+      stage.update(1.2);
+      const frame = gait.at(1.2, { rightHand: true });
+      const actor = stage.actors.get('worker')!;
+      expect(actor.hips.rotation.y).toBeCloseTo(frame.torsoYaw, 5);
+      expect(actor.head.rotation.y).toBeCloseTo(frame.headYaw, 5);
+      expect(stage.diagnostics().maxIKError).toBeLessThan(.025);
+    } finally { stage.dispose(); }
+  });
+
   it('returns the same deterministic gait after backwards scrubbing', () => {
     const gait = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
     const expected = gait.at(2.2);
