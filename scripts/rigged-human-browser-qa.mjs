@@ -103,17 +103,27 @@ try{
       x.workerPosition[2]-x.casualPosition[2]),
     workerClip:x.workerClip,
     casualClip:x.casualClip,
+    headScreenSeparationPixels:Math.hypot(
+      x.headScreenPixels.worker[0]-x.headScreenPixels.casual[0],
+      x.headScreenPixels.worker[1]-x.headScreenPixels.casual[1]),
+    headScreenPixels:x.headScreenPixels,
   }));
   const overlapping=actingSamples.filter(x=>
     x.actorRootSeparationMetres<ACTOR_MIN_ROOT_SEPARATION_METRES);
+  const MIN_HEAD_SCREEN_SEPARATION_PIXELS=70;
+  const occludedHeads=actingSamples.filter(x=>
+    !Number.isFinite(x.headScreenSeparationPixels) ||
+    x.headScreenSeparationPixels<MIN_HEAD_SCREEN_SEPARATION_PIXELS);
   const pickupClipAvailable=info.worker.some(x=>/(pickup|grab|crouch|bend)/i.test(x.split('|').pop().replace(/[_-]/g,' ')));
   const actingFailures=[
     ...overlapping.map(x=>'Actors too close for an intelligible handoff at '+x.time+'s: '+x.actorRootSeparationMetres.toFixed(3)+'m'),
+    ...occludedHeads.map(x=>'Actor heads overlap in final camera at '+x.time+'s: '+x.headScreenSeparationPixels.toFixed(1)+'px'),
     ...(!pickupClipAvailable?['No verified pickup/crouch clip or IK grasp motion in this lab; hand attachment alone is not pickup acting']:[]),
   ];
   const actingQuality={
     status:actingFailures.length?'FAIL_REQUIRES_VISUAL_REVISION':'PASS_GEOMETRY_ONLY_REQUIRES_HUMAN_REVIEW',
     minRootSeparationMetres:ACTOR_MIN_ROOT_SEPARATION_METRES,
+    minHeadScreenSeparationPixels:MIN_HEAD_SCREEN_SEPARATION_PIXELS,
     pickupClipAvailable,
     samples:actingSamples,
     failures:actingFailures,
