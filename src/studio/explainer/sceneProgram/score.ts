@@ -232,7 +232,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   if (shots.length !== sources.length || new Set(shots.map((s) => s.sourceId)).size !== shots.length || sources.some((s) => !shots.some((p) => p.sourceId === s.sourceId))) fail('Cada frase do roteiro precisa da sua própria tomada.');
   const cables = r.cables === undefined ? undefined : list(r.cables, 32).map((value): ProgramCable => {
     const c=obj(value); only(c,['node','from','to']);
-    const carrier = nodeMap.get(c.node), from=nodeMap.get(c.from), to=nodeMap.get(c.to);
+    const carrier = nodeMap.get(c.node)!, from=nodeMap.get(c.from)!, to=nodeMap.get(c.to)!;
     if (!carrier || carrier.kind !== 'mesh' || carrier.geometry?.shape !== 'cylinder' ||
       !from || !to || c.node === c.from || c.node === c.to || c.from === c.to)
       fail('O cabo 3D precisa ser um cilindro entre dois objetos existentes.');
