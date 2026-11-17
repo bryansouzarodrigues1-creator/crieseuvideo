@@ -128,6 +128,7 @@ export class SceneProgram3D {
       const pose = walk.at(this.time);
       walkFrames.set(id, pose);
       actor.root.rotation.y = pose.heading;
+      actor.setGroundedWalkSoles();
       actor.hips.position.y += pose.bob;
       actor.hips.rotation.z += pose.lean;
     }
