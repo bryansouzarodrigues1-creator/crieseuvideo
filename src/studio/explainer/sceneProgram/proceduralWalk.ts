@@ -84,7 +84,7 @@ export function buildProceduralWalk(
     const p = positionAtArc(s), angle = headingAt(s);
     // right axis of local +Z is [+cos(yaw), -sin(yaw)] in parent space
     return [p[0] + side * .17 * Math.cos(angle),
-      groundY + .115,
+      groundY + .09,
       p[2] - side * .17 * Math.sin(angle)];
   };
 
@@ -92,11 +92,11 @@ export function buildProceduralWalk(
   // moves between TWO parent-space anchors and lifts only during the swing.
   const feet = (s: number, side: -1 | 1): Vec3 => {
     let anchored = plant(0, side);
-    const first = side === -1 ? .035 : .335;
-    for (let start = first; start < distance; start += .60) {
-      const end = start + .23;
+    const first = side === -1 ? .025 : .275;
+    for (let start = first; start < distance; start += .50) {
+      const end = start + .19;
       if (end > distance - .015) break; // no stranded foot in mid-air at stop
-      const next = plant(Math.min(end + .09, distance), side);
+      const next = plant(Math.min(end + .07, distance), side);
       if (s < start) break;
       if (s < end) {
         const phase = (s - start) / (end - start);
@@ -117,7 +117,7 @@ export function buildProceduralWalk(
       const lo = Math.max(0, time - .14), hi = Math.min(score.duration, time + .14);
       const speed = (distanceAtTime(hi) - distanceAtTime(lo)) / Math.max(.001, hi - lo);
       const effort = smooth(speed / .28);
-      const cycle = arc / .60 * Math.PI * 2;
+      const cycle = arc / .50 * Math.PI * 2;
       return {
         heading: headingAt(arc), speed,
         bob: .018 * effort * Math.sin(cycle * 2),
