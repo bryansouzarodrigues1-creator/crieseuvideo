@@ -89,3 +89,98 @@ const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
 };
 // Build with explicit clips; makeActor initializes only after cues are supplied
 // by the lab, not by the JSON generator.
+
+
+const worker=makeActor(workerGltf,'worker',-1.55);
+const casual=makeActor(casualGltf,'casual',1.12);
+const pickupAt=3.55, transferAt=5.82;
+const gripWorker=new THREE.Vector3(.01,.02,.10);
+const workerWalk=(t:number)=>-1.55+1.0*(Math.min(1,Math.max(0,t/2.25))**2*(3-2*Math.min(1,Math.max(0,t/2.25))));
+function characters(t:number) {
+  worker.holder.position.set(workerWalk(t),0,.08);
+  worker.holder.rotation.y=Math.PI/2;
+  casual.holder.rotation.y=-Math.PI/2;
+  worker.director.at(t);casual.director.at(t);
+  scene.updateMatrixWorld(true);
+}
+characters(pickupAt);
+const handA=worker.director.socket('rightHand');
+const handB=casual.director.socket('rightHand');
+const worldPickup=handA.localToWorld(gripWorker.clone());
+const tool=new THREE.Group();tool.name='mechanical-prop';scene.add(tool);
+block(.40,.18,.28,'#eda73c',0,0,0,tool);
+block(.26,.035,.035,'#364954',0,.12,0,tool);
+cyl(.05,.1,'#6d7077',.24,-.01,0,tool);
+const propStandY=Math.max(.13,worldPickup.y-.14);
+block(.69,.10,.52,'#394f5d',worldPickup.x,propStandY,worldPickup.z);
+for(const dx of [-.29,.29])for(const dz of [-.18,.18])
+  block(.05,Math.max(.2,propStandY-.07),.055,'#405d6d',worldPickup.x+dx,(propStandY-.08)/2,worldPickup.z+dz);
+
+// The handoff is staged by placing the recipients' wrist at the actual point
+// where the first actor reaches. Its feasibility is checked in browser QA.
+characters(transferAt);
+const gripWorld=handA.localToWorld(gripWorker.clone());
+const receiver=handB.getWorldPosition(new THREE.Vector3());
+const handDelta=gripWorld.clone().sub(receiver);
+if(handDelta.length()>3)throw new Error('Interaction staging impossible: hands too far apart.');
+casual.holder.position.add(new THREE.Vector3(handDelta.x,0,handDelta.z));
+scene.updateMatrixWorld(true);
+const handHeightMismatch=Math.abs(handB.getWorldPosition(new THREE.Vector3()).y-gripWorld.y);
+if(handHeightMismatch>.36)throw new Error('Hands too far apart vertically for a believable transfer: '+handHeightMismatch.toFixed(3));
+const gripCasual=handB.worldToLocal(gripWorld.clone());
+// A tool must be in contact with the acting wrist at attachment time.
+const gripAtPickup=gripWorker.clone();
+const look=new THREE.Vector3();
+const cameraPos=new THREE.Vector3();
+function seek(t:number){
+  const time=Math.max(0,Math.min(DURATION,t));
+  characters(time);
+  let owner:'table'|'worker'|'casual';
+  if(time<pickupAt) {
+    if(tool.parent!==scene)scene.add(tool);
+    tool.position.copy(worldPickup);
+    owner='table';
+  } else if(time<transferAt) {
+    if(tool.parent!==handA)handA.add(tool);
+    tool.position.copy(gripAtPickup);
+    owner='worker';
+  } else {
+    if(tool.parent!==handB)handB.add(tool);
+    tool.position.copy(gripCasual);
+    owner='casual';
+  }
+  tool.rotation.set(0,0,0);tool.scale.setScalar(1);
+  scene.updateMatrixWorld(true);
+  const movingActor=time<2.5?-1.1:time<5.3?-.4:.18;
+  const targetX=movingActor;
+  const targetY=time<5.3?1.30:1.42;
+  look.set(targetX,targetY,-.45);
+  cameraPos.set(targetX+.18,targetY+.78,time<2.5?5.85:5.30);
+  camera.position.copy(cameraPos);camera.lookAt(look);
+  renderer.render(scene,camera);
+  const wrist=owner==='casual'?handB:handA;
+  const handError=owner==='table'?0:wrist.getWorldPosition(new THREE.Vector3()).distanceTo(tool.getWorldPosition(new THREE.Vector3()));
+  return {
+    time,owner,toolHandDistance:handError,
+    workerClip:worker.director.activeClip,
+    casualClip:casual.director.activeClip,
+    riggedSkinnedMeshes:scene.children.reduce((a,o)=>{
+      o.traverse(c=>{if((c as THREE.SkinnedMesh).isSkinnedMesh)a++});return a;
+    },0),
+    textureExternalDownloads:false,
+    handoffHeightMismatch:handHeightMismatch,
+    workerPosition:worker.holder.position.toArray(),
+    casualPosition:casual.holder.position.toArray(),
+  };
+}
+const detail=seek(0);
+(window as any).__riggedLab={
+  duration:DURATION,
+  workerClips:worker.clipNames,
+  casualClips:casual.clipNames,
+  seek,
+  frame:()=>canvas.toDataURL('image/png'),
+  info:()=>detail,
+};
+status.textContent='SceneProgram research: rigged GLB humanoids + true skeleton clips + prop attachment';
+document.body.dataset.ready='rigged-qa';
