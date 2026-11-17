@@ -71,7 +71,7 @@ it('preserves a safe minimum for many 3D beats and keeps recorded audio intact',
 
 it('does not lose requested timing when repeatedly switching the 3D program between 8 and 10 seconds', () => {
   const p = buildFallbackPlan('O vento chega. A turbina gira.');
-  let program = { ...p, scenes: p.scenes.map(s => ({ ...s, programBeat: true })) };
+  let program: ExplainerPlan = { ...p, scenes: p.scenes.map(s => ({ ...s, programBeat: true })) };
   for (const n of [8, 10, 8]) program = withTargetDuration(program, n);
   expect(totalDuration(program)).toBeCloseTo(8, 8);
   expect(program.scenes.map(s => s.duration)).toEqual([4, 4]);
