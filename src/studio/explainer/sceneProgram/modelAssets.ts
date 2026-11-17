@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { RiggedClipPlayer, type RiggedClipCue } from './riggedClipPlayer';
 import { SceneProgramError } from './score';
 import { approvedModel, type ApprovedModelId } from './modelRegistry';
 
@@ -81,7 +82,10 @@ export async function loadApprovedModel(id: ApprovedModelId, fetchAsset = fetch)
 
 export interface ModelInstance {
   root: THREE.Object3D;
+  clipNames: string[];
   setTime(time: number): void;
+  setClips(cues: RiggedClipCue[]): void;
+  socket(socket: 'root' | 'head' | 'leftHand' | 'rightHand' | 'leftFoot' | 'rightFoot'): THREE.Object3D;
 }
 
 /** Clone mesh skeletons AND resources so one timeline never mutates another. */
@@ -96,17 +100,23 @@ export function instantiateModel(loaded: PreparedModel): ModelInstance {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
   });
-  const mixer = new THREE.AnimationMixer(root);
-  for (const clip of loaded.gltf.animations.slice(0, MAX_CLIPS)) {
-    const action = mixer.clipAction(clip);
-    action.setLoop(THREE.LoopRepeat, Infinity);
-    action.play();
-  }
+  const clips = loaded.gltf.animations.slice(0, MAX_CLIPS);
+  const idle = clips.find(clip => /(?:^|[|_])idle(?:_neutral)?$/i.test(clip.name)) ?? clips[0];
+  const director = idle
+    ? new RiggedClipPlayer(root, clips, [{ start: 0, clip: idle.name }])
+    : undefined;
   return {
     root,
-    setTime(time) {
-      // setTime, unlike update(delta), is seekable and independent of render order.
-      mixer.setTime(Math.max(0, Number.isFinite(time) ? time : 0));
+    clipNames: clips.map(clip => clip.name),
+    setTime(time) { director?.at(time); },
+    setClips(cues) {
+      if (!director) throw new SceneProgramError('Modelo sem clips animados para selecionar.');
+      director.setCues(cues);
+    },
+    socket(socket) {
+      if (socket === 'root') return root;
+      if (!director) throw new SceneProgramError('Modelo não tem esqueleto para apoiar objetos.');
+      return director.socket(socket);
     },
   };
 }
