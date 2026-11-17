@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ProgramActor3D } from './actor3d';
+import { buildProceduralWalk, type ProceduralWalk, type ProceduralWalkFrame } from './proceduralWalk';
 import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
 import type { ApprovedModelId } from './modelRegistry';
 import { InkOutline, skyTexture, toonMaterial } from './look';
@@ -37,6 +38,7 @@ export class SceneProgram3D {
   readonly score;
   readonly nodes = new Map<string, THREE.Object3D>();
   readonly actors = new Map<string, ProgramActor3D>();
+  readonly proceduralWalks = new Map<string, ProceduralWalk>();
   readonly importedModels = new Map<string, ModelInstance>();
   readonly ink = new InkOutline();
   private states = new Map<string, ProgramState>();
@@ -47,6 +49,10 @@ export class SceneProgram3D {
   private projectedBounds = { min: [0, 0], max: [0, 0] };
   constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
     this.score = compileSceneProgram(program, sources);
+    for (const n of program.nodes) if (n.kind === 'actor') {
+      const walk = buildProceduralWalk(program, sources, n.id);
+      if (walk) this.proceduralWalks.set(n.id, walk);
+    }
     const sky = skyTexture(program.background); this.scene.background = sky.texture; this.scene.fog = new THREE.Fog(sky.fog, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
     const key = new THREE.DirectionalLight(0xffe6c3, 3.0); key.position.set(-12, 22, 18); key.castShadow = true;
@@ -113,14 +119,30 @@ export class SceneProgram3D {
       const state = this.states.get(id)!; object.position.set(...state.position); object.rotation.set(...state.rotation); object.scale.set(...state.scale);
       this.actors.get(id)?.reset(state.pose, this.time);
     }
+    // The authored root translation sets the destination, while this bounded
+    // locomotion fallback gives direction, planted steps and body weight.
+    // An explicit foot/rotation track or contact disables the fallback.
+    const walkFrames = new Map<string, ProceduralWalkFrame>();
+    for (const [id, walk] of this.proceduralWalks) {
+      const actor = this.actors.get(id)!;
+      const pose = walk.at(this.time);
+      walkFrames.set(id, pose);
+      actor.root.rotation.y = pose.heading;
+      actor.hips.position.y += pose.bob;
+      actor.hips.rotation.z += pose.lean;
+    }
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
     for (const [id, actor] of this.actors) {
       const state = this.states.get(id)!;
+      const walk = walkFrames.get(id);
       for (const effector of EFFECTORS) {
         const contact = this.score.contacts.filter((c) => c.actor === id && c.effector === effector && this.time >= c.start && this.time <= c.finish).pop();
         const target = contact ? this.nodes.get(contact.target)!.localToWorld(new THREE.Vector3(...contact.offset))
           : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!)
+          : walk ? effector.endsWith('Foot')
+            ? actor.root.parent!.localToWorld(new THREE.Vector3(...(effector === 'leftFoot' ? walk.leftFoot : walk.rightFoot)))
+            : actor.root.localToWorld(new THREE.Vector3(...(effector === 'leftHand' ? walk.leftHand : walk.rightHand)))
           : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
         if (target) {
           const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
@@ -278,11 +300,11 @@ export class SceneProgram3D {
   }
   diagnostics() {
     return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,
-      projectedBounds: this.projectedBounds, camera: this.camera.position.toArray(), states: [...this.states].map(([id, s]) => ({ id, ...s })) };
+      projectedBounds: this.projectedBounds, camera: this.camera.position.toArray(), proceduralWalkActors: [...this.proceduralWalks.keys()], states: [...this.states].map(([id, s]) => ({ id, ...s })) };
   }
   dispose() {
     const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();
     this.scene.traverse((node) => { if (node instanceof THREE.InstancedMesh) node.dispose(); if (node instanceof THREE.Mesh) { geometries.add(node.geometry); for (const m of Array.isArray(node.material) ? node.material : [node.material]) materials.add(m); } if (node instanceof THREE.DirectionalLight) node.shadow.map?.dispose(); });
-    geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); this.scene.clear(); this.nodes.clear(); this.actors.clear(); this.importedModels.clear();
+    geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); this.scene.clear(); this.nodes.clear(); this.actors.clear(); this.proceduralWalks.clear(); this.importedModels.clear();
   }
 }
