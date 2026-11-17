@@ -1,0 +1,34 @@
+name: Gemini 3D Owner Trial Timeout Offline QA
+
+on:
+  push:
+    branches: [fix/gemini-3d-owner-timeout-v7]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gemini-timeout-v7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-without-api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Full regression tests
+        run: bun run test
+      - name: Strict typecheck, app and lab builds
+        run: |
+          bunx tsc --noEmit
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Trial must remain offline by default
+        run: bun scripts/controlled-gemini-3d-trial.ts
