@@ -9,11 +9,16 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import { sceneProgramFixtures } from '../src/studio/explainer/sceneProgram/fixtures.ts';
+import { craneExperimentFixture } from '../src/studio/explainer/sceneProgram/craneExperiment.ts';
+// Calibration scenes stay outside the shipped studio and never trigger an AI call.
+const qaFixtures = process.env.SCENE_PROGRAM_EXPERIMENT === 'crane'
+  ? [craneExperimentFixture()]
+  : sceneProgramFixtures();
 import worker from '../dist/server/index.js';
 
 const output = path.resolve('tmp/scene-program-qa'); await fs.mkdir(output, { recursive: true });
 const shippedWorker = await fs.readFile('dist/server/index.js', 'utf8');
-for (const spec of sceneProgramFixtures()) assert.ok(!shippedWorker.includes(spec.id), 'A prepared scene was accidentally bundled into the application.');
+for (const spec of qaFixtures) assert.ok(!shippedWorker.includes(spec.id), 'A prepared scene was accidentally bundled into the application.');
 let backend = worker, fixture, providerCalls = 0;
 const requests = [], errors = [], report = [];
 const originalFetch = globalThis.fetch;
@@ -50,7 +55,7 @@ try {
     const canvas = document.getElementById('canvas');
     return { png: canvas.toDataURL('image/png').split(',')[1], data: JSON.parse(canvas.dataset.production || 'null'), action: canvas.dataset.action };
   }, at);
-  for (const spec of sceneProgramFixtures()) {
+  for (const spec of qaFixtures) {
     console.log('Checking authored fixture through programming UI:', spec.id);
     fixture = spec.response; backend = (await import('../dist/server/index.js?program=' + spec.id)).default;
     await page.locator('#script').fill(spec.script);
