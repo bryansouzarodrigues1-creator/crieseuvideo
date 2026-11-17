@@ -36,6 +36,10 @@ try {
   const details=await page.evaluate(()=>window.__cementLift.info);
   assert.equal(details.duration,DURATION);
   assert.equal(details.cuts,5);
+  assert.deepEqual(details.cutActivity.frozenCuts,[],
+    'The director authored a visually frozen camera cut: '+JSON.stringify(details.cutActivity.frozenCuts));
+  assert.ok(details.cutActivity.cuts.every(x=>x.animated.length>0),
+    'Every shot must contain an on-screen moving subject, not just a static 3D backdrop');
   assert.ok(details.objects>80 && details.objects<=160,
     '30s generic geometry should fit the engine node limit: '+details.objects);
   const cameras=new Map(), samples=[];
@@ -51,6 +55,13 @@ try {
       'horizontal crop at '+t+' '+JSON.stringify(a.projectedBounds));
     assert.ok(a.projectedBounds.min[1]>-.80&&a.projectedBounds.max[1]<.94,
       'vertical crop at '+t+' '+JSON.stringify(a.projectedBounds));
+    assert.equal(a.motor3D,true,'No real 3D motor assembly');
+    assert.equal(a.gearShaft,true,'Gearbox output shaft missing');
+    assert.ok(a.cableEndErrors?.length===1,'Missing physical cable to cargo hook');
+    assert.ok(a.cableEndErrors[0].errorMeters<.002,
+      'Hoist cable no longer touches cargo hook/pulley at '+t+'s: '+JSON.stringify(a.cableEndErrors));
+    if(cut!==4)assert.equal(a.motorVisibility,false,'Off-shot motor leaks into corner of frame');
+    else assert.equal(a.motorVisibility,true,'Motor hidden during mechanism closeup');
     if(!cameras.has(cut))cameras.set(cut,[...a.camera]);
     else assert.ok(a.camera.every((x,i)=>Math.abs(x-cameras.get(cut)[i])<.0001),
       'sideways-camera drift within cut '+cut+' at '+t);
@@ -66,6 +77,8 @@ try {
   const gear=await sample(29.5);
   assert.ok(gear.motorGear>15 && gear.smallerGear < -25,
     'Large and small gears must counterrotate at visible speeds');
+  assert.ok(Math.abs(gear.smallerGear/gear.motorGear)>2.5 && Math.abs(gear.smallerGear/gear.motorGear)<2.9,
+    'Gear speed ratio must agree with the modeled unequal gear radii');
   const workerBegin=await sample(0),workerEnd=await sample(6.4);
   assert.ok(Math.hypot(...workerBegin.worker.map((x,i)=>x-workerEnd.worker[i]))>1.0,
     'Laborer never changes position in opening');
@@ -101,12 +114,12 @@ try {
     actualSource:'Original generic SceneProgram3D geometry, no AI calls',
     approvedArtisticQuality:false,visualReviewPending:true,
     duration:DURATION,fps:FPS,frames:FPS*DURATION,dimensions:[W,H],
-    nodeCount:details.objects,cutCount:details.cuts,
+    nodeCount:details.objects,cutCount:details.cuts,cutActivity:details.cutActivity,
     cameraStableWithinCuts:true,
     observations:'Technical rendering and motion tests cannot certify scene fidelity, readability or believable load transfer.',
     samples,browserErrors:errors
   },null,2));
-  console.log('PASS full 30s actual Three.js animated hoist with five cuts, H264 and motion audits');
+  console.log('PASS 30s real 3D hoist: five active cuts, cargo-linked rope, geared motor, H264 and no off-shot clipping');
 } finally {
   if(encoder)encoder.kill('SIGKILL');
   await browser.close();
