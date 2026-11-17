@@ -7,6 +7,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RiggedClipPlayer } from '../../src/studio/explainer/sceneProgram/riggedClipPlayer';
+import { calibrateRiggedHumanoid } from '../../src/studio/explainer/sceneProgram/riggedScale';
+import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 const W=720,H=1280,DURATION=8;
 const canvas=document.querySelector<HTMLCanvasElement>('#view')!;
@@ -72,16 +74,15 @@ for(const gltf of [workerGltf,casualGltf]){
       '; clips=' + JSON.stringify(gltf.animations.map(c=>c.name)));
 }
 const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
-  const holder=new THREE.Group();holder.name=groupName;scene.add(holder);holder.add(gltf.scene);
-  const bodyBox=new THREE.Box3().setFromObject(gltf.scene);
-  const size=bodyBox.getSize(new THREE.Vector3());
-  if(!size.y||size.y>10)throw new Error('Escala inválida do personagem');
-  const height=1.88;
-  const ratio=height/size.y;
-  gltf.scene.scale.setScalar(ratio);
-  gltf.scene.position.y=-bodyBox.min.y*ratio;
+  const holder=new THREE.Group();holder.name=groupName;scene.add(holder);
+  const rig=cloneWithSkeleton(gltf.scene);
+  holder.add(rig);
+  // Bound-box of the skinned mesh is inflated by legacy GLB bind transforms.
+  // Measure the actual skeleton HEAD/FEET as proved in isolated browser QA.
+  const fit=calibrateRiggedHumanoid(rig,1.88);
+  const ratio=fit.scaleRatio;
   holder.position.x=x;
-  const director=new RiggedClipPlayer(gltf.scene,gltf.animations,groupName==='worker'?[
+  const director=new RiggedClipPlayer(rig,gltf.animations,groupName==='worker'?[
     {start:0,clip:'CharacterArmature|Walk'},
     {start:2.25,clip:'CharacterArmature|Idle_Neutral'},
     {start:2.85,clip:'CharacterArmature|Interact',loop:false},
