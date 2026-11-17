@@ -319,16 +319,27 @@ export class SceneProgram3D {
 
   frame(aspect: number) {
     const { span, shot } = this.score.shot(this.time);
-    const box = this.shotEnvelope(span.sourceId, shot.subjects, span);
-    const look = box.getCenter(V());
     const u = THREE.MathUtils.clamp((this.time - span.start) / span.duration, 0, 1);
+    // Each cut is an editor-like camera setup, not a continuous sideways pan.
+    // Both the view center and the bounding envelope remain fixed within it.
+    const cuts = shot.cuts ?? [{ phase: 0, subjects: shot.subjects,
+      azimuth: shot.azimuth, elevation: shot.elevation, distance: shot.distance }];
+    let cutIndex = 0;
+    for (let i = 1; i < cuts.length; i++) if (u >= cuts[i].phase) cutIndex = i;
+    const cut = cuts[cutIndex]!;
+    const cutEnd = cuts[cutIndex + 1]?.phase ?? 1;
+    const cutSpan = { start: span.start + cut.phase * span.duration,
+      duration: (cutEnd - cut.phase) * span.duration };
+    const cutKey = span.sourceId + '#cut' + cutIndex;
+    const box = this.shotEnvelope(cutKey, cut.subjects, cutSpan);
+    const look = box.getCenter(V());
     // An AI changing endAzimuth alone must never produce sideways wandering.
     // A deliberate orbit is opt-in, and its entire arc is fitted in advance.
-    const azimuth = shot.motion === 'orbit'
+    const azimuth = !shot.cuts && shot.motion === 'orbit'
       ? shot.azimuth + (shot.endAzimuth - shot.azimuth) * u
-      : shot.azimuth;
+      : cut.azimuth;
     const direction = (angle: number) =>
-      V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
+      V(Math.sin(angle) * Math.cos(cut.elevation), Math.sin(cut.elevation), Math.cos(angle) * Math.cos(cut.elevation));
     const corners = (b: THREE.Box3) => {
       const pts: THREE.Vector3[] = [];
       for (const x of [b.min.x, b.max.x])
@@ -350,12 +361,12 @@ export class SceneProgram3D {
         return n.z > -1 && n.z < 1 && Math.abs(n.x) <= .82 && n.y >= -.59 && n.y <= .83;
       });
     };
-    const key = span.sourceId + ':' + aspect.toFixed(6);
+    const key = cutKey + ':' + aspect.toFixed(6);
     let distance = this.shotDistances.get(key);
     if (distance === undefined) {
-      const angles = shot.motion === 'orbit'
+      const angles = !shot.cuts && shot.motion === 'orbit'
         ? Array.from({ length: 17 }, (_, i) => shot.azimuth + (shot.endAzimuth - shot.azimuth) * (i / 16))
-        : [shot.azimuth];
+        : [cut.azimuth];
       let lo = .2, hi = 1400;
       if (!angles.every((angle) => fits(hi, angle)))
         throw new SceneProgramError('A cena excedeu os limites de enquadramento.');
@@ -363,7 +374,7 @@ export class SceneProgram3D {
         const mid = (lo + hi) / 2;
         if (angles.every((angle) => fits(mid, angle))) hi = mid; else lo = mid;
       }
-      distance = hi * shot.distance;
+      distance = hi * cut.distance;
       this.shotDistances.set(key, distance);
     }
     setView(distance, azimuth);
@@ -376,7 +387,7 @@ export class SceneProgram3D {
     // Keep diagnostics truthful: these are the CURRENT frame's projected
     // subject bounds, which should remain safely inside the shot-wide fit.
     const current = new THREE.Box3();
-    for (const id of shot.subjects) current.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
+    for (const id of cut.subjects) current.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
     const projected = corners(current).map((p) => p.project(this.camera));
     this.projectedBounds = {
       min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))],
