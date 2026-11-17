@@ -49,7 +49,7 @@ export function cementLift30sProgram(){
   // Low-poly city skyline and window grids: real depth behind the main set.
   const city=[
     [-11,-12,6,'#C8D6D6'],[-6,-14,9,'#EBC7B4'],[1,-18,12,'#F0D5A9'],
-    [9,-15,8,'#BFD7DA'],[15,-13,7,'#D0C7E6'],
+    [9,-15,8,'#BFD7DA'],
   ] as const;
   city.forEach(([x,z,h,c],i)=>{
     n.push(mesh('city-'+i,'box',[4,h,3],c,[x,h/2,z]));
@@ -67,7 +67,7 @@ export function cementLift30sProgram(){
   for(const x of [-2.65,2.65])for(const z of [-1.93,1.93]){
     n.push(mesh('column-'+(x<0?'l':'r')+'-'+(z<0?'b':'f'),'box',[.26,10.1,.26],'#B7BFC6',[x,5.04,z],{parent:'building'}));
   }
-  for (let level=0;level<3;level++){
+  for (let level=0;level<2;level++){
     const y=.75+level*2;
     n.push(mesh('brick-wall-'+level,'box',[5.10,1.50,.16],'#B9503C',[0,y,1.89],{parent:'building'}));
     n.push(mesh('brick-window-'+level,'box',[.92,.84,.17],'#24303A',[.7,y+.12,2.02],{parent:'building'}));
@@ -77,7 +77,7 @@ export function cementLift30sProgram(){
   // Visible external construction staircase, scaffold and safety rail.
   n.push(group('stair-scaffold',[-2.50,0,1.30]));
   for (const x of [-.53,.55]) n.push(mesh('scaffold-pole-'+(x<0?'l':'r'),'cylinder',[.055,.055,10.7],'#687E82',[x,5.35,0],{parent:'stair-scaffold'}));
-  for(let i=0;i<5;i++){
+  for(let i=0;i<4;i++){
     const y=.55+i*1.95;
     n.push(mesh('stair-flight-'+i,'box',[1.35,.14,2.30],'#8F7958',[0,y+1.05,0],
       {parent:'stair-scaffold',rotation:[-.45,0,0]}));
@@ -86,7 +86,7 @@ export function cementLift30sProgram(){
   }
   // Stack of cement sacks: double-layer sacks and green brand bands.
   n.push(group('cement-pile',[-5.6,0,-.05]));
-  for(let lane=0;lane<4;lane++)for(let level=0;level<3;level++){
+  for(let lane=0;lane<3;lane++)for(let level=0;level<2;level++){
     const root='bagrow-'+lane+'-'+level;
     n.push(mesh(root,'box',[1.02,.25,.56],'#E8E6DB',[-.5,.19+level*.26,lane*.72],{
       parent:'cement-pile',geometry:{shape:'box',size:[1.02,.25,.56],bevel:.095},
@@ -96,7 +96,11 @@ export function cementLift30sProgram(){
   }
   // Laborers in recognizable safety colors; one at the top of the 5th floor.
   n.push(...worker('worker-ground',[-4.7,0,3.15],'#E9C323'));
-  n.push(...worker('worker-upper',[2.20,10.15,-.60],'#4383B0'));
+  n.push(group('worker-upper',[2.20,10.15,-.60]));
+  n.push(mesh('upper-torso','capsule',[.30,.58],'#4383B0',[0,1.15,0],{parent:'worker-upper'}));
+  n.push(mesh('upper-head','sphere',[.25],'#F2C48D',[0,1.83,0],{parent:'worker-upper'}));
+  n.push(mesh('upper-hardhat','sphere',[.29],'#FFD439',[0,2.03,0],{parent:'worker-upper',scale:[1.08,.42,1]}));
+  n.push(mesh('upper-pants','capsule',[.26,.66],'#174F8F',[0,.44,0],{parent:'worker-upper'}));
   n.push(mesh('bag-on-shoulder','box',[.95,.37,.5],'#E3E1D4',[.37,1.88,-.02],{
     parent:'worker-ground',rotation:[0,0,.32],geometry:{shape:'box',size:[.95,.37,.5],bevel:.12}}));
   n.push(mesh('bag-shoulder-band','box',[.20,.39,.52],'#4D987B',[.37,1.88,-.02],{
@@ -143,17 +147,17 @@ export function cementLift30sProgram(){
   n.push(group('motor-body',[-.70,.83,0],'motor-system'));
   n.push(mesh('motor-shell','cylinder',[.72,.72,1.55],'#2160B1',[0,0,0],{
     parent:'motor-body',rotation:[0,0,Math.PI/2]}));
-  for(let i=0;i<7;i++)n.push(mesh('motor-fin-'+i,'box',[.085,1.54,1.50],'#154B95',[-.65+i*.21,0,0],{parent:'motor-body'}));
+  for(let i=0;i<5;i++)n.push(mesh('motor-fin-'+i,'box',[.085,1.54,1.50],'#154B95',[-.65+i*.21,0,0],{parent:'motor-body'}));
   n.push(mesh('motor-cap','cylinder',[.74,.74,.16],'#18457C',[-.80,0,0],{parent:'motor-body',rotation:[0,0,Math.PI/2]}));
   n.push(group('big-gear',[.91,1.18,.85],'motor-system'));
   n.push(mesh('big-gear-wheel','cylinder',[.99,.99,.21],'#D8A63D',[0,0,0],{parent:'big-gear',rotation:[Math.PI/2,0,0]}));
   n.push(mesh('big-gear-hub','cylinder',[.22,.22,.30],'#5A6A77',[0,0,.16],{parent:'big-gear',rotation:[Math.PI/2,0,0]}));
-  for(let i=0;i<16;i++){let a=2*Math.PI*i/16;
+  for(let i=0;i<10;i++){let a=2*Math.PI*i/10;
     n.push(mesh('big-tooth-'+i,'box',[.25,.29,.27],'#CA9632',
       [Math.cos(a)*.95,Math.sin(a)*.95,.02],{parent:'big-gear',rotation:[0,0,a]}));}
   n.push(group('small-gear',[-.42,.80,1.15],'motor-system'));
   n.push(mesh('small-gear-wheel','cylinder',[.37,.37,.20],'#B64D3B',[0,0,0],{parent:'small-gear',rotation:[Math.PI/2,0,0]}));
-  for(let i=0;i<10;i++){let a=2*Math.PI*i/10;
+  for(let i=0;i<7;i++){let a=2*Math.PI*i/7;
     n.push(mesh('small-tooth-'+i,'box',[.14,.16,.21],'#A64136',
       [Math.cos(a)*.34,Math.sin(a)*.34,.03],{parent:'small-gear',rotation:[0,0,a]}));}
   n.push(group('drum',[1.85,.66,-.15],'motor-system'));
