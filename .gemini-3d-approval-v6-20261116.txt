@@ -1,0 +1,1 @@
+owner-approved isolated one-call Gemini 3D visual A/B trial on 2026-11-16; one request, no retries, no Lovable, same script as v5
