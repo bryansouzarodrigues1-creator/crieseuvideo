@@ -40,3 +40,12 @@ Uma cena de 8 s: o trabalhador caminha, para, abaixa, pega a caixa, levanta e a 
 ## Regras do projeto
 
 Toda pesquisa no PR experimental, sem merge na main, sem publicação no Lovable, sem Gemini/ElevenLabs no teste técnico, sem declarar cena programada pelo agente como uma criação autônoma da IA. Avaliar o resultado visual antes de promover o código.
+
+
+## Causa comprovada do salto de mais de 11 metros
+
+Nos testes isolados, o pulso ficou dentro da escala humana. Na cena completa, a mão estava em altura normal (~1,24 m), mas o ponto de pega saltava a ~9,51 m. O defeito foi identificado no offset de contato: o código interpretava um deslocamento local de (.01,.02,.10) no osso como se esses valores fossem metros do mundo. Como o GLB possui armadura interna 100x, dez centímetros viravam mais de onze metros.
+
+A função localGripOffsetMetres converte um deslocamento solicitado em metros reais para a unidade local do osso usando sua escala mundial. Um teste independente reproduz e previne esse erro dimensional. O laboratório também rejeita a pega se ela ficar a mais de 16 cm do pulso.
+
+Essa correção não cria um agachamento ou uma entrega convincente por si só. A prova de dois humanos e ferramenta continua separada e exige frames reais.
