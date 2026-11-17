@@ -1,0 +1,55 @@
+name: Visual 3D frames
+# Renders the 3D engine in headless Chromium (software WebGL) and publishes the
+# PNG frames to the orphan branch `qa-frames`, so a reviewer can look at them
+# without downloading CI artifacts. Zero AI calls: only developer-authored fixtures.
+on:
+  push:
+    branches: [integration/3d-all, feat/3d-toon-look]
+    paths: ['src/**', 'lab/**', 'scripts/scene-program-qa.mjs', '.github/workflows/visual-3d-frames.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: visual-3d-frames
+  cancel-in-progress: true
+jobs:
+  frames:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: node lab/build.mjs
+      - name: Install rendering tools
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          python3 -m pip install numpy pillow
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Programmed fixtures (climb, comet, robot)
+        continue-on-error: true
+        run: bun scripts/scene-program-qa.mjs
+      - name: Real studio frames (Gemini simulated)
+        continue-on-error: true
+        run: bun scripts/studio-freeform-3d-browser-qa.mjs
+      - name: Publish PNG frames to qa-frames
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          out=$RUNNER_TEMP/frames; mkdir -p "$out/scene-program" "$out/studio"
+          cp tmp/scene-program-qa/*.png "$out/scene-program/" 2>/dev/null || true
+          cp tmp/real-studio-3d-qa/*.png "$out/studio/" 2>/dev/null || true
+          echo "source=${GITHUB_SHA}" > "$out/SOURCE.txt"
+          cd "$out"
+          git init -q -b qa-frames
+          git config user.name "frames-bot"; git config user.email "frames-bot@users.noreply.github.com"
+          git add -A; git commit -q -m "frames for ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${REPO}.git" qa-frames

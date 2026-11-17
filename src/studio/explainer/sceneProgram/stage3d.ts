@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ProgramActor3D } from './actor3d';
 import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
 import type { ApprovedModelId } from './modelRegistry';
+import { InkOutline, skyTexture, toonMaterial } from './look';
 import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -23,7 +24,8 @@ function geometry(g: ProgramGeometry): THREE.BufferGeometry {
   if (g.shape === 'tube') return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(g.points!.map((p) => new THREE.Vector3(...p))), 48, d[0], 8, false);
   if (g.shape === 'lathe') return new THREE.LatheGeometry(g.profile!.map(([radius, height]) => new THREE.Vector2(radius, height)), g.segments!);
   const mesh = new THREE.BufferGeometry(); mesh.setAttribute('position', new THREE.Float32BufferAttribute(g.vertices!, 3)); mesh.setIndex(g.indices!);
-  if (g.colors) mesh.setAttribute('color', new THREE.Float32BufferAttribute(g.colors, 3)); mesh.computeVertexNormals(); return mesh;
+  if (g.colors) mesh.setAttribute('color', new THREE.Float32BufferAttribute(g.colors, 3));
+  const faceted = mesh.toNonIndexed(); faceted.computeVertexNormals(); return faceted; // low-poly facets without relying on material flatShading
 }
 
 /** Rendering depends exclusively on the serialized graph and absolute time.
@@ -35,6 +37,7 @@ export class SceneProgram3D {
   readonly nodes = new Map<string, THREE.Object3D>();
   readonly actors = new Map<string, ProgramActor3D>();
   readonly importedModels = new Map<string, ModelInstance>();
+  readonly ink = new InkOutline();
   private states = new Map<string, ProgramState>();
   private time = 0;
   private maxContactError = 0;
@@ -43,14 +46,15 @@ export class SceneProgram3D {
   private projectedBounds = { min: [0, 0], max: [0, 0] };
   constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
     this.score = compileSceneProgram(program, sources);
-    this.scene.background = new THREE.Color(program.background); this.scene.fog = new THREE.Fog(program.background, 65, 220);
+    const sky = skyTexture(program.background); this.scene.background = sky.texture; this.scene.fog = new THREE.Fog(sky.fog, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
     const key = new THREE.DirectionalLight(0xffe6c3, 3.0); key.position.set(-12, 22, 18); key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .08; key.shadow.bias = -.0015; this.scene.add(key, key.target);
+    key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .08; key.shadow.bias = -.0015; this.scene.add(key, key.target);
     const rim = new THREE.DirectionalLight(0xb5dcff, 1.8); rim.position.set(8, 10, -12); this.scene.add(rim);
     for (const n of program.nodes) {
       let root: THREE.Object3D;
-      if (n.kind === 'actor') { const actor = new ProgramActor3D(n.color); this.actors.set(n.id, actor); root = actor.root; }
+      if (n.kind === 'actor') { const actor = new ProgramActor3D(n.color); this.actors.set(n.id, actor); root = actor.root;
+        const parts: THREE.Mesh[] = []; actor.root.traverse((o) => { if (o instanceof THREE.Mesh) parts.push(o); }); for (const part of parts) this.ink.attach(part, .1); }
       else if (n.kind === 'model') {
         const loaded = loadedModels.get(n.assetId!);
         if (!loaded) throw new SceneProgramError('O modelo 3D autorizado ainda não foi carregado. Aguarde a importação antes de renderizar.');
@@ -60,8 +64,8 @@ export class SceneProgram3D {
       else if (n.kind === 'group') root = new THREE.Group();
       else {
         const opacity = n.material?.opacity ?? 1;
-        const geo = geometry(n.geometry!), material = new THREE.MeshStandardMaterial({ color: n.color, roughness: n.material?.roughness ?? .85, metalness: n.material?.metalness ?? 0, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
-          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, flatShading: n.geometry!.shape === 'mesh', vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
+        const geo = geometry(n.geometry!), material = toonMaterial({ color: n.color, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
+          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
         if (n.repeat) {
           const instances = new THREE.InstancedMesh(geo, material, n.repeat.count), dummy = new THREE.Object3D(); let seed = n.repeat.seed;
           const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 - .5; };
@@ -69,6 +73,8 @@ export class SceneProgram3D {
           instances.instanceMatrix.needsUpdate = true; root = instances;
         } else root = new THREE.Mesh(geo, material);
         root.castShadow = opacity === 1; root.receiveShadow = opacity === 1;
+        // Ink line only on solid, single meshes: glows, particles and instanced swarms stay clean.
+        if (opacity === 1 && !n.repeat && n.geometry!.shape !== 'plane' && !(n.material?.emissiveIntensity && n.material.emissiveIntensity > .3)) this.ink.attach(root as THREE.Mesh);
       }
       root.name = n.id; this.nodes.set(n.id, root);
     }
@@ -234,6 +240,9 @@ export class SceneProgram3D {
     if (!fit(hi)) throw new SceneProgramError('A cena excedeu os limites de enquadramento.');
     for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (fit(mid)) hi = mid; else lo = mid; }
     fit(hi * shot.distance);
+    // Depth precision follows the shot: a fixed 0.05..1500 range makes overlapping surfaces shimmer.
+    const view = this.camera.matrixWorldInverse, depth = Math.min(...points.map((p) => -p.clone().applyMatrix4(view).z)), dist = this.camera.position.distanceTo(look);
+    this.camera.near = THREE.MathUtils.clamp(Math.min(dist * .04, depth * .5), .05, 6); this.camera.far = Math.max(400, dist * 30); this.camera.updateProjectionMatrix();
     const projected = points.map((p) => p.clone().project(this.camera));
     this.projectedBounds = { min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))], max: [Math.max(...projected.map((p) => p.x)), Math.max(...projected.map((p) => p.y))] };
   }
@@ -243,7 +252,7 @@ export class SceneProgram3D {
     if (source && needsGroundedClimb(source.text)) {
       for (const id of this.actors.keys()) this.rejectSolidAscentPenetration(span.sourceId, id);
     }
-    this.frame(w / h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
+    this.frame(w / h); this.ink.resize(w, h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
   }
   diagnostics() {
     return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,

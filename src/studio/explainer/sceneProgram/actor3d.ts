@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { toonMaterial } from './look';
 import type { Effector, ProgramChannel, Vec3 } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -19,7 +20,7 @@ export class ProgramActor3D {
   private brows: THREE.Mesh[] = [];
   private mouth: THREE.Mesh;
   constructor(color: string) {
-    const mat = (c: string | number) => new THREE.MeshStandardMaterial({ color: c, roughness: .83 });
+    const mat = (c: string | number) => toonMaterial({ color: c });
     const cloth = mat(color), dark = mat(0x243549), skin = mat(0xe5ad83), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
     this.root.add(this.hips); this.hips.position.y = 1.02;
     const chest = mesh(this.hips, new THREE.CapsuleGeometry(.28, .26, 4, 10), cloth, [0, .25, 0]); chest.scale.set(1.15, 1, .73);
