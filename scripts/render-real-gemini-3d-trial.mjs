@@ -10,15 +10,22 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
+import { withTargetDuration } from '../src/studio/explainer/duration';
+import { totalDuration } from '../src/studio/explainer/plan';
 
 const out = path.resolve('tmp/authorized-gemini-3d-trial');
-const plan = JSON.parse(await fs.readFile(path.join(out, 'program.json'), 'utf8'));
+const storedPlan = JSON.parse(await fs.readFile(path.join(out, 'program.json'), 'utf8'));
+const originalSeconds = totalDuration(storedPlan);
+const plan = withTargetDuration(storedPlan, storedPlan.targetDuration);
+const requestedSeconds = storedPlan.targetDuration ?? null;
 const fixtureOnly = await fs.stat(path.join(out, 'fixture-only.json')).then(() => true).catch(() => false);
-const evidenceSource = fixtureOnly ? 'OFFLINE_MANUAL_FIXTURE' : 'ONE_REAL_GEMINI_RESPONSE';
+const replayed = await fs.stat(path.join(out, 'source-provenance.json')).then(() => true).catch(() => false);
+const evidenceSource = fixtureOnly ? 'OFFLINE_MANUAL_FIXTURE' : replayed ? 'REPLAYED_REAL_GEMINI_PROGRAM' : 'ONE_REAL_GEMINI_RESPONSE';
+await fs.writeFile(path.join(out, 'retimed-program.json'), JSON.stringify(plan,null,2));
 assert.ok(plan.sceneProgram && plan.scenes?.length && plan.engine !== '2d', 'Missing verified real 3D program');
 const script = plan.scenes.map(s=>s.text).join(' ');
 assert.ok(script.length > 20 && script.length < 6000, 'Invalid narration text');
-const duration = plan.scenes.reduce((n,s)=>n+s.duration,0);
+const duration = totalDuration(plan);
 assert.ok(duration >= 5 && duration <= 20, 'Unexpected trial length');
 const PORT=4185, base='http://127.0.0.1:'+PORT;
 await fs.mkdir(out,{recursive:true});
@@ -122,7 +129,8 @@ try{
   }
   const variation=new Set(frames.map(f=>f.sha256)).size;
   await fs.writeFile(path.join(out,'frame-analysis.json'),JSON.stringify({
-    evidenceSource,realGeminiPlan:!fixtureOnly,externalModelCallsDuringRender:0,
+    evidenceSource, realGeminiPlan:!fixtureOnly,externalModelCallsDuringRender:0,
+    sourceProgramSeconds:originalSeconds,requestedSeconds,renderedSeconds:duration,
     interceptedProgramRequests:intercepted,frameCount:frames.length,
     distinctFrames:variation,frames,errors
   },null,2));
@@ -149,6 +157,7 @@ try{
   assert.deepEqual(errors,[]);
   await fs.writeFile(path.join(out,'video-report.json'),JSON.stringify({
     status:'VALIDATED_FILE_NOT_ARTISTIC_APPROVAL', evidenceSource,
+    sourceProgramSeconds:originalSeconds,requestedSeconds,renderedSeconds:duration,
     modelInferenceCallsDuringRender:0,
     duration:Number(probe.format.duration),resolution:'720x1280',
     videoFrames:Number(video.nb_read_frames),filename:path.basename(mp4),
