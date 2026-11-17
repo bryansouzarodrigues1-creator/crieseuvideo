@@ -31,6 +31,14 @@ export function audioCues({ plan, voiceKey, buffers, track }: MixSource): AudioC
   return cues;
 }
 
+/** Scene numbers with missing narration, regardless of persisted timing metadata. */
+export function missingNarrationScenes({ plan, voiceKey, buffers }: Pick<MixSource, 'plan' | 'voiceKey' | 'buffers'>): number[] {
+  if (plan.track) return []; // Uploaded tracks are validated against `track` separately.
+  return plan.scenes.flatMap((scene, index) =>
+    scene.voice && buffers.has(`${voiceKey}|${scene.text}`) ? [] : [index + 1]
+  );
+}
+
 /** Export length: the longer of the visual timeline and the end of the last audio cue, plus the tail. */
 export function exportDuration(plan: ExplainerPlan, cues: AudioCue[]): number {
   const audioEnd = cues.reduce((m, c) => Math.max(m, c.at + c.buffer.duration), 0);
