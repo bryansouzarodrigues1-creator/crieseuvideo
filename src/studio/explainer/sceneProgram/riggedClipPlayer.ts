@@ -78,12 +78,20 @@ export class RiggedClipPlayer {
     return {clip:cue.clip,clipTime};
   }
   get activeClip() { return this.activeName; }
-  socket(part:'leftHand'|'rightHand'):THREE.Object3D {
-    // Quaternius worker variants use Wrist.L/Wrist.R on the authored skeleton.
-    // Missing hands are a hard failure: never silently attach props to the torso.
-    const target=this.root.getObjectByName(part==='leftHand'?'Wrist.L':'Wrist.R');
+  socket(part: 'root'|'head'|'leftHand'|'rightHand'|'leftFoot'|'rightFoot'): THREE.Object3D {
+    if (part === 'root') return this.root;
+    // Quaternius Worker/Casual: wrist bones actually named Wrist.L/Wrist.R.
+    // Unsupported sockets fail explicitly; never attach tools to model origin.
+    const names: Record<Exclude<typeof part, 'root'>, string[]> = {
+      head: ['Head', 'head'],
+      leftHand: ['Wrist.L', 'Hand.L', 'Palm.L'],
+      rightHand: ['Wrist.R', 'Hand.R', 'Palm.R'],
+      leftFoot: ['Foot.L', 'Ankle.L'],
+      rightFoot: ['Foot.R', 'Ankle.R'],
+    };
+    const target=names[part].map(name=>this.root.getObjectByName(name)).find(Boolean);
     if (!target || !(target instanceof THREE.Bone))
-      throw new RiggedClipError('Esqueleto incompatível: falta pulso '+part);
+      throw new RiggedClipError('Esqueleto incompatível: falta articulação '+part);
     return target;
   }
   dispose() { this.mixer.stopAllAction(); this.mixer.uncacheRoot(this.root); }
