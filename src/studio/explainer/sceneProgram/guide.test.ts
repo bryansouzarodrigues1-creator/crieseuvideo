@@ -28,3 +28,17 @@ describe('rounded edges and engine-provided look', () => {
     expect(SCENE_PROGRAM_GUIDE).toContain('continua automaticamente um solo');
   });
 });
+
+describe('expressive 3D without generic placeholders or obligatory humans', () => {
+  it('prioritizes varied stylized objects over unrealistic humans or single-color balls', () => {
+    expect(SCENE_PROGRAM_GUIDE).toContain('DIFERENTES');
+    expect(SCENE_PROGRAM_GUIDE).toContain('um tomate NÃO é apenas uma esfera vermelha');
+    expect(SCENE_PROGRAM_GUIDE).toContain('sem realismo fotográfico');
+    expect(SCENE_PROGRAM_GUIDE).toContain('não uma pessoa genérica mostrando um objeto');
+  });
+  it('defaults to stable locked framing and requires explicit intent for lateral camera motion', () => {
+    expect(SCENE_PROGRAM_GUIDE).toContain('motion:"locked" é o PADRÃO');
+    expect(SCENE_PROGRAM_GUIDE).toContain('motion:"orbit" SOMENTE');
+    expect(SCENE_PROGRAM_GUIDE).toContain('tomada INTEIRA');
+  });
+});
