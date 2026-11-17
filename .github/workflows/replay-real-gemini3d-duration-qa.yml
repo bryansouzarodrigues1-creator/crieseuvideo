@@ -1,0 +1,86 @@
+name: Real Gemini V5 Offline Replay at Exact 8s
+
+on:
+  push:
+    branches: [fix/3d-exact-duration-and-honest-report]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: gemini-v5-replay-exact-seconds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  retime-proven-real-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+      CONFIRM_ONE_GEMINI_CALL: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install exact project dependencies
+        run: bun install --frozen-lockfile
+      - name: Run all tests and strict TypeScript
+        run: |
+          bun run test
+          bunx tsc --noEmit
+          bun run build
+      - name: Install Chromium and H.264 tools
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Download the APPROVED actual Gemini v5 output (zero inference)
+        uses: actions/download-artifact@v4
+        with:
+          name: gemini-3d-compact-attempt-5-evidence
+          run-id: 43974154005
+          github-token: ${{ github.token }}
+          path: tmp/authorized-gemini-3d-trial
+      - name: Prove input is original 10s / requested 8s Gemini trial
+        run: |
+          bun -e '
+          const fs=require("fs");
+          const dir="tmp/authorized-gemini-3d-trial";
+          const plan=JSON.parse(fs.readFileSync(dir+"/program.json","utf8"));
+          const proof=JSON.parse(fs.readFileSync(dir+"/report.json","utf8"));
+          const actual=plan.scenes.reduce((sum,s)=>sum+s.duration,0);
+          if(proof.provider!=="gemini"||proof.state!=="READY_FOR_VISUAL_INSPECTION"||proof.callsMade!==1||plan.targetDuration!==8||Math.abs(actual-10)>.05)
+            throw Error("The downloaded program is not the verified Gemini v5 8s vs 10s regression source.");
+          fs.writeFileSync(dir+"/source-provenance.json",JSON.stringify({
+            generation:"REAL_GEMINI_PRIOR_RUN",originalRunId:43974154005,
+            previouslyGenerated:true,newInferenceCalls:0,
+          },null,2));
+          console.log("PASS original Gemini 8s request became 10s before duration fix; no new AI inference.");
+          '
+      - name: Re-render real Gemini-authored 3D turbine at 8s in production React editor
+        run: bun scripts/render-real-gemini-3d-trial.mjs
+      - name: Assert corrected MP4 contains 240 frames / 8 seconds
+        run: |
+          ffprobe -v error -count_frames -show_entries format=duration:stream=codec_name,nb_read_frames -of json tmp/authorized-gemini-3d-trial/crieseuvideo-turbina-gemini-3d.mp4
+          bun -e '
+          const fs=require("fs");
+          const v=JSON.parse(fs.readFileSync("tmp/authorized-gemini-3d-trial/video-report.json","utf8"));
+          if(v.evidenceSource!=="REPLAYED_REAL_GEMINI_PROGRAM"||Math.abs(v.duration-8)>.07||v.videoFrames!==240||Math.abs(v.sourceProgramSeconds-10)>.01)
+            throw Error("8-second real-program retime or provenance failed");
+          console.log("PASS previously real Gemini 3D plan re-rendered as exact 8.0-second, 240-frame H264.");
+          '
+      - name: Upload real-program corrected video and PNGs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-real-gemini-v5-corrected-8sec
+          path: |
+            tmp/authorized-gemini-3d-trial/*.mp4
+            tmp/authorized-gemini-3d-trial/gemini-frame-*.png
+            tmp/authorized-gemini-3d-trial/*.json
+          if-no-files-found: ignore
+          retention-days: 14
