@@ -7,6 +7,7 @@
  * Its findings are observations for the director/visual reviewer, not a reason
  * to silently rewrite a user project.
  */
+import { buildProceduralWalk } from './proceduralWalk';
 import {
   compileSceneProgram,
   type ProgramChannel,
@@ -70,6 +71,8 @@ export function auditSceneActionDensity(
   const idleWarning = Math.max(.5, options.idleWarningSeconds ?? 1.5);
   const findings: ActionFinding[] = [];
   const beats: BeatActivity[] = [];
+  const proceduralWalkActors = new Set(program.nodes.filter((n) => n.kind === 'actor' &&
+    buildProceduralWalk(program, sources, n.id)).map((n) => n.id));
 
   for (const span of score.spans) {
     const slices = Math.max(1, Math.ceil(span.duration / step));
@@ -139,7 +142,7 @@ export function auditSceneActionDensity(
         + (travelled.get(actor.id + '/rightFoot') ?? 0)
         + (travelled.get(actor.id + '/leftFootRotation') ?? 0)
         + (travelled.get(actor.id + '/rightFootRotation') ?? 0);
-      if (distance >= .35 && legs < .08)
+      if (distance >= .35 && legs < .08 && !proceduralWalkActors.has(actor.id))
         findings.push({
           kind: 'actor_root_glide', sourceId: span.sourceId,
           actorId: actor.id, metres: Number(distance.toFixed(3)),
