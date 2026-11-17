@@ -14,6 +14,7 @@ function mesh(parent: THREE.Object3D, geometry: THREE.BufferGeometry, material: 
 export class ProgramActor3D {
   readonly root = new THREE.Group();
   readonly hips = new THREE.Group();
+  readonly spine = new THREE.Group();
   readonly head = new THREE.Group();
   readonly limbs: Record<Effector, Limb>;
   private eyes: THREE.Group[] = [];
@@ -24,10 +25,11 @@ export class ProgramActor3D {
     const mat = (c: string | number) => toonMaterial({ color: c });
     const cloth = mat(color), dark = mat(0x243549), skin = mat(0xe5ad83), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
     this.root.add(this.hips); this.hips.position.y = 1.02;
-    const chest = mesh(this.hips, new THREE.CapsuleGeometry(.28, .26, 4, 10), cloth, [0, .25, 0]); chest.scale.set(1.15, 1, .73);
-    mesh(this.hips, new THREE.BoxGeometry(.035, .48, .025), dark, [0, .26, .216]);
-    mesh(this.hips, new THREE.CylinderGeometry(.11, .12, .16, 10), skin, [0, .59, 0]);
-    this.hips.add(this.head); this.head.position.y = .88;
+    this.hips.add(this.spine); // torso moves independently from the pelvis and legs
+    const chest = mesh(this.spine, new THREE.CapsuleGeometry(.28, .26, 4, 10), cloth, [0, .25, 0]); chest.scale.set(1.15, 1, .73);
+    mesh(this.spine, new THREE.BoxGeometry(.035, .48, .025), dark, [0, .26, .216]);
+    mesh(this.spine, new THREE.CylinderGeometry(.11, .12, .16, 10), skin, [0, .59, 0]);
+    this.spine.add(this.head); this.head.position.y = .88;
     const skull = mesh(this.head, new THREE.SphereGeometry(.33, 18, 12), skin); skull.scale.set(.95, 1, .9);
     const hair = mesh(this.head, new THREE.SphereGeometry(.334, 16, 10, 0, Math.PI * 2, 0, 1.22), dark, [0, .04, -.015]); hair.scale.set(.98, 1, .92);
     for (const side of [-1, 1]) {
@@ -42,7 +44,8 @@ export class ProgramActor3D {
     this.mouth = mesh(this.head, new THREE.SphereGeometry(.065, 12, 8), dark, [0, -.16, .274]); this.mouth.scale.set(1.1, .17, .3);
     const limb = (side: number, leg: boolean): Limb => {
       const root = new THREE.Group(), elbow = new THREE.Group(), hand = new THREE.Group();
-      root.position.set(side * (leg ? .17 : .385), leg ? 0 : .47, 0); this.hips.add(root);
+      root.position.set(side * (leg ? .17 : .385), leg ? 0 : .47, 0);
+      (leg ? this.hips : this.spine).add(root);
       const a = leg ? .50 : .42, b = leg ? .48 : .38;
       const material = leg ? dark : cloth;
       mesh(root, new THREE.CapsuleGeometry(leg ? .115 : .10, a - .17, 4, 8), material, [0, -a / 2, 0]);
@@ -58,9 +61,16 @@ export class ProgramActor3D {
   socket(name: string) { return name === 'root' ? this.root : name === 'head' ? this.head : this.limbs[name as Effector]?.hand ?? this.root; }
   /** Lower the shoe geometry relative to the planted IK ankle; preserves leg reach. */
   setGroundedWalkSoles() { for (const shoe of this.soles) shoe.position.y = -.08; }
+  /** Keep this a very small correction: explicit authored body curves still dominate. */
+  applyNaturalWalk(weightShift: number, torsoTwist: number, headCounter: number) {
+    this.hips.position.x += weightShift;
+    this.spine.rotation.y = torsoTwist;
+    this.head.rotation.y += headCounter;
+  }
   reset(pose: Partial<Record<ProgramChannel, Vec3>>, time: number) {
     for (const shoe of this.soles) shoe.position.y = .01;
     this.hips.position.set(0, 1.02, 0); this.hips.rotation.set(...(pose.bodyRotation ?? [0, 0, 0]));
+    this.spine.rotation.set(0, 0, 0);
     this.head.rotation.set(...(pose.headRotation ?? [0, 0, 0]));
     for (const limb of Object.values(this.limbs)) { limb.root.quaternion.identity(); limb.elbow.quaternion.identity(); limb.hand.quaternion.identity(); }
     const face = pose.face ?? [0, 0, 0];
