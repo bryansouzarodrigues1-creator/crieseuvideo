@@ -91,6 +91,44 @@ try{
   assert.equal(video.codec_name,'h264');
   assert.equal(video.width,720);assert.equal(video.height,1280);
   assert.ok(Math.abs(Number(probe.format.duration)-8)<.04);
+  // Independent acting-quality gate: a physically attached prop is NOT a
+  // believable pickup/handoff if the adults occupy the same body space, or
+  // the animation repertoire never expresses a grasp/crouch. Reject instead
+  // of calling this a professional animation because the H264 encoded.
+  const ACTOR_MIN_ROOT_SEPARATION_METRES=.85;
+  const actingSamples=violations.filter(x=>x.time>=2.8 && x.time<=6.8).map(x=>({
+    time:x.time,
+    actorRootSeparationMetres:Math.hypot(
+      x.workerPosition[0]-x.casualPosition[0],
+      x.workerPosition[2]-x.casualPosition[2]),
+    workerClip:x.workerClip,
+    casualClip:x.casualClip,
+    headScreenSeparationPixels:Math.hypot(
+      x.headScreenPixels.worker[0]-x.headScreenPixels.casual[0],
+      x.headScreenPixels.worker[1]-x.headScreenPixels.casual[1]),
+    headScreenPixels:x.headScreenPixels,
+  }));
+  const overlapping=actingSamples.filter(x=>
+    x.actorRootSeparationMetres<ACTOR_MIN_ROOT_SEPARATION_METRES);
+  const MIN_HEAD_SCREEN_SEPARATION_PIXELS=70;
+  const occludedHeads=actingSamples.filter(x=>
+    !Number.isFinite(x.headScreenSeparationPixels) ||
+    x.headScreenSeparationPixels<MIN_HEAD_SCREEN_SEPARATION_PIXELS);
+  const pickupClipAvailable=info.worker.some(x=>/(pickup|grab|crouch|bend)/i.test(x.split('|').pop().replace(/[_-]/g,' ')));
+  const actingFailures=[
+    ...overlapping.map(x=>'Actors too close for an intelligible handoff at '+x.time+'s: '+x.actorRootSeparationMetres.toFixed(3)+'m'),
+    ...occludedHeads.map(x=>'Actor heads overlap in final camera at '+x.time+'s: '+x.headScreenSeparationPixels.toFixed(1)+'px'),
+    ...(!pickupClipAvailable?['No verified pickup/crouch clip or IK grasp motion in this lab; hand attachment alone is not pickup acting']:[]),
+  ];
+  const actingQuality={
+    status:actingFailures.length?'FAIL_REQUIRES_VISUAL_REVISION':'PASS_GEOMETRY_ONLY_REQUIRES_HUMAN_REVIEW',
+    minRootSeparationMetres:ACTOR_MIN_ROOT_SEPARATION_METRES,
+    minHeadScreenSeparationPixels:MIN_HEAD_SCREEN_SEPARATION_PIXELS,
+    pickupClipAvailable,
+    samples:actingSamples,
+    failures:actingFailures,
+    limitations:'Geometry cannot prove gesture quality or object visibility; human MP4 review is still required.',
+  };
   const report={
     claim:'Offline agent-authored rigged-human engine experiment. NOT autonomous Gemini generation.',
     realProviderCalls:0,sourceLicense:'Quaternius Ultimate Modular Men Pack, CC0',
@@ -99,13 +137,18 @@ try{
     trackedFrames:frames,
     resolution:[720,1280],fps:24,
     propTransferWorldJumpMeters:distance,
+    actingQuality,
     screenshotSeekingDeterministic:true,
     browserErrors:errors,
     samples:violations,
   };
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify(report,null,2));
   assert.deepEqual(errors,[]);
-  console.log('PASS actual skinned human animation, prop constraint and 8s H264',JSON.stringify({frames,distance}));
+  // Keep MP4 and JSON as CI artifacts even on acting failure; the authored
+  // lab remains diagnostic, but is no longer labeled an acting success.
+  if(actingFailures.length)throw new Error('ACTING_QA_FAILED: '+actingFailures.join('; '));
+  console.log('PASS physical constraints and geometric acting gate; final human video review still required',
+    JSON.stringify({frames,distance}));
 }finally{
   if(ff){ff.kill('SIGKILL')}
   await browser.close();

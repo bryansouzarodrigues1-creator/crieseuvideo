@@ -7,6 +7,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RiggedClipPlayer } from '../../src/studio/explainer/sceneProgram/riggedClipPlayer';
+import { calibrateRiggedHumanoid, localGripOffsetMetres } from '../../src/studio/explainer/sceneProgram/riggedScale';
+import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 const W=720,H=1280,DURATION=8;
 const canvas=document.querySelector<HTMLCanvasElement>('#view')!;
@@ -72,23 +74,23 @@ for(const gltf of [workerGltf,casualGltf]){
       '; clips=' + JSON.stringify(gltf.animations.map(c=>c.name)));
 }
 const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
-  const holder=new THREE.Group();holder.name=groupName;scene.add(holder);holder.add(gltf.scene);
-  const bodyBox=new THREE.Box3().setFromObject(gltf.scene);
-  const size=bodyBox.getSize(new THREE.Vector3());
-  if(!size.y||size.y>10)throw new Error('Escala inválida do personagem');
+  const holder=new THREE.Group();holder.name=groupName;scene.add(holder);
+  const rig=cloneWithSkeleton(gltf.scene);
+  holder.add(rig);
+  // Bound-box of the skinned mesh is inflated by legacy GLB bind transforms.
+  // Measure the actual skeleton HEAD/FEET as proved in isolated browser QA.
   const height=1.88;
-  const ratio=height/size.y;
-  gltf.scene.scale.setScalar(ratio);
-  gltf.scene.position.y=-bodyBox.min.y*ratio;
+  const fit=calibrateRiggedHumanoid(rig,height);
+  const ratio=fit.scaleRatio;
   holder.position.x=x;
-  const director=new RiggedClipPlayer(gltf.scene,gltf.animations,groupName==='worker'?[
+  const director=new RiggedClipPlayer(rig,gltf.animations,groupName==='worker'?[
     {start:0,clip:'CharacterArmature|Walk'},
     {start:2.25,clip:'CharacterArmature|Idle_Neutral'},
     {start:2.85,clip:'CharacterArmature|Interact',loop:false},
     {start:4.55,clip:'CharacterArmature|Idle_Neutral'}
   ]:[
     {start:0,clip:'CharacterArmature|Idle_Neutral'},
-    {start:5.2,clip:'CharacterArmature|Interact',loop:false},
+    {start:5.78,clip:'CharacterArmature|Interact',loop:false},
     {start:6.9,clip:'CharacterArmature|Idle_Neutral'}
   ]);
   return {holder,director,size:height,clipNames:director.clips,ratio};
@@ -100,7 +102,7 @@ const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
 const worker=makeActor(workerGltf,'worker',-1.55);
 const casual=makeActor(casualGltf,'casual',1.12);
 const pickupAt=3.55, transferAt=5.82;
-const gripWorker=new THREE.Vector3(.01,.02,.10);
+const gripDesiredMetres=new THREE.Vector3(.01,.02,.10);
 const workerWalk=(t:number)=>-1.55+1.0*(Math.min(1,Math.max(0,t/2.25))**2*(3-2*Math.min(1,Math.max(0,t/2.25))));
 function characters(t:number) {
   worker.holder.position.set(workerWalk(t),0,.08);
@@ -112,10 +114,18 @@ function characters(t:number) {
 characters(0);
 const handA=worker.director.socket('rightHand');
 const handB=casual.director.socket('rightHand');
+const headA=worker.director.socket('head');
+const headB=casual.director.socket('head');
+// This GLB has an Armature with 100x internal scale. The author-specified
+// 10cm grip offset must be converted to BONE LOCAL units, not interpreted
+// as .10 glTF local units (~11m world displacement).
+const gripWorker=localGripOffsetMetres(handA,gripDesiredMetres);
 const initialWorkerWrist=handA.getWorldPosition(new THREE.Vector3()).toArray();
 const initialCasualWrist=handB.getWorldPosition(new THREE.Vector3()).toArray();
 characters(pickupAt);
 const worldPickup=handA.localToWorld(gripWorker.clone());
+const wristToGripMetres=worldPickup.distanceTo(handA.getWorldPosition(new THREE.Vector3()));
+if(wristToGripMetres>.16)throw new Error('Grip offset was not normalized to metric space: '+wristToGripMetres);
 const tool=new THREE.Group();tool.name='mechanical-prop';scene.add(tool);
 block(.40,.18,.28,'#eda73c',0,0,0,tool);
 block(.26,.035,.035,'#364954',0,.12,0,tool);
@@ -176,6 +186,13 @@ function seek(t:number){
   cameraPos.set(targetX+.18,targetY+.78,time<2.5?5.85:5.30);
   camera.position.copy(cameraPos);camera.lookAt(look);
   renderer.render(scene,camera);
+  // Evaluate the *rendered camera* as well as the actors' world-space roots.
+  // Two separate rigs can still hide behind each other in the final frame.
+  const headPixel=(bone:THREE.Object3D)=>{
+    const p=bone.getWorldPosition(new THREE.Vector3()).project(camera);
+    return [(p.x+1)*W/2,(1-p.y)*H/2,p.z];
+  };
+  const headScreenPixels={worker:headPixel(headA),casual:headPixel(headB)};
   const wrist=owner==='casual'?handB:handA;
   const handError=owner==='table'?0:wrist.getWorldPosition(new THREE.Vector3()).distanceTo(tool.getWorldPosition(new THREE.Vector3()));
   return {
@@ -190,6 +207,7 @@ function seek(t:number){
     handoffHeightMismatch:handHeightMismatch,
     workerPosition:worker.holder.position.toArray(),
     casualPosition:casual.holder.position.toArray(),
+    headScreenPixels,
   };
 }
 const detail=seek(0);

@@ -1,0 +1,59 @@
+name: Real rigging bone matrices vs animation clips — zero Gemini
+on:
+  push:
+    branches: [experiment/rigged-clip-matrix-audit-20261117]
+    paths:
+      - 'lab/rig-pose-audit/**'
+      - 'src/studio/explainer/sceneProgram/riggedScale.ts'
+      - 'src/studio/explainer/sceneProgram/riggedScale.test.ts'
+      - 'scripts/rig-matrix-browser-audit.mjs'
+      - '.github/workflows/rig-bone-matrices.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Download verified CC0 Worker.glb only for isolated browser research
+        run: |
+          mkdir -p lab/rig-pose-audit/public tmp/rig-pose-audit
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://raw.githubusercontent.com/nishit47/Blender-Pre-vis-Pipeline---Screenplay-to-Animatic/6d6de54a1d7143cf5487462d147bbef039de4837/assets/Ultimate%20Modular%20Men%20Pack-glb/Worker.glb" \
+            -o lab/rig-pose-audit/public/Worker.glb
+          python3 scripts/audit-real-rig-assets.py --out tmp/rig-pose-audit/asset-report.json \
+            lab/rig-pose-audit/public/Worker.glb:eb29e2adb795972e1f475cd25a000975fe260aa9
+      - name: TypeScript validation
+        run: bunx tsc --noEmit
+      - name: Validate skeleton calibration independent of mesh bounds
+        run: bunx vitest run src/studio/explainer/sceneProgram/riggedScale.test.ts
+      - name: Chromium software WebGL
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Serve isolated actual Three.js rig comparison
+        run: |
+          bunx vite lab/rig-pose-audit --host 127.0.0.1 --port 4189 --strictPort >tmp/rig-pose-audit/vite.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:4189/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat tmp/rig-pose-audit/vite.log
+          exit 1
+      - name: Inspect original GLB matrices, isolate each clip and switch timeline
+        run: bun scripts/rig-matrix-browser-audit.mjs
+      - name: Preserve report even if a clip is invalid
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-glb-bone-matrix-diagnostics
+          path: tmp/rig-pose-audit/
+          if-no-files-found: warn
+          retention-days: 14
