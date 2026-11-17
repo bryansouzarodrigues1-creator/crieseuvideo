@@ -28,7 +28,7 @@ try {
     window.__stylized3D.seek(t);
     return window.__stylized3D.frame().split(',')[1];
   },t);
-  let stationary;
+  const camerasByCut=new Map();
   const samples=[];
   for(const t of [0,1,2,2.5,3.5,4.4,5.6,6.4,7.2,8]){
     const d=await state(t);
@@ -41,11 +41,15 @@ try {
       '3D main subject cropped horizontally at '+t+' '+JSON.stringify(d.projectedBounds));
     assert.ok(d.projectedBounds.min[1]>-.72&&d.projectedBounds.max[1]<.89,
       '3D main subject cropped vertically at '+t+' '+JSON.stringify(d.projectedBounds));
-    if(!stationary)stationary=d.camera;
-    else assert.ok(d.camera.every((v,i)=>Math.abs(v-stationary[i])<.0001),
-      'Camera drifts sideways during object movement at '+t);
-    samples.push({time:t,camera:d.camera,bounds:d.projectedBounds,objects:d.nodes});
+    const cut=t<2.64?0:t<5.84?1:2;
+    if(!camerasByCut.has(cut))camerasByCut.set(cut,d.camera);
+    else assert.ok(d.camera.every((v,i)=>Math.abs(v-camerasByCut.get(cut)[i])<.0001),
+      'Camera drifts sideways INSIDE an edited shot at '+t);
+    samples.push({time:t,cut,camera:d.camera,bounds:d.projectedBounds,objects:d.nodes});
   }
+  assert.equal(camerasByCut.size,3,'Three meaningful separate shot segments are required');
+  assert.notDeepEqual(camerasByCut.get(0),camerasByCut.get(1),
+    'A detail cut must change framing, not merely repeat an empty master shot');
   // Export real 8s animation as portrait H264 for visual inspection.
   const videoPath=path.join(out,'stylized-objects-8s.mp4');
   ff=spawn('ffmpeg',['-hide_banner','-loglevel','error','-y',
@@ -79,7 +83,8 @@ try {
     scene:'Organic stylized multi-part fruit, plant and wooden crate',
     usesExistingGenericSceneProgram:true,
     productionPreset:false,sourceProviderCalls:0,
-    duration:8,frames:192,dimensions:[720,1280],lockedCamera:true,samples,browserErrors:errors,
+    duration:8,frames:192,dimensions:[720,1280],
+    lockedCameraWithinCut:true,cinematicCuts:3,samples,browserErrors:errors,
     limitation:'The strict camera/framing checks do not prove cinematic art direction or semantic AI generation',
   },null,2));
   console.log('PASS real non-human Three.js motion, stable portrait framing and H264');
