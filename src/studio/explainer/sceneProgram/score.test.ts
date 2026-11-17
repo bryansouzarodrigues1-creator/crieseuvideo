@@ -48,6 +48,12 @@ describe('authored scene programs beyond the action catalogue', () => {
     const { program, sources } = example(1);
     expect(() => normalizeSceneProgram({ ...program, [field]: 'untrusted' }, sources)).toThrow(/campo não suportado/);
   });
+  it('rejects sparse arrays before the renderer can crash from an undefined animation channel', () => {
+    const { program, sources } = example(1);
+    const withHole: any = { ...program, tracks: [...program.tracks] };
+    delete withHole.tracks[0];
+    expect(() => normalizeSceneProgram(withHole, sources)).toThrow(/elemento ausente/);
+  });
   it('rejects invalid hierarchy, triangle indices and untrusted resources', () => {
     const { program, sources } = example(0);
     const bad = (edit: (p: any) => void) => { const p = JSON.parse(JSON.stringify(program)); edit(p); expect(() => normalizeSceneProgram(p, sources)).toThrow(); };
