@@ -29,6 +29,7 @@ describe('automatic ground continuation', () => {
   const object = (s: SceneProgram3D) => s.scene.getObjectByName('horizon-ground') as THREE.Mesh | undefined;
   it('continues a large static slab just below its top surface', () => {
     const s = stage([mesh('ground', 'box', [40, .4, 40], [0, -.2, 0]), mesh('box', 'box', [1, 1, 1], [0, .5, 0])]);
+    expect(s.nodes.get('ground')!.getObjectByName('ink')).toBeUndefined(); expect(s.nodes.get('box')!.getObjectByName('ink')).toBeDefined();
     const d = object(s)!; expect(d).toBeDefined(); expect(d.position.y).toBeLessThan(0); expect(d.position.y).toBeGreaterThan(-.1); s.dispose();
   });
   it('leaves tables, tall walls, moving platforms and translucent slabs alone', () => {

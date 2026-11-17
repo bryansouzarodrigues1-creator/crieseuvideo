@@ -90,7 +90,7 @@ export class SceneProgram3D {
   private extendGround() {
     const byId = new Map(this.program.nodes.map((n) => [n.id, n])), moving = new Set(this.program.tracks.filter((t) => ['position', 'rotation', 'scale'].includes(t.channel)).map((t) => t.node));
     const isStatic = (id?: string) => { for (let n = id, depth = 0; n && depth < 20; n = byId.get(n)?.parent, depth++) if (moving.has(n)) return false; return true; };
-    let best: { top: number; thick: number; center: THREE.Vector3; color: string } | undefined;
+    let best: { top: number; thick: number; center: THREE.Vector3; color: string; object: THREE.Object3D } | undefined;
     for (const n of this.program.nodes) {
       const shape = n.geometry?.shape;
       if (n.kind !== 'mesh' || n.repeat || !shape || !['box', 'cylinder', 'plane'].includes(shape) || (n.material?.opacity ?? 1) < 1 || !isStatic(n.id)) continue;
@@ -99,9 +99,10 @@ export class SceneProgram3D {
       if (up.y < .99) continue;
       const box = new THREE.Box3().setFromObject(object), size = box.getSize(V()), width = Math.min(size.x, size.z), thick = size.y;
       if (width < 10 || width >= 150 || thick > 1.5 || thick > width * .1) continue;
-      if (!best || box.max.y < best.top - 1e-6) best = { top: box.max.y, thick, center: box.getCenter(V()), color: n.color };
+      if (!best || box.max.y < best.top - 1e-6) best = { top: box.max.y, thick, center: box.getCenter(V()), color: n.color, object };
     }
     if (!best) return;
+    const line = best.object.getObjectByName('ink'); if (line instanceof THREE.Mesh) { best.object.remove(line); line.geometry.dispose(); } // an ink edge would draw a seam where the slab meets its continuation
     const disc = new THREE.Mesh(new THREE.CircleGeometry(900, 48), toonMaterial({ color: best.color }));
     disc.name = 'horizon-ground'; disc.rotation.x = -Math.PI / 2; disc.position.set(best.center.x, best.top - (best.thick > .06 ? .03 : .008), best.center.z); disc.receiveShadow = true; this.scene.add(disc);
   }
