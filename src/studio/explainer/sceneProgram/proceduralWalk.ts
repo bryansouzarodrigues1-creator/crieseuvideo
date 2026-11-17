@@ -17,6 +17,9 @@ export interface ProceduralWalkFrame {
   speed: number;
   bob: number;
   lean: number;
+  torsoYaw: number;
+  headYaw: number;
+  headPitch: number;
   leftFoot: Vec3;
   rightFoot: Vec3;
   leftHand: Vec3;  // actor-root LOCAL (ready to be transformed by root matrix)
@@ -25,7 +28,7 @@ export interface ProceduralWalkFrame {
 export interface ProceduralWalk {
   actorId: string;
   totalDistance: number;
-  at(time: number): ProceduralWalkFrame;
+  at(time: number, carrying?: { leftHand?: boolean; rightHand?: boolean }): ProceduralWalkFrame;
 }
 
 interface Sample { time: number; position: Vec3; distance: number }
@@ -112,19 +115,31 @@ export function buildProceduralWalk(
   return {
     actorId,
     totalDistance: distance,
-    at(time: number): ProceduralWalkFrame {
+    at(time: number, carrying: { leftHand?: boolean; rightHand?: boolean } = {}): ProceduralWalkFrame {
       const arc = distanceAtTime(time);
       const lo = Math.max(0, time - .14), hi = Math.min(score.duration, time + .14);
       const speed = (distanceAtTime(hi) - distanceAtTime(lo)) / Math.max(.001, hi - lo);
       const effort = smooth(speed / .28);
       const cycle = arc / .50 * Math.PI * 2;
+      // Counter-rotation of chest and neck keeps the gaze steady during
+      // stride; none of these offsets move the root or break planted feet.
+      const torsoYaw = .045 * effort * Math.sin(cycle);
+      const swing = .17 * effort * Math.sin(cycle);
+      const arm = (side: -1 | 1, loaded: boolean): Vec3 => loaded
+        // A hand gripping a prop should not swing through the carried object.
+        ? [side * .34, .84 + .008 * effort * Math.abs(Math.sin(cycle)), .18]
+        : [side * .45, .85, .035 + side * swing];
       return {
         heading: headingAt(arc), speed,
-        bob: .018 * effort * Math.sin(cycle * 2),
-        lean: .022 * effort * Math.sin(cycle),
+        // Weight shifts at each half-stride, but feet retain their IK anchors.
+        bob: .014 * effort * (1 - Math.cos(2 * cycle)) * .5,
+        lean: .018 * effort * Math.sin(cycle + .35),
+        torsoYaw,
+        headYaw: -torsoYaw * .65,
+        headPitch: .010 * effort * Math.sin(cycle * 2 + .4),
         leftFoot: feet(arc, -1), rightFoot: feet(arc, 1),
-        leftHand: [-.45, .85, .035 + .15 * effort * Math.sin(cycle + Math.PI)],
-        rightHand: [.45, .85, .035 + .15 * effort * Math.sin(cycle)],
+        leftHand: arm(-1, !!carrying.leftHand),
+        rightHand: arm(1, !!carrying.rightHand),
       };
     },
   };
