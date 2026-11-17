@@ -1,6 +1,6 @@
 // Server-only provider router. The optional environment also lets the private
 // test deployment reuse this code without copying secrets into browser bundles.
-export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY' | 'FREEFORM_3D_GEMINI_API_KEY' | 'GEMINI_MAX_OUTPUT_TOKENS' | 'GEMINI_THINKING_LEVEL', string>>;
+export type AiEnvironment = Partial<Record<'AI_TEXT_PROVIDER' | 'AI_TEXT_FALLBACK' | 'GEMINI_API_KEY' | 'GEMINI_TEXT_MODEL' | 'LOVABLE_API_KEY' | 'FREEFORM_3D_GEMINI_API_KEY' | 'GEMINI_MAX_OUTPUT_TOKENS' | 'GEMINI_THINKING_LEVEL' | 'GEMINI_REQUEST_TIMEOUT_MS', string>>;
 export type AiProvider = 'gemini' | 'lovable';
 export type AiFailure = 'missing_key' | 'quota' | 'auth' | 'timeout' | 'invalid_response' | 'upstream' | 'configuration' | 'invalid_request' | 'unsupported_model' | 'blocked' | 'truncated';
 export type AiResult =
@@ -57,7 +57,12 @@ async function requestText(prompt: string, provider: AiProvider, model: string, 
   };
   if (!key) return failure('missing_key');
   const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 60000);
+  // A complex owner-approved 3D trial can opt into 120s. All other routes
+  // preserve the 60s default. This is NOT a retry or a Lovable fallback.
+  const configuredTimeout = Number(env.GEMINI_REQUEST_TIMEOUT_MS);
+  const timeoutMs = provider === 'gemini' && env.GEMINI_REQUEST_TIMEOUT_MS && Number.isFinite(configuredTimeout)
+    ? Math.min(120000, Math.max(60000, Math.floor(configuredTimeout))) : 60000;
+  const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const direct = provider === 'gemini';
     // These settings apply ONLY when explicitly supplied by a server-side
