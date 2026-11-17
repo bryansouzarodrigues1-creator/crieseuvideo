@@ -96,3 +96,26 @@ export function calibrateRiggedHumanoid(
     newFootHeight,
   };
 }
+
+
+/**
+ * Translate a grip displacement expressed in real metres into local bone units.
+ *
+ * Legacy humanoid GLBs use 100x scale inside the Armature. Treating .10 as a
+ * local bone offset would move a prop more than TEN metres in world space.
+ * Bone keyframes remain untouched. This only calibrates the prop's local grip.
+ */
+export function localGripOffsetMetres(
+  wrist: THREE.Bone, offsetMetres: THREE.Vector3,
+): THREE.Vector3 {
+  wrist.updateWorldMatrix(true,false);
+  const scale=wrist.getWorldScale(new THREE.Vector3());
+  for(const v of [scale.x,scale.y,scale.z,...offsetMetres.toArray()])
+    if(!Number.isFinite(v)) throw new HumanoidCalibrationError('A transformação do pulso não é finita.');
+  if(Math.min(Math.abs(scale.x),Math.abs(scale.y),Math.abs(scale.z))<1e-5)
+    throw new HumanoidCalibrationError('Escala inválida no osso do pulso.');
+  const local=new THREE.Vector3(offsetMetres.x/scale.x,offsetMetres.y/scale.y,offsetMetres.z/scale.z);
+  if(offsetMetres.length()>.25)
+    throw new HumanoidCalibrationError('Um deslocamento de pega maior que 25cm exige outra articulação.');
+  return local;
+}
