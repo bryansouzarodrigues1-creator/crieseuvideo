@@ -62,8 +62,14 @@ const [workerGltf,casualGltf]=await Promise.all([
   loader.loadAsync('/Worker.glb'), loader.loadAsync('/Casual.glb'),
 ]);
 for(const gltf of [workerGltf,casualGltf]){
-  if(!gltf.scene.getObjectByName('Wrist.R') || !gltf.animations.find(c=>c.name==='CharacterArmature|Interact'))
-    throw new Error('GLB real incompatível com a prova de personagem e ferramenta');
+  const found: string[] = [];
+  gltf.scene.traverse(node=>{
+    if(node instanceof THREE.Bone && /wrist|hand|palm/i.test(node.name)) found.push(node.name);
+  });
+  if(!found.some(name=>/^wrist[._]?r(?:_?\d+)?$/i.test(name)) ||
+      !gltf.animations.find(c=>c.name==='CharacterArmature|Interact'))
+    throw new Error('GLB real incompatível: bones=' + JSON.stringify(found) +
+      '; clips=' + JSON.stringify(gltf.animations.map(c=>c.name)));
 }
 const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
   const holder=new THREE.Group();holder.name=groupName;scene.add(holder);holder.add(gltf.scene);
