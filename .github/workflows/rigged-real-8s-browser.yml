@@ -36,7 +36,7 @@ jobs:
             lab/rigged-research/public/Casual.glb:f31ba8b389268d4df6005cc62d4d7011de728bce
       - name: Test existing rendering contract and TypeScript
         run: |
-          bunx vitest run src/studio/explainer/sceneProgram/modelAssets.test.ts
+          bun run test
           bunx tsc --noEmit
       - name: Install browser with software WebGL and H264 encoder
         run: |
