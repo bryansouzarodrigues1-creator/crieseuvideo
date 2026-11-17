@@ -63,7 +63,7 @@ export function auditStoryContinuity(
   let bridged=0, comparisons=0, newSubjects=0, totalSubjects=0;
   for(const span of score.spans){
     const shot=program.shots.find(s=>s.sourceId===span.sourceId)!;
-    const shots=shot.cuts??[{phase:0,subjects:shot.subjects,hide:[] as string[]}];
+    const shots=shot.cuts??[{phase:0,subjects:shot.subjects,hide:[] as string[],azimuth:shot.azimuth,elevation:shot.elevation,distance:shot.distance}];
     for(let i=0;i<shots.length;i++){
       const cut=shots[i],previous=shots[i-1];
       const start=span.start+span.duration*cut.phase;
