@@ -79,7 +79,8 @@ const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
   holder.add(rig);
   // Bound-box of the skinned mesh is inflated by legacy GLB bind transforms.
   // Measure the actual skeleton HEAD/FEET as proved in isolated browser QA.
-  const fit=calibrateRiggedHumanoid(rig,1.88);
+  const height=1.88;
+  const fit=calibrateRiggedHumanoid(rig,height);
   const ratio=fit.scaleRatio;
   holder.position.x=x;
   const director=new RiggedClipPlayer(rig,gltf.animations,groupName==='worker'?[
