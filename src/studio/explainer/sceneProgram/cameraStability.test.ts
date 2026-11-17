@@ -52,6 +52,24 @@ describe('generic 3D camera framing', () => {
     }
   });
 
+  it('validates strict and safe cuts for multiple camera views inside a beat', () => {
+    const raw:any=mechanicalDemoProgram();
+    raw.shots[0].cuts=[
+      {phase:0,subjects:['jar-assembly'],azimuth:.1},
+      {phase:.5,subjects:['motor-unit'],azimuth:.6},
+    ];
+    const parsed=normalizeSceneProgram(raw,sources);
+    expect(parsed.shots[0]!.cuts).toHaveLength(2);
+    raw.shots[0].cuts[1].phase=.04;
+    expect(()=>normalizeSceneProgram(raw,sources)).toThrow(/intervalos distintos/);
+    raw.shots[0].cuts[1].phase=.5;
+    raw.shots[0].cuts[1].subjects=['missing'];
+    expect(()=>normalizeSceneProgram(raw,sources)).toThrow(/objeto inexistente/);
+    raw.shots[0].cuts[1].subjects=['motor-unit'];
+    raw.shots[0].motion='orbit';
+    expect(()=>normalizeSceneProgram(raw,sources)).toThrow(/não pode orbitar/);
+  });
+
   it('rejects unknown camera motion without changing the security contract', () => {
     const invalid = mechanicalDemoProgram() as ReturnType<typeof mechanicalDemoProgram> & { shots: Array<{ motion?: string }> };
     invalid.shots[0]!.motion = 'remote-control';
