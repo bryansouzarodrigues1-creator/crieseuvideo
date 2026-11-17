@@ -1,0 +1,29 @@
+name: Generative 3D variety and stable-camera QA
+# No Gemini API calls, no paid credits, no production deploy or merge.
+on:
+  push:
+    branches: [experiment/generative-3d-camera-variety-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: generative-3d-camera-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Test generic scene construction, camera framing, and director
+        run: bun run test
+      - name: Verify TypeScript
+        run: bunx tsc --noEmit
+      - name: Compile production site (no deploy)
+        run: bun run build
