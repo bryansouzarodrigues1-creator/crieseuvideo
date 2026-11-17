@@ -28,11 +28,9 @@ renderer.outputColorSpace=THREE.SRGBColorSpace;
 const prepare=()=> {
   const root=cloneWithSkeleton(original.scene);
   const holder=new THREE.Group();scene.add(holder);holder.add(root);
-  const bounds=new THREE.Box3().setFromObject(root);
-  const boxSize=bounds.getSize(new THREE.Vector3());
-  const scale=1.88/boxSize.y;
-  root.scale.setScalar(scale);
-  root.position.y=-bounds.min.y*scale;
+  // Avoid the inflated bind-pose bounds found in this exact imported GLB.
+  // The real head/foot bones give a consistent human-sized calibration.
+  const fit=calibrateRiggedHumanoid(root,1.88);
   holder.position.x=0;
   holder.rotation.y=Math.PI/2;
   scene.updateMatrixWorld(true);
