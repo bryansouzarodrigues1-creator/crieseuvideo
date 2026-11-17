@@ -32,6 +32,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rigged-human-inspection-metadata
-          path: tmp/rigged/report.json
+          path: |
+            tmp/rigged/report.json
+            tmp/rigged/Worker.glb
+            tmp/rigged/Casual.glb
           if-no-files-found: warn
           retention-days: 7
