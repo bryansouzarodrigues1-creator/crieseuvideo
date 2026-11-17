@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { normalizeSceneProgram } from '../../src/studio/explainer/sceneProgram/score';
 import { SceneProgram3D } from '../../src/studio/explainer/sceneProgram/stage3d';
 import { cementLift30sProgram, cementLiftSources } from './program';
+import { auditSceneCutActivity } from '../../src/studio/explainer/sceneProgram/cutActivity';
 
 const W=720,H=1280;
 const canvas=document.querySelector<HTMLCanvasElement>('#scene')!;
@@ -15,6 +16,7 @@ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 const program=normalizeSceneProgram(cementLift30sProgram(),cementLiftSources);
 const scene=new SceneProgram3D(program,cementLiftSources);
+const cutActivity=auditSceneCutActivity(program,cementLiftSources,{maxStillSeconds:1.4});
 const seek=(time:number)=>{
   scene.render(renderer,time,W,H);
   const diagnostics=scene.diagnostics();
@@ -26,12 +28,17 @@ const seek=(time:number)=>{
     motorGear:scene.nodes.get('big-gear')?.rotation.z,
     smallerGear:scene.nodes.get('small-gear')?.rotation.z,
     rope:scene.nodes.get('rope-body')?.scale.toArray(),
+    cableEndErrors:diagnostics.cableEndErrors,
+    motor3D:scene.nodes.get('motor-system')!==undefined,
+    gearShaft:scene.nodes.get('output-shaft')!==undefined,
+    motorVisibility:scene.nodes.get('motor-system')?.visible,
     worker:scene.nodes.get('worker-ground')?.position.toArray(),
   };
 };
 (window as any).__cementLift={
   seek,frame:()=>canvas.toDataURL('image/png'),
   info:{duration:30,objects:program.nodes.length,tracks:program.tracks.length,cuts:program.shots[0]?.cuts?.length,
+    cutActivity,
     source:'User-supplied reference 1000857556.mp4 seconds 0..30; original authored geometry, not AI output'},
 };
 seek(0);
