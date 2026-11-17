@@ -23,6 +23,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      - name: Unit tests and types
+        run: |
+          bunx tsc --noEmit
+          bun run test
       - run: bun run build
       - run: node lab/build.mjs
       - name: Install rendering tools
