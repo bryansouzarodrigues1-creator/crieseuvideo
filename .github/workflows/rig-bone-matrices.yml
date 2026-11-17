@@ -4,6 +4,8 @@ on:
     branches: [experiment/rigged-clip-matrix-audit-20261117]
     paths:
       - 'lab/rig-pose-audit/**'
+      - 'src/studio/explainer/sceneProgram/riggedScale.ts'
+      - 'src/studio/explainer/sceneProgram/riggedScale.test.ts'
       - 'scripts/rig-matrix-browser-audit.mjs'
       - '.github/workflows/rig-bone-matrices.yml'
   workflow_dispatch:
@@ -30,6 +32,8 @@ jobs:
             lab/rig-pose-audit/public/Worker.glb:eb29e2adb795972e1f475cd25a000975fe260aa9
       - name: TypeScript validation
         run: bunx tsc --noEmit
+      - name: Validate skeleton calibration independent of mesh bounds
+        run: bunx vitest run src/studio/explainer/sceneProgram/riggedScale.test.ts
       - name: Chromium software WebGL
         run: |
           bun add --no-save playwright@1.57.0
