@@ -109,9 +109,12 @@ function characters(t:number) {
   worker.director.at(t);casual.director.at(t);
   scene.updateMatrixWorld(true);
 }
-characters(pickupAt);
+characters(0);
 const handA=worker.director.socket('rightHand');
 const handB=casual.director.socket('rightHand');
+const initialWorkerWrist=handA.getWorldPosition(new THREE.Vector3()).toArray();
+const initialCasualWrist=handB.getWorldPosition(new THREE.Vector3()).toArray();
+characters(pickupAt);
 const worldPickup=handA.localToWorld(gripWorker.clone());
 const tool=new THREE.Group();tool.name='mechanical-prop';scene.add(tool);
 block(.40,.18,.28,'#eda73c',0,0,0,tool);
@@ -136,7 +139,12 @@ const handHeightMismatch=Math.abs(handB.getWorldPosition(new THREE.Vector3()).y-
 if(handHeightMismatch>.36)throw new Error('Hands too far apart vertically for a believable transfer: '+
   JSON.stringify({handHeightMismatch,gripWorld:gripWorld.toArray(),
     receiver:receiver.toArray(),handDelta:handDelta.toArray(),
-    workerRatio:worker.ratio,casualRatio:casual.ratio}));
+    workerRatio:worker.ratio,casualRatio:casual.ratio,
+    initialWorkerWrist,initialCasualWrist,worldPickup:worldPickup.toArray(),
+    workerClip:worker.director.activeClip,
+    armatureLocalPosition:workerGltf.scene.position.toArray(),
+    handName:handA.name,handParent:handA.parent?.name,
+    riggedNodes:workerGltf.scene.children.map(n=>n.name)}));
 const gripCasual=handB.worldToLocal(gripWorld.clone());
 // A tool must be in contact with the acting wrist at attachment time.
 const gripAtPickup=gripWorker.clone();
