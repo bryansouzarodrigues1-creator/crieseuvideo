@@ -89,8 +89,17 @@ export class RiggedClipPlayer {
       leftFoot: ['Foot.L', 'Ankle.L'],
       rightFoot: ['Foot.R', 'Ankle.R'],
     };
-    const target=names[part].map(name=>this.root.getObjectByName(name)).find(Boolean);
-    if (!target || !(target instanceof THREE.Bone))
+    const normalized = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const expected = new Set(names[part].map(normalized));
+    let target: THREE.Object3D | undefined;
+    this.root.traverse(obj => {
+      if (target || !(obj instanceof THREE.Bone)) return;
+      const candidate = normalized(obj.name);
+      if (expected.has(candidate) ||
+          [...expected].some(prefix => candidate.startsWith(prefix) && /^\d+$/.test(candidate.slice(prefix.length))))
+        target = obj;
+    });
+    if (!target)
       throw new RiggedClipError('Esqueleto incompatível: falta articulação '+part);
     return target;
   }
