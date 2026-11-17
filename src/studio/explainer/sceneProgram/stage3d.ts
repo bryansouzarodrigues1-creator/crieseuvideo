@@ -141,6 +141,7 @@ export class SceneProgram3D {
       // Small contralateral torso movement and head stabilization.
       // Authored dramatic gestures remain as the base pose.
       actor.hips.rotation.y += pose.torsoYaw;
+      actor.hips.rotation.x += pose.torsoPitch;
       actor.head.rotation.y += pose.headYaw;
       actor.head.rotation.x += pose.headPitch;
     }
@@ -165,7 +166,13 @@ export class SceneProgram3D {
         const rotation = state.pose[`${effector}Rotation` as keyof typeof state.pose];
         const end = actor.limbs[effector].hand;
         if (rotation || effector.endsWith('Foot')) {
-          const desired = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(rotation ?? [0, state.rotation[1], 0])));
+          // Foot orientation follows the *actual* walking heading, rather
+          // than the original static node rotation. This prevents sideways
+          // sliding feet when the root automatically turns toward its path.
+          const fallback: [number, number, number] = walk && effector.endsWith('Foot')
+            ? [effector === 'leftFoot' ? walk.leftFootPitch : walk.rightFootPitch, walk.heading, 0]
+            : [0, state.rotation[1], 0];
+          const desired = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(rotation ?? fallback)));
           end.quaternion.copy(end.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(desired));
         }
       }
