@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RiggedClipPlayer } from '../../src/studio/explainer/sceneProgram/riggedClipPlayer';
-import { calibrateRiggedHumanoid } from '../../src/studio/explainer/sceneProgram/riggedScale';
+import { calibrateRiggedHumanoid, localGripOffsetMetres } from '../../src/studio/explainer/sceneProgram/riggedScale';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 const W=720,H=1280,DURATION=8;
@@ -102,7 +102,7 @@ const makeActor=(gltf:typeof workerGltf, groupName:string, x:number)=>{
 const worker=makeActor(workerGltf,'worker',-1.55);
 const casual=makeActor(casualGltf,'casual',1.12);
 const pickupAt=3.55, transferAt=5.82;
-const gripWorker=new THREE.Vector3(.01,.02,.10);
+const gripDesiredMetres=new THREE.Vector3(.01,.02,.10);
 const workerWalk=(t:number)=>-1.55+1.0*(Math.min(1,Math.max(0,t/2.25))**2*(3-2*Math.min(1,Math.max(0,t/2.25))));
 function characters(t:number) {
   worker.holder.position.set(workerWalk(t),0,.08);
@@ -114,10 +114,16 @@ function characters(t:number) {
 characters(0);
 const handA=worker.director.socket('rightHand');
 const handB=casual.director.socket('rightHand');
+// This GLB has an Armature with 100x internal scale. The author-specified
+// 10cm grip offset must be converted to BONE LOCAL units, not interpreted
+// as .10 glTF local units (~11m world displacement).
+const gripWorker=localGripOffsetMetres(handA,gripDesiredMetres);
 const initialWorkerWrist=handA.getWorldPosition(new THREE.Vector3()).toArray();
 const initialCasualWrist=handB.getWorldPosition(new THREE.Vector3()).toArray();
 characters(pickupAt);
 const worldPickup=handA.localToWorld(gripWorker.clone());
+const wristToGripMetres=worldPickup.distanceTo(handA.getWorldPosition(new THREE.Vector3()));
+if(wristToGripMetres>.16)throw new Error('Grip offset was not normalized to metric space: '+wristToGripMetres);
 const tool=new THREE.Group();tool.name='mechanical-prop';scene.add(tool);
 block(.40,.18,.28,'#eda73c',0,0,0,tool);
 block(.26,.035,.035,'#364954',0,.12,0,tool);
