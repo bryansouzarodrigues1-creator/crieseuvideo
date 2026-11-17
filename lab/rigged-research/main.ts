@@ -128,11 +128,15 @@ characters(transferAt);
 const gripWorld=handA.localToWorld(gripWorker.clone());
 const receiver=handB.getWorldPosition(new THREE.Vector3());
 const handDelta=gripWorld.clone().sub(receiver);
-if(handDelta.length()>3)throw new Error('Interaction staging impossible: hands too far apart.');
+// Move the recipient ON THE FLOOR until the wrist locations coincide in X/Z;
+// test the actual vertical reach instead of rejecting the initial blocking.
 casual.holder.position.add(new THREE.Vector3(handDelta.x,0,handDelta.z));
 scene.updateMatrixWorld(true);
 const handHeightMismatch=Math.abs(handB.getWorldPosition(new THREE.Vector3()).y-gripWorld.y);
-if(handHeightMismatch>.36)throw new Error('Hands too far apart vertically for a believable transfer: '+handHeightMismatch.toFixed(3));
+if(handHeightMismatch>.36)throw new Error('Hands too far apart vertically for a believable transfer: '+
+  JSON.stringify({handHeightMismatch,gripWorld:gripWorld.toArray(),
+    receiver:receiver.toArray(),handDelta:handDelta.toArray(),
+    workerRatio:worker.ratio,casualRatio:casual.ratio}));
 const gripCasual=handB.worldToLocal(gripWorld.clone());
 // A tool must be in contact with the acting wrist at attachment time.
 const gripAtPickup=gripWorker.clone();
