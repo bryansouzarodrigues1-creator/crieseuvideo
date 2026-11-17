@@ -18,7 +18,8 @@ export interface ProgramNode {
 }
 export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
 export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
-export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number }
+/** Default framing is locked. A deliberate orbit must be requested explicitly; endAzimuth alone never drifts the camera. */
+export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number; motion?: 'locked' | 'orbit' }
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
 /** A measurable on-screen action, not a thematic action ID or AI assertion.
  * change => sufficient movement; hold => small movement for the whole interval.
@@ -186,10 +187,12 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   for (const t of tracks) if (t.channel === 'scale') maximumScales.set(t.node, Math.max(maximumScales.get(t.node)!, ...t.keys.flatMap((k) => k.value)));
   for (const node of nodes) { let current: ProgramNode | undefined = node, product = 1; while (current) { product *= maximumScales.get(current.id)!; if (product > 1000) fail('A escala acumulada de uma hierarquia excedeu o limite da cena.'); current = current.parent ? nodeMap.get(current.parent) : undefined; } }
   const shots = list(r.shots, 120).map((value): ProgramShot => {
-    const s = obj(value); only(s, ['sourceId', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance']);
+    const s = obj(value); only(s, ['sourceId', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance', 'motion']);
     const subjects = list(s.subjects, 6).map((v) => nodeMap.has(v) ? v as string : fail('A câmera citou um objeto inexistente.'));
     if (!subjects.length) fail('A câmera precisa acompanhar pelo menos um objeto.');
-    return { sourceId: source(s.sourceId), subjects, azimuth: num(s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation: num(s.elevation ?? .18, -.35, 1.1), distance: num(s.distance ?? 1.15, 1, 2.5) };
+    const motion = s.motion ?? 'locked';
+    if (motion !== 'locked' && motion !== 'orbit') fail('O movimento da câmera precisa ser locked ou orbit.');
+    return { sourceId: source(s.sourceId), subjects, azimuth: num(s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation: num(s.elevation ?? .18, -.35, 1.1), distance: num(s.distance ?? 1.15, 1, 2.5), motion };
   });
   if (shots.length !== sources.length || new Set(shots.map((s) => s.sourceId)).size !== shots.length || sources.some((s) => !shots.some((p) => p.sourceId === s.sourceId))) fail('Cada frase do roteiro precisa da sua própria tomada.');
   const contacts = list(r.contacts ?? [], 100).map((value): ProgramContact => {
