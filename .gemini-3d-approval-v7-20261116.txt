@@ -1,0 +1,1 @@
+Second authorized visual A/B trial, one request only, revised bounded 120s deadline; no automatic retry, no Lovable, same 8-second turbine script.
