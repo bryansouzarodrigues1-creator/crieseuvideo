@@ -1,0 +1,28 @@
+name: Storyboard-first 3D narrative QA
+on:
+  push:
+    branches: [experiment/storyboard-first-3d-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: storyboard-first-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-narrative:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      CI: "true"
+      FREEFORM_3D_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked project dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify new narrative audit and all other tests
+        run: bun run test
+      - name: Verify static TypeScript
+        run: bunx tsc --noEmit
+      - name: Compile production (no deploy)
+        run: bun run build
