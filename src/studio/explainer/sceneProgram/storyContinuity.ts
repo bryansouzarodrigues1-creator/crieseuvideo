@@ -9,14 +9,14 @@
  * necessary before calling an animation clear, logical or entertaining.
  */
 import { compileSceneProgram, type ProgramNode, type ProgramSource,
-  type ProgramChannel, type SceneProgram, type Vec3 } from './score';
+  type ProgramChannel, type ProgramState, type SceneProgram, type Vec3 } from './score';
 
 export type StoryContinuityFinding =
   | { kind:'overlong_cut'; sourceId:string; cut:number; duration:number }
   | { kind:'repeated_framing'; sourceId:string; cut:number; previous:number }
   | { kind:'weak_visual_bridge'; sourceId:string; cut:number; previous:number }
   | { kind:'only_decorative_rotation'; sourceId:string; cut:number; duration:number }
-  | { kind:'unshown_action_before_reveal'; sourceId:string; cut:number; node:string; seconds:number };
+  ;
 
 export interface EditorialCut {
   sourceId:string; cut:number; start:number; end:number; seconds:number;
@@ -36,7 +36,7 @@ export interface StoryContinuityReport {
 }
 const xyzDiff=(a:Vec3,b:Vec3)=>Math.hypot(
   a[0]-b[0],a[1]-b[1],a[2]-b[2]);
-const resultChannel=(s:ReturnType<ReturnType<typeof compileSceneProgram>['sample']> extends Map<string,infer State> ? State:never,c:ProgramChannel):Vec3=>
+const resultChannel=(s:ProgramState,c:ProgramChannel):Vec3=>
   c==='position'||c==='rotation'||c==='scale'?s[c]:s.pose[c]??[0,0,0];
 
 export function auditStoryContinuity(
