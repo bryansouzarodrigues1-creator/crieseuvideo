@@ -131,6 +131,7 @@ export class SceneProgram3D {
       actor.setGroundedWalkSoles();
       actor.hips.position.y += pose.bob;
       actor.hips.rotation.z += pose.lean;
+      actor.applyNaturalWalk(pose.weightShift, pose.torsoTwist, pose.headCounter);
     }
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
@@ -153,7 +154,15 @@ export class SceneProgram3D {
         const rotation = state.pose[`${effector}Rotation` as keyof typeof state.pose];
         const end = actor.limbs[effector].hand;
         if (rotation || effector.endsWith('Foot')) {
-          const desired = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(rotation ?? [0, state.rotation[1], 0])));
+          const desired = rotation
+            ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation))
+            : walk && effector.endsWith('Foot')
+              ? actor.root.getWorldQuaternion(new THREE.Quaternion()).multiply(
+                new THREE.Quaternion().setFromAxisAngle(
+                  new THREE.Vector3(1, 0, 0), effector === 'leftFoot' ? walk.leftFootRoll : walk.rightFootRoll,
+                ),
+              )
+              : new THREE.Quaternion().setFromEuler(new THREE.Euler(0, state.rotation[1], 0));
           end.quaternion.copy(end.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(desired));
         }
       }
