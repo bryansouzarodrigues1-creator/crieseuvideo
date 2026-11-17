@@ -1,0 +1,6 @@
+Owner authorization: user explicitly requested real Gemini API test via latest CrieSeuVideo 3D engine on 2026-11-17.
+Mode: EXACTLY ONE generateContent call, one 12-second two-worker scene, no retries, no fallback, no Lovable.
+Engine base: PR #44 commit fcf2e0df444551aecffc88da2bebeafeb7051548 (research branch; GLB interaction still experimental).
+Source: scripts/controlled-gemini-3d-trial.ts
+Output: tmp/authorized-gemini-3d-trial/
+No merge or production deployment authorized.
