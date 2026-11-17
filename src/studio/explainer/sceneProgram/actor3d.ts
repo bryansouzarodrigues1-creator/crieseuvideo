@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toonMaterial } from './look';
 import type { Effector, ProgramChannel, Vec3 } from './score';
 
@@ -19,12 +20,14 @@ export class ProgramActor3D {
   private eyes: THREE.Group[] = [];
   private brows: THREE.Mesh[] = [];
   private mouth: THREE.Mesh;
+  private jacket: THREE.Mesh;
   private soles: THREE.Mesh[] = [];
   constructor(color: string) {
     const mat = (c: string | number) => toonMaterial({ color: c });
     const cloth = mat(color), dark = mat(0x243549), skin = mat(0xe5ad83), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
     this.root.add(this.hips); this.hips.position.y = 1.02;
     const chest = mesh(this.hips, new THREE.CapsuleGeometry(.28, .26, 4, 10), cloth, [0, .25, 0]); chest.scale.set(1.15, 1, .73);
+    this.jacket = chest;
     mesh(this.hips, new THREE.BoxGeometry(.035, .48, .025), dark, [0, .26, .216]);
     mesh(this.hips, new THREE.CylinderGeometry(.11, .12, .16, 10), skin, [0, .59, 0]);
     this.hips.add(this.head); this.head.position.y = .88;
@@ -45,11 +48,13 @@ export class ProgramActor3D {
       root.position.set(side * (leg ? .17 : .385), leg ? 0 : .47, 0); this.hips.add(root);
       const a = leg ? .50 : .42, b = leg ? .48 : .38;
       const material = leg ? dark : cloth;
+      mesh(root, new THREE.SphereGeometry(leg ? .12 : .105, 12, 8), material);
       mesh(root, new THREE.CapsuleGeometry(leg ? .115 : .10, a - .17, 4, 8), material, [0, -a / 2, 0]);
       elbow.position.y = -a; root.add(elbow);
+      mesh(elbow, new THREE.SphereGeometry(leg ? .102 : .087, 12, 8), material);
       mesh(elbow, new THREE.CapsuleGeometry(leg ? .09 : .08, b - .14, 4, 8), material, [0, -b / 2, 0]);
       hand.position.y = -b; elbow.add(hand);
-      if (leg) this.soles.push(mesh(hand, new THREE.BoxGeometry(.23, .14, .35), glove, [0, .01, .085]));
+      if (leg) this.soles.push(mesh(hand, new RoundedBoxGeometry(.23, .14, .35, 3, .035), glove, [0, .01, .085]));
       else mesh(hand, new THREE.SphereGeometry(.105, 10, 8), glove).scale.set(.8, 1.05, .72);
       return { root, elbow, hand };
     };
@@ -62,6 +67,10 @@ export class ProgramActor3D {
     for (const shoe of this.soles) shoe.position.y = .01;
     this.hips.position.set(0, 1.02, 0); this.hips.rotation.set(...(pose.bodyRotation ?? [0, 0, 0]));
     this.head.rotation.set(...(pose.headRotation ?? [0, 0, 0]));
+    // Small, deterministic breathing. Keeps a stationary actor alive without
+    // moving the root, changing hand contact or overriding authored poses.
+    const breath = Math.sin(time * 2.2) * .007;
+    this.jacket.scale.set(1.15 + breath, 1 + breath * .3, .73 + breath * .15);
     for (const limb of Object.values(this.limbs)) { limb.root.quaternion.identity(); limb.elbow.quaternion.identity(); limb.hand.quaternion.identity(); }
     const face = pose.face ?? [0, 0, 0];
     const cycle = ((time + .4) % 3.7), blink = Math.max(face[1], cycle < .13 ? Math.sin(Math.PI * cycle / .13) : 0);

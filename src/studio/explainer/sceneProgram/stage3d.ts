@@ -39,6 +39,7 @@ export class SceneProgram3D {
   readonly nodes = new Map<string, THREE.Object3D>();
   readonly actors = new Map<string, ProgramActor3D>();
   readonly proceduralWalks = new Map<string, ProceduralWalk>();
+  readonly carriedHands = new Map<string, {leftHand: boolean;rightHand:boolean}>();
   readonly importedModels = new Map<string, ModelInstance>();
   readonly ink = new InkOutline();
   private states = new Map<string, ProgramState>();
@@ -51,7 +52,13 @@ export class SceneProgram3D {
     this.score = compileSceneProgram(program, sources);
     for (const n of program.nodes) if (n.kind === 'actor') {
       const walk = buildProceduralWalk(program, sources, n.id);
-      if (walk) this.proceduralWalks.set(n.id, walk);
+      if (walk) {
+        this.proceduralWalks.set(n.id, walk);
+        this.carriedHands.set(n.id, {
+          leftHand: program.nodes.some((child) => child.parent === n.id && child.socket === 'leftHand'),
+          rightHand: program.nodes.some((child) => child.parent === n.id && child.socket === 'rightHand'),
+        });
+      }
     }
     const sky = skyTexture(program.background); this.scene.background = sky.texture; this.scene.fog = new THREE.Fog(sky.fog, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
@@ -125,12 +132,18 @@ export class SceneProgram3D {
     const walkFrames = new Map<string, ProceduralWalkFrame>();
     for (const [id, walk] of this.proceduralWalks) {
       const actor = this.actors.get(id)!;
-      const pose = walk.at(this.time);
+      const pose = walk.at(this.time, this.carriedHands.get(id));
       walkFrames.set(id, pose);
       actor.root.rotation.y = pose.heading;
       actor.setGroundedWalkSoles();
       actor.hips.position.y += pose.bob;
       actor.hips.rotation.z += pose.lean;
+      // Small contralateral torso movement and head stabilization.
+      // Authored dramatic gestures remain as the base pose.
+      actor.hips.rotation.y += pose.torsoYaw;
+      actor.hips.rotation.x += pose.torsoPitch;
+      actor.head.rotation.y += pose.headYaw;
+      actor.head.rotation.x += pose.headPitch;
     }
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
@@ -153,7 +166,13 @@ export class SceneProgram3D {
         const rotation = state.pose[`${effector}Rotation` as keyof typeof state.pose];
         const end = actor.limbs[effector].hand;
         if (rotation || effector.endsWith('Foot')) {
-          const desired = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(rotation ?? [0, state.rotation[1], 0])));
+          // Foot orientation follows the *actual* walking heading, rather
+          // than the original static node rotation. This prevents sideways
+          // sliding feet when the root automatically turns toward its path.
+          const fallback: [number, number, number] = walk && effector.endsWith('Foot')
+            ? [effector === 'leftFoot' ? walk.leftFootPitch : walk.rightFootPitch, walk.heading, 0]
+            : [0, state.rotation[1], 0];
+          const desired = new THREE.Quaternion().setFromEuler(new THREE.Euler(...(rotation ?? fallback)));
           end.quaternion.copy(end.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(desired));
         }
       }
@@ -306,6 +325,6 @@ export class SceneProgram3D {
   dispose() {
     const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();
     this.scene.traverse((node) => { if (node instanceof THREE.InstancedMesh) node.dispose(); if (node instanceof THREE.Mesh) { geometries.add(node.geometry); for (const m of Array.isArray(node.material) ? node.material : [node.material]) materials.add(m); } if (node instanceof THREE.DirectionalLight) node.shadow.map?.dispose(); });
-    geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); this.scene.clear(); this.nodes.clear(); this.actors.clear(); this.proceduralWalks.clear(); this.importedModels.clear();
+    geometries.forEach((g) => g.dispose()); materials.forEach((m) => m.dispose()); this.scene.clear(); this.nodes.clear(); this.actors.clear(); this.proceduralWalks.clear(); this.carriedHands.clear(); this.importedModels.clear();
   }
 }

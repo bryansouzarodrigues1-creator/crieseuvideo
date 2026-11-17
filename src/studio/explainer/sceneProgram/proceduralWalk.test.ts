@@ -31,6 +31,68 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
     expect(vec(a.leftFoot).distanceTo(vec(b.leftFoot))).toBeGreaterThan(.03);
   });
 
+  it('counter-rotates shoulders and head during steps without jitter at rest', () => {
+    const gait = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
+    const moving = Array.from({ length: 35 }, (_, i) => gait.at(.3 + i * .08));
+    expect(moving.some(f => Math.abs(f.torsoYaw) > .005)).toBe(true);
+    for (const f of moving) {
+      expect(Math.abs(f.torsoYaw)).toBeLessThanOrEqual(.046);
+      expect(f.headYaw).toBeCloseTo(-f.torsoYaw * .65, 8);
+      expect(Math.abs(f.headPitch)).toBeLessThanOrEqual(.018);
+    }
+    const stopped = gait.at(5);
+    expect(stopped.speed).toBeLessThan(.01);
+    expect(stopped.torsoYaw).toBeCloseTo(0);
+    expect(stopped.headYaw).toBeCloseTo(0);
+  });
+
+  it('keeps the hand carrying a prop stable while the opposite arm swings', () => {
+    const gait = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
+    const poses = [gait.at(.7, { rightHand: true }), gait.at(2.1, { rightHand: true })];
+    expect(poses[0]!.rightHand[2]).toBeCloseTo(.18);
+    expect(poses[1]!.rightHand[2]).toBeCloseTo(.18);
+    expect(poses[0]!.leftHand[2]).not.toBeCloseTo(poses[1]!.leftHand[2], 2);
+    const free = gait.at(.7);
+    expect(Math.abs(free.rightHand[2] - poses[0]!.rightHand[2])).toBeGreaterThan(.03);
+  });
+
+  it('detects carried props in the real stage and applies torso/head counter-rotation', () => {
+    const stage = new SceneProgram3D(base(), craneExperimentSources);
+    try {
+      expect(stage.carriedHands.get('worker')).toEqual({ leftHand: false, rightHand: true });
+      const gait = stage.proceduralWalks.get('worker')!;
+      stage.update(1.2);
+      const frame = gait.at(1.2, { rightHand: true });
+      const actor = stage.actors.get('worker')!;
+      expect(actor.hips.rotation.y).toBeCloseTo(frame.torsoYaw, 5);
+      const baseX = stage.score.sample(1.2).get('worker')!.pose.bodyRotation?.[0] ?? 0;
+      expect(actor.hips.rotation.x).toBeCloseTo(baseX + frame.torsoPitch, 5);
+      expect(frame.torsoPitch).toBeGreaterThan(.03);
+      expect(actor.head.rotation.y).toBeCloseTo(frame.headYaw, 5);
+      expect(stage.diagnostics().maxIKError).toBeLessThan(.025);
+    } finally { stage.dispose(); }
+  });
+
+  it('aligns the shoes with travel direction and only pitches them during swing', () => {
+    const p = base();
+    const gait = buildProceduralWalk(p, craneExperimentSources, 'worker')!;
+    const sampled = Array.from({length:70},(_,i)=>gait.at(.1+i*.06));
+    expect(sampled.some(f=>f.leftFootPitch < -.055 || f.rightFootPitch < -.055)).toBe(true);
+    expect(sampled.every(f=>f.leftFootPitch>=-.121 && f.leftFootPitch<=0 && f.rightFootPitch>=-.121 && f.rightFootPitch<=0)).toBe(true);
+    expect(gait.at(5).leftFootPitch).toBe(0);
+    expect(gait.at(5).rightFootPitch).toBe(0);
+
+    const stage = new SceneProgram3D(p, craneExperimentSources);
+    try {
+      stage.update(2.4);
+      const foot = stage.actors.get('worker')!.limbs.leftFoot.hand;
+      const facing = new THREE.Vector3(0,0,1).applyQuaternion(foot.getWorldQuaternion(new THREE.Quaternion()));
+      expect(facing.x).toBeGreaterThan(.96);
+      expect(Math.abs(facing.z)).toBeLessThan(.20);
+      stage.validateContacts();
+    } finally {stage.dispose()}
+  });
+
   it('returns the same deterministic gait after backwards scrubbing', () => {
     const gait = buildProceduralWalk(base(), craneExperimentSources, 'worker')!;
     const expected = gait.at(2.2);
