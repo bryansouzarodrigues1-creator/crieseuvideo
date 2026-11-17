@@ -40,24 +40,22 @@ export class RiggedClipPlayer {
   readonly clips: string[];
   readonly root: THREE.Object3D;
   private cues: RiggedClipCue[];
+  private readonly sources: THREE.AnimationClip[];
   private activeName: string | null = null;
   constructor(root: THREE.Object3D, clips: THREE.AnimationClip[], cues: RiggedClipCue[]) {
     this.root=root;
+    this.sources=[...clips];
     this.mixer=new THREE.AnimationMixer(root);
     this.clips=clips.map(c=>c.name);
     this.cues=validateRiggedCues(clips,cues);
     for (const clip of clips) this.mixer.clipAction(clip);
   }
   setCues(cues: RiggedClipCue[]) {
-    const clips=this.clips.map(n=>THREE.AnimationClip.findByName(this.mixer as any,n)).filter(Boolean);
-    // No dynamic URL or eval. Only named clips already registered in this mixer.
-    this.cues=validateRiggedCues(this.availableClips(),cues);
+    // No dynamic URL or eval. Only named clips already loaded from this GLB.
+    this.cues=validateRiggedCues(this.sources,cues);
     this.activeName=null;
   }
-  private availableClips(): THREE.AnimationClip[] {
-    // The mixer retains actions and clip references loaded at construction.
-    return this.clips.map(n=>this.mixer.existingAction(n)).filter(Boolean).map(a=>a!.getClip());
-  }
+  private availableClips(): THREE.AnimationClip[] { return this.sources; }
   at(time: number): { clip: string; clipTime: number } {
     if (!Number.isFinite(time)) throw new RiggedClipError('Tempo de reprodução inválido.');
     const t=Math.max(0,time);
