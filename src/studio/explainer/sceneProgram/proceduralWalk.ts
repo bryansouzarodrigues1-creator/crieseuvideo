@@ -84,7 +84,7 @@ export function buildProceduralWalk(
     const p = positionAtArc(s), angle = headingAt(s);
     // right axis of local +Z is [+cos(yaw), -sin(yaw)] in parent space
     return [p[0] + side * .17 * Math.cos(angle),
-      groundY + .09,
+      groundY + .15,
       p[2] - side * .17 * Math.sin(angle)];
   };
 
