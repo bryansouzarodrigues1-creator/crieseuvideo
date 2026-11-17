@@ -1,0 +1,60 @@
+# Executes only with a dedicated owner-approved marker push on a disposable run branch.
+# Not triggered by this PR, normal pushes, builds, cron, or workflow_dispatch.
+name: Gemini 3D visual direction A-B attempt v6
+
+on:
+  push:
+    branches: [run/gemini-3d-visual-v6-20261116]
+    paths: [.gemini-3d-approval-v6-20261116.txt]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gemini-visual-v6-one-approved-attempt
+  cancel-in-progress: false
+
+jobs:
+  one-generation:
+    if: "${{ github.event.head_commit.message == 'trial: Gemini 3D visual direction attempt 6 approved' }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      CONFIRM_ONE_GEMINI_CALL: I_APPROVE_ONE_CALL
+      GEMINI_TEXT_MODEL: gemini-3.6-flash
+      FREEFORM_3D_GEMINI_API_KEY: ${{ secrets.FREEFORM_3D_GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: TypeScript and build before AI inference
+        run: |
+          bunx tsc --noEmit
+          bun run build
+      - name: Install browser and video encoder before AI inference
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Preflight private key presence (do not log it)
+        run: |
+          test -n "$FREEFORM_3D_GEMINI_API_KEY" || (echo 'Missing private trial secret; no inference' && exit 2)
+      - name: Check Gemini model permission without inference
+        run: bun scripts/preflight-gemini-model.ts
+      - name: EXACTLY ONE GenerateContent inference (hard firewall, no retry)
+        run: bun scripts/controlled-gemini-3d-trial.ts
+      - name: Render only the validated response via real studio
+        run: bun scripts/render-real-gemini-3d-trial.mjs
+      - name: Preserve evidence without credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-3d-visual-attempt-6-evidence
+          path: tmp/authorized-gemini-3d-trial/
+          if-no-files-found: ignore
+          retention-days: 14
