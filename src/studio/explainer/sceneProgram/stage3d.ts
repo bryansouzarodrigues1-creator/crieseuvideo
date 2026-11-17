@@ -231,7 +231,7 @@ export class SceneProgram3D {
     const direction = V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
     const points: THREE.Vector3[] = [];
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) points.push(V(x, y, z));
-    this.camera.aspect = aspect; this.camera.updateProjectionMatrix();
+    this.camera.aspect = aspect; this.camera.near = .05; this.camera.far = 1500; this.camera.updateProjectionMatrix(); // wide range while searching the distance
     const fit = (distance: number) => {
       this.camera.position.copy(look).addScaledVector(direction, distance); this.camera.lookAt(look); this.camera.updateMatrixWorld(true);
       return points.every((p) => { const n = p.clone().project(this.camera); return n.z > -1 && n.z < 1 && Math.abs(n.x) <= .88 && n.y >= -.63 && n.y <= .86; });
