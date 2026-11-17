@@ -27,7 +27,7 @@ describe('20-second crane study (agent-authored offline calibration, NOT live Ge
     expect(report.beats.map((b) => b.sourceId)).toEqual(['s1', 's2', 's3']);
     for (const beat of report.beats) {
       expect(beat.activeSeconds).toBeGreaterThan(2);
-      expect(beat.independentlyMovingNodes.length).toBeGreaterThan(1);
+      expect(beat.activeTrackCount).toBeGreaterThan(1);
     }
     expect(report.findings.filter((f) => f.kind === 'no_visible_actuation')).toHaveLength(0);
     expect(report.findings.filter((f) => f.kind === 'actor_root_glide')).toHaveLength(0);
