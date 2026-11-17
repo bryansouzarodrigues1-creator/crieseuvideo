@@ -27,3 +27,30 @@ jobs:
         run: bunx tsc --noEmit
       - name: Compile production site (no deploy)
         run: bun run build
+      - name: Install headless Chromium and H264
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Start real Three.js styled-object laboratory
+        run: |
+          mkdir -p tmp/stylized-3d
+          bunx vite lab/stylized-3d --host 127.0.0.1 --port 4182 --strictPort >tmp/stylized-3d/vite.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:4182/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/stylized-3d/vite.log
+          exit 1
+      - name: Render 8s of new stylized non-human geometry and verify stable camera
+        run: bun scripts/stylized-3d-browser-qa.mjs
+      - name: Preserve actual H264 and frame QA evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generative-3d-stylized-browser-qa
+          path: tmp/stylized-3d/
+          if-no-files-found: warn
+          retention-days: 7
