@@ -1,0 +1,67 @@
+# Replay only: downloads existing REAL Gemini program from run 44136484717.
+# Absolutely no Gemini key, no inference, no retry, no manual scene rewrite.
+name: Replay exact REAL Gemini 12s in current Three.js engine (no API)
+
+on:
+  push:
+    branches: [experiment/gemini-real-12s-offline-replay-20261117]
+    paths:
+      - 'lab/gemini-real-replay/**'
+      - 'scripts/replay-real-gemini-direct-12s.mjs'
+      - '.github/workflows/gemini-real-replay-offline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  replay-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Restore exact ONE real Gemini response from prior inference run
+        run: |
+          mkdir -p tmp/first-gemini lab/gemini-real-replay/public tmp/gemini-real-offline-replay
+          gh run download 44136484717 --repo "$GITHUB_REPOSITORY" \
+            --name gemini-latest-engine-20261117-12s-real-evidence \
+            --dir tmp/first-gemini
+          cp tmp/first-gemini/program.json lab/gemini-real-replay/public/program.json
+          echo 'fdde4050b4abfa48f180424695642ddd0569a8d49bda58ef720df3f620b4e028  lab/gemini-real-replay/public/program.json' | sha256sum --check
+          test -s lab/gemini-real-replay/public/program.json
+      - name: Check engine and isolated renderer without model inference
+        run: |
+          bunx tsc --noEmit
+          bunx vite build lab/gemini-real-replay --outDir ../../tmp/gemini-replay-bundle --emptyOutDir
+      - name: Install browser and video tools
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Serve real SceneProgram3D engine with original response
+        run: |
+          bunx vite lab/gemini-real-replay --host 127.0.0.1 --port 4188 --strictPort >tmp/gemini-real-offline-replay/vite.log 2>&1 &
+          echo $! > tmp/gemini-real-offline-replay/vite.pid
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:4188/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat tmp/gemini-real-offline-replay/vite.log
+          exit 1
+      - name: Render source exactly as generated; reject invalid IK in QA verdict
+        run: bun scripts/replay-real-gemini-direct-12s.mjs
+      - name: Preserve original program, real WebGL frames, H264 MP4, physics issues
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-gemini-20261117-sceneprogram-12s-replay
+          path: tmp/gemini-real-offline-replay/
+          if-no-files-found: warn
+          retention-days: 14
