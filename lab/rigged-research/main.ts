@@ -114,6 +114,8 @@ function characters(t:number) {
 characters(0);
 const handA=worker.director.socket('rightHand');
 const handB=casual.director.socket('rightHand');
+const headA=worker.director.socket('head');
+const headB=casual.director.socket('head');
 // This GLB has an Armature with 100x internal scale. The author-specified
 // 10cm grip offset must be converted to BONE LOCAL units, not interpreted
 // as .10 glTF local units (~11m world displacement).
@@ -184,6 +186,13 @@ function seek(t:number){
   cameraPos.set(targetX+.18,targetY+.78,time<2.5?5.85:5.30);
   camera.position.copy(cameraPos);camera.lookAt(look);
   renderer.render(scene,camera);
+  // Evaluate the *rendered camera* as well as the actors' world-space roots.
+  // Two separate rigs can still hide behind each other in the final frame.
+  const headPixel=(bone:THREE.Object3D)=>{
+    const p=bone.getWorldPosition(new THREE.Vector3()).project(camera);
+    return [(p.x+1)*W/2,(1-p.y)*H/2,p.z];
+  };
+  const headScreenPixels={worker:headPixel(headA),casual:headPixel(headB)};
   const wrist=owner==='casual'?handB:handA;
   const handError=owner==='table'?0:wrist.getWorldPosition(new THREE.Vector3()).distanceTo(tool.getWorldPosition(new THREE.Vector3()));
   return {
@@ -198,6 +207,7 @@ function seek(t:number){
     handoffHeightMismatch:handHeightMismatch,
     workerPosition:worker.holder.position.toArray(),
     casualPosition:casual.holder.position.toArray(),
+    headScreenPixels,
   };
 }
 const detail=seek(0);
