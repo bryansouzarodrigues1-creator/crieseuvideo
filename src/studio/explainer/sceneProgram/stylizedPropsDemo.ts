@@ -54,7 +54,11 @@ export function stylizedPropsProgram() {
         keys:[key(0,[0,0,-.2]),key(.28,[0,0,-.2]),key(.48,[0,0,0]),key(.78,[0,0,-2.7]),key(1,[0,0,-2.9])]},
     ],
     shots:[{sourceId,subjects:['tomato','crate','plant'],azimuth:.36,endAzimuth:1.0,
-      elevation:.13,distance:1.12}],
+      elevation:.13,distance:1.12,cuts:[
+        {phase:0,subjects:['tomato','plant'],azimuth:.36,elevation:.13,distance:1.08},
+        {phase:.33,subjects:['tomato'],azimuth:.48,elevation:.12,distance:1.10},
+        {phase:.73,subjects:['tomato','crate'],azimuth:.36,elevation:.13,distance:1.10},
+      ]}],
     contacts:[],
     motionChecks:[
       {sourceId,node:'tomato',channel:'position',kind:'change',startPhase:.25,endPhase:.56,threshold:1.0},
