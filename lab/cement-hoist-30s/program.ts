@@ -77,12 +77,12 @@ export function cementLift30sProgram(){
   // Visible external construction staircase, scaffold and safety rail.
   n.push(group('stair-scaffold',[-2.50,0,1.30]));
   for (const x of [-.53,.55]) n.push(mesh('scaffold-pole-'+(x<0?'l':'r'),'cylinder',[.055,.055,10.7],'#687E82',[x,5.35,0],{parent:'stair-scaffold'}));
-  for(let i=0;i<4;i++){
+  for(let i=0;i<3;i++){
     const y=.55+i*1.95;
     n.push(mesh('stair-flight-'+i,'box',[1.35,.14,2.30],'#8F7958',[0,y+1.05,0],
       {parent:'stair-scaffold',rotation:[-.45,0,0]}));
     n.push(mesh('stair-landing-'+i,'box',[1.37,.16,.92],'#B59B77',[0,y+1.75,-.68],{parent:'stair-scaffold'}));
-    n.push(mesh('stair-rail-'+i,'box',[.08,1.25,2.55],'#6D7777',[.72,y+1.65,0],{parent:'stair-scaffold',rotation:[-.45,0,0]}));
+    // Rails are left to the procedural staging library: avoid wasting geometry on 4 indistinguishable pieces.
   }
   // Stack of cement sacks: double-layer sacks and green brand bands.
   n.push(group('cement-pile',[-5.6,0,-.05]));
@@ -119,6 +119,7 @@ export function cementLift30sProgram(){
     n.push(mesh('pallet-stripe-'+layer,'box',[.10,.32,.55],'#3F9F79',[-.52,.32+layer*.34,-.26],{
       parent:'pallet',repeat:{count:3,step:[.52,0,0],jitter:[0,0,0],seed:17}}));
   }
+  n.push(group('load-hook',[0,1.37,0],'pallet'));
   n.push(group('lifting-yoke',[0,.65,0],'pallet'));
   for(const x of [-.65,.65]){
     n.push(mesh('sling-'+(x<0?'l':'r'),'tube',[.028],'#31619A',[0,0,0],{
@@ -135,7 +136,8 @@ export function cementLift30sProgram(){
   n.push(mesh('upper-wheel','torus',[.27,.10],'#CE3D3D',[0,0,0],{parent:'upper-pulley'}));
   n.push(mesh('upper-hub','cylinder',[.08,.08,.19],'#3D4655',[0,0,.03],{parent:'upper-pulley',rotation:[Math.PI/2,0,0]}));
   n.push(group('lift-rope',[0,10.0,0],'pulley-stand'));
-  n.push(mesh('rope-body','cylinder',[.028,.028,1],'#D4B47E',[0,-4.63,0],{parent:'lift-rope',scale:[1,9.26,1]}));
+  // TRUE 3D cable geometry: the stage computes position/orientation/length from pulley to hook on every frame.
+  n.push(mesh('rope-body','cylinder',[.028,.028,1],'#D4B47E',[0,0,0],{parent:'lift-rope'}));
   n.push(mesh('return-rope','cylinder',[.03,.03,9.6],'#D6B27A',[-.5,5.1,.05],{parent:'pulley-stand'}));
   n.push(group('rope-handle',[-.50,1.0,.06],'pulley-stand'));
   n.push(mesh('rope-handle-bar','box',[.48,.09,.15],'#B8925D',[0,0,0],{parent:'rope-handle'}));
@@ -160,23 +162,31 @@ export function cementLift30sProgram(){
   for(let i=0;i<7;i++){let a=2*Math.PI*i/7;
     n.push(mesh('small-tooth-'+i,'box',[.14,.16,.21],'#A64136',
       [Math.cos(a)*.34,Math.sin(a)*.34,.03],{parent:'small-gear',rotation:[0,0,a]}));}
-  n.push(group('drum',[1.85,.66,-.15],'motor-system'));
-  n.push(mesh('drum-core','cylinder',[.42,.42,1.15],'#1B509C',[0,0,0],{parent:'drum',rotation:[0,0,Math.PI/2]}));
-  n.push(mesh('drum-flange-r','cylinder',[.52,.52,.12],'#3069B3',[.52,0,0],{parent:'drum',rotation:[0,0,Math.PI/2]}));
-  n.push(mesh('drum-flange-l','cylinder',[.52,.52,.12],'#3069B3',[-.52,0,0],{parent:'drum',rotation:[0,0,Math.PI/2]}));
+  // The drum is physically coaxial with the output gear (same x/y, along Z).
+  n.push(group('drum',[.91,1.18,-.43],'motor-system'));
+  n.push(mesh('drum-core','cylinder',[.42,.42,1.15],'#1B509C',[0,0,0],{parent:'drum',rotation:[Math.PI/2,0,0]}));
+  n.push(mesh('drum-flange-r','cylinder',[.52,.52,.12],'#3069B3',[0,0,.52],{parent:'drum',rotation:[Math.PI/2,0,0]}));
+  n.push(mesh('drum-flange-l','cylinder',[.52,.52,.12],'#3069B3',[0,0,-.52],{parent:'drum',rotation:[Math.PI/2,0,0]}));
+  // Coaxial gear shafts and bearings make the 3D drive train legible.
+  n.push(mesh('drive-shaft','cylinder',[.09,.09,.83],'#B1C7D1',[0,0,-.45],
+    {parent:'small-gear',rotation:[Math.PI/2,0,0]}));
+  n.push(mesh('output-shaft','cylinder',[.11,.11,.93],'#8BA0AD',[0,0,-.37],
+    {parent:'big-gear',rotation:[Math.PI/2,0,0]}));
+  n.push(mesh('gear-bearing','box',[.50,.45,.25],'#334D68',[.90,1.18,-.83],{parent:'motor-system'}));
   n.push(mesh('power-cable','tube',[.06],'#2C394A',[0,0,0],{parent:'motor-system',geometry:{
     shape:'tube',size:[.06],points:[[-1.1,.52,-.44],[-1.8,.32,-.4],[-2.25,.05,-.18]]}}));
 
   const tracks:any[]=[
-    track('worker-ground','position',[[0,[-4.7,0,3.15]],[.035,[-4.7,0,3.15]],[.18,[-2.75,0,2.65]],[.30,[-2.75,0,2.65]]]),
-    track('worker-ground','rotation',[[0,[0,0,0]],[.30,[0,0,0]]]),
+    track('worker-ground','position',[[0,[-4.7,0,3.15]],[.015,[-4.7,0,3.15]],[.23,[-2.30,0,2.65]],[.26,[-2.30,0,2.65]]]),
+    track('worker-ground','rotation',[[0,[0,0,0]],[.30,[0,0,0]]]) ,
+    // The upper-storey worker now carries out visible movement during 7–12s.
+    track('worker-upper','position',[[0,[2.20,10.15,-.60]],[.23,[2.20,10.15,-.60]],[.31,[1.20,10.15,-.60]],[.40,[2.07,10.15,-.60]],[1,[2.07,10.15,-.60]]]),,
     track('pallet','position',[[0,[0,.42,0]],[.48,[0,.42,0]],[.54,[0,.42,0]],[.67,[0,5.3,0]],[.77,[0,7.65,0]],[1,[0,7.65,0]]]),
-    track('rope-body','scale',[[0,[1,9.26,1]],[.54,[1,9.26,1]],[.67,[1,4.38,1]],[.77,[1,2.03,1]],[1,[1,2.03,1]]]),
-    track('rope-body','position',[[0,[0,-4.63,0]],[.54,[0,-4.63,0]],[.67,[0,-2.19,0]],[.77,[0,-1.015,0]],[1,[0,-1.015,0]]]),
-    track('upper-pulley','rotation',[[0,[0,0,0]],[.50,[0,0,0]],[.77,[0,0,15]],[1,[0,0,15]]],'linear'),
-    track('big-gear','rotation',[[0,[0,0,0]],[.70,[0,0,0]],[1,[0,0,33]]],'linear'),
-    track('small-gear','rotation',[[0,[0,0,0]],[.70,[0,0,0]],[1,[0,0,-61]]],'linear'),
-    track('drum','rotation',[[0,[0,0,0]],[.70,[0,0,0]],[1,[0,0,45]]],'linear'),
+    // No rope keyframes. The reusable cable constraint creates a real physical connection.
+    track('upper-pulley','rotation',[[0,[0,0,0]],[.38,[0,0,0]],[.54,[0,0,4]],[.78,[0,0,18]],[1,[0,0,18]]],'linear'),
+    track('big-gear','rotation',[[0,[0,0,0]],[.54,[0,0,0]],[.78,[0,0,25]],[1,[0,0,50]]],'linear'),
+    track('small-gear','rotation',[[0,[0,0,0]],[.54,[0,0,0]],[.78,[0,0,-68]],[1,[0,0,-135]]],'linear'),
+    track('drum','rotation',[[0,[0,0,0]],[.54,[0,0,0]],[.78,[0,0,25]],[1,[0,0,50]]],'linear'),
     track('rope-handle','position',[[0,[-.50,1,.06]],[.37,[-.50,1,.06]],[.42,[-.50,.56,.06]],[.46,[-.50,1,.06]],[.52,[-.50,.58,.06]],[.56,[-.50,1,.06]],[1,[-.50,1,.06]]],'smooth'),
   ];
   // A faster gait than our previous robotic walk: physically separate moving
@@ -191,13 +201,19 @@ export function cementLift30sProgram(){
   }
   return {
     version:1,background:'#A7DCF0',nodes:n,tracks,
+    cables:[{node:'rope-body',from:'upper-pulley',to:'load-hook'}],
     // Five hard cuts: worker, construction set, pulley, rising pallet, motor.
     shots:[{sourceId:'s1',subjects:['building','pallet'],azimuth:.38,endAzimuth:.38,elevation:.17,distance:1.04,cuts:[
-      {phase:0,subjects:['worker-ground','cement-pile','stair-scaffold'],azimuth:.52,elevation:.20,distance:1.06},
-      {phase:.24,subjects:['building','worker-upper','cement-pile'],azimuth:.45,elevation:.16,distance:1.04},
-      {phase:.40,subjects:['upper-pulley','rope-handle','worker-upper'],azimuth:.65,elevation:.13,distance:1.02},
-      {phase:.54,subjects:['pallet','upper-pulley','building'],azimuth:.49,elevation:.14,distance:1.08},
-      {phase:.78,subjects:['motor-system','big-gear','small-gear'],azimuth:.28,elevation:.15,distance:1.10},
+      {phase:0,subjects:['worker-ground','cement-pile'],azimuth:.52,elevation:.20,distance:1.04,
+        hide:['motor-system','worker-upper']},
+      {phase:.24,subjects:['worker-upper','floor-5'],azimuth:.28,elevation:.08,distance:1.07,
+        hide:['motor-system','worker-ground']},
+      {phase:.40,subjects:['upper-pulley','wood-top'],azimuth:.65,elevation:.11,distance:1.04,
+        hide:['motor-system','worker-ground']},
+      {phase:.54,subjects:['pallet','upper-pulley','floor-3'],azimuth:.49,elevation:.14,distance:1.10,
+        hide:['motor-system']},
+      {phase:.78,subjects:['big-gear','small-gear','drum'],azimuth:.28,elevation:.12,distance:1.02,
+        hide:['building','worker-ground','worker-upper','stair-scaffold','cement-pile','pulley-stand','lift-assembly']},
     ]}],
     contacts:[],
     motionChecks:[
