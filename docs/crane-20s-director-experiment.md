@@ -105,3 +105,25 @@ Prioridades após esta revisão: (1) mostrar o mecanismo certo na palavra certa,
 (2) enquadrar o sujeito e abrir espaço para legenda, (3) evitar fundos vazios,
 (4) fazer cabo e carga seguirem causalmente o motor, (5) adicionar modelos
 reutilizáveis e rigging, (6) revisar vídeo novamente antes de qualquer merge.
+
+## Comparação quantitativa de ritmo contra referência (somente diagnóstico)
+
+Fonte: MP4 de referência enviado pelo proprietário (`1000857556.mp4`) e o
+MP4 real da calibração da grua (20 s). Foram analisados os primeiros 20 s de
+cada vídeo, com 40 amostras, imagens redimensionadas para 144 × 256 e
+39 pares separados por ~0,5 s. Um pixel foi classificado como alterado se
+a diferença média RGB ultrapassou 25/255.
+
+| Indicador | Referência | Calibração |
+| --- | ---: | ---: |
+| Mediana de pixels alterados em cada intervalo | **49,7%** | **4,6%** |
+| Intervalos com menos de 3% da imagem alterada | **0/39** | **12/39** |
+
+**Limitação da métrica:** inclui movimento de câmera, trocas de plano,
+legendas, compressão, iluminação e alterações do cenário, não somente
+movimento físico de objetos. Não demonstra correção do roteiro nem qualidade
+artística. É, porém, uma medida reprodutível de **densidade de mudanças
+visuais**, consistente com a sensação de vídeo lento/parado relatada.
+
+Não copiar nem incluir o vídeo de referência no repositório. Guardar somente
+o diagnóstico e usar a referência para inspeção privada/estudo de linguagem.
