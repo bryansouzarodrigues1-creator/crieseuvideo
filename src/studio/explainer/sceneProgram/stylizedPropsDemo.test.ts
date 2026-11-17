@@ -28,17 +28,20 @@ describe('non-human 3D variety with existing generic scene grammar', () => {
       const score=compileSceneProgram(p,source);
       expect(score.sample(0).get('tomato')?.position).not.toEqual(score.sample(8).get('tomato')?.position);
       for (const aspect of [9/16,16/9]) {
-        let camera: number[] | undefined;
+        const cameras=new Map<number,number[]>();
         for(const t of [0,1.5,2.5,3.6,4.4,5.5,6.5,8]) {
           stage.update(t);stage.frame(aspect);
           const d=stage.diagnostics();
-          if(!camera)camera=d.camera;
-          else d.camera.forEach((x,i)=>expect(x).toBeCloseTo(camera![i],5));
+          const cut=t<2.64?0:t<5.84?1:2;
+          if(!cameras.has(cut))cameras.set(cut,d.camera);
+          else d.camera.forEach((x,i)=>expect(x).toBeCloseTo(cameras.get(cut)![i],5));
           expect(d.projectedBounds.min[0]).toBeGreaterThan(-.9);
           expect(d.projectedBounds.max[0]).toBeLessThan(.9);
           expect(d.projectedBounds.min[1]).toBeGreaterThan(-.7);
           expect(d.projectedBounds.max[1]).toBeLessThan(.9);
         }
+        expect(cameras.size).toBe(3);
+        expect(cameras.get(0)).not.toEqual(cameras.get(1));
       }
     } finally {stage.dispose();}
   });
