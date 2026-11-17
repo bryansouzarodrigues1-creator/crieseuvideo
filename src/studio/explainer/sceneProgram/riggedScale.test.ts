@@ -35,7 +35,7 @@ describe('rigged humanoid scaling, independent from mesh bounds', () => {
     calibrateRiggedHumanoid(model,1.88);
     const wrist=new THREE.Bone();wrist.name='Wrist.R';
     wrist.position.set(0,.001,0);head.add(wrist);
-    model.updateMatrixWorld(true,true);
+    model.updateWorldMatrix(true,true);
     const origin=wrist.getWorldPosition(new THREE.Vector3());
     const local=localGripOffsetMetres(wrist,new THREE.Vector3(.01,.02,.10));
     const world=wrist.localToWorld(local);
