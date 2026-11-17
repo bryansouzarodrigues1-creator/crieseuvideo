@@ -51,11 +51,18 @@ describe('independent scene action-density audit', () => {
     expect(report.beats[0]!.independentlyMovingNodes).toEqual(['subject']);
   });
 
-  it('flags an actor sliding its root without independently animated feet', () => {
+  it('accepts grounded actor root travel when the motor supplies procedural foot planting', () => {
     const p = make('actor', [track('subject', 'position', [[0, [0, 0, 0]], [1, [2, 0, 0]]])]);
     const report = auditSceneActionDensity(p, sources);
+    expect(report.findings.some((f) => f.kind === 'actor_root_glide')).toBe(false);
+  });
+
+  it('still flags unsupported gliding during diagonal ascents (not a grounded walk)', () => {
+    const p = make('actor', [track('subject', 'position', [[0, [0, 0, 0]], [1, [2, .6, 0]]])]);
+    const report = auditSceneActionDensity(p, sources);
     expect(report.findings).toContainEqual({
-      kind: 'actor_root_glide', sourceId: 's1', actorId: 'subject', metres: 2,
+      kind: 'actor_root_glide', sourceId: 's1', actorId: 'subject',
+      metres: Number(Math.hypot(2, .6).toFixed(3)),
     });
   });
 

@@ -19,6 +19,7 @@ export class ProgramActor3D {
   private eyes: THREE.Group[] = [];
   private brows: THREE.Mesh[] = [];
   private mouth: THREE.Mesh;
+  private soles: THREE.Mesh[] = [];
   constructor(color: string) {
     const mat = (c: string | number) => toonMaterial({ color: c });
     const cloth = mat(color), dark = mat(0x243549), skin = mat(0xe5ad83), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
@@ -48,14 +49,17 @@ export class ProgramActor3D {
       elbow.position.y = -a; root.add(elbow);
       mesh(elbow, new THREE.CapsuleGeometry(leg ? .09 : .08, b - .14, 4, 8), material, [0, -b / 2, 0]);
       hand.position.y = -b; elbow.add(hand);
-      if (leg) mesh(hand, new THREE.BoxGeometry(.23, .14, .35), glove, [0, .01, .085]);
+      if (leg) this.soles.push(mesh(hand, new THREE.BoxGeometry(.23, .14, .35), glove, [0, .01, .085]));
       else mesh(hand, new THREE.SphereGeometry(.105, 10, 8), glove).scale.set(.8, 1.05, .72);
       return { root, elbow, hand };
     };
     this.limbs = { leftHand: limb(-1, false), rightHand: limb(1, false), leftFoot: limb(-1, true), rightFoot: limb(1, true) };
   }
   socket(name: string) { return name === 'root' ? this.root : name === 'head' ? this.head : this.limbs[name as Effector]?.hand ?? this.root; }
+  /** Lower the shoe geometry relative to the planted IK ankle; preserves leg reach. */
+  setGroundedWalkSoles() { for (const shoe of this.soles) shoe.position.y = -.08; }
   reset(pose: Partial<Record<ProgramChannel, Vec3>>, time: number) {
+    for (const shoe of this.soles) shoe.position.y = .01;
     this.hips.position.set(0, 1.02, 0); this.hips.rotation.set(...(pose.bodyRotation ?? [0, 0, 0]));
     this.head.rotation.set(...(pose.headRotation ?? [0, 0, 0]));
     for (const limb of Object.values(this.limbs)) { limb.root.quaternion.identity(); limb.elbow.quaternion.identity(); limb.hand.quaternion.identity(); }

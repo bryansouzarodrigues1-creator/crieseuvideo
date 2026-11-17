@@ -60,14 +60,8 @@ export function craneExperimentProgram() {
     k('s1', 0, [-3.1, 0, 1.5]), k('s1', .28, [-2.82, 0, 1.5]),
     k('s1', .65, [-2.03, 0, 1.5]), k('s1', 1, [-2.03, 0, 1.5]),
   ], 'linear');
-  curve('worker', 'leftFoot', [
-    k('s1', 0, [-3.3, .1, 1.6]), k('s1', .25, [-3.02, .18, 1.65]),
-    k('s1', .54, [-2.22, .12, 1.6]), k('s1', 1, [-2.22, .1, 1.6]),
-  ]);
-  curve('worker', 'rightFoot', [
-    k('s1', 0, [-2.9, .1, 1.6]), k('s1', .32, [-2.62, .1, 1.6]),
-    k('s1', .64, [-1.83, .14, 1.68]), k('s1', 1, [-1.83, .1, 1.6]),
-  ]);
+  // Feet and arms are now solved by the SceneProgram motor from worker travel.
+  // The director no longer supplies absolute foot waypoints for ordinary walks.
   curve('worker', 'bodyRotation', [
     k('s1', 0, [0, 0, .04]), k('s1', .6, [0, 0, .08]),
     k('s1', .79, [.25, 0, -.24]), k('s1', 1, [.12, 0, -.1]),
@@ -169,9 +163,10 @@ export function craneExperimentProgram() {
     nodes: structuredClone(nodes),
     tracks: structuredClone(tracks),
     shots: [
-      { sourceId: 's1', subjects: ['worker', 'load'], azimuth: .14, endAzimuth: .33, elevation: .14, distance: 1.12 },
-      { sourceId: 's2', subjects: ['load', 'pulley-install'], azimuth: .35, endAzimuth: .50, elevation: .20, distance: 1.05 },
-      { sourceId: 's3', subjects: ['winch-install', 'load', 'pulley-install'], azimuth: .48, endAzimuth: .25, elevation: .19, distance: 1.06 },
+      // Steady three-quarter angles: the worker/physics move, not the camera.
+      { sourceId: 's1', subjects: ['worker', 'load'], azimuth: .16, endAzimuth: .16, elevation: .12, distance: 1.04 },
+      { sourceId: 's2', subjects: ['load', 'pulley-install'], azimuth: .24, endAzimuth: .24, elevation: .16, distance: 1.04 },
+      { sourceId: 's3', subjects: ['winch-install', 'load', 'pulley-install'], azimuth: .22, endAzimuth: .22, elevation: .16, distance: 1.04 },
     ],
     contacts: [],
     motionChecks: structuredClone(checks),

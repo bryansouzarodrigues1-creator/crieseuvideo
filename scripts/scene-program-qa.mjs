@@ -65,7 +65,11 @@ try {
     else { await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(spec.duration)); await page.locator('#duration-custom').dispatchEvent('change'); }
     const before = providerCalls; await page.locator('#generate').click();
     await page.waitForFunction(() => !document.getElementById('generate').disabled);
-    await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 30000 });
+    await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 12000 }).catch(async (error) => {
+      const message = await page.locator('#message').innerText().catch(() => 'message unavailable');
+      const action = await page.locator('#canvas').getAttribute('data-action').catch(() => 'canvas unavailable');
+      throw new Error('The programmed 3D scene was rejected before preview. UI message: ' + message + '; action: ' + action + '; JS errors: ' + JSON.stringify(errors) + '; original: ' + error);
+    });
     await page.evaluate(() => document.fonts.ready);
     assert.equal(providerCalls, before + 1); assert.equal(requests.at(-1).mode, 'program');
     assert.equal(Number(await page.locator('#timeline').getAttribute('max')), spec.duration);
