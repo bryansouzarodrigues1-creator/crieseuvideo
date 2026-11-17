@@ -65,9 +65,32 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
       const frame = gait.at(1.2, { rightHand: true });
       const actor = stage.actors.get('worker')!;
       expect(actor.hips.rotation.y).toBeCloseTo(frame.torsoYaw, 5);
+      const baseX = stage.score.sample(1.2).get('worker')!.pose.bodyRotation?.[0] ?? 0;
+      expect(actor.hips.rotation.x).toBeCloseTo(baseX + frame.torsoPitch, 5);
+      expect(frame.torsoPitch).toBeGreaterThan(.03);
       expect(actor.head.rotation.y).toBeCloseTo(frame.headYaw, 5);
       expect(stage.diagnostics().maxIKError).toBeLessThan(.025);
     } finally { stage.dispose(); }
+  });
+
+  it('aligns the shoes with travel direction and only pitches them during swing', () => {
+    const p = base();
+    const gait = buildProceduralWalk(p, craneExperimentSources, 'worker')!;
+    const sampled = Array.from({length:70},(_,i)=>gait.at(.1+i*.06));
+    expect(sampled.some(f=>f.leftFootPitch < -.055 || f.rightFootPitch < -.055)).toBe(true);
+    expect(sampled.every(f=>f.leftFootPitch>=-.121 && f.leftFootPitch<=0 && f.rightFootPitch>=-.121 && f.rightFootPitch<=0)).toBe(true);
+    expect(gait.at(5).leftFootPitch).toBe(0);
+    expect(gait.at(5).rightFootPitch).toBe(0);
+
+    const stage = new SceneProgram3D(p, craneExperimentSources);
+    try {
+      stage.update(2.4);
+      const foot = stage.actors.get('worker')!.limbs.leftFoot.hand;
+      const facing = new THREE.Vector3(0,0,1).applyQuaternion(foot.getWorldQuaternion(new THREE.Quaternion()));
+      expect(facing.x).toBeGreaterThan(.96);
+      expect(Math.abs(facing.z)).toBeLessThan(.20);
+      stage.validateContacts();
+    } finally {stage.dispose()}
   });
 
   it('returns the same deterministic gait after backwards scrubbing', () => {
