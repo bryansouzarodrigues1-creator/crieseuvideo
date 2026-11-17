@@ -49,7 +49,8 @@ export class SceneProgramError extends Error {
 const fail = (message: string): never => { throw new SceneProgramError(message); };
 const obj = (value: unknown): Record<string, any> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : fail('Uma definição do programa de cena não é um objeto.');
 const list = (value: unknown, max: number): any[] => {
-  if (!Array.isArray(value) || value.length > max) fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+  if (!Array.isArray(value)) return fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+  if (value.length > max) return fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
   // JavaScript-authored fixtures can contain array holes (from accidental ",,").
   // .map/.every skip holes, causing a mysterious crash inside the renderer.
   for (let i = 0; i < value.length; i++) if (!(i in value))
