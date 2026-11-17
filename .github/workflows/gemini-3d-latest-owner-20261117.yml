@@ -1,0 +1,59 @@
+# Explicit owner request in ChatGPT on 2026-11-17.
+# Single real Gemini API call, latest experimental engine code; no Lovable.
+# This job cannot run on ordinary pushes, PRs, cron or manual dispatch.
+name: Owner authorized Gemini latest 3D — worker handoff 12s
+
+on:
+  push:
+    branches: [run/gemini-latest-engine-20261117]
+    paths: [.gemini-owner-approval-20261117.txt]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: owner-gemini-engine-20261117-one-shot
+  cancel-in-progress: false
+
+jobs:
+  exactly-one-generation:
+    if: "${{ github.event.head_commit.message == 'trial: one Gemini API generation on current 3D engine 2026-11-17' }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    env:
+      CI: 'true'
+      CONFIRM_ONE_GEMINI_CALL: I_APPROVE_ONE_CALL
+      GEMINI_TEXT_MODEL: gemini-3.6-flash
+      FREEFORM_3D_GEMINI_API_KEY: ${{ secrets.FREEFORM_3D_GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install exact dependencies
+        run: bun install --frozen-lockfile
+      - name: Check latest engine TypeScript and build BEFORE inference
+        run: |
+          bunx tsc --noEmit
+          bun run build
+      - name: Install real browser and encoder BEFORE inference
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+          command -v ffprobe
+      - name: Fail closed if private Gemini secret is absent
+        run: |
+          if test -z "$FREEFORM_3D_GEMINI_API_KEY"; then echo 'No dedicated Gemini secret; 0 model requests'; exit 2; fi
+      - name: Verify actual Gemini model with non-generating GET
+        run: bun scripts/preflight-gemini-model.ts
+      - name: Exactly ONE generateContent call — no retry, no fallback
+        run: bun scripts/controlled-gemini-3d-trial.ts
+      - name: Render exact model-authored scene in latest React + SceneProgram engine
+        run: bun scripts/render-real-gemini-3d-trial.mjs
+      - name: Always preserve sanitized diagnostic, program and rendered MP4
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-latest-engine-20261117-12s-real-evidence
+          path: tmp/authorized-gemini-3d-trial/
+          if-no-files-found: warn
+          retention-days: 14
