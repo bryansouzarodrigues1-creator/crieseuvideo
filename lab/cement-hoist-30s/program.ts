@@ -134,6 +134,13 @@ export function cementLift30sProgram(){
   n.push(mesh('wood-top','box',[3.1,.25,.36],'#B1844E',[0,10.39,0],{parent:'pulley-stand'}));
   n.push(group('upper-pulley',[0,10.08,0],'pulley-stand'));
   n.push(mesh('upper-wheel','torus',[.27,.10],'#CE3D3D',[0,0,0],{parent:'upper-pulley'}));
+  // A uniform torus rotating around its own axis looks completely static.
+  // Asymmetric, real 3D spokes and a bright timing marker reveal its motion.
+  n.push(mesh('pulley-spoke-a','box',[.45,.070,.11],'#E9C37A',[0,0,.045],{parent:'upper-pulley'}));
+  n.push(mesh('pulley-spoke-b','box',[.34,.06,.11],'#D7DCE4',[0,0,.055],
+    {parent:'upper-pulley',rotation:[0,0,1.18]}));
+  n.push(mesh('pulley-motion-marker','box',[.13,.12,.14],'#2DD1EA',[.235,.02,.12],
+    {parent:'upper-pulley',rotation:[0,0,.24]}));
   n.push(mesh('upper-hub','cylinder',[.08,.08,.19],'#3D4655',[0,0,.03],{parent:'upper-pulley',rotation:[Math.PI/2,0,0]}));
   n.push(group('lift-rope',[0,10.0,0],'pulley-stand'));
   // TRUE 3D cable geometry: the stage computes position/orientation/length from pulley to hook on every frame.
