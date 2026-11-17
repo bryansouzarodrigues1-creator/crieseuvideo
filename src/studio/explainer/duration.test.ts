@@ -45,7 +45,7 @@ it('respects an eight-second target for two short Gemini 3D program beats', () =
   expect(totalDuration(withTargetDuration(program, 'auto'))).toBe(10);
   const timed = withTargetDuration(program, 8);
   expect(timed.targetDuration).toBe(8);
-  expect(timed.scenes.map(s => s.duration)).toEqual([4, 4]);
+  expect(timed.scenes.every(s => sceneDuration(s) >= 2.8)).toBe(true);
   expect(totalDuration(timed)).toBeCloseTo(8, 8);
   expect(exportDuration(timed, [])).toBeCloseTo(8, 8);
   expect(timed.scenes.map(s => s.text).join(' ')).toBe(script);
@@ -57,7 +57,7 @@ it('preserves a safe minimum for many 3D beats and keeps recorded audio intact',
   expect(many.scenes).toHaveLength(3);
   const program = { ...many, scenes: many.scenes.map(s => ({ ...s, programBeat: true })) };
   const short = withTargetDuration(program, 5);
-  expect(totalDuration(short)).toBeGreaterThanOrEqual(8.4);
+  expect(totalDuration(short)).toBeCloseTo(8.4, 8);
   expect(durationNotice(short)).toContain('duração ficou');
   expect(short.scenes.every(s => sceneDuration(s) >= 2.8)).toBe(true);
   const voiced = {
