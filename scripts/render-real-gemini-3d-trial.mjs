@@ -141,7 +141,7 @@ try{
   const downloaded=await pendingDownload;
   const native=path.join(out,'gemini-native'+path.extname(downloaded.suggestedFilename()));
   await downloaded.saveAs(native);
-  const mp4=path.join(out,'crieseuvideo-turbina-gemini-3d.mp4');
+  const mp4=path.join(out,'crieseuvideo-gemini-obra-duas-pessoas-12s.mp4');
   execFileSync('ffmpeg',['-v','error','-y','-i',native,'-an','-c:v','libx264',
     '-preset','veryfast','-crf','22','-pix_fmt','yuv420p','-movflags','+faststart',mp4],{
     timeout:210000,
