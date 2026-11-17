@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
-import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
+import { ExplainerPlan, VISUALS, MOODS, PRESENTER_POSES, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood, type PresenterPose } from './plan';
 import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
@@ -21,6 +21,7 @@ Agora a pergunta é: vai ser você?`;
 
 const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular (conversa)', profile: 'Perfil / link na bio', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
+const POSE_LABEL: Record<PresenterPose, string> = { idle: 'Parado', talking: 'Falando', pointing: 'Apontando', running: 'Correndo', shocked: 'Assustado' };
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
   const [script, setScript] = useState('');
@@ -376,6 +377,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                     <select value={s.mood} onChange={(e) => updateScene(i, { mood: e.target.value as Mood })} aria-label="Expressão">
                       {MOODS.map((m) => <option key={m} value={m}>{MOOD_LABEL[m]}</option>)}
                     </select>
+                    {engine === '3d' && <select value={s.presenterPose || ''} onChange={(e) => updateScene(i, { presenterPose: (e.target.value || undefined) as PresenterPose | undefined })} aria-label="Gesto 3D">
+                      <option value="">Gesto automático</option>
+                      {PRESENTER_POSES.map((p) => <option key={p} value={p}>{POSE_LABEL[p]}</option>)}
+                    </select>}
                     <input className="explainer-badge-input" placeholder="Etiqueta" value={s.label || ''} onChange={(e) => updateScene(i, { label: e.target.value || undefined })} aria-label="Etiqueta" />
                     {s.drawing && s.visual === 'custom' && <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); saveDrawing(i); }}><Bookmark />Salvar na galeria</Button>}
                   </div>

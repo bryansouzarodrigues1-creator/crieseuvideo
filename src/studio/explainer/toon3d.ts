@@ -295,7 +295,7 @@ export class Toon3D {
       const expression: FacialExpression = scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
       const hasHandProp = scene.visual === 'phone_chat' || scene.visual === 'profile' || scene.visual === 'money';
       // present the board for the first beat of each scene, then talk to camera
-      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle';
+      const pose: CharacterPose = scene.presenterPose ?? (scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle');
       const prop = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
       const ch: ToonCharacter = { id: 'host', pose, expression, gaze: hasHandProp ? 'lookAtProp' : 'lookAtCamera', prop, position: this.rigPos, rotationY: 0, scale: 1 };
       updateCharacterRig(this.rig, ch, t);
