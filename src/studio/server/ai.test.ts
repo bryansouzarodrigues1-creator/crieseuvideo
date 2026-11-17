@@ -70,6 +70,36 @@ describe('AI text provider selection', () => {
     expect(capped.generationConfig).not.toHaveProperty('thinkingConfig');
   });
 
+  it('keeps 60s by default and caps a requested owner-only Gemini timeout at 120s', async () => {
+    const fetchMock = vi.fn(async () => goodGemini());
+    vi.stubGlobal('fetch', fetchMock);
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    await askAiResult('Test owner 3D', undefined, {
+      AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'private-fixture-key',
+      GEMINI_REQUEST_TIMEOUT_MS: '120000',
+    });
+    expect(timers).toHaveBeenCalledWith(expect.any(Function), 120000);
+    timers.mockClear();
+    await askAiResult('Test malformed server timeout', undefined, {
+      AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'private-fixture-key',
+      GEMINI_REQUEST_TIMEOUT_MS: 'NaN',
+    });
+    expect(timers).toHaveBeenCalledWith(expect.any(Function), 60000);
+    timers.mockClear();
+    await askAiResult('Test cap', undefined, {
+      AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: 'private-fixture-key',
+      GEMINI_REQUEST_TIMEOUT_MS: '900000',
+    });
+    expect(timers).toHaveBeenCalledWith(expect.any(Function), 120000);
+    timers.mockClear();
+    await askAiResult('Test default legacy provider', undefined, {
+      AI_TEXT_PROVIDER: 'lovable', LOVABLE_API_KEY: 'private-fixture-key',
+      GEMINI_REQUEST_TIMEOUT_MS: '120000',
+    });
+    expect(timers).toHaveBeenCalledWith(expect.any(Function), 60000);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
   it('never falls back to Lovable when direct Gemini is missing a key', async () => {
     vi.stubEnv('AI_TEXT_PROVIDER', 'gemini');
     vi.stubEnv('GEMINI_API_KEY', '');
