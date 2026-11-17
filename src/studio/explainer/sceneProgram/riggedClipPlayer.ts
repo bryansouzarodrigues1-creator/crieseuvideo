@@ -68,6 +68,13 @@ export class RiggedClipPlayer {
     // stopAllAction removes all other tracks (unlike the previous implementation).
     // reset/replay on every seek avoids order-dependent playback state.
     this.mixer.stopAllAction();
+    // Imported GLBs often have separate, sparse clips: Walk animates leg/wrist
+    // bones while Interact does not animate every ancestor. A previous clip's
+    // residual transforms can distort the next clip by metres. Restore the
+    // ORIGINAL skeleton bind pose before each absolute-time evaluation.
+    this.root.traverse(object => {
+      if (object instanceof THREE.SkinnedMesh) object.skeleton.pose();
+    });
     const action=this.mixer.clipAction(clip);
     action.reset().setLoop(cue.loop===false?THREE.LoopOnce:THREE.LoopRepeat, cue.loop===false?1:Infinity);
     action.clampWhenFinished=true;
