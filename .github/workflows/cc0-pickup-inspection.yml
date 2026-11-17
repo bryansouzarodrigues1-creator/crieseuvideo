@@ -1,0 +1,77 @@
+name: Research CC0 authored pickup and locomotion clips
+# Isolated research only: source-verified GLB animation metadata.
+# No main merge, production deployment, Gemini, or paid API.
+on:
+  push:
+    branches: [experiment/rigged-clip-matrix-audit-20261117]
+    paths:
+      - '.github/workflows/cc0-pickup-inspection.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve pinned-by-checksum CC0 animation library
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/cc0-motion-audit
+          curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
+            'https://huggingface.co/datasets/Kinemiq/free-game-animations/resolve/main/KinemIQ_Free_Animations_CC0_GLB.zip' \
+            -o tmp/cc0-motion-audit/motions.zip
+          echo '64ca5ab4a92c9da079c5e88ca509391b0a58a24ccf2a1307b16e2f0fc6b23ffc  tmp/cc0-motion-audit/motions.zip' | sha256sum -c -
+      - name: Audit motion inventory, animation channels and skeleton without inventing actions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile, json, hashlib, re, struct
+          from pathlib import Path
+          archive=Path('tmp/cc0-motion-audit/motions.zip')
+          output=Path('tmp/cc0-motion-audit/catalog.json')
+          report={'source':'Kinemiq/free-game-animations',
+                  'upstreamOriginal':'Quaternius Universal Animation Library',
+                  'licenseClaim':'CC0 1.0 (verify source before production)',
+                  'zipSha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
+                  'assets':[],'candidateMotions':[],'warnings':[]}
+          with zipfile.ZipFile(archive) as z:
+              names=z.namelist()
+              report['zipEntryCount']=len(names)
+              for name in names:
+                  if not name.lower().endswith('.glb'):continue
+                  data=z.read(name)
+                  if len(data)<20 or data[:4]!=b'glTF' or struct.unpack_from('<I',data,4)[0]!=2:
+                      report['warnings'].append('Invalid binary GLB: '+name)
+                      continue
+                  json_size,tag=struct.unpack_from('<I4s',data,12)
+                  if tag!=b'JSON' or 20+json_size>len(data):
+                      report['warnings'].append('Invalid GLB JSON chunk: '+name)
+                      continue
+                  gltf=json.loads(data[20:20+json_size])
+                  motions=[a.get('name','') for a in gltf.get('animations',[])]
+                  channels=sum(len(a.get('channels',[])) for a in gltf.get('animations',[]))
+                  item={'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),
+                        'skins':len(gltf.get('skins',[])),'nodes':len(gltf.get('nodes',[])),
+                        'animationCount':len(motions),'animationNames':motions,
+                        'animationChannels':channels}
+                  report['assets'].append(item)
+                  if re.search('pick|grab|crouch|carry|bend|walk', name+' '+' '.join(motions),re.I):
+                      report['candidateMotions'].append(item)
+          output.write_text(json.dumps(report,indent=2,ensure_ascii=False))
+          print('AUDIT',json.dumps({'totalGLBs':len(report['assets']),
+                                  'candidateFiles':[x['path'] for x in report['candidateMotions']],
+                                  'warnings':report['warnings']}))
+          if len(report['assets'])<1:raise SystemExit('No valid authored GLB files found')
+          if not report['candidateMotions']:raise SystemExit('No candidate motion names found; do not claim usable pickup')
+          PY
+      - name: Save inspection report (no production asset deployment)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc0-motion-source-inventory
+          path: tmp/cc0-motion-audit/catalog.json
+          if-no-files-found: warn
+          retention-days: 7
