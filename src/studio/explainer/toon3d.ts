@@ -3,6 +3,7 @@
 import { createCharacterRig, updateCharacterRig, type ToonCharacterRig } from './toon/characterRig';
 import type { ToonCharacter, FacialExpression, CharacterPose } from './toon/types';
 import * as THREE from 'three';
+import { updateEnvironment } from './toon/environment';
 import { sceneAt, wordAt, type ExplainerPlan, type ExplainerScene, type Mood } from './plan';
 import { spring, drawBoardArt } from './render';
 
@@ -135,7 +136,7 @@ function buildSet(scene: ExplainerScene, world: THREE.Group, night: boolean, see
     }
   }
   if (s !== 'night' && s !== 'space' && s !== 'rain') { const sun = new THREE.Mesh(new THREE.SphereGeometry(1.2, 24, 16), new THREE.MeshBasicMaterial({ color: s === 'sunset' ? 0xff7a45 : 0xffe066 })); sun.position.set(6, 8, -14); world.add(sun); }
-  for (let i = 0; i < 4; i++) { const cl = new THREE.Group(); [0, 0.7, -0.7].forEach((dx, k) => { const p = toon(new THREE.SphereGeometry(0.7 - k * 0.1, 14, 10), s === 'rain' ? 0x7c8696 : 0xffffff, { outline: 0.02 }); p.position.x = dx; cl.add(p); }); cl.position.set(-8 + i * 5, 6 + R() * 2, -10); cl.userData.drift = 0.2 + R() * 0.3; world.add(cl); }
+  for (let i = 0; i < 4; i++) { const cl = new THREE.Group(); [0, 0.7, -0.7].forEach((dx, k) => { const p = toon(new THREE.SphereGeometry(0.7 - k * 0.1, 14, 10), s === 'rain' ? 0x7c8696 : 0xffffff, { outline: 0.02 }); p.position.x = dx; cl.add(p); }); cl.position.set(-8 + i * 5, 6 + R() * 2, -10); cl.userData.drift = 0.2 + R() * 0.3; cl.userData.driftOriginX = cl.position.x; world.add(cl); }
   return { indoor: false };
 }
 
@@ -295,7 +296,7 @@ export class Toon3D {
       const expression: FacialExpression = scene.mood === 'happy' ? 'smirk_patrick' : scene.mood === 'angry' ? 'angry' : scene.mood === 'sad' || scene.mood === 'worried' ? 'confused' : 'neutral';
       const hasHandProp = scene.visual === 'phone_chat' || scene.visual === 'profile' || scene.visual === 'money';
       // present the board for the first beat of each scene, then talk to camera
-      const pose: CharacterPose = scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle';
+      const pose: CharacterPose = scene.presenterPose ?? (scene.mood === 'worried' && local < 1.2 ? 'shocked' : hasHandProp ? 'holding_prop' : local > 0.25 && local < 1.5 ? 'pointing' : talk > 0 ? 'talking' : 'idle');
       const prop = scene.visual === 'phone_chat' || scene.visual === 'profile' ? 'phone' : scene.visual === 'money' ? 'coin_stack' : 'none';
       const ch: ToonCharacter = { id: 'host', pose, expression, gaze: hasHandProp ? 'lookAtProp' : 'lookAtCamera', prop, position: this.rigPos, rotationY: 0, scale: 1 };
       updateCharacterRig(this.rig, ch, t);
@@ -303,7 +304,7 @@ export class Toon3D {
       if (this.holder) this.holder.rotation.y = pose === 'pointing' ? (portrait ? 0 : 0.35) : (portrait ? 0 : 0.18);
       if (pose === 'pointing' && portrait) this.rig.head.rotation.x -= 0.18; // glance up at the board
     }
-    this.world.children.forEach((o) => { if (o.userData.drift) o.position.x += 0.004 * o.userData.drift; });
+    updateEnvironment(this.world, local);
     if (this.shot) {
       const k = ease(local / 0.9), push = Math.min(local, 8) * 0.025;
       const pos = this.shot.from.pos.clone().lerp(this.shot.to.pos, k);

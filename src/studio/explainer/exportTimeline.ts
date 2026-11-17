@@ -20,15 +20,30 @@ export interface MixSource {
 }
 export interface AudioCue { buffer: AudioBuffer; /** seconds on the timeline (t = 0 is the first video frame) */ at: number }
 
+/** Saved timing is not audio: a reopened project still needs its decoded clips loaded. */
+export function hasNarration({ plan, voiceKey, buffers, track }: MixSource): boolean {
+  if (!plan.scenes.length) return false;
+  if (plan.track) return !!track;
+  return plan.scenes.every((s) => !!s.voice && buffers.has(`${voiceKey}|${s.text}`));
+}
+
 /** Every audible element positioned on the timeline: the uploaded track, or one clip per narrated scene. */
 export function audioCues({ plan, voiceKey, buffers, track }: MixSource): AudioCue[] {
-  if (plan.track && track) return [{ buffer: track, at: 0 }];
+  if (plan.track) return track ? [{ buffer: track, at: 0 }] : [];
   const cues: AudioCue[] = [];
   plan.scenes.forEach((s, i) => {
     const buffer = s.voice && buffers.get(`${voiceKey}|${s.text}`);
     if (buffer) cues.push({ buffer, at: sceneStart(plan, i) + SCENE_LEAD });
   });
   return cues;
+}
+
+/** Scene numbers with missing narration, regardless of persisted timing metadata. */
+export function missingNarrationScenes({ plan, voiceKey, buffers }: Pick<MixSource, 'plan' | 'voiceKey' | 'buffers'>): number[] {
+  if (plan.track) return []; // Uploaded tracks are validated against `track` separately.
+  return plan.scenes.flatMap((scene, index) =>
+    scene.voice && buffers.has(`${voiceKey}|${scene.text}`) ? [] : [index + 1]
+  );
 }
 
 /** Export length: the longer of the visual timeline and the end of the last audio cue, plus the tail. */

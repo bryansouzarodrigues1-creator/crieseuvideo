@@ -1,17 +1,23 @@
 import { normalizeDrawing, type Shape } from './drawing';
 import { SETTINGS, type Setting } from './settings';
+import { scriptScenes, splitSceneText, spokenText } from './script';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
 export const VISUALS = ['character', 'phone_chat', 'profile', 'laptop', 'map_pins', 'clock', 'scale', 'eye', 'chips', 'city_night', 'chart_up', 'money', 'custom'] as const;
 export const MOODS = ['happy', 'neutral', 'sad', 'worried', 'angry'] as const;
+/** Gestures the existing 3D rig can perform; omit to retain automatic host behavior. */
+export const PRESENTER_POSES = ['idle', 'talking', 'pointing', 'running', 'shocked'] as const;
 export const PALETTES = ['orange', 'purple', 'teal', 'pink', 'night'] as const;
 export type Visual = (typeof VISUALS)[number];
 export type Mood = (typeof MOODS)[number];
+export type PresenterPose = (typeof PRESENTER_POSES)[number];
 export type Palette = (typeof PALETTES)[number];
 
 export interface ExplainerScene {
   text: string;
   visual: Visual;
   mood: Mood;
+  /** Optional meaning-driven gesture for the 3D presenter; no new 3D assets required. */
+  presenterPose?: PresenterPose;
   palette: Palette;
   label?: string;
   chat?: string;
@@ -99,8 +105,16 @@ export function pickMood(sentence: string): Mood {
   return 'neutral';
 }
 
+/** A conservative zero-AI fallback: only direct human gestures, never guess elaborate action choreography. */
+export function pickPresenterPose(text: string): PresenterPose | undefined {
+  if (has(text, /\bcorr(?:e|eu|er|endo|ia|iam|eram)\b|\bfug(?:iu|ir|indo)\b|persegui|perseguindo|disparou/)) return 'running';
+  if (has(text, /assust|espant|levou um susto|apavor|aterror|surpres/)) return 'shocked';
+  if (has(text, /apont|indicou|indicando|mostr(?:ou|ando|ar)|sinaliz/)) return 'pointing';
+  return undefined;
+}
+
 export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:16'): ExplainerPlan {
-  const sentences = script.split(/(?<=[.!?…])\s+|\n+/).map((s) => s.trim()).filter(Boolean).slice(0, 40);
+  const sentences = scriptScenes(script);
   const list = sentences.length ? sentences : ['Escreva seu roteiro para começar.'];
   const scenes = list.map((text, i): ExplainerScene => {
     const visual = pickVisual(text);
@@ -108,7 +122,7 @@ export function buildFallbackPlan(script: string, aspect: '9:16' | '16:9' = '9:1
     const num = text.match(/\d+\s+[\p{L}]+/u)?.[0];
     const longest = [...words(text)].sort((a, b) => b.length - a.length)[0]?.replace(/[^\p{L}\d]/gu, '');
     return {
-      text, visual, mood,
+      text, visual, mood, presenterPose: pickPresenterPose(text),
       palette: visual === 'city_night' || mood === 'sad' ? 'night' : PALETTES[i % 4],
       label: num ? `${num.toUpperCase()}…` : undefined,
       chat: visual === 'phone_chat' ? text : undefined,
@@ -123,9 +137,10 @@ const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.
 
 export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9'): ExplainerPlan {
   const fb = buildFallbackPlan(script, aspect);
-  const arr = Array.isArray(raw?.scenes) ? raw.scenes : [];
-  const scenes = arr.slice(0, 40).map((s: any, i: number): ExplainerScene | null => {
-    const text = str(s?.text, 400);
+  const arr = Array.isArray(raw?.scenes) ? raw.scenes.filter((s: any) => s && typeof s === 'object') : [];
+  const faithful = keepScriptWords(arr, script).flatMap((scene: any) => splitSceneText(scene.text).map((text) => ({ ...scene, text })));
+  const scenes = faithful.map((s: any, i: number): ExplainerScene | null => {
+    const text = s.text;
     if (!text) return null;
     const drawing = normalizeDrawing(s?.drawing);
     let visual = pick(s.visual, VISUALS, pickVisual(text));
@@ -136,6 +151,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       drawing: visual === 'custom' ? drawing : undefined,
       setting: (SETTINGS as readonly string[]).includes(s.setting) ? s.setting : pickSetting(text),
       mood: pick(s.mood, MOODS, pickMood(text)),
+      presenterPose: (PRESENTER_POSES as readonly string[]).includes(s.presenterPose) ? (s.presenterPose as PresenterPose) : pickPresenterPose(text),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),
       chat: str(s.chat, 120),
@@ -166,7 +182,12 @@ export function pickSetting(text: string): Setting | undefined {
  */
 export function keepScriptWords<T extends { text?: unknown }>(scenes: T[], script: string): (T & { text: string })[] {
   const source = script.match(/\S+/g) ?? [];
-  const list = scenes.slice(0, Math.min(40, source.length));
+  const list = scenes.filter((scene) => scene && typeof scene === 'object').slice(0, source.length);
+  // Correct AI boundaries must survive intact: proportional redistribution can move
+  // a word into an unrelated drawing even when every word was already correct.
+  if (spokenText(list.map((sc) => String(sc.text ?? '')).join(' ')) === source.join(' ')) {
+    return list.map((sc) => ({ ...sc, text: spokenText(String(sc.text ?? '')) })).filter((sc) => sc.text);
+  }
   const weights = list.map((sc) => Math.max(1, String(sc?.text ?? '').trim().split(/\s+/).filter(Boolean).length));
   const total = weights.reduce((a, b) => a + b, 0) || 1;
   let cursor = 0;
