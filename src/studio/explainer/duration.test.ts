@@ -35,3 +35,44 @@ it('validates duration before any request and stays stable through repeated chan
   expect(totalDuration(plan)).toBeCloseTo(30);
   expect(exportDuration(plan, [])).toBeCloseTo(30);
 });
+
+it('respects an eight-second target for two short Gemini 3D program beats', () => {
+  const script = 'A turbina recebe vento. Suas pás começam a girar.';
+  const prepared = buildFallbackPlan(script);
+  expect(prepared.scenes).toHaveLength(2);
+  const program = { ...prepared, scenes: prepared.scenes.map(s => ({ ...s, programBeat: true })) };
+  // Auto timing keeps 5 seconds minimum per 3D beat for easy reading.
+  expect(totalDuration(withTargetDuration(program, 'auto'))).toBe(10);
+  const timed = withTargetDuration(program, 8);
+  expect(timed.targetDuration).toBe(8);
+  expect(timed.scenes.every(s => sceneDuration(s) >= 2.8)).toBe(true);
+  expect(totalDuration(timed)).toBeCloseTo(8, 8);
+  expect(exportDuration(timed, [])).toBeCloseTo(8, 8);
+  expect(timed.scenes.map(s => s.text).join(' ')).toBe(script);
+  expect(durationNotice(timed)).not.toContain('A duração ficou');
+});
+
+it('preserves a safe minimum for many 3D beats and keeps recorded audio intact', () => {
+  const many = buildFallbackPlan('Primeiro surge um eixo. Depois ele gira. Em seguida ele para.');
+  expect(many.scenes).toHaveLength(3);
+  const program = { ...many, scenes: many.scenes.map(s => ({ ...s, programBeat: true })) };
+  const short = withTargetDuration(program, 5);
+  expect(totalDuration(short)).toBeCloseTo(8.4, 8);
+  expect(durationNotice(short)).toContain('duração ficou');
+  expect(short.scenes.every(s => sceneDuration(s) >= 2.8)).toBe(true);
+  const voiced = {
+    ...program,
+    scenes: program.scenes.map((s, i) => i === 0 ? { ...s, voice: { duration: 5.2, start: 0, end: 5.2 } } : s),
+  };
+  const withVoice = withTargetDuration(voiced, 8);
+  expect(totalDuration(withVoice)).toBeGreaterThan(10.8);
+  expect(withVoice.scenes[0].voice?.duration).toBe(5.2);
+});
+
+it('does not lose requested timing when repeatedly switching the 3D program between 8 and 10 seconds', () => {
+  const p = buildFallbackPlan('O vento chega. A turbina gira.');
+  let program: ExplainerPlan = { ...p, scenes: p.scenes.map(s => ({ ...s, programBeat: true })) };
+  for (const n of [8, 10, 8]) program = withTargetDuration(program, n);
+  expect(totalDuration(program)).toBeCloseTo(8, 8);
+  expect(program.scenes.map(s => s.duration)).toEqual([4, 4]);
+});

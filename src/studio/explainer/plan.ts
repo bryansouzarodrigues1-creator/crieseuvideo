@@ -61,13 +61,15 @@ export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
 export const SECONDS_PER_WORD = 0.36;
 export const SCENE_LEAD = 0.3;
 export const MIN_SCENE = 2.4;
+/** Minimum for an explicitly timed 3D program beat. Auto pacing remains 5s. */
+export const TIMED_PROGRAM_BEAT_MIN = 2.8;
 
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 export const VOICE_TAIL = 0.35;
 export function sceneDuration(s: ExplainerScene) {
   const explicit = Number.isFinite(s.duration) && s.duration! > 0 ? s.duration! : 0;
   const speech = s.voice ? SCENE_LEAD + s.voice.duration + VOICE_TAIL : 0;
-  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.programBeat ? 5 : s.productionBeat ? 3.6 : 0, explicit,
+  return Math.max(s.story?.performance === 'grounded-v1' ? 18 : s.programBeat ? (explicit ? TIMED_PROGRAM_BEAT_MIN : 5) : s.productionBeat ? 3.6 : 0, explicit,
     explicit ? speech : s.voice ? Math.max(1.6, speech) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + .5));
 }
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);

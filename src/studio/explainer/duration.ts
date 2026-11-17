@@ -1,4 +1,4 @@
-import { sceneDuration, words, SCENE_LEAD, VOICE_TAIL, type ExplainerPlan, type ExplainerScene } from './plan';
+import { sceneDuration, words, SCENE_LEAD, VOICE_TAIL, TIMED_PROGRAM_BEAT_MIN, type ExplainerPlan, type ExplainerScene } from './plan';
 
 export const DURATION_PRESETS = [15, 30, 60, 90] as const;
 export const MAX_TARGET_DURATION = 600;
@@ -9,7 +9,7 @@ export function normalizeTargetDuration(value: unknown): number | undefined {
   return Math.round(n * 30) / 30;
 }
 export function minimumSceneDuration(scene: ExplainerScene): number {
-  const movement = scene.story?.performance ? 18 : scene.programBeat ? 5 : scene.productionBeat ? 3.6 : scene.staging ? 2.5 : 1.6;
+  const movement = scene.story?.performance ? 18 : scene.programBeat ? TIMED_PROGRAM_BEAT_MIN : scene.productionBeat ? 3.6 : scene.staging ? 2.5 : 1.6;
   return Math.max(movement, scene.voice ? SCENE_LEAD + scene.voice.duration + VOICE_TAIL : 0);
 }
 /** Retime the shared score, never truncate words or change recorded audio speed.
