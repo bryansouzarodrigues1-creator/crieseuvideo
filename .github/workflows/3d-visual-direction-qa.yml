@@ -1,0 +1,36 @@
+name: Gemini 3D Visual Direction Offline QA
+
+on:
+  push:
+    branches: [feat/3d-visual-direction-v6]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-direction-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-and-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Check visual guidance and all regression tests (no AI)
+        run: bun run test
+      - name: Validate TypeScript and app/lab builds
+        run: |
+          bunx tsc --noEmit
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Assert generation CLI is dry-run by default
+        run: bun scripts/controlled-gemini-3d-trial.ts
