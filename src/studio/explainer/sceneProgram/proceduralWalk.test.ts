@@ -50,6 +50,7 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
         const diagnostics = stage.diagnostics();
         expect(diagnostics.maxIKError).toBeLessThan(.025);
       }
+      expect(() => stage.validateContacts()).not.toThrow();
       stage.update(2);
       expect(stage.nodes.get('worker')!.rotation.y).toBeCloseTo(Math.PI / 2, 1);
       const first = vec(stage.actors.get('worker')!.limbs.leftFoot.hand.getWorldPosition(new THREE.Vector3()).toArray());
