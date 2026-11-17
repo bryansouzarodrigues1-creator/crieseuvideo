@@ -48,7 +48,14 @@ export class SceneProgramError extends Error {
 }
 const fail = (message: string): never => { throw new SceneProgramError(message); };
 const obj = (value: unknown): Record<string, any> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : fail('Uma definição do programa de cena não é um objeto.');
-const list = (value: unknown, max: number): any[] => Array.isArray(value) && value.length <= max ? value : fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+const list = (value: unknown, max: number): any[] => {
+  if (!Array.isArray(value) || value.length > max) fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+  // JavaScript-authored fixtures can contain array holes (from accidental ",,").
+  // .map/.every skip holes, causing a mysterious crash inside the renderer.
+  for (let i = 0; i < value.length; i++) if (!(i in value))
+    fail('Uma lista do programa contém um elemento ausente. Corrija a animação antes de renderizar.');
+  return value;
+};
 const num = (v: unknown, a: number, b: number) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b ? v : fail('Uma coordenada, tempo ou dimensão do programa é inválida.');
 const vector = (v: unknown, a = -200, b = 200): Vec3 => { const p = list(v, 3); if (p.length !== 3) fail('Uma coordenada precisa de três valores.'); return p.map((x) => num(x, a, b)) as Vec3; };
 const identifier = (v: unknown) => typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v) ? v : fail('Um identificador do programa é inválido.');
