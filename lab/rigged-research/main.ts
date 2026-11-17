@@ -162,6 +162,7 @@ function seek(t:number){
   const handError=owner==='table'?0:wrist.getWorldPosition(new THREE.Vector3()).distanceTo(tool.getWorldPosition(new THREE.Vector3()));
   return {
     time,owner,toolHandDistance:handError,
+    toolPosition:tool.getWorldPosition(new THREE.Vector3()).toArray(),
     workerClip:worker.director.activeClip,
     casualClip:casual.director.activeClip,
     riggedSkinnedMeshes:scene.children.reduce((a,o)=>{
