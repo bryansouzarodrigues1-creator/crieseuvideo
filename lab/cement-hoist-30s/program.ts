@@ -180,7 +180,7 @@ export function cementLift30sProgram(){
     track('worker-ground','position',[[0,[-4.7,0,3.15]],[.015,[-4.7,0,3.15]],[.23,[-2.30,0,2.65]],[.26,[-2.30,0,2.65]]]),
     track('worker-ground','rotation',[[0,[0,0,0]],[.30,[0,0,0]]]) ,
     // The upper-storey worker now carries out visible movement during 7–12s.
-    track('worker-upper','position',[[0,[2.20,10.15,-.60]],[.23,[2.20,10.15,-.60]],[.31,[1.20,10.15,-.60]],[.40,[2.07,10.15,-.60]],[1,[2.07,10.15,-.60]]]),,
+    track('worker-upper','position',[[0,[2.20,10.15,-.60]],[.23,[2.20,10.15,-.60]],[.31,[1.20,10.15,-.60]],[.40,[2.07,10.15,-.60]],[1,[2.07,10.15,-.60]]]),
     track('pallet','position',[[0,[0,.42,0]],[.48,[0,.42,0]],[.54,[0,.42,0]],[.67,[0,5.3,0]],[.77,[0,7.65,0]],[1,[0,7.65,0]]]),
     // No rope keyframes. The reusable cable constraint creates a real physical connection.
     track('upper-pulley','rotation',[[0,[0,0,0]],[.38,[0,0,0]],[.54,[0,0,4]],[.78,[0,0,18]],[1,[0,0,18]]],'linear'),
