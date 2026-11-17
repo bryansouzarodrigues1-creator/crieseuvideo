@@ -106,7 +106,7 @@ try{
   }));
   const overlapping=actingSamples.filter(x=>
     x.actorRootSeparationMetres<ACTOR_MIN_ROOT_SEPARATION_METRES);
-  const pickupClipAvailable=info.worker.some(x=>/\\b(pickup|grab|crouch|bend)\\b/i.test(x.split('|').pop().replace(/[_-]/g,' ')));
+  const pickupClipAvailable=info.worker.some(x=>/(pickup|grab|crouch|bend)/i.test(x.split('|').pop().replace(/[_-]/g,' ')));
   const actingFailures=[
     ...overlapping.map(x=>'Actors too close for an intelligible handoff at '+x.time+'s: '+x.actorRootSeparationMetres.toFixed(3)+'m'),
     ...(!pickupClipAvailable?['No verified pickup/crouch clip or IK grasp motion in this lab; hand attachment alone is not pickup acting']:[]),
