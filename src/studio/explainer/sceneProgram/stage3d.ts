@@ -48,6 +48,11 @@ export class SceneProgram3D {
   private maxIKError = 0;
   private contactProblems: unknown[] = [];
   private projectedBounds = { min: [0, 0], max: [0, 0] };
+  // The entire time interval of each shot is framed, not a moving bounding
+  // box recalculated from one frame. That prevents lateral camera chasing,
+  // spontaneous zooms and cropping when the subject travels across the set.
+  private shotEnvelopes = new Map<string, THREE.Box3>();
+  private shotDistances = new Map<string, number>();
   constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
     this.score = compileSceneProgram(program, sources);
     for (const n of program.nodes) if (n.kind === 'actor') {
@@ -289,30 +294,94 @@ export class SceneProgram3D {
     }
   }
 
+  private shotEnvelope(sourceId: string, subjects: string[], span: { start: number; duration: number }): THREE.Box3 {
+    const existing = this.shotEnvelopes.get(sourceId);
+    if (existing) return existing;
+    const originalTime = this.time, bounds = new THREE.Box3();
+    // Sample actual hierarchy and authored curves throughout the shot. This
+    // is intentionally unrelated to actor identity: a vehicle, flower,
+    // machine or any newly authored group uses the same framing contract.
+    try {
+      for (let i = 0; i <= 24; i++) {
+        this.update(span.start + span.duration * (i / 24));
+        for (const id of subjects) bounds.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
+      }
+    } finally {
+      this.update(originalTime);
+    }
+    if (bounds.isEmpty()) throw new SceneProgramError('A câmera não encontrou geometria para enquadrar.');
+    // A modest safety margin accounts for extrema between samples, motion
+    // blur/ink outlines and the safe area reserved for captions.
+    bounds.expandByScalar(Math.max(.15, bounds.getSize(V()).length() * .06));
+    this.shotEnvelopes.set(sourceId, bounds);
+    return bounds;
+  }
+
   frame(aspect: number) {
-    const { span, shot } = this.score.shot(this.time), box = new THREE.Box3();
-    for (const id of shot.subjects) box.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
-    if (box.isEmpty()) throw new SceneProgramError('A câmera não encontrou geometria para enquadrar.');
-    box.expandByScalar(.13);
-    const look = box.getCenter(V()), u = THREE.MathUtils.clamp((this.time - span.start) / span.duration, 0, 1);
-    const angle = shot.azimuth + (shot.endAzimuth - shot.azimuth) * u;
-    const direction = V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
-    const points: THREE.Vector3[] = [];
-    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) points.push(V(x, y, z));
-    this.camera.aspect = aspect; this.camera.near = .05; this.camera.far = 1500; this.camera.updateProjectionMatrix(); // wide range while searching the distance
-    const fit = (distance: number) => {
-      this.camera.position.copy(look).addScaledVector(direction, distance); this.camera.lookAt(look); this.camera.updateMatrixWorld(true);
-      return points.every((p) => { const n = p.clone().project(this.camera); return n.z > -1 && n.z < 1 && Math.abs(n.x) <= .88 && n.y >= -.63 && n.y <= .86; });
+    const { span, shot } = this.score.shot(this.time);
+    const box = this.shotEnvelope(span.sourceId, shot.subjects, span);
+    const look = box.getCenter(V());
+    const u = THREE.MathUtils.clamp((this.time - span.start) / span.duration, 0, 1);
+    // An AI changing endAzimuth alone must never produce sideways wandering.
+    // A deliberate orbit is opt-in, and its entire arc is fitted in advance.
+    const azimuth = shot.motion === 'orbit'
+      ? shot.azimuth + (shot.endAzimuth - shot.azimuth) * u
+      : shot.azimuth;
+    const direction = (angle: number) =>
+      V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
+    const corners = (b: THREE.Box3) => {
+      const pts: THREE.Vector3[] = [];
+      for (const x of [b.min.x, b.max.x])
+        for (const y of [b.min.y, b.max.y])
+          for (const z of [b.min.z, b.max.z]) pts.push(V(x, y, z));
+      return pts;
     };
-    let lo = .2, hi = 1400;
-    if (!fit(hi)) throw new SceneProgramError('A cena excedeu os limites de enquadramento.');
-    for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (fit(mid)) hi = mid; else lo = mid; }
-    fit(hi * shot.distance);
-    // Depth precision follows the shot: a fixed 0.05..1500 range makes overlapping surfaces shimmer.
-    const view = this.camera.matrixWorldInverse, depth = Math.min(...points.map((p) => -p.clone().applyMatrix4(view).z)), dist = this.camera.position.distanceTo(look);
-    this.camera.near = THREE.MathUtils.clamp(Math.min(dist * .04, depth * .5), .05, 6); this.camera.far = Math.max(400, dist * 30); this.camera.updateProjectionMatrix();
-    const projected = points.map((p) => p.clone().project(this.camera));
-    this.projectedBounds = { min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))], max: [Math.max(...projected.map((p) => p.x)), Math.max(...projected.map((p) => p.y))] };
+    const points = corners(box);
+    this.camera.aspect = aspect; this.camera.near = .05; this.camera.far = 1500;
+    this.camera.updateProjectionMatrix();
+    const setView = (distance: number, angle: number) => {
+      this.camera.position.copy(look).addScaledVector(direction(angle), distance);
+      this.camera.lookAt(look); this.camera.updateMatrixWorld(true);
+    };
+    const fits = (distance: number, angle: number) => {
+      setView(distance, angle);
+      return points.every((p) => {
+        const n = p.clone().project(this.camera);
+        return n.z > -1 && n.z < 1 && Math.abs(n.x) <= .82 && n.y >= -.59 && n.y <= .83;
+      });
+    };
+    const key = span.sourceId + ':' + aspect.toFixed(6);
+    let distance = this.shotDistances.get(key);
+    if (distance === undefined) {
+      const angles = shot.motion === 'orbit'
+        ? Array.from({ length: 17 }, (_, i) => shot.azimuth + (shot.endAzimuth - shot.azimuth) * (i / 16))
+        : [shot.azimuth];
+      let lo = .2, hi = 1400;
+      if (!angles.every((angle) => fits(hi, angle)))
+        throw new SceneProgramError('A cena excedeu os limites de enquadramento.');
+      for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        if (angles.every((angle) => fits(mid, angle))) hi = mid; else lo = mid;
+      }
+      distance = hi * shot.distance;
+      this.shotDistances.set(key, distance);
+    }
+    setView(distance, azimuth);
+    // Clip precision adapts to the shot-wide envelope, not moving targets.
+    const depth = Math.min(...points.map((p) => -p.clone().applyMatrix4(this.camera.matrixWorldInverse).z));
+    this.camera.near = THREE.MathUtils.clamp(Math.min(distance * .04, depth * .5), .05, 6);
+    this.camera.far = Math.max(400, distance * 30);
+    this.camera.updateProjectionMatrix();
+
+    // Keep diagnostics truthful: these are the CURRENT frame's projected
+    // subject bounds, which should remain safely inside the shot-wide fit.
+    const current = new THREE.Box3();
+    for (const id of shot.subjects) current.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
+    const projected = corners(current).map((p) => p.project(this.camera));
+    this.projectedBounds = {
+      min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))],
+      max: [Math.max(...projected.map((p) => p.x)), Math.max(...projected.map((p) => p.y))],
+    };
   }
   render(renderer: THREE.WebGLRenderer, time: number, w: number, h: number) {
     this.update(time); if (this.maxIKError > .025) throw new SceneProgramError('Um alvo corporal saiu do alcance neste quadro. O vídeo não será exportado com essa falha.');
