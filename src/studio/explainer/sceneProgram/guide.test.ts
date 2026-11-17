@@ -40,5 +40,7 @@ describe('expressive 3D without generic placeholders or obligatory humans', () =
     expect(SCENE_PROGRAM_GUIDE).toContain('motion:"locked" é o PADRÃO');
     expect(SCENE_PROGRAM_GUIDE).toContain('motion:"orbit" SOMENTE');
     expect(SCENE_PROGRAM_GUIDE).toContain('tomada INTEIRA');
+    expect(SCENE_PROGRAM_GUIDE).toContain('cuts:[');
+    expect(SCENE_PROGRAM_GUIDE).toContain('câmera ESTÁVEL nesse intervalo');
   });
 });
