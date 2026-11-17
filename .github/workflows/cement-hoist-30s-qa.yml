@@ -1,0 +1,57 @@
+name: Construction cement lift - real 30-second 3D proof
+on:
+  push:
+    branches: [experiment/cement-hoist-30s-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cement-hoist-30s-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  render-and-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      FREEFORM_3D_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked project dependencies
+        run: bun install --frozen-lockfile
+      - name: Test existing scene engine and compilation
+        run: |
+          bun run test
+          bunx tsc --noEmit
+          bun run build
+          node lab/build.mjs
+          bunx tsc --noEmit -p lab/tsconfig.json
+      - name: Install Chromium and H264 encoder
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Start real SceneProgram3D 30s laboratory
+        run: |
+          mkdir -p tmp/cement-hoist-30s
+          bunx vite lab/cement-hoist-30s --host 127.0.0.1 --port 4193 --strictPort >tmp/cement-hoist-30s/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4193/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 tmp/cement-hoist-30s/vite.log
+          exit 1
+      - name: Render entire first 30s in Three.js and inspect real frame motion
+        run: bun scripts/cement-hoist-30s-qa.mjs
+      - name: Preserve actual MP4, frames and QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cement-hoist-30s-scene-qa
+          path: tmp/cement-hoist-30s/
+          if-no-files-found: warn
+          retention-days: 7
