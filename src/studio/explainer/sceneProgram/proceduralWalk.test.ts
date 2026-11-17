@@ -15,7 +15,7 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
     expect(gait).toBeDefined();
     expect(gait!.totalDistance).toBeGreaterThan(1);
     expect(gait!.at(1).heading).toBeCloseTo(Math.PI / 2, 1);
-    const ground = p.nodes.find(n => n.id === 'worker')!.position[1] + .09;
+    const ground = p.nodes.find(n => n.id === 'worker')!.position[1] + .15;
     const phases = Array.from({length:70},(_,i)=>gait!.at(i*.06));
     expect(phases.some(f=>f.leftFoot[1]>ground+.09)).toBe(true);
     expect(phases.some(f=>f.rightFoot[1]>ground+.09)).toBe(true);
