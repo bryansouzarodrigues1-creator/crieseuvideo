@@ -9,7 +9,7 @@ export type ProgramChannel = typeof PROGRAM_CHANNELS[number];
 export const EFFECTORS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const;
 export type Effector = typeof EFFECTORS[number];
 export type Socket = 'root' | 'head' | Effector;
-export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number }
+export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number; /** Rounded edge radius for box (metres); cosmetic only. */ bevel?: number; bevelSegments?: number }
 export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
@@ -68,7 +68,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
     let geometry: ProgramGeometry | undefined;
     if (n.kind === 'mesh') {
-      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'segments']);
+      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'segments', 'bevel', 'bevelSegments']);
       const arity: Record<string, number> = { box: 3, sphere: 1, capsule: 2, cone: 2, cylinder: 3, plane: 2, torus: 2, tube: 1 };
       if (g.shape === 'lathe') {
         // Generic surface-of-revolution: jars, bottles, gears, vases, wheels, etc.
@@ -102,7 +102,16 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
         if (size.length !== count || g.shape === 'cylinder' && (size[2] <= 0 || size[0] + size[1] <= 0)) fail('As dimensões da geometria são inválidas.');
         let points: Vec3[] | undefined;
         if (g.shape === 'tube') { points = list(g.points, 64).map((p) => vector(p)); if (points.length < 2) fail('Um tubo precisa de um caminho.'); }
-        geometry = { shape: g.shape, size, ...(points ? { points } : {}) };
+        // Rounded edges are a cosmetic option of boxes. Models often emit bevel* on other shapes too; that is
+        // harmless data, so it is dropped (not rejected) while every other unknown field still fails.
+        let bevel: number | undefined, bevelSegments: number | undefined;
+        if (g.shape === 'box' && g.bevel !== undefined) {
+          const radius = num(g.bevel, 0, 20), segments = num(g.bevelSegments ?? 3, 1, 8);
+          if (!Number.isInteger(segments)) fail('A resolução do arredondamento precisa ser inteira.');
+          const limit = Math.min(...size) / 2 * .98;
+          if (radius > 0) { bevel = Math.min(radius, limit); bevelSegments = segments; }
+        } else if (g.bevel !== undefined) num(g.bevel, 0, 20);
+        geometry = { shape: g.shape, size, ...(points ? { points } : {}), ...(bevel ? { bevel, bevelSegments } : {}) };
       }
     } else if (n.geometry !== undefined) fail('Somente malhas definem geometria.');
     let material: ProgramNode['material'];

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ProgramActor3D } from './actor3d';
 import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
 import type { ApprovedModelId } from './modelRegistry';
@@ -14,7 +15,7 @@ const SURFACE_TOLERANCE = .36;
 
 function geometry(g: ProgramGeometry): THREE.BufferGeometry {
   const d = g.size ?? [];
-  if (g.shape === 'box') return new THREE.BoxGeometry(d[0], d[1], d[2]);
+  if (g.shape === 'box') return g.bevel ? new RoundedBoxGeometry(d[0], d[1], d[2], g.bevelSegments ?? 3, g.bevel) : new THREE.BoxGeometry(d[0], d[1], d[2]);
   if (g.shape === 'sphere') return new THREE.SphereGeometry(d[0], 14, 10);
   if (g.shape === 'capsule') return new THREE.CapsuleGeometry(d[0], d[1], 4, 10);
   if (g.shape === 'cone') return new THREE.ConeGeometry(d[0], d[1], 12);
@@ -82,7 +83,27 @@ export class SceneProgram3D {
       const parent = n.parent ? this.actors.get(n.parent)?.socket(n.socket) ?? this.nodes.get(n.parent)! : this.scene;
       parent.add(this.nodes.get(n.id)!);
     }
-    this.update(0);
+    this.update(0); this.extendGround();
+  }
+  /** Finite floors show a hard edge against the sky. A large, static, flat, upright slab is continued by a
+   * wide matching disc just below it; fog blends the disc into the horizon. Structure-only: no keywords. */
+  private extendGround() {
+    const byId = new Map(this.program.nodes.map((n) => [n.id, n])), moving = new Set(this.program.tracks.filter((t) => ['position', 'rotation', 'scale'].includes(t.channel)).map((t) => t.node));
+    const isStatic = (id?: string) => { for (let n = id, depth = 0; n && depth < 20; n = byId.get(n)?.parent, depth++) if (moving.has(n)) return false; return true; };
+    let best: { top: number; thick: number; center: THREE.Vector3; color: string } | undefined;
+    for (const n of this.program.nodes) {
+      const shape = n.geometry?.shape;
+      if (n.kind !== 'mesh' || n.repeat || !shape || !['box', 'cylinder', 'plane'].includes(shape) || (n.material?.opacity ?? 1) < 1 || !isStatic(n.id)) continue;
+      const object = this.nodes.get(n.id)!; object.updateWorldMatrix(true, false);
+      const up = V(0, shape === 'plane' ? 0 : 1, shape === 'plane' ? 1 : 0).applyQuaternion(object.getWorldQuaternion(new THREE.Quaternion()));
+      if (up.y < .99) continue;
+      const box = new THREE.Box3().setFromObject(object), size = box.getSize(V()), width = Math.min(size.x, size.z), thick = size.y;
+      if (width < 10 || width >= 150 || thick > 1.5 || thick > width * .1) continue;
+      if (!best || box.max.y < best.top - 1e-6) best = { top: box.max.y, thick, center: box.getCenter(V()), color: n.color };
+    }
+    if (!best) return;
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(900, 48), toonMaterial({ color: best.color }));
+    disc.name = 'horizon-ground'; disc.rotation.x = -Math.PI / 2; disc.position.set(best.center.x, best.top - (best.thick > .06 ? .03 : .008), best.center.z); disc.receiveShadow = true; this.scene.add(disc);
   }
   update(time: number) {
     this.time = Number.isFinite(time) ? Math.max(0, Math.min(this.score.duration, time)) : 0;

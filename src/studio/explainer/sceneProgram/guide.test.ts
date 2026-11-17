@@ -21,3 +21,10 @@ describe('freeform 3D generic visual direction', () => {
     expect(SCENE_PROGRAM_GUIDE).toContain('dimensões até 200 metros');
   });
 });
+
+describe('rounded edges and engine-provided look', () => {
+  it('documents bevel for boxes and the engine-side sky/ground', () => {
+    expect(SCENE_PROGRAM_GUIDE).toContain('bevelSegments');
+    expect(SCENE_PROGRAM_GUIDE).toContain('continua automaticamente um solo');
+  });
+});
