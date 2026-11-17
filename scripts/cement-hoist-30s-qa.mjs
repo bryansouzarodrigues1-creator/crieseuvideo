@@ -82,6 +82,38 @@ try {
   const workerBegin=await sample(0),workerEnd=await sample(6.4);
   assert.ok(Math.hypot(...workerBegin.worker.map((x,i)=>x-workerEnd.worker[i]))>1.0,
     'Laborer never changes position in opening');
+  // Actual rendered pixels, not just Three.js transforms. A rotationally
+  // symmetric red torus can rotate on paper and look 100% frozen to viewers.
+  const pixels=async(time)=>page.evaluate(t=>{
+    window.__cementLift.seek(t);
+    const scene=document.querySelector('#scene');
+    const low=document.createElement('canvas');low.width=180;low.height=320;
+    const ctx=low.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(scene,0,0,180,320);
+    return Array.from(ctx.getImageData(0,0,180,320).data);
+  },time);
+  const actualVisualMotion=[];
+  for(const probe of [
+    {label:'worker',start:1,end:3,minimum:.002},
+    {label:'upper-worker',start:8,end:10,minimum:.002},
+    {label:'pulley',start:13,end:15,minimum:.0007},
+    {label:'loaded-pallet',start:17,end:20,minimum:.002},
+    {label:'motor-gears',start:24,end:26,minimum:.004},
+  ]){
+    const before=await pixels(probe.start),after=await pixels(probe.end);
+    let changed=0;
+    for(let i=0;i<before.length;i+=4){
+      if(Math.abs(before[i]-after[i])>20||
+         Math.abs(before[i+1]-after[i+1])>20||
+         Math.abs(before[i+2]-after[i+2])>20)changed++;
+    }
+    const fraction=changed/(180*320);
+    actualVisualMotion.push({...probe,pixelChangeFraction:fraction});
+  }
+  await fs.writeFile(path.join(out,'pixel-motion.json'),JSON.stringify(actualVisualMotion,null,2));
+  for(const x of actualVisualMotion)
+    assert.ok(x.pixelChangeFraction>=x.minimum,
+      'The authored '+x.label+' is visually frozen despite moving 3D coordinates: '+JSON.stringify(x));
   const clip=path.join(out,'cement-hoist-30s.mp4');
   encoder=spawn('ffmpeg',['-hide_banner','-loglevel','error','-y',
     '-f','image2pipe','-framerate',String(FPS),'-vcodec','png','-i','pipe:0',
@@ -115,7 +147,7 @@ try {
     approvedArtisticQuality:false,visualReviewPending:true,
     duration:DURATION,fps:FPS,frames:FPS*DURATION,dimensions:[W,H],
     nodeCount:details.objects,cutCount:details.cuts,cutActivity:details.cutActivity,
-    cameraStableWithinCuts:true,
+    cameraStableWithinCuts:true,perceptualMotionProbes:actualVisualMotion,
     observations:'Technical rendering and motion tests cannot certify scene fidelity, readability or believable load transfer.',
     samples,browserErrors:errors
   },null,2));
