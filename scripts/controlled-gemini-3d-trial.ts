@@ -63,6 +63,8 @@ try {
     // trial uses LOW thinking and a bounded 16k total output allowance.
     GEMINI_THINKING_LEVEL: 'low',
     GEMINI_MAX_OUTPUT_TOKENS: '16384',
+    // Only this explicitly owner-approved trial opts into a longer single request.
+    GEMINI_REQUEST_TIMEOUT_MS: '120000',
   });
   if (sentGenerationRequests !== 1) throw new Error('A prova não fez exatamente uma chamada de geração.');
   const program=result.plan.sceneProgram;
