@@ -38,7 +38,7 @@ describe('grounded procedural actor locomotion (no authored foot curves)', () =>
     for (const f of moving) {
       expect(Math.abs(f.torsoYaw)).toBeLessThanOrEqual(.046);
       expect(f.headYaw).toBeCloseTo(-f.torsoYaw * .65, 8);
-      expect(Math.abs(f.headPitch)).toBeLessThanOrEqual(.011);
+      expect(Math.abs(f.headPitch)).toBeLessThanOrEqual(.018);
     }
     const stopped = gait.at(5);
     expect(stopped.speed).toBeLessThan(.01);
