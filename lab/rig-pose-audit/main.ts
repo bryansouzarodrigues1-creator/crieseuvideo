@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { RiggedClipPlayer } from '../../src/studio/explainer/sceneProgram/riggedClipPlayer';
+import { calibrateRiggedHumanoid } from '../../src/studio/explainer/sceneProgram/riggedScale';
 
 const loader=new GLTFLoader();
 const original=await loader.loadAsync('/Worker.glb');
