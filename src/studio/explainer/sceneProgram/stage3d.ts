@@ -53,8 +53,11 @@ export class SceneProgram3D {
   // spontaneous zooms and cropping when the subject travels across the set.
   private shotEnvelopes = new Map<string, THREE.Box3>();
   private shotDistances = new Map<string, number>();
+  private cutHiddenNodes: Set<string>;
+  private cableEndErrors = new Map<string, number>();
   constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
     this.score = compileSceneProgram(program, sources);
+    this.cutHiddenNodes = new Set(program.shots.flatMap(s=>s.cuts?.flatMap(c=>c.hide??[])??[]));
     for (const n of program.nodes) if (n.kind === 'actor') {
       const walk = buildProceduralWalk(program, sources, n.id);
       if (walk) {
@@ -185,6 +188,30 @@ export class SceneProgram3D {
           end.quaternion.copy(end.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(desired));
         }
       }
+    }
+    this.scene.updateMatrixWorld(true);
+    // Declarative constraints for non-human machines and moving props:
+    // The cylinder is rebuilt from REAL endpoints at each absolute time.
+    // This avoids a painted/string rope that does not connect to the hook.
+    this.cableEndErrors.clear();
+    for (const cable of this.program.cables??[]) {
+      const body=this.nodes.get(cable.node)!;
+      const a=this.nodes.get(cable.from)!.getWorldPosition(V());
+      const b=this.nodes.get(cable.to)!.getWorldPosition(V());
+      const length=a.distanceTo(b);
+      if (length<.025) throw new SceneProgramError('As extremidades de um cabo 3D estão sobrepostas.',{cable:cable.node,timeSeconds:this.time,length});
+      const parent=body.parent!;
+      const localA=parent.worldToLocal(a.clone());
+      const localB=parent.worldToLocal(b.clone());
+      const axis=localB.clone().sub(localA);
+      const unitHeight=this.program.nodes.find(n=>n.id===cable.node)!.geometry!.size![2];
+      body.position.copy(localA).add(localB).multiplyScalar(.5);
+      body.quaternion.setFromUnitVectors(V(0,1,0),axis.clone().normalize());
+      body.scale.set(1,axis.length()/unitHeight,1);
+      body.updateWorldMatrix(true,false);
+      const localTop=V(0,unitHeight/2,0),localBottom=V(0,-unitHeight/2,0);
+      const worldTop=body.localToWorld(localTop),worldBottom=body.localToWorld(localBottom);
+      this.cableEndErrors.set(cable.node,Math.max(worldTop.distanceTo(b),worldBottom.distanceTo(a)));
     }
     this.scene.updateMatrixWorld(true);
   }
@@ -327,6 +354,9 @@ export class SceneProgram3D {
     let cutIndex = 0;
     for (let i = 1; i < cuts.length; i++) if (u >= cuts[i].phase) cutIndex = i;
     const cut = cuts[cutIndex]!;
+    // A movie scene can reveal the winch later without showing a cropped
+    // piece of it at the border of every earlier camera shot.
+    for (const id of this.cutHiddenNodes) this.nodes.get(id)!.visible=!(cut.hide??[]).includes(id);
     const cutEnd = cuts[cutIndex + 1]?.phase ?? 1;
     const cutSpan = { start: span.start + cut.phase * span.duration,
       duration: (cutEnd - cut.phase) * span.duration };
@@ -404,7 +434,7 @@ export class SceneProgram3D {
   }
   diagnostics() {
     return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,
-      projectedBounds: this.projectedBounds, camera: this.camera.position.toArray(), proceduralWalkActors: [...this.proceduralWalks.keys()], states: [...this.states].map(([id, s]) => ({ id, ...s })) };
+      projectedBounds: this.projectedBounds, camera: this.camera.position.toArray(), cableEndErrors:[...this.cableEndErrors].map(([node,error])=>({node,errorMeters:error})), proceduralWalkActors: [...this.proceduralWalks.keys()], states: [...this.states].map(([id, s]) => ({ id, ...s })) };
   }
   dispose() {
     const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();

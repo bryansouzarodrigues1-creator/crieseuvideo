@@ -19,7 +19,8 @@ export interface ProgramNode {
 export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
 export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
 /** Default framing is locked. A deliberate orbit must be requested explicitly; endAzimuth alone never drifts the camera. */
-export interface ProgramShotCut { phase: number; subjects: string[]; azimuth: number; elevation: number; distance: number }
+/** hide isolates irrelevant foreground sets in a shot without deleting their 3D meshes or animation. */
+export interface ProgramShotCut { phase: number; subjects: string[]; azimuth: number; elevation: number; distance: number; hide?: string[] }
 export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number; motion?: 'locked' | 'orbit'; cuts?: ProgramShotCut[] }
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
 /** A measurable on-screen action, not a thematic action ID or AI assertion.
@@ -34,7 +35,12 @@ export interface ProgramMotionCheck {
   endPhase: number;
   threshold: number;
 }
-export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
+/** A dynamic cable remains geometrically connected between two existing 3D nodes.
+ * Its carrier mesh must be a vertical cylinder (unit height is recommended).
+ * Entirely declarative: no scripts, remote URLs, physics timestep or action name.
+ */
+export interface ProgramCable { node: string; from: string; to: string }
+export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; cables?: ProgramCable[]; motionChecks?: ProgramMotionCheck[] }
 export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
 export class SceneProgramError extends Error {
   readonly code = 'invalid_scene_program';
@@ -42,7 +48,15 @@ export class SceneProgramError extends Error {
 }
 const fail = (message: string): never => { throw new SceneProgramError(message); };
 const obj = (value: unknown): Record<string, any> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : fail('Uma definição do programa de cena não é um objeto.');
-const list = (value: unknown, max: number): any[] => Array.isArray(value) && value.length <= max ? value : fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+const list = (value: unknown, max: number): any[] => {
+  if (!Array.isArray(value)) return fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+  if (value.length > max) return fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
+  // JavaScript-authored fixtures can contain array holes (from accidental ",,").
+  // .map/.every skip holes, causing a mysterious crash inside the renderer.
+  for (let i = 0; i < value.length; i++) if (!(i in value))
+    fail('Uma lista do programa contém um elemento ausente. Corrija a animação antes de renderizar.');
+  return value;
+};
 const num = (v: unknown, a: number, b: number) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b ? v : fail('Uma coordenada, tempo ou dimensão do programa é inválida.');
 const vector = (v: unknown, a = -200, b = 200): Vec3 => { const p = list(v, 3); if (p.length !== 3) fail('Uma coordenada precisa de três valores.'); return p.map((x) => num(x, a, b)) as Vec3; };
 const identifier = (v: unknown) => typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v) ? v : fail('Um identificador do programa é inválido.');
@@ -51,7 +65,7 @@ const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): SceneProgram {
-  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks']);
+  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'cables', 'motionChecks']);
   if (r.version !== 1 || !sources.length) fail('A versão ou as frases do programa são inválidas.');
   const sourceSignature = JSON.stringify(sources.map((s) => [s.sourceId, s.text]));
   if (r.sourceSignature !== undefined && r.sourceSignature !== sourceSignature) fail('O programa pertence a outro roteiro. Gere uma nova direção para este texto.');
@@ -199,14 +213,24 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     let cuts: ProgramShotCut[] | undefined;
     if (s.cuts !== undefined) {
       if (motion !== 'locked') fail('Uma cena com cortes de câmera não pode orbitar ao mesmo tempo.');
-      cuts = list(s.cuts, 5).map((raw): ProgramShotCut => {
-        const cut = obj(raw); only(cut,['phase','subjects','azimuth','elevation','distance']);
+      cuts = list(s.cuts, 10).map((raw): ProgramShotCut => {
+        const cut = obj(raw); only(cut,['phase','subjects','azimuth','elevation','distance','hide']);
         const phase = num(cut.phase,0,.98);
         const cutSubjects = list(cut.subjects,6).map((v)=>
           nodeMap.has(v) ? v as string : fail('Um corte da câmera citou objeto inexistente.'));
         if (!cutSubjects.length) fail('Cada corte da câmera precisa focar um objeto real.');
+        const hide=cut.hide===undefined?[]:list(cut.hide,32).map(v=>nodeMap.has(v)?v as string:fail('Um objeto oculto da tomada não existe.'));
+        if (new Set(hide).size!==hide.length) fail('A câmera não aceita objetos ocultos duplicados.');
+        for(const subject of cutSubjects) for(const hidden of hide){
+          let current:ProgramNode|undefined=nodeMap.get(subject);
+          while(current) {
+            if(current.id===hidden)fail('Não oculte um objeto importante ou seu ancestral durante a própria tomada.');
+            current=current.parent?nodeMap.get(current.parent):undefined;
+          }
+        }
         return {phase,subjects:cutSubjects,azimuth:num(cut.azimuth??azimuth,-Math.PI*2,Math.PI*2),
-          elevation:num(cut.elevation??elevation,-.35,1.1),distance:num(cut.distance??distance,1,2.5)};
+          elevation:num(cut.elevation??elevation,-.35,1.1),distance:num(cut.distance??distance,1,2.5),
+          ...(hide.length?{hide}:{})};
       });
       if (!cuts.length || cuts[0].phase !== 0 || cuts.some((cut,i)=>i>0 && cut.phase-cuts![i-1].phase<.08))
         fail('Os cortes da câmera precisam começar em 0 e ter intervalos distintos.');
@@ -214,6 +238,25 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     return { sourceId: source(s.sourceId), subjects, azimuth, endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation, distance, motion, ...(cuts?{cuts}:{}) };
   });
   if (shots.length !== sources.length || new Set(shots.map((s) => s.sourceId)).size !== shots.length || sources.some((s) => !shots.some((p) => p.sourceId === s.sourceId))) fail('Cada frase do roteiro precisa da sua própria tomada.');
+  const cables = r.cables === undefined ? undefined : list(r.cables, 32).map((value): ProgramCable => {
+    const c=obj(value); only(c,['node','from','to']);
+    const carrier = nodeMap.get(c.node)!, from=nodeMap.get(c.from)!, to=nodeMap.get(c.to)!;
+    if (!carrier || carrier.kind !== 'mesh' || carrier.geometry?.shape !== 'cylinder' ||
+      !from || !to || c.node === c.from || c.node === c.to || c.from === c.to)
+      fail('O cabo 3D precisa ser um cilindro entre dois objetos existentes.');
+    if (tracks.some(t=>t.node===c.node && ['position','rotation','scale'].includes(t.channel)))
+      fail('Não anime o cabo manualmente: o motor conecta as duas extremidades automaticamente.');
+    for (const endpoint of [from,to]) {
+      let parent = endpoint.parent;
+      while(parent) {
+        if(parent===c.node)fail('O cabo não pode ser ancestral da própria extremidade.');
+        parent=nodeMap.get(parent)?.parent;
+      }
+    }
+    return {node:carrier.id,from:from.id,to:to.id};
+  });
+  if (cables && new Set(cables.map(c=>c.node)).size!==cables.length)
+    fail('Cada cabo físico deve possuir uma única ligação.');
   const contacts = list(r.contacts ?? [], 100).map((value): ProgramContact => {
     const c = obj(value); only(c, ['sourceId', 'actor', 'effector', 'target', 'offset', 'begin', 'end']);
     if (nodeMap.get(c.actor)?.kind !== 'actor' || !nodeMap.has(c.target) || !(EFFECTORS as readonly string[]).includes(c.effector)) fail('Um contato precisa de personagem, membro e alvo válidos.');
@@ -240,7 +283,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold };
   });
   const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
-    ...(motionChecks ? { motionChecks } : {}) };
+    ...(cables ? { cables } : {}), ...(motionChecks ? { motionChecks } : {}) };
   validateMotionChecks(normalized, sources);
   return normalized;
 }
