@@ -9,7 +9,11 @@ const raw=()=>({
   version:1,background:'#E4E7EF',
   nodes:[
     {id:'top',kind:'group',contextSourceId:'s1',position:[0,4,0]},
+    {id:'top-wheel',kind:'mesh',parent:'top',contextSourceId:'s1',
+      color:'#777777',geometry:{shape:'cylinder',size:[.25,.25,.12]}},
     {id:'load',kind:'group',contextSourceId:'s1',position:[0,.5,0]},
+    {id:'load-bed',kind:'mesh',parent:'load',contextSourceId:'s1',
+      color:'#A77B4B',geometry:{shape:'box',size:[1,.3,.8]}},
     {id:'strand',kind:'mesh',contextSourceId:'s1',position:[0,2,0],
       color:'#FFFFFF',geometry:{shape:'cylinder',size:[.04,.04,1]}},
     {id:'motor',kind:'group',contextSourceId:'s1',position:[3,0,0]},
