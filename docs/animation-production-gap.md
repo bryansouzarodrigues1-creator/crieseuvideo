@@ -94,3 +94,55 @@ Tests cover the real response parser, worker boundary, main studio recovery and
 ordinary mobile browser interactions with simulated provider responses. These
 are failure-recovery tests, not a live Gemini-generation acceptance test or
 evidence of animation quality. No paid generation is part of this QA.
+
+## Revised priority: 3D world variety before humanoid photorealism (17 Nov 2026)
+
+The user explicitly prioritizes original, recognizable, entertaining 3D scenes
+over maximally realistic human articulation. A red ball labelled "tomato" is
+not an acceptable visual result, but a photorealistic tomato is also unnecessary.
+The required middle ground is *stylized but specific*: distinctive silhouette,
+proportions, 2–3 characteristic parts, coherent material/color and a visible
+change of state or motion. Characters are just one asset class among animals,
+plants, vehicles, machines, environments and original objects.
+
+### Product acceptance gates
+
+1. **Framing:** a shot contains all its subject movement without clipping. The
+   viewer must see the decisive action. Camera motion is locked by default;
+   an actual orbit is opt-in. Reframing between shots is okay; wandering
+   sideways during a static shot is not.
+2. **3D construction:** an object named in the script is identifiable by
+   geometry, not a primitive with the correct color. A test tomato, for
+   example, needs recognizable silhouette, calyx and stem. This is a visual
+   *test fixture*, not a tomato-only generator.
+3. **Variety:** test unseen scripts in very different categories (organic
+   object, mechanism, vehicle, place and nonhuman character). They must use
+   generic geometry/asset tools, not a custom thematic drawing routine for
+   each script.
+4. **Action and consequence:** the object visibly changes, transforms, rolls,
+   operates or interacts as the narration says. A camera orbit alone is not
+   evidence of object animation.
+5. **Production truthfulness:** real generated Gemini clips need their own
+   before/after and visual QA. Local hand-authored fixture videos do not
+   demonstrate autonomous generation or production readiness.
+
+### Implemented in isolated PR #46
+
+- SceneProgram3D fits one spatial envelope for a complete shot, with safe
+  framing margins and a locked camera target unless `motion:"orbit"` is
+  explicitly requested.
+- Gemini's 3D authoring guide favors distinct stylized objects and flexible
+  sets, and explicitly rejects single primitive placeholders and unnecessary
+  human-realism requirements.
+- A nonhuman organic fixture (tomato, vine, wooden crate) uses the same generic
+  mesh/lathe/hierarchy/tracks engine as the mechanical blender fixture.
+- Browser/MP4 QA and CI are isolated. No changes deployed to main/Lovable.
+
+### Not yet proven
+
+- A fresh Gemini generation of multiple *unseen* scene categories with
+  convincing visuals and semantic accuracy
+- Automatically selecting/generating a reusable library of coherent 3D assets
+  for arbitrary named objects with consistent style and licensing
+- Multi-location edits and persistent subject identity across a full 2-minute
+  video, including sound and exact duration
