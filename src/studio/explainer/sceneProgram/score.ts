@@ -14,6 +14,7 @@ export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' 
 export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
+  /** Optional top-level static terrain that supports the actor's root while moving. */ groundTo?: string;
   geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number; /** id of a static terrain node: instances snap to its surface. */ ground?: string; /** with ground: instances below this height (metres) above the terrain base are skipped (lakes, shores). */ above?: number };
   material?: { roughness: number; metalness: number; opacity: number; emissive: string; emissiveIntensity: number };
 }
@@ -59,7 +60,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   const fullText = sources.map((s) => s.text).join(' ');
   let vertexBudget = 0;
   const nodes = list(r.nodes, 160).map((value): ProgramNode => {
-    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId']);
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId', 'groundTo']);
     if (!['group', 'mesh', 'actor', 'model'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
     const assetId = n.kind === 'model' ? n.assetId as ApprovedModelId : undefined;
     if (n.kind === 'model' && !approvedModel(assetId)) fail('O modelo externo solicitado não está no catálogo autorizado do projeto.');
@@ -142,16 +143,25 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     }
     vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
+    if (n.groundTo !== undefined && n.kind !== 'actor') fail('Somente um personagem pode seguir o terreno.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
       position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
-      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}) };
+      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}), ...(n.groundTo !== undefined ? { groundTo: identifier(n.groundTo) } : {}) };
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');
   for (const node of nodes) if (node.repeat?.ground) {
     const ground = nodeMap.get(node.repeat.ground);
     if (ground?.kind !== 'mesh' || ground.geometry?.shape !== 'terrain' || ground.repeat || ground.parent !== node.parent) fail('O apoio de uma repetição precisa ser um terreno (terrain) único, no mesmo grupo.');
+  }
+  for (const node of nodes) if (node.groundTo) {
+    const ground = nodeMap.get(node.groundTo);
+    if (node.kind !== 'actor' || node.parent || ground?.kind !== 'mesh'
+      || ground.geometry?.shape !== 'terrain' || ground.repeat || ground.parent
+      || ground.rotation.some(v => Math.abs(v) > 1e-8)
+      || ground.scale.some(v => Math.abs(v - 1) > 1e-8))
+      fail('Apoio de personagem exige terreno estático sem rotação, escala, instâncias ou hierarquia.');
   }
   for (const node of nodes) {
     const visited = new Set([node.id]); let parent = node.parent;
@@ -198,6 +208,10 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     return { node: node.id, channel: t.channel, interpolation: t.interpolation ?? 'smooth', keys };
   });
   if (!tracks.length || new Set(tracks.map((t) => `${t.node}/${t.channel}`)).size !== tracks.length) fail('Defina movimentos sem duplicar uma curva do mesmo objeto.');
+  // GroundTo is a visual runtime constraint, not a second motion track.
+  for (const node of nodes) if (node.groundTo && tracks.some(
+    t => t.node === node.groundTo && ['position', 'rotation', 'scale'].includes(t.channel)
+  )) fail('O terreno de apoio do personagem não pode ser animado.');
   const maximumScales = new Map(nodes.map((n) => [n.id, Math.max(...n.scale)]));
   for (const t of tracks) if (t.channel === 'scale') maximumScales.set(t.node, Math.max(maximumScales.get(t.node)!, ...t.keys.flatMap((k) => k.value)));
   for (const node of nodes) { let current: ProgramNode | undefined = node, product = 1; while (current) { product *= maximumScales.get(current.id)!; if (product > 1000) fail('A escala acumulada de uma hierarquia excedeu o limite da cena.'); current = current.parent ? nodeMap.get(current.parent) : undefined; } }

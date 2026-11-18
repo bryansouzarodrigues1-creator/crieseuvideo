@@ -168,6 +168,25 @@ export class SceneProgram3D {
     for (const [id, [dx, dz]] of shifts) { const object = this.nodes.get(id)!; object.position.x += dx; object.position.z += dz; this.bodyShift.set(id, [dx, dz]); }
     return shifts.size > 0;
   }
+  /** Opt-in root adhesion. Motion tracks remain the source of horizontal
+   * position and jump offset; the sampled terrain adds only support height.
+   * This is not foot IK, collision or terrain navigation. */
+  private groundActorsOnTerrain() {
+    for (const n of this.program.nodes) {
+      if (n.kind !== 'actor' || !n.groundTo) continue;
+      const terrain = this.program.nodes.find(t => t.id === n.groundTo)!;
+      const actorRoot = this.nodes.get(n.id)!, groundRoot = this.nodes.get(n.groundTo)!;
+      const x = actorRoot.position.x - groundRoot.position.x;
+      const z = actorRoot.position.z - groundRoot.position.z;
+      const size = terrain.geometry!.size!;
+      if (Math.abs(x) > size[0] / 2 || Math.abs(z) > size[1] / 2)
+        throw new SceneProgramError('O personagem saiu do limite do terreno de apoio.', {
+          actor: n.id, terrain: n.groundTo, timeSeconds: this.time, x, z,
+        });
+      actorRoot.position.y = this.states.get(n.id)!.position[1] + groundRoot.position.y
+        + terrainHeight(kitParams(terrain.geometry!, terrain.color), x, z);
+    }
+  }
   update(time: number) {
     this.time = Number.isFinite(time) ? Math.max(0, Math.min(this.score.duration, time)) : 0;
     this.states = this.score.sample(this.time); this.maxContactError = 0; this.maxIKError = 0; this.contactProblems = [];
@@ -179,9 +198,10 @@ export class SceneProgram3D {
       const data = waterMesh(params, this.time), position = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
       position.array.set(data.positions); position.needsUpdate = true; mesh.geometry.computeVertexNormals(); mesh.geometry.computeBoundingSphere();
     }
+    this.groundActorsOnTerrain();
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
-    if (this.separateBodies()) this.scene.updateMatrixWorld(true);
+    if (this.separateBodies()) { this.groundActorsOnTerrain(); this.scene.updateMatrixWorld(true); }
     for (const [id, actor] of this.actors) {
       const state = this.states.get(id)!;
       for (const effector of EFFECTORS) {
