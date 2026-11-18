@@ -102,7 +102,7 @@ try{
   assert.deepEqual(errors,[]);
   await writeFile(path.join(out,'report.json'),JSON.stringify({
     info,scenes,frames:FPS*DURATION,
-    disclaimer:'QA blueprints are hand-authored examples of Gemini's allowed JSON schema; 3D objects are automatically assembled by generic compiler. The motor is event-driven. No live Gemini calls, no force physics, no voice.',
+    disclaimer:'QA blueprints are hand-authored examples of allowed Gemini JSON schema; 3D objects are automatically assembled by generic compiler. The motor is event-driven. No live Gemini calls, no force physics, no voice.',
     errors
   },null,2));
   console.log('PASS three independent real Three.js scenes / causal gear ratios / 18 second MP4');
