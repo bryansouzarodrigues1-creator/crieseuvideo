@@ -14,25 +14,33 @@ const errors=[];
 try {
  const page=await browser.newPage({viewport:{width:412,height:915},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const cdp=await page.context().newCDPSession(page);
- const assertTouchScroll=async(where)=>{
-   await page.evaluate(()=>window.scrollTo(0,0));
+ const assertTouchScroll=async(where,target='document',point={x:390,y:740})=>{
+   const scrollMetrics=()=>page.evaluate(selector=>{
+     const el=selector==='document'?document.scrollingElement:document.querySelector(selector);
+     if(!el)return null;
+     return {top:el.scrollTop,scrollHeight:el.scrollHeight,height:el.clientHeight,
+       overflow:getComputedStyle(el).overflowY,bodyOverflow:getComputedStyle(document.body).overflowY};
+   },target);
+   await page.evaluate(selector=>{
+     const el=selector==='document'?document.scrollingElement:document.querySelector(selector);
+     el?.scrollTo({top:0,behavior:'instant'});
+   },target);
    await page.waitForTimeout(100);
-   const before=await page.evaluate(()=>({
-     top:window.scrollY,
-     scrollHeight:document.scrollingElement?.scrollHeight,
-     height:document.scrollingElement?.clientHeight,
-     overflow:getComputedStyle(document.body).overflowY
-   }));
-   assert.ok(before.scrollHeight>before.height+80,where+' needs a scrollable document');
-   assert.notEqual(before.overflow,'hidden',where+' must not globally block overflow');
+   const before=await scrollMetrics();
+   assert.ok(before && before.scrollHeight>before.height+80,
+     where+' needs a scrollable element: '+JSON.stringify(before));
+   assert.notEqual(before.bodyOverflow,'hidden','Global body scroll lock is forbidden');
    await cdp.send('Input.synthesizeScrollGesture',{
-     x:390,y:740,xDistance:0,yDistance:-430,gestureSourceType:'touch',speed:500
+     x:point.x,y:point.y,xDistance:0,yDistance:-430,gestureSourceType:'touch',speed:500
    });
    await page.waitForTimeout(400);
-   const after=await page.evaluate(()=>window.scrollY);
-   assert.ok(after>before.top+60,
+   const after=await scrollMetrics();
+   assert.ok(after && after.top>before.top+60,
      where+' refuses finger-swipe scrolling: '+JSON.stringify({before,after}));
-   await page.evaluate(()=>window.scrollTo(0,0));
+   await page.evaluate(selector=>{
+     const el=selector==='document'?document.scrollingElement:document.querySelector(selector);
+     el?.scrollTo({top:0,behavior:'instant'});
+   },target);
    await page.waitForTimeout(100);
  };
  page.on('pageerror',e=>errors.push(e.message));
@@ -41,7 +49,7 @@ try {
  await page.getByText('CrieSeuVideo',{exact:false}).first().waitFor({timeout:60000});
  const empty=page.getByText('Seu próximo vídeo começa aqui');
  await empty.waitFor({timeout:40000});
- await assertTouchScroll('CrieSeuVideo homepage');
+ await assertTouchScroll('CrieSeuVideo homepage','.production-workspace');
  await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
  await page.getByRole('link',{name:/motor 3d/i}).first().click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
@@ -64,7 +72,12 @@ try {
  },null,{timeout:60000});
  assert.equal(await stage.evaluate(c=>c.width),270,'Mobile scene should default to low-resolution WebGL');
  assert.equal(await stage.evaluate(c=>c.height),480,'Mobile scene height should be memory friendly');
- await assertTouchScroll('Native 3D page with active WebGL canvas');
+ const canvasRect=await stage.boundingBox();
+ assert.ok(canvasRect,'WebGL canvas is missing');
+ await assertTouchScroll('Native 3D page with active WebGL canvas','document',{
+   x:Math.round(canvasRect.x+canvasRect.width/2),
+   y:Math.round(canvasRect.y+Math.min(canvasRect.height/2,Math.max(5,850-canvasRect.y)))
+ });
  await page.waitForFunction(()=>{
    const s=document.querySelector('.native-3d-numbers');
    return s&&Number(s.textContent?.match(/\d+/)?.[0])>20;
