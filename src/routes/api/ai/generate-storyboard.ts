@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/ai/generate-storyboard")({
         const idea = String(body.ideaPrompt ?? "").slice(0, 3000);
         const data = parseJson(
           await askAi(`Gere uma estrutura de vídeo para o tema: "${idea}".
-Formato: { "title": "Nome do Projeto", "colorPreset": "teal-orange", "headline": "Título principal (max 4 palavras)", "subtitle": "Subtítulo curto", "recommendedMusic": "ambient" }`),
+Formato: { "title": "Nome do Projeto", "colorPreset": "teal-orange", "headline": "Título principal (max 4 palavras)", "subtitle": "Subtítulo curto", "recommendedMusic": "ambient" }`, "light"),
         );
         return Response.json(data?.title ? data : fallback);
       },

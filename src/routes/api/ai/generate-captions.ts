@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/ai/generate-captions")({
         const data = parseJson(
           await askAi(`Você é um assistente de legendagem de vídeo. Gere legendas divididas em segmentos com tempos de início e duração (em segundos) que caibam em um vídeo de ${total} segundos no total.
 Texto ou tema do vídeo: "${prompt}".
-Formato: { "captions": [ { "text": "Frase curta e impactante", "startTime": 0.5, "duration": 2.5 } ] }`),
+Formato: { "captions": [ { "text": "Frase curta e impactante", "startTime": 0.5, "duration": 2.5 } ] }`, "light"),
         );
         return Response.json(data?.captions ? data : fallback);
       },
