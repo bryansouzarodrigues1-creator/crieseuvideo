@@ -464,3 +464,21 @@ body { min-height: 100%; -webkit-overflow-scrolling: touch; }
     touch-action: pan-y;
   }
 }
+
+
+/* AI-authored SceneProgram3D studio — mobile first, no blocked page scroll. */
+.ai3d-studio .ai3d-panel {background:#142033;border:1px solid #334455;border-radius:16px;padding:18px;}
+.ai3d-panel label {font-size:14px;color:#e9f3f8;font-weight:700;}
+.ai3d-panel textarea,.ai3d-panel select {background:#0b1523;color:#f0f6fc;border:1px solid #41556b;border-radius:10px;width:100%;padding:12px;line-height:1.55;font-family:inherit;font-size:15px;resize:vertical;}
+.ai3d-panel textarea:focus,.ai3d-panel select:focus {outline:2px solid #acd56c;outline-offset:1px;}
+.ai3d-consent {display:flex;align-items:flex-start;gap:8px;line-height:1.5;font-size:13px!important;font-weight:400!important;color:#d0dfe9!important;}
+.ai3d-consent input {width:18px;height:18px;flex:none;accent-color:#b5e267;margin-top:2px;}
+.ai3d-generate,.ai3d-signin button {display:flex;align-items:center;justify-content:center;gap:8px;background:#b5e267;border:0;color:#19271a;border-radius:12px;padding:13px 16px;font-weight:800;font-size:14px;cursor:pointer;}
+.ai3d-generate:disabled {opacity:.5;cursor:not-allowed;}
+.ai3d-signin {display:flex;flex-direction:column;gap:8px;color:#cbd9e5;font-size:14px;}
+.ai3d-preview {min-height:360px;}
+@media(max-width:850px){
+  .ai3d-studio .native-3d-player {order:1;}
+  .ai3d-studio .ai3d-panel {order:0;}
+  .ai3d-preview {min-height:260px;}
+}
