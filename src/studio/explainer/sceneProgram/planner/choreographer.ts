@@ -15,6 +15,7 @@ import {
 } from '../score';
 import type { CompiledStoryboard, CompiledStoryEvent, StoryEntity } from './events';
 import { planGripContacts } from './gripContacts';
+import { coupledAngle, prepareMechanicalDrives, type MechanicalDrives } from './mechanicalDrives';
 
 export interface StoryMotionBindings {
   /** Semantic entity id -> already defined SceneProgram3D node id. */
@@ -27,6 +28,8 @@ export interface StoryMotionBindings {
   supportOffsets?: Record<string, Vec3>;
   /** Explicit mechanical shafts, never spin the entire 3D motor body. */
   motorVisuals?: Record<string, { node: string; axis?: 'x' | 'y' | 'z'; revolutions: number }>;
+  /** Preferred causal option: gear/wheel angles are calculated from the driven load's travel. */
+  mechanicalDrives?: MechanicalDrives;
 }
 export interface StoryMotionDiagnostics {
   events: Array<{
@@ -115,6 +118,9 @@ export function compileStoryMotion(
     if(movingNodeIds.has(m.node))problem('Eixo visual não pode ser o corpo principal do motor.');
     finite(m.revolutions,'Voltas do motor',25);
   }
+  const drives=prepareMechanicalDrives(bindings.mechanicalDrives,base.nodes,base.tracks,storyboard.entities,bindings.entityNodes);
+  for(const drive of drives) if(bindings.motorVisuals?.[drive.mechanism])
+    problem('Uma máquina não pode usar voltas arbitrárias e transmissão causal ao mesmo tempo.');
   const push=(node:string,channel:'position'|'rotation',t:number,value:Vec3)=>{
     let byChannel=values.get(node);
     if(!byChannel){byChannel=new Map();values.set(node,byChannel);}
@@ -134,6 +140,12 @@ export function compileStoryMotion(
     if(base.tracks.some(t=>t.node===m.node&&t.channel==='rotation'))
       problem('O eixo do motor recebeu rotações contraditórias de duas fontes.');
     push(m.node,'rotation',0,n.rotation);
+  }
+  const drivenRotation=new Map<string,Vec3>();
+  for(const drive of drives)for(const part of drive.parts){
+    const initial:[number,number,number]=[...nodes.get(part.node)!.rotation];
+    drivenRotation.set(part.node,initial);
+    push(part.node,'rotation',0,initial);
   }
   const betweenPlaces=(from:string|null|undefined,to:string|null|undefined):Vec3=>{
     if(!from || !to)return problem('Movimento sem origem ou destino físico.');
@@ -203,7 +215,27 @@ export function compileStoryMotion(
     let visibleMechanicalMotion=false;
     if(event.action==='operate'){
       const m=event.mechanism!;
-      const visual=bindings.motorVisuals?.[m];
+      const drive=drives.find(d=>d.mechanism===m);
+      if(drive){
+        if(drive.output!==event.subject)
+          problem('O acontecimento move uma carga diferente daquela ligada ao motor.');
+        const from=before.get(event.subject),to=position.get(event.subject);
+        if(!from||!to)problem('Não existe deslocamento da carga para acionar o motor.');
+        for(const part of drive.parts){
+          const current=drivenRotation.get(part.node)!;
+          const deltaAngle=coupledAngle(from!,to!,drive.radius,part.ratio);
+          const axis=part.axis==='x'?0:part.axis==='y'?1:2;
+          const next:[number,number,number]=[...current];
+          next[axis]+=deltaAngle;
+          if(Math.abs(next[axis])>190)
+            problem('Engrenagem excede o orçamento angular da animação.');
+          push(part.node,'rotation',begin,current);
+          push(part.node,'rotation',finish,next);
+          drivenRotation.set(part.node,next);
+          visibleMechanicalMotion=true;
+        }
+      }
+      const visual=drive?undefined:bindings.motorVisuals?.[m];
       if(visual){
         const shaft=shaftPos.get(m)!;
         const axis=visual.axis==='x'?0:visual.axis==='y'?1:2;
