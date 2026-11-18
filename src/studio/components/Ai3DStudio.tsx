@@ -155,7 +155,11 @@ export default function Ai3DStudio(){
       document.body.appendChild(link);link.click();link.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),30000);
     }catch(e){setError(e instanceof Error?e.message:'Exportação falhou.');}
-    finally{abortRef.current=null;busyExportRef.current=false;setExportProgress(null);seek(0);}
+    finally{
+      abortRef.current=null;busyExportRef.current=false;setExportProgress(null);
+      clockRef.current=0;setTime(0);
+      try{drawRef.current(0);}catch{}
+    }
   };
 
   return <main className="native-3d-studio ai3d-studio">
