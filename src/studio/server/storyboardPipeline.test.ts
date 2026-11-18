@@ -2,12 +2,34 @@ import {describe,expect,it,vi} from 'vitest';
 import {generateStoryboardFirst3D,normalizeStoryMotionBindings} from './storyboardPipeline';
 import {sampleStoryProposal,sampleSceneGeometry,sampleSources,sampleBindings} from '../explainer/sceneProgram/planner/sample';
 import {compileSceneProgram} from '../explainer/sceneProgram/score';
+import {buildMechanicalScenario} from '../explainer/sceneProgram/planner/mechanicalScenarios';
 
 const sceneResponse=()=>({
   sceneProgram:{...sampleSceneGeometry(),tracks:[]},
   bindings:sampleBindings
 });
 describe('two-stage Gemini-compatible architecture without network or credits',()=>{
+  it('allows safe mechanisms and distinct environments without changing the story planner',()=>{
+    for(const kind of ['workshop','city','harbor'] as const){
+      const scene=buildMechanicalScenario(kind);
+      const normalized=normalizeStoryMotionBindings(scene.bindings);
+      expect(normalized.mechanicalDrives?.machine.parts).toHaveLength(2);
+      expect(normalized.mechanicalDrives?.machine.output).toBe('cargo');
+    }
+  });
+
+  it('rejects invented mechanical axes, ratios and untrusted drive fields',()=>{
+    const scene=buildMechanicalScenario('city');
+    const malformed:any=structuredClone(scene.bindings);
+    malformed.mechanicalDrives.machine.parts[0].axis='north';
+    expect(()=>normalizeStoryMotionBindings(malformed)).toThrow(/Eixo/);
+    malformed.mechanicalDrives.machine.parts[0].axis='z';
+    malformed.mechanicalDrives.machine.parts[0].ratio=999;
+    expect(()=>normalizeStoryMotionBindings(malformed)).toThrow(/Relação/);
+    malformed.mechanicalDrives.machine.parts[0].ratio=1;
+    malformed.mechanicalDrives.machine.script='danger()';
+    expect(()=>normalizeStoryMotionBindings(malformed)).toThrow(/campos não permitidos/);
+  });
   it('plans events first, then geometry; automatically compiles all root motion',async()=>{
     const order:string[]=[];
     const fake=vi.fn(async(prompt:string,pass:'events'|'geometry')=>{
