@@ -1,0 +1,28 @@
+name: 3D narrative grip contacts QA
+on:
+  push:
+    branches: [feat/story-grasp-contacts-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: story-grasp-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install pinned dependencies
+        run: bun install --frozen-lockfile
+      - name: All tests including actual IK grip assertions
+        run: bun run test
+      - name: Verify type safety
+        run: bunx tsc --noEmit
+      - name: Build without deployment
+        run: bun run build
