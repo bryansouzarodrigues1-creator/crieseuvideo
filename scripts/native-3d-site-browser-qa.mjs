@@ -20,7 +20,7 @@ try {
  const empty=page.getByText('Seu próximo vídeo começa aqui');
  await empty.waitFor({timeout:40000});
  await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
- await page.getByRole('link',{name:/Motor 3D/}).click();
+ await page.getByRole('link',{name:/motor 3d/i}).click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
  const stage=page.locator('.native-3d-screen canvas');
  await stage.waitFor({timeout:60000});
