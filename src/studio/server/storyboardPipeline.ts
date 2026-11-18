@@ -66,12 +66,13 @@ export function normalizeStoryMotionBindings(raw:unknown):StoryMotionBindings {
     for(const [k,rawGear] of Object.entries(v)){
       const g=record(rawGear,'motorVisual');names(g,['node','axis','revolutions'],'motorVisual');
       if(g.axis!==undefined&&!['x','y','z'].includes(String(g.axis)))bad('Eixo do motor inválido.');
-      if(typeof g.revolutions!=='number'||!Number.isFinite(g.revolutions)||g.revolutions<.1||g.revolutions>20)
-        bad('Voltas do motor fora do limite.');
+      const revolutions=g.revolutions;
+      if(typeof revolutions!=='number'||!Number.isFinite(revolutions)||revolutions<.1||revolutions>20)
+        return bad('Voltas do motor fora do limite.');
       visuals[safeId(k,'motorVisual')]={
         node:safeId(g.node,'motorVisual.node'),
         ...(g.axis!==undefined?{axis:g.axis as 'x'|'y'|'z'}:{}),
-        revolutions:g.revolutions
+        revolutions
       };
     }
   }
@@ -135,11 +136,12 @@ export async function generateStoryboardFirst3D(
   names(data,['sceneProgram','bindings'],'geometria');
   const scene=bounded(data.sceneProgram,150000,'sceneProgram');
   // The only source of motion for principal entities is compiled state.
+  const authoredTracks=scene.tracks;
   if(!Array.isArray(scene.nodes) || !Array.isArray(scene.shots) ||
-     !Array.isArray(scene.contacts) || !Array.isArray(scene.tracks))
-    bad('O Gemini não retornou geometria e planos completos.');
-  if(scene.tracks.length)
-    bad('A etapa de modelagem não pode escrever keyframes dos objetos.');
+     !Array.isArray(scene.contacts) || !Array.isArray(authoredTracks))
+    return bad('O Gemini não retornou geometria e planos completos.');
+  if(authoredTracks.length)
+    return bad('A etapa de modelagem não pode escrever keyframes dos objetos.');
   const bindings=normalizeStoryMotionBindings(data.bindings);
   const motion=compileStoryMotion(storyboard,scene as unknown as SceneProgram,sources,bindings);
   return {...motion,storyboard,providerPasses:2};
@@ -152,7 +154,7 @@ export async function generateStoryboardWithGemini(
   if(!env.GEMINI_API_KEY)bad('Falta conexão explícita com Gemini nesta sessão.');
   return generateStoryboardFirst3D(sources,duration,async(prompt)=>{
     const result=await askAiResult(prompt,undefined,{...env,AI_TEXT_PROVIDER:'gemini',AI_TEXT_FALLBACK:''});
-    if(!result.ok)bad('Gemini indisponível na etapa de storyboard: '+result.code);
+    if(!result.ok)return bad('Gemini indisponível na etapa de storyboard: '+result.code);
     return result.text;
   });
 }
