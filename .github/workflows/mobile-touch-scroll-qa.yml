@@ -1,7 +1,7 @@
 name: Android vertical touch scrolling regression
 on:
   push:
-    branches: [fix/mobile-vertical-scroll-20261118]
+    branches: [fix/mobile-vertical-scroll-20261118, fix/mobile-embedded-scroll-container-20261118]
   pull_request:
     branches: [main]
 permissions:
