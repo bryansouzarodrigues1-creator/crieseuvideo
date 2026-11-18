@@ -9,6 +9,43 @@ const sceneResponse=()=>({
   bindings:sampleBindings
 });
 describe('two-stage Gemini-compatible architecture without network or credits',()=>{
+  it('accepts both original Gemini 3D objects and Claude procedural scenery in one validated second pass',async()=>{
+    const stage=sceneResponse();
+    const response={
+      ...stage,worldScenery:{version:1,regions:[
+        {id:'clouds',sourceId:'s1',shape:'cloud',size:[2.5],
+          position:[-4,8,-10],color:'#FFFFFF',seed:5},
+        {id:'garden',sourceId:'s1',shape:'rock',size:[1],
+          position:[4,0,-3],color:'#8B9998',seed:2}
+      ]}
+    };
+    const fake=vi.fn(async(_prompt:string,pass:'events'|'geometry')=>
+      JSON.stringify(pass==='events'?sampleStoryProposal():response));
+    const output=await generateStoryboardFirst3D(sampleSources,14,fake);
+    expect(fake).toHaveBeenCalledTimes(2);
+    expect(output.providerPasses).toBe(2);
+    expect(output.sceneryAudit?.environments.map(x=>x.shape)).toEqual(['cloud','rock']);
+    expect(output.program.nodes.find(x=>x.id==='clouds')?.geometry?.shape).toBe('mesh');
+    expect(output.program.nodes.find(x=>x.id==='garden')?.geometry?.shape).toBe('mesh');
+    const score=compileSceneProgram(output.program,sampleSources);
+    expect(score.sample(14).get('saco')?.position[1]).toBeCloseTo(5.05,3);
+  });
+
+  it('rejects unsafe or non-grounded worldScenery before the motion execution',async()=>{
+    const stage=sceneResponse();
+    const response={
+      ...stage,worldScenery:{version:1,regions:[
+        {id:'forest',sourceId:'s1',shape:'tree',size:[2.5],color:'#4E8B51',
+          script:'fetch("https://unsafe.test")'}
+      ]}
+    };
+    const fake=vi.fn(async(_prompt:string,pass:'events'|'geometry')=>
+      JSON.stringify(pass==='events'?sampleStoryProposal():response));
+    await expect(generateStoryboardFirst3D(sampleSources,14,fake))
+      .rejects.toThrow(/campo desconhecido/);
+  });
+
+
   it('turns a freshly designed cement bag into a stable object that the SAME event compiler can pick, carry and lift',async()=>{
     const fromModel=sceneResponse();
     const omit=new Set(['saco','sack-body','sack-green-band']);
