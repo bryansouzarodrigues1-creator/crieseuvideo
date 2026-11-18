@@ -60,7 +60,7 @@ export function compileComplexWorldBatch(raw:unknown):ComplexWorldBatch {
     only(clip,['id','sources','sceneProgram','worldBlueprints','worldScenery'],'clip');
     const clipId=clip.id;
     if(!safeId(clipId)||ids.has(clipId))bad('ID de cena inválido ou duplicado.');
-    ids.add(clipId);
+    ids.add(clipId as string);
     const rawSources=clip.sources;
     if(!Array.isArray(rawSources)||rawSources.length<1||rawSources.length>12)
       bad('Cada cena deve conter entre 1 e 12 trechos de roteiro.');
@@ -75,8 +75,8 @@ export function compileComplexWorldBatch(raw:unknown):ComplexWorldBatch {
         bad('Texto da frase ausente ou extenso.');
       if(typeof sourceDuration!=='number'||!Number.isFinite(sourceDuration)||
          sourceDuration<.3||sourceDuration>60)bad('Duração de frase fora do intervalo.');
-      sourceIds.add(sourceId);
-      sources.push({sourceId,text:sourceText.trim(),duration:sourceDuration});
+      sourceIds.add(sourceId as string);
+      sources.push({sourceId:sourceId as string,text:(sourceText as string).trim(),duration:sourceDuration as number});
     }
     const span=sources.reduce((acc,s)=>acc+s.duration!,0);
     if(span>180)bad('Uma cena isolada ultrapassou três minutos.');
@@ -85,9 +85,10 @@ export function compileComplexWorldBatch(raw:unknown):ComplexWorldBatch {
     const proposal=record(clip.sceneProgram,'sceneProgram');
     const sceneNodes=proposal.nodes;
     if(!Array.isArray(sceneNodes))bad('sceneProgram precisa de nodes.');
+    const validatedNodes=sceneNodes as Record<string,unknown>[];
     const blueprint=clip.worldBlueprints===undefined?undefined:
-      compileWorldBlueprints(clip.worldBlueprints,sources,sceneNodes as {id:string}[]);
-    const nodes=blueprint?[...sceneNodes,...blueprint.nodes]:sceneNodes;
+      compileWorldBlueprints(clip.worldBlueprints,sources,validatedNodes as {id:string}[]);
+    const nodes=blueprint?[...validatedNodes,...blueprint.nodes]:validatedNodes;
     const scenery=clip.worldScenery===undefined?undefined:
       compileWorldScenery(clip.worldScenery,sources,nodes as {id:string}[]);
     const expanded={...proposal,nodes:scenery?[...nodes,...scenery.nodes]:nodes};
@@ -101,7 +102,7 @@ export function compileComplexWorldBatch(raw:unknown):ComplexWorldBatch {
       sceneNodes:program.nodes.length,shotCount:program.shots.length,
       estimatedVertexLimit:250000
     };
-    clips.push({id:clipId,sources,duration:span,program,audit});
+    clips.push({id:clipId as string,sources,duration:span,program,audit});
     totalNodes+=audit.sceneNodes;
     totalParts+=audit.objectParts;
   }
