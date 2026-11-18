@@ -105,7 +105,14 @@ export function sampleSceneGeometry() {
     position:[-2.6,0,.15],color:'#EAC147'
   };
   return normalizeSceneProgram({
-    version:1, background:'#A8DAEA',nodes,tracks:[],contacts:[],
+    version:1, background:'#A8DAEA',nodes,
+    // A small independent ambient pulley marker keeps the existing SceneProgram
+    // validator satisfied; NO cargo, actor, pallet or motor tracks are authored.
+    tracks:[{node:'pulley-highlight',channel:'rotation',interpolation:'linear',
+      keys:[
+        {sourceId:'s3',phase:0,value:[0,0,0]},
+        {sourceId:'s3',phase:.78,value:[0,0,12.0]}
+      ]}],contacts:[],
     shots:[
       {sourceId:'s1',subjects:['trabalhador','saco','elevador'],
         azimuth:.47,endAzimuth:.47,elevation:.12,distance:1.10},
