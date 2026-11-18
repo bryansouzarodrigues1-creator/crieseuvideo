@@ -135,10 +135,11 @@ export async function generateStoryboardFirst3D(
   names(data,['sceneProgram','bindings'],'geometria');
   const scene=bounded(data.sceneProgram,150000,'sceneProgram');
   // The only source of motion for principal entities is compiled state.
-  if(!Array.isArray(scene.tracks) || scene.tracks.length)
-    bad('A etapa de modelagem não pode escrever keyframes dos objetos.');
-  if(!Array.isArray(scene.nodes) || !Array.isArray(scene.shots) || !Array.isArray(scene.contacts))
+  if(!Array.isArray(scene.nodes) || !Array.isArray(scene.shots) ||
+     !Array.isArray(scene.contacts) || !Array.isArray(scene.tracks))
     bad('O Gemini não retornou geometria e planos completos.');
+  if(scene.tracks.length)
+    bad('A etapa de modelagem não pode escrever keyframes dos objetos.');
   const bindings=normalizeStoryMotionBindings(data.bindings);
   const motion=compileStoryMotion(storyboard,scene as unknown as SceneProgram,sources,bindings);
   return {...motion,storyboard,providerPasses:2};
