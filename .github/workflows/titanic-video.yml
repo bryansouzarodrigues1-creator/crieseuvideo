@@ -1,0 +1,54 @@
+name: Titanic explainer video
+# Renders the authored Titanic explainer through the real studio UI and engine (no AI call) and publishes the
+# MP4 plus contact frames to the orphan branch `qa-titanic`.
+on:
+  push:
+    branches: [demo/titanic-video]
+    paths: ['src/**', 'lab/**', 'scripts/collision-visual-qa.mjs', 'scripts/fixtures/titanic.mjs', '.github/workflows/titanic-video.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: titanic-video
+  cancel-in-progress: true
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: node lab/build.mjs
+      - name: Install rendering tools
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          python3 -m pip install numpy pillow
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
+      - name: Render frames and MP4
+        env:
+          QA_ONLY: titanic
+          QA_VIDEO: '1'
+        run: |
+          bun scripts/collision-visual-qa.mjs
+          for d in tmp/collision-qa/video/*/; do ffmpeg -y -loglevel error -framerate 24 -i "$d%04d.png" -c:v libx264 -crf 20 -preset veryfast -pix_fmt yuv420p "tmp/collision-qa/video-$(basename $d).mp4"; done
+      - name: Publish to qa-titanic
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          out=$RUNNER_TEMP/titanic; mkdir -p "$out/frames" "$out/video"
+          cp tmp/collision-qa/*.png "$out/frames/" 2>/dev/null || true
+          cp tmp/collision-qa/*.mp4 "$out/video/" 2>/dev/null || true
+          echo "source=${GITHUB_SHA}" > "$out/SOURCE.txt"
+          cd "$out"; git init -q -b qa-titanic
+          git config user.name "frames-bot"; git config user.email "frames-bot@users.noreply.github.com"
+          git add -A; git commit -q -m "titanic for ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${REPO}.git" qa-titanic

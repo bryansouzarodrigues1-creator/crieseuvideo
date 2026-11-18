@@ -81,8 +81,10 @@ const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75,
     }
   }
 };
-await scenario('colisao', script, duration, fixture);
+const only = process.env.QA_ONLY || '';
+if (!only) await scenario('colisao', script, duration, fixture);
 
+if (!only) {
 // Scenery kit: an island with mountains, a lake, a forest snapped to the relief, rocks and clouds. Authored, no AI.
 // Water floods every part of the relief below its level, so the lake is a water plane placed over a low spot.
 const { terrainHeight } = await import('../src/studio/explainer/sceneProgram/scenery.ts');
@@ -104,6 +106,12 @@ await scenario('paisagem', land, 8, { title: 'paisagem', scenes: [{ sourceId: 's
     at('ana', 'actor', [shore.x, walkY(shore.x, shore.z), shore.z], { color: '#E8C55A', rotation: [0, 2.2, 0] })],
   tracks: [key('ana', [[0, [shore.x, walkY(shore.x, shore.z), shore.z]], [1, [shore.x, walkY(shore.x, shore.z), shore.z]]])],
   shots: [{ sourceId: 's1', subjects: ['ana', 'lago'], azimuth: .5, endAzimuth: -.4, elevation: .42, distance: 1.9 }], contacts: [] } }, [.02, .35, .7, .98], process.env.QA_VIDEO === '1');
+}
+if (only === 'titanic') { // the explainer of how the Titanic was built: authored program, no AI, full MP4 export
+  const { SCRIPT, SENTENCES, titanicProgram } = await import('./fixtures/titanic.mjs'), total = 48, words = SENTENCES.map((t) => t.split(/\s+/).length), sum = words.reduce((a, b) => a + b, 0);
+  let cursor = 0; const marks = words.flatMap((w) => { const start = cursor; cursor += w; return [(start + w * .25) / sum, (start + w * .8) / sum]; });
+  await scenario('titanic', SCRIPT, total, titanicProgram(), marks.map((m) => Math.min(.99, m)), process.env.QA_VIDEO === '1');
+}
 assert.deepEqual(errors, []);
 console.log('Collision frames written to', output);
 } finally { globalThis.fetch = originalFetch; await browser?.close(); await new Promise((resolve) => server.close(resolve)); }
