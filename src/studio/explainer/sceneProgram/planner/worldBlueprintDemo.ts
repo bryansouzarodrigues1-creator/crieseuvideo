@@ -49,10 +49,10 @@ function design(setting:MechanicalSetting):unknown {
   };
   const boat={
     id:'cargo',role:'prop',sourceId:'s1',name:'Pequeno barco de pesca com cabine e janelas',
-    position:[0,.2,0],features:['casco','convés','cabine','janelas','bandeira'],
+    position:[0,.2,0],features:['casco','conves','cabine','janelas','bandeira'],
     parts:[
       box('casco','casco','#E7E1C8',[2.8,.56,1.32],[0,.21,0]),
-      box('conves','convés'.normalize('NFD').replace(/[\u0300-\u036f]/g,''),'#325D77',[2.4,.12,1.10],[0,.52,0]),
+      box('conves','conves','#325D77',[2.4,.12,1.10],[0,.52,0]),
       box('cabine','cabine','#F3C26F',[.98,.84,.84],[-.44,.91,0]),
       box('janelas','janelas','#397A9B',[.56,.36,.07],[-.44,1.01,.435],{mirror:'z'}),
       cylinder('bandeira','bandeira','#E3E9ED',[.035,.035,.85],[.88,1.30,0]),
