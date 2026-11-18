@@ -2,7 +2,6 @@ import {chromium} from 'playwright';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {execFileSync} from 'node:child_process';
 
 const base='http://127.0.0.1:4198';
 const out=path.resolve('tmp/native-3d-site');
@@ -78,13 +77,20 @@ try {
  assert.ok(bytes.length>10000,'Recorded video has no useful bytes');
  if(filename.endsWith('.mp4'))assert.equal(bytes.toString('ascii',4,8),'ftyp','Fake MP4 bytes');
  else assert.equal(bytes.subarray(0,4).toString('hex'),'1a45dfa3','Fake WebM bytes');
- const probe=JSON.parse(execFileSync('ffprobe',[
-   '-v','error','-count_frames','-select_streams','v:0',
-   '-show_entries','stream=nb_read_frames,avg_frame_rate:format=duration',
-   '-of','json',saved,
- ],{encoding:'utf8'}));
- const deliveredFrames=Number(probe.streams?.[0]?.nb_read_frames);
- const deliveredDuration=Number(probe.format?.duration);
+ // Read MP4's ISO-BMFF sample table and movie header directly, without
+ // depending on ffprobe binaries being available in the CI runner.
+ assert.ok(filename.endsWith('.mp4'),
+   'The Chromium CI runner must support AVC MP4 for deterministic frame verification');
+ const stsz=bytes.indexOf(Buffer.from('stsz'));
+ const mvhd=bytes.indexOf(Buffer.from('mvhd'));
+ assert.ok(stsz>0&&mvhd>0,'MP4 video track has no stsz/mvhd sample tables');
+ assert.ok(stsz+16<=bytes.length&&mvhd+24<=bytes.length,'Corrupt MP4 box bounds');
+ const deliveredFrames=bytes.readUInt32BE(stsz+12);
+ const version=bytes[mvhd+4];
+ const ticksPerSecond=bytes.readUInt32BE(mvhd+(version===1?24:16));
+ const ticks=version===1?
+   Number(bytes.readBigUInt64BE(mvhd+28)):bytes.readUInt32BE(mvhd+20);
+ const deliveredDuration=ticks/ticksPerSecond;
  assert.equal(deliveredFrames,144,'Dropped frames: deterministic export must contain every 24fps frame');
  assert.ok(Math.abs(deliveredDuration-6)<.06,'Incorrect encoded duration: '+deliveredDuration);
  await writeFile(path.join(out,'report.json'),JSON.stringify({
