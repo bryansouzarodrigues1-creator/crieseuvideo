@@ -20,12 +20,14 @@ const session=await page.context().newCDPSession(page);
 const errors=[];
 page.on('pageerror',err=>errors.push(err.message));
 
-async function metrics(){
-  return page.evaluate(()=>{
-    const root=document.scrollingElement;
+async function metrics(selector){
+  return page.evaluate(sel=>{
+    // The old 2D editor has a dedicated scrolling pane; /motor-3d uses
+    // document scrolling. Both must accept real native finger gestures.
+    const root=sel?document.querySelector(sel):document.scrollingElement;
     return {y:root?.scrollTop??0,scrollHeight:root?.scrollHeight??0,
       viewport:root?.clientHeight??0,overflowY:getComputedStyle(document.body).overflowY};
-  });
+  },selector);
 }
 async function swipe(x,yStart,yEnd){
   const point=(y)=>[{x,y}];
@@ -38,12 +40,12 @@ async function swipe(x,yStart,yEnd){
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   await page.waitForTimeout(450);
 }
-async function assertSwipe(label,x,start,end){
-  const before=await metrics();
+async function assertSwipe(label,x,start,end,selector){
+  const before=await metrics(selector);
   assert.ok(before.scrollHeight-before.viewport>90,
     label+': page must be taller than viewport, got '+JSON.stringify(before));
   await swipe(x,start,end);
-  const after=await metrics();
+  const after=await metrics(selector);
   assert.ok(after.y-before.y>75,
     label+': native finger swipe must scroll the page. '+JSON.stringify({before,after}));
   console.log('PASS',label,Math.round(before.y),'->',Math.round(after.y));
@@ -54,7 +56,7 @@ try{
   await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
   await page.getByText('Seu próximo vídeo começa aqui').waitFor({timeout:60000});
   assert.equal((await metrics()).overflowY,'auto','Global body must not be overflow:hidden');
-  await assertSwipe('home editor vertical swipe',195,725,265);
+  await assertSwipe('home editor vertical swipe',195,725,265,'.production-workspace');
   await page.screenshot({path:path.join(out,'01-home-scrolled-on-android.png')});
 
   await page.goto(base+'/motor-3d',{waitUntil:'domcontentloaded',timeout:60000});
