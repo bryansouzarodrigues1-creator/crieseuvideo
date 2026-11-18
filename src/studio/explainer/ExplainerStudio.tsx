@@ -315,6 +315,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <Button variant="ghost" size="sm" onClick={() => setLibrary(true)}><FolderOpen />Meus projetos</Button>
           <Button variant="ghost" size="sm" onClick={onOpenEditor}>Editor de cenas</Button>
           <Button variant="ghost" size="sm" onClick={onOpenVideo}><Film />Vídeo por IA</Button>
+          <a href="/motor-3d" className="native-3d-nav-link" aria-label="Abrir motor 3D experimental">
+            <Box size={17}/> Motor 3D <span>novo</span>
+          </a>
         </div>
       </nav>
       <main className="explainer-layout">
