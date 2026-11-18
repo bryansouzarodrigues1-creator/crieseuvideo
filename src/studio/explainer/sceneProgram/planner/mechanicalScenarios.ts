@@ -125,6 +125,7 @@ export function buildMechanicalScenario(setting:MechanicalSetting):MechanicScena
       machine:{
         output:'cargo',
         radius:setting==='harbor'?.55:setting==='city'?.32:.24,
+        travelDirection:setting==='harbor'?[0,0,1]:[1,0,0],
         parts:[
           {node:'drum-shaft',axis:'z',ratio:1},
           {node:'small-gear-shaft',axis:'z',ratio:-2}
