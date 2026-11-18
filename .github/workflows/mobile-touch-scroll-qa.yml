@@ -1,0 +1,48 @@
+name: Android vertical touch scrolling regression
+on:
+  push:
+    branches: [fix/mobile-vertical-scroll-20261118]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: mobile-touch-scroll-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mobile-swipe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Build app and route types
+        run: bun run build
+      - name: TypeScript check
+        run: bunx tsc --noEmit
+      - name: Install headless Android-style Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start real preview server
+        run: |
+          mkdir -p tmp/mobile-touch-scroll
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/mobile-touch-scroll/server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat tmp/mobile-touch-scroll/server.log
+          exit 1
+      - name: Verify native finger swipes on home and WebGL canvas
+        run: bun scripts/mobile-touch-scroll-qa.mjs
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-scroll-android-canvas
+          path: tmp/mobile-touch-scroll/
+          retention-days: 7
+          if-no-files-found: warn
