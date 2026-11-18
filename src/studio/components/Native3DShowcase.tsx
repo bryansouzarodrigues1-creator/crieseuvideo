@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { ArrowLeft, Box, Clapperboard, Download, Pause, Play, RefreshCw } from 'lucide-react';
-import { buildComplexWorldBatchDemo } from '../explainer/sceneProgram/planner/complexWorldBatchDemo';
+import { ArrowLeft, Box, Download, Pause, Play, RefreshCw } from 'lucide-react';
+import { buildComplexWorldClipDemo } from '../explainer/sceneProgram/planner/complexWorldBatchDemo';
 import { SceneProgram3D } from '../explainer/sceneProgram/stage3d';
 
 const showcase = [
@@ -20,6 +20,9 @@ export default function Native3DShowcase() {
   const [time, setTime] = useState(0);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState<number | null>(null);
+  const [lite, setLite] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches);
+  const [activated, setActivated] = useState(() => typeof window !== 'undefined' && !window.matchMedia('(max-width: 700px)').matches);
+  const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ nodes: 0, tracks: 0, objects: 0 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playingRef = useRef(false);
@@ -27,6 +30,9 @@ export default function Native3DShowcase() {
   const timeRef = useRef(0);
   const drawRef = useRef<(t:number)=>void>(()=>{});
   const animRef = useRef<number>(0);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const stageRef = useRef<SceneProgram3D | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const mode = showcase[choice];
 
   const seek = useCallback((next:number) => {
@@ -38,56 +44,104 @@ export default function Native3DShowcase() {
 
   useEffect(() => { playingRef.current=playing; },[playing]);
 
+
   useEffect(() => {
-    if (!canvasRef.current) return;
-    const canvas=canvasRef.current;
-    const width=landscape ? 854 : 480, height=landscape ? 480 : 854;
-    canvas.width=width;canvas.height=height;
-    let renderer:THREE.WebGLRenderer | undefined;
-    let stage:SceneProgram3D | undefined;
-    let live=true;
-    setError('');setPlaying(false);playingRef.current=false;timeRef.current=0;setTime(0);
-    try {
-      // The three samples are authored stress tests; the UI makes no fake AI claims.
-      const clip=buildComplexWorldBatchDemo().clips[mode.source];
-      renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,preserveDrawingBuffer:true});
-      renderer.setSize(width,height,false);
-      renderer.setPixelRatio(1);
-      renderer.outputColorSpace=THREE.SRGBColorSpace;
-      renderer.shadowMap.enabled=true;
-      renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-      stage=new SceneProgram3D(clip.program,clip.sources);
-      setStats({nodes:clip.program.nodes.length,tracks:clip.program.tracks.length,objects:clip.audit.objectParts});
-      const liveStage=stage,liveRenderer=renderer;
-      drawRef.current=(t:number)=>{
-        liveStage.render(liveRenderer,Math.min(CLIP_SECONDS-.001,Math.max(0,t)),width,height);
-      };
-      drawRef.current(0);
-      let last=performance.now(),lastLabel=0;
-      const animate=(now:number)=>{
-        if(!live)return;
-        const dt=Math.min(.12,Math.max(0,(now-last)/1000));last=now;
-        if(playingRef.current && !exportingRef.current){
-          timeRef.current+=dt;
-          if(timeRef.current>=CLIP_SECONDS-.001){
-            timeRef.current=CLIP_SECONDS-.001;playingRef.current=false;setPlaying(false);
-          }
-          try{drawRef.current(timeRef.current);}
-          catch(e){playingRef.current=false;setPlaying(false);setError(e instanceof Error?e.message:String(e));}
-          if(now-lastLabel>90){setTime(timeRef.current);lastLabel=now;}
-        }
-        animRef.current=requestAnimationFrame(animate);
-      };
-      animRef.current=requestAnimationFrame(animate);
-    }catch(e){
-      setError('O motor 3D não conseguiu abrir a cena: '+(e instanceof Error?e.message:String(e)));
-    }
-    return ()=>{
-      live=false;cancelAnimationFrame(animRef.current);playingRef.current=false;
-      drawRef.current=()=>{};
-      stage?.dispose();renderer?.dispose();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const lost = (event: Event) => {
+      event.preventDefault();
+      playingRef.current = false;
+      setPlaying(false);
+      setError('O Android interrompeu o processamento gráfico. Tente recarregar a página em modo leve.');
     };
-  },[choice,landscape,mode.source]);
+    canvas.addEventListener('webglcontextlost', lost);
+    return () => canvas.removeEventListener('webglcontextlost', lost);
+  }, []);
+
+  // Keep one GPU context between scenes to avoid exhausting mobile WebGL resources.
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    stageRef.current?.dispose();
+    rendererRef.current?.dispose();
+    stageRef.current = null;
+    rendererRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !activated) return;
+    let live = true;
+    setError('');
+    setLoading(true);
+    setPlaying(false);
+    playingRef.current = false;
+    timeRef.current = 0;
+    setTime(0);
+    const timer = window.setTimeout(() => {
+      if (!live) return;
+      try {
+        const clip = buildComplexWorldClipDemo(mode.source);
+        const width = lite ? (landscape ? 480 : 270) : (landscape ? 854 : 480);
+        const height = lite ? (landscape ? 270 : 480) : (landscape ? 480 : 854);
+        let renderer = rendererRef.current;
+        if (!renderer) {
+          renderer = new THREE.WebGLRenderer({
+            canvas, antialias: false, alpha: false,
+            preserveDrawingBuffer: true, powerPreference: 'low-power',
+          });
+          rendererRef.current = renderer;
+        }
+        renderer.setPixelRatio(1);
+        renderer.setSize(width, height, false);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.shadowMap.enabled = !lite;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        stageRef.current?.dispose();
+        const stage = new SceneProgram3D(clip.program, clip.sources);
+        stageRef.current = stage;
+        setStats({ nodes: clip.program.nodes.length, tracks: clip.program.tracks.length, objects: clip.audit.objectParts });
+        drawRef.current = (t: number) => stage.render(renderer, Math.min(CLIP_SECONDS - .001, Math.max(0, t)), width, height);
+        drawRef.current(0);
+        setLoading(false);
+        let last = performance.now(), lastLabel = 0, nextFrame = 0;
+        const animate = (now: number) => {
+          if (!live) return;
+          const dt = Math.min(.12, Math.max(0, (now - last) / 1000));
+          last = now;
+          if (playingRef.current && !exportingRef.current && !document.hidden && now >= nextFrame) {
+            nextFrame = now + (lite ? 68 : 34);
+            timeRef.current += dt;
+            if (timeRef.current >= CLIP_SECONDS - .001) {
+              timeRef.current = CLIP_SECONDS - .001;
+              playingRef.current = false;
+              setPlaying(false);
+            }
+            try { drawRef.current(timeRef.current); }
+            catch (e) {
+              playingRef.current = false;
+              setPlaying(false);
+              setError(e instanceof Error ? e.message : String(e));
+            }
+            if (now - lastLabel > 120) { setTime(timeRef.current); lastLabel = now; }
+          }
+          animRef.current = requestAnimationFrame(animate);
+        };
+        animRef.current = requestAnimationFrame(animate);
+      } catch (e) {
+        setLoading(false);
+        setError('A cena não pôde ser carregada. Tente o modo leve: ' + (e instanceof Error ? e.message : String(e)));
+      }
+    }, 60);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+      cancelAnimationFrame(animRef.current);
+      playingRef.current = false;
+      drawRef.current = () => {};
+      stageRef.current?.dispose();
+      stageRef.current = null;
+    };
+  }, [choice, landscape, lite, activated, mode.source]);
 
   const exportVideo = async () => {
     const canvas = canvasRef.current;
