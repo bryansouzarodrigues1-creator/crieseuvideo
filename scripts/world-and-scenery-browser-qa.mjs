@@ -45,6 +45,11 @@ try{
       'Actual Claude scenery kit was not included in '+start.setting);
     assert.ok(start.worldAudit?.objects?.length===2,
       'Gemini-compatible assembly not included in '+start.setting);
+    if(start.setting==='harbor'){
+      const visible=[...start.sceneryInView,...end.sceneryInView];
+      assert.ok(visible.some(id=>id.startsWith('coast-trees-')),
+        'Coastal vegetation exists but the camera never shows it');
+    }
     const distance=Math.hypot(...end.cargo.map((v,j)=>v-start.cargo[j]));
     assert.ok(distance>=4.9,'Blueprint object failed to move under machine '+start.setting);
     assert.ok(Math.abs(end.shaft[2]-start.shaft[2])>8,
@@ -73,7 +78,8 @@ try{
     },[i*6+1,i*6+5]);
     assert.ok(pixelDelta>.002,
       'Actual 3D pixels are frozen despite numeric mechanics: '+start.setting+' '+pixelDelta);
-    scenes.push({name:start.setting,distanceMetres:distance,changedPixelFraction:pixelDelta,
+    scenes.push({name:start.setting,visibleScenery:[...new Set([...start.sceneryInView,...end.sceneryInView])],
+      distanceMetres:distance,changedPixelFraction:pixelDelta,
       shaftRads:end.shaft[2]-start.shaft[2],
       counterGearRads:end.gear[2]-start.gear[2],nodes:start.sceneNodes});
     for(const t of [1,3,5])
