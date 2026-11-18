@@ -12,16 +12,40 @@ const browser=await chromium.launch({headless:true,args:[
 ]});
 const errors=[];
 try {
- const page=await browser.newPage({viewport:{width:412,height:915},deviceScaleFactor:1});
+ const page=await browser.newPage({viewport:{width:412,height:915},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const cdp=await page.context().newCDPSession(page);
+ const assertTouchScroll=async(where)=>{
+   await page.evaluate(()=>window.scrollTo(0,0));
+   await page.waitForTimeout(100);
+   const before=await page.evaluate(()=>({
+     top:window.scrollY,
+     scrollHeight:document.scrollingElement?.scrollHeight,
+     height:document.scrollingElement?.clientHeight,
+     overflow:getComputedStyle(document.body).overflowY
+   }));
+   assert.ok(before.scrollHeight>before.height+80,where+' needs a scrollable document');
+   assert.notEqual(before.overflow,'hidden',where+' must not globally block overflow');
+   await cdp.send('Input.synthesizeScrollGesture',{
+     x:390,y:740,xDistance:0,yDistance:-430,gestureSourceType:'touch',speed:500
+   });
+   await page.waitForTimeout(400);
+   const after=await page.evaluate(()=>window.scrollY);
+   assert.ok(after>before.top+60,
+     where+' refuses finger-swipe scrolling: '+JSON.stringify({before,after}));
+   await page.evaluate(()=>window.scrollTo(0,0));
+   await page.waitForTimeout(100);
+ };
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
  await page.getByText('CrieSeuVideo',{exact:false}).first().waitFor({timeout:60000});
  const empty=page.getByText('Seu próximo vídeo começa aqui');
  await empty.waitFor({timeout:40000});
+ await assertTouchScroll('CrieSeuVideo homepage');
  await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
  await page.getByRole('link',{name:/motor 3d/i}).first().click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
+ await assertTouchScroll('Native 3D page before activation');
  const stage=page.locator('.native-3d-screen canvas');
  await stage.waitFor({state:'attached',timeout:60000});
  // On mobile, controls are accessible BEFORE any WebGL renderer is created.
@@ -40,6 +64,7 @@ try {
  },null,{timeout:60000});
  assert.equal(await stage.evaluate(c=>c.width),270,'Mobile scene should default to low-resolution WebGL');
  assert.equal(await stage.evaluate(c=>c.height),480,'Mobile scene height should be memory friendly');
+ await assertTouchScroll('Native 3D page with active WebGL canvas');
  await page.waitForFunction(()=>{
    const s=document.querySelector('.native-3d-numbers');
    return s&&Number(s.textContent?.match(/\d+/)?.[0])>20;
@@ -116,7 +141,7 @@ try {
  assert.ok(Math.abs(deliveredDuration-6)<.06,'Incorrect encoded duration: '+deliveredDuration);
  await writeFile(path.join(out,'report.json'),JSON.stringify({
   passed:true,route:'/motor-3d',worlds:['motocicleta','arca','prisão'],
-  verified:['Mobile activation works before GPU load','Only selected scene compiled at phone resolution','No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length,deliveredFrames,deliveredDuration},
+  verified:['Mobile activation works before GPU load','Only selected scene compiled at phone resolution','No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Finger swipe scrolls homepage and 3D page even over active WebGL','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length,deliveredFrames,deliveredDuration},
   errors,disclaimer:'Three scenes are authored QA fixtures. This test does not call Gemini or certify cinematic output.'
  },null,2));
  assert.deepEqual(errors.filter(x=>!/favicon|WebGL.*deprecated|GPU stall/.test(x)),[]);
