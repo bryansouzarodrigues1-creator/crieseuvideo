@@ -1,6 +1,7 @@
 /** An interpreted scene language: new geometry and keyframes, not action IDs.
  * This module is also the server validator. It never imports/evaluates model code. */
 import { approvedModel, type ApprovedModelId } from './modelRegistry';
+import { isKit, kitVertexCount } from './scenery';
 
 export type Vec3 = [number, number, number];
 export interface ProgramSource { sourceId: string; text: string; duration?: number }
@@ -9,11 +10,11 @@ export type ProgramChannel = typeof PROGRAM_CHANNELS[number];
 export const EFFECTORS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const;
 export type Effector = typeof EFFECTORS[number];
 export type Socket = 'root' | 'head' | Effector;
-export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number; /** Rounded edge radius for box (metres); cosmetic only. */ bevel?: number; bevelSegments?: number }
+export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe' | 'terrain' | 'water' | 'tree' | 'rock' | 'cloud'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number; /** Rounded edge radius for box (metres); cosmetic only. */ bevel?: number; bevelSegments?: number; /** Scenery kit: seed, relief (terrain), wave height (water), peak and foliage colours. */ seed?: number; roughness?: number; wave?: number; peakColor?: string; foliage?: string }
 export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
-  geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number };
+  geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number; /** id of a static terrain node: instances snap to its surface. */ ground?: string; /** with ground: instances below this height (metres) above the terrain base are skipped (lakes, shores). */ above?: number };
   material?: { roughness: number; metalness: number; opacity: number; emissive: string; emissiveIntensity: number };
 }
 export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
@@ -68,8 +69,8 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
     let geometry: ProgramGeometry | undefined;
     if (n.kind === 'mesh') {
-      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'segments', 'bevel', 'bevelSegments']);
-      const arity: Record<string, number> = { box: 3, sphere: 1, capsule: 2, cone: 2, cylinder: 3, plane: 2, torus: 2, tube: 1 };
+      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'segments', 'bevel', 'bevelSegments', 'seed', 'roughness', 'wave', 'peakColor', 'foliage']);
+      const arity: Record<string, number> = { box: 3, sphere: 1, capsule: 2, cone: 2, cylinder: 3, plane: 2, torus: 2, tube: 1, terrain: 3, water: 2, tree: 1, rock: 1, cloud: 1 };
       if (g.shape === 'lathe') {
         // Generic surface-of-revolution: jars, bottles, gears, vases, wheels, etc.
         // All values are data. No JavaScript, remote resources or arbitrary shaders.
@@ -111,7 +112,17 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
           const limit = Math.min(...size) / 2 * .98;
           if (radius > 0) { bevel = Math.min(radius, limit); bevelSegments = segments; }
         } else if (g.bevel !== undefined) num(g.bevel, 0, 20);
-        geometry = { shape: g.shape, size, ...(points ? { points } : {}), ...(bevel ? { bevel, bevelSegments } : {}) };
+        let kit: Partial<ProgramGeometry> = {};
+        if (isKit(g.shape)) {
+          const seed = num(g.seed ?? 1, 0, 2147483647), segments = num(g.segments ?? (g.shape === 'water' ? 24 : 32), 4, 64);
+          if (!Number.isInteger(seed) || !Number.isInteger(segments)) fail('Semente e resolução do cenário precisam ser inteiras.');
+          kit = { seed, ...(g.shape === 'terrain' || g.shape === 'water' ? { segments } : {}) };
+          if (g.shape === 'terrain') kit = { ...kit, roughness: num(g.roughness ?? .5, 0, 1), peakColor: color(g.peakColor ?? '#E8ECEF') };
+          if (g.shape === 'water') kit = { ...kit, wave: num(g.wave ?? .15, 0, 3) };
+          if (g.shape === 'tree') kit = { ...kit, foliage: color(g.foliage ?? '#3F8F4E') };
+          if (size.some((v) => v < .05)) fail('As dimensões do cenário são pequenas demais.');
+        } else for (const field of ['seed', 'roughness', 'wave', 'peakColor', 'foliage']) if (g[field] !== undefined) fail('Esse campo só vale para formas de cenário (terrain, water, tree, rock, cloud).');
+        geometry = { shape: g.shape, size, ...(points ? { points } : {}), ...(bevel ? { bevel, bevelSegments } : {}), ...kit };
       }
     } else if (n.geometry !== undefined) fail('Somente malhas definem geometria.');
     let material: ProgramNode['material'];
@@ -123,12 +134,13 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     let repeat: ProgramNode['repeat'];
     if (n.repeat !== undefined) {
       if (n.kind !== 'mesh') fail('Repetição só é permitida para malhas.');
-      const p = obj(n.repeat); only(p, ['count', 'step', 'jitter', 'seed']);
+      const p = obj(n.repeat); only(p, ['count', 'step', 'jitter', 'seed', 'ground', 'above']);
       const count = num(p.count, 1, 800), seed = num(p.seed ?? 1, 0, 2147483647);
       if (!Number.isInteger(count) || !Number.isInteger(seed)) fail('Repetição precisa de contagem e semente inteiras.');
-      repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200) };
+      repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200), ...(p.ground !== undefined ? { ground: identifier(p.ground), above: num(p.above ?? 0, 0, 200) } : {}) };
+      if (p.above !== undefined && p.ground === undefined) fail('A altura mínima só vale junto com o terreno de apoio (ground).');
     }
-    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : 500) * (repeat?.count ?? 1);
+    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
@@ -137,6 +149,10 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');
+  for (const node of nodes) if (node.repeat?.ground) {
+    const ground = nodeMap.get(node.repeat.ground);
+    if (ground?.kind !== 'mesh' || ground.geometry?.shape !== 'terrain' || ground.repeat || ground.parent !== node.parent) fail('O apoio de uma repetição precisa ser um terreno (terrain) único, no mesmo grupo.');
+  }
   for (const node of nodes) {
     const visited = new Set([node.id]); let parent = node.parent;
     if (node.socket !== 'root' && (!parent || nodeMap.get(parent)?.kind !== 'actor')) fail('Um encaixe corporal precisa de um personagem pai.');

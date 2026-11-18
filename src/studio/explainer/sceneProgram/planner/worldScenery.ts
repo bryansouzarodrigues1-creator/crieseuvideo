@@ -5,9 +5,9 @@
  * The model specifies constrained scenery parameters, not thousands of
  * raw vertices, JS, remote URLs or a hardcoded "island video".
  *
- * v1 exports static sampled geometry: animated water, terrain-following
- * instancing in shader and scenic interaction physics require a later
- * renderer integration/review. Keep source branch untouched.
+ * v2 emits native procedural shapes. Water is updated by SceneProgram3D on
+ * each timeline frame. Physics of waves and terrain-following actor navigation
+ * remain separate work. Keep the original Claude source untouched.
  */
 import {isKit,kitMesh,terrainHeight,type KitParams,type KitShape} from '../scenery';
 import type {ProgramSource,Vec3} from '../score';
@@ -132,6 +132,17 @@ const geometry=(p:KitParams)=>{
   return {shape:'mesh',vertices:m.positions,indices:m.indices,
     ...(m.colors?{colors:m.colors}:{})};
 };
+
+/** Keep the Claude primitives declarative in SceneProgram. The renderer can
+ * re-sample water on each timeline frame and render terrain/tree vertex
+ * colours without freezing the surface into a t=0 mesh. */
+const runtimeGeometry=(p:KitParams):Record<string,unknown>=>({
+  shape:p.shape,size:p.size,seed:p.seed,
+  ...(p.shape==='terrain'?{roughness:p.roughness,peakColor:p.peakColor,segments:p.segments}:{}),
+  ...(p.shape==='water'?{wave:p.wave,segments:p.segments}:{}),
+  ...(p.shape==='tree'?{foliage:p.foliage}:{})
+});
+
 export function compileWorldScenery(
   raw:unknown,
   sources:ProgramSource[],
@@ -152,7 +163,7 @@ export function compileWorldScenery(
     const scatter=region.scatter;
     if(!scatter){
       nodes.push({id:region.id,kind:'mesh',contextSourceId:region.sourceId,
-        color:region.params.color,position:region.position,geometry:geo});
+        color:region.params.color,position:region.position,geometry:runtimeGeometry(region.params)});
     }else{
       const ground=regionMap.get(scatter.ground);
       if(!ground||ground.shape!=='terrain'||ground.scatter)
@@ -181,7 +192,7 @@ export function compileWorldScenery(
         nodes.push({id,kind:'mesh',parent:region.id,contextSourceId:region.sourceId,
           color:region.params.color,
           position:[ground.position[0]+x,ground.position[1]+h+region.position[1],
-            ground.position[2]+z],geometry:geo});
+            ground.position[2]+z],geometry:runtimeGeometry(region.params)});
         vertices+=geo.vertices.length/3;
         indices+=geo.indices.length;
       }
@@ -195,5 +206,5 @@ export function compileWorldScenery(
   }
   return {nodes,audit:{environments:audit,nodes:nodes.length,
     source:'Claude scenery kit (copied unchanged)',
-    limitations:'Geometrias exportadas como malhas estáticas: ondas e neblina/vegetação dinâmica do renderer do Claude ainda não estão integradas. A altura de distribuição vem de terreno amostrado; colisão, física, identidade artística e qualidade final ainda exigem revisão do MP4.'}};
+    limitations:'Formas procedurais preservadas no SceneProgram: a água é animada no renderer; árvores distribuídas usam altura estática amostrada. Não há física de ondas, navegação no relevo, nem garantia de qualidade cinematográfica.'}};
 }

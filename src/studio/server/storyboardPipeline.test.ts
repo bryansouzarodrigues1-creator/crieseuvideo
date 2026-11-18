@@ -25,8 +25,8 @@ describe('two-stage Gemini-compatible architecture without network or credits',(
     expect(fake).toHaveBeenCalledTimes(2);
     expect(output.providerPasses).toBe(2);
     expect(output.sceneryAudit?.environments.map(x=>x.shape)).toEqual(['cloud','rock']);
-    expect(output.program.nodes.find(x=>x.id==='clouds')?.geometry?.shape).toBe('mesh');
-    expect(output.program.nodes.find(x=>x.id==='garden')?.geometry?.shape).toBe('mesh');
+    expect(output.program.nodes.find(x=>x.id==='clouds')?.geometry?.shape).toBe('cloud');
+    expect(output.program.nodes.find(x=>x.id==='garden')?.geometry?.shape).toBe('rock');
     const score=compileSceneProgram(output.program,sampleSources);
     expect(score.sample(14).get('saco')?.position[1]).toBeCloseTo(5.05,3);
   });
