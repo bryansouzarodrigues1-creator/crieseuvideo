@@ -223,7 +223,7 @@ export function compileStoryMotion(
         if(!from||!to)problem('Não existe deslocamento da carga para acionar o motor.');
         for(const part of drive.parts){
           const current=drivenRotation.get(part.node)!;
-          const deltaAngle=coupledAngle(from!,to!,drive.radius,part.ratio);
+          const deltaAngle=coupledAngle(from!,to!,drive.radius,part.ratio,drive.travelDirection);
           const axis=part.axis==='x'?0:part.axis==='y'?1:2;
           const next:[number,number,number]=[...current];
           next[axis]+=deltaAngle;
