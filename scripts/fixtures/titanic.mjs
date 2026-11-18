@@ -124,13 +124,13 @@ export function titanicProgram() {
   mesh('painel', 's4', [-62, 2.1, 0], { shape: 'box', size: [8, 4, .3], bevel: .04 }, '#5D6872');
   mesh('apoios', 's4', [-65.5, .3, -.4], { shape: 'box', size: [.5, .6, 1.4], bevel: .05 }, '#4D3B2A', { repeat: { count: 2, step: [7, 0, 0], jitter: [0, 0, 0], seed: 1 } });
   for (const [k, y] of [[1, .9], [2, 1.7], [3, 2.5], [4, 3.3]]) mesh(`rebites${k}`, 's4', [-65.6, y, .24], { shape: 'cylinder', size: [.07, .13, .14] }, '#3A3F46', { rotation: [Math.PI / 2, 0, 0], repeat: { count: 14, step: [.5, 0, 0], jitter: [0, 0, 0], seed: 1 } });
-  add('op1', 'actor', 's4', [-60.4, 0, 1.05], { color: '#E8C55A', rotation: [0, Math.PI + .25, 0] });
+  add('op1', 'actor', 's4', [-60.4, 0, .65], { color: '#E8C55A', rotation: [0, Math.PI + .25, 0] });
   group('martelo', 's4', [0, 0, 0], { parent: 'op1', socket: 'rightHand' });
   mesh('martelo_cabo', 's4', [0, 0, .15], { shape: 'cylinder', size: [.03, .03, .5] }, '#6B4A2B', { parent: 'martelo', rotation: [Math.PI / 2, 0, 0] });
   mesh('martelo_cabeca', 's4', [0, 0, .42], { shape: 'box', size: [.1, .1, .2] }, '#2B2F36', { parent: 'martelo' });
-  const swing = []; for (let i = 0; i < 5; i++) swing.push(['s4', .1 + i * .18, [-60.75, 1.95, .75]], ['s4', .17 + i * .18, [-60.75, 1.4, .3]]);
+  const swing = []; for (let i = 0; i < 5; i++) swing.push(['s4', .1 + i * .18, [-60.4, 1.95, .62]], ['s4', .17 + i * .18, [-60.4, 1.5, .3]]);
   track('op1', 'rightHand', 'smooth', swing);
-  track('op1', 'leftHand', 'smooth', [['s4', 0, [-60.1, 1.5, .4]], ['s4', .95, [-60.1, 1.5, .4]]]);
+  track('op1', 'leftHand', 'smooth', [['s4', 0, [-60.2, 1.4, .4]], ['s4', .95, [-60.2, 1.4, .4]]]);
 
   // ---------- Sentence 5: one rivet, cold water, a crack ----------
   group('junta', 's5', [-62, 0, -14]);
