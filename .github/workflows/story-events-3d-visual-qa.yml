@@ -1,0 +1,54 @@
+name: Story Events 3D - real browser and MP4 QA
+on:
+  push:
+    branches: [feat/story-events-planner-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: story-events-mp4-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install pinned app dependencies
+        run: bun install --frozen-lockfile
+      - name: Unit and TypeScript guard before expensive rendering
+        run: |
+          bun run test
+          bunx tsc --noEmit
+      - name: Setup headless WebGL browser and H264
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Launch original real 3D storyboard proof
+        run: |
+          mkdir -p tmp/story-events-3d
+          bunx vite lab/story-events-3d --host 127.0.0.1 --port 4199 --strictPort >tmp/story-events-3d/vite.log 2>&1 &
+          for i in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:4199/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 tmp/story-events-3d/vite.log
+          exit 1
+      - name: Assert causal movement and export 14-second H264 MP4
+        run: bun scripts/story-events-3d-browser-qa.mjs
+      - name: Preserve honest video frames and reports even after a failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-events-3d-14s-evidence
+          path: tmp/story-events-3d/
+          retention-days: 7
+          if-no-files-found: warn
