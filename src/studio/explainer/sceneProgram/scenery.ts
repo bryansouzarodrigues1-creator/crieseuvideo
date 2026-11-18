@@ -30,17 +30,22 @@ function fbm(x: number, z: number, seed: number, octaves = 4) {
   return sum / norm;
 }
 
-/** Height above the terrain base at local (x, z); 0 at the border so it blends into the ground around it. */
+/** Island mask: 1 inland, 0 at the coast. The distance from the centre is warped by noise so the coast is irregular
+ * instead of a rectangle, and the land never reaches the border of its square. */
+function coast(p: Pick<KitParams, 'seed'>, u: number, v: number) {
+  const r = Math.hypot(u - .5, v - .5) * 2 * (1 + .45 * (fbm(u * 3.1 + 7, v * 3.1 + 3, p.seed + 5, 3) - .5));
+  return { land: 1 - smoothstep(.5, .92, r), sink: smoothstep(.8, 1.05, r) };
+}
+/** Land height above the terrain base at local (x, z); 0 at the coast so it blends into the water around it. */
 export function terrainHeight(p: Pick<KitParams, 'size' | 'seed' | 'roughness'>, x: number, z: number): number {
   const [width, depth, height] = p.size, u = x / width + .5, v = z / depth + .5;
-  const edge = smoothstep(0, .2, Math.min(u, 1 - u, v, 1 - v));
   const n = fbm(u * (3 + p.roughness * 5), v * (3 + p.roughness * 5), p.seed), bump = Math.max(0, 1 - Math.hypot(u - .5, v - .5) * 1.7);
-  return Math.min(1, Math.max(0, (.3 + .7 * p.roughness) * n * 1.25 + (1 - .6 * p.roughness) * bump * .75)) * edge * height;
+  return Math.min(1, Math.max(0, (.3 + .7 * p.roughness) * n * 1.25 + (1 - .6 * p.roughness) * bump * .75)) * coast(p, u, v).land * height;
 }
 export function terrainMesh(p: KitParams): MeshData {
   const [width, depth, height] = p.size, n = p.segments, low = linear(p.color), high = linear(p.peakColor), positions: number[] = [], colors: number[] = [], indices: number[] = [];
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
-    const x = (i / n - .5) * width, z = (j / n - .5) * depth, y = terrainHeight(p, x, z), t = smoothstep(.55, .88, y / Math.max(height, 1e-6));
+    const x = (i / n - .5) * width, z = (j / n - .5) * depth, h = terrainHeight(p, x, z), t = smoothstep(.62, .95, h / Math.max(height, 1e-6)), y = h - coast(p, x / width + .5, z / depth + .5).sink * height * .35; // the seabed sinks past the coast
     const tint = .92 + hash(i, j, p.seed + 91) * .16; positions.push(x, y, z); colors.push(...mix(low, high, t).map((c) => Math.min(1, c * tint)));
   }
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; indices.push(a, c, b, b, c, d); }

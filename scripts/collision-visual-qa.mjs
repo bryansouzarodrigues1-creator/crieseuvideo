@@ -83,7 +83,7 @@ await scenario('colisao', script, duration, fixture);
 const { terrainHeight } = await import('../src/studio/explainer/sceneProgram/scenery.ts');
 const relief = { size: [90, 90, 16], seed: 11, roughness: .75 }, base = -.3;
 let low = { x: 0, z: 0, h: Infinity };
-for (let x = -22; x <= 22; x += 2) for (let z = -22; z <= 22; z += 2) { const h = terrainHeight(relief, x, z); if (h < low.h) low = { x, z, h }; }
+for (let x = -22; x <= 22; x += 2) for (let z = -22; z <= 22; z += 2) { if (Math.hypot(x, z) > 17) continue; const h = terrainHeight(relief, x, z); if (h < low.h) low = { x, z, h }; }
 let shore = { x: 0, z: 0, d: Infinity }; // dry spot next to the lake for the walker
 for (let x = -30; x <= 30; x += 1) for (let z = -30; z <= 30; z += 1) { const h = terrainHeight(relief, x, z), d = Math.hypot(x - low.x, z - low.z); if (h > low.h + 1.6 && d < shore.d && d > 7) shore = { x, z, d }; }
 const level = base + low.h + 1.1, land = 'Uma ilha verde com montanhas, floresta e um lago sob as nuvens.';

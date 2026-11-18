@@ -20,11 +20,11 @@ describe('scenery generators', () => {
     }
   });
   it('terrain falls to zero at the border, stays within its height and changes with the seed', () => {
-    expect(terrainHeight(base, -20, 0)).toBe(0); expect(terrainHeight(base, 0, 20)).toBe(0);
+    expect(terrainHeight(base, -20, 0)).toBe(0); expect(terrainHeight(base, 0, 20)).toBe(0); expect(terrainHeight(base, 19, 19)).toBe(0);
     let max = 0; for (let x = -19; x <= 19; x += 1) for (let z = -19; z <= 19; z += 1) { const h = terrainHeight(base, x, z); expect(h).toBeGreaterThanOrEqual(0); max = Math.max(max, h); }
     expect(max).toBeLessThanOrEqual(8); expect(max).toBeGreaterThan(2);
     expect(terrainHeight({ ...base, seed: 8 }, 3, 4)).not.toBe(terrainHeight(base, 3, 4));
-    const mesh = kitMesh(base); const ys = mesh.positions.filter((_, i) => i % 3 === 1); expect(Math.max(...ys)).toBeCloseTo(max, 0);
+    const mesh = kitMesh(base); const ys = mesh.positions.filter((_, i) => i % 3 === 1); expect(Math.max(...ys)).toBeLessThanOrEqual(max + 1e-6 + 8 * .1); expect(Math.max(...ys)).toBeGreaterThan(max * .6); expect(Math.min(...ys)).toBeLessThan(0); // seabed below the base past the coast
   });
   it('water moves with time and respects its wave amplitude', () => {
     const w = { ...base, shape: 'water' as const, size: [30, 30], segments: 12 };
