@@ -53,10 +53,10 @@ describe('Gemini-origin 3D visual blueprints, not topic presets',()=>{
     const result=compileWorldBlueprints(make(body,moto),sources);
     expect(result.audit.objects).toHaveLength(2);
     expect(result.audit.objects[0].features).toEqual(['corpo','haste','folhas']);
-    expect(result.audit.totalNodes).toBe(10);
+    expect(result.audit.totalNodes).toBe(11);
     expect(result.nodes.map(n=>n.id)).toContain('tomate-folhas-m');
     expect(result.nodes.map(n=>n.id)).toContain('moto-rodas-m');
-    expect(result.nodes.filter(n=>n.kind==='mesh')).toHaveLength(8);
+    expect(result.nodes.filter(n=>n.kind==='mesh')).toHaveLength(9);
     const program=scene(result.nodes);
     const stage=new SceneProgram3D(program,sources);
     try{
