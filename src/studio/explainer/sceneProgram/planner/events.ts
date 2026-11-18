@@ -101,7 +101,8 @@ const keys = (r: Record<string, unknown>, allowed: readonly string[], where: str
   if (unexpected) invalid(where + ' contém campo não suportado: ' + unexpected);
 };
 const array = (x: unknown, max: number, where: string): unknown[] => {
-  if (!Array.isArray(x) || x.length > max) invalid(where + ' excede o limite ou não é uma lista.');
+  if (!Array.isArray(x)) return invalid(where + ' excede o limite ou não é uma lista.');
+  if (x.length > max) return invalid(where + ' excede o limite ou não é uma lista.');
   for (let i = 0; i < x.length; i++) {
     if (!(i in x)) invalid(where + ' contém entrada vazia.');
   }
