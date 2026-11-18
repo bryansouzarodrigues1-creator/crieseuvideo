@@ -20,13 +20,16 @@ try {
  const empty=page.getByText('Seu próximo vídeo começa aqui');
  await empty.waitFor({timeout:40000});
  await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
- await page.getByRole('link',{name:/motor 3d/i}).click();
+ await page.getByRole('link',{name:/motor 3d/i}).first().click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
  const stage=page.locator('.native-3d-screen canvas');
  await stage.waitFor({state:'attached',timeout:60000});
  // On mobile, controls are accessible BEFORE any WebGL renderer is created.
  const activate=page.getByRole('button',{name:'Carregar motor 3D'});
  await activate.waitFor({timeout:60000});
+ const activeRect=await activate.boundingBox();
+ assert.ok(activeRect && activeRect.y>=0 && activeRect.y+activeRect.height<915,
+   'Mobile 3D start button must be visible without scrolling');
  assert.equal(await page.getByRole('button',{name:'Reproduzir'}).isDisabled(),true);
  await page.screenshot({path:path.join(out,'02-mobile-before-gpu-activation.png')});
  await activate.click();
