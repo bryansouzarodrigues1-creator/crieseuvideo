@@ -1,0 +1,50 @@
+name: Three real 3D environments with causal machinery
+on:
+  push:
+    branches: [feat/multi-scene-mechanics-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cross-scene-visual-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Chromium and FFmpeg
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Start three real Three.js scenes
+        run: |
+          mkdir -p tmp/multi-scene-mechanics
+          bunx vite lab/multi-scene-mechanics --host 127.0.0.1 --port 4198 --strictPort >tmp/multi-scene-mechanics/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/multi-scene-mechanics/vite.log
+          exit 1
+      - name: Audit real image changes and export 18s 720x1280 MP4
+        run: bun scripts/multi-scene-mechanics-browser-qa.mjs
+      - name: Preserve MP4, nine frames and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-scene-mechanics-18s-video
+          path: tmp/multi-scene-mechanics/
+          retention-days: 7
+          if-no-files-found: warn
