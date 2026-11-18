@@ -4,7 +4,7 @@ name: Visual 3D frames
 # without downloading CI artifacts. Zero AI calls: only developer-authored fixtures.
 on:
   push:
-    branches: [integration/3d-all, feat/3d-toon-look]
+    branches: [integration/3d-all, feat/3d-toon-look, feat/3d-scenery-kit]
     paths: ['src/**', 'lab/**', 'scripts/scene-program-qa.mjs', 'scripts/collision-visual-qa.mjs', '.github/workflows/visual-3d-frames.yml']
   workflow_dispatch:
 permissions:
@@ -40,7 +40,11 @@ jobs:
         run: bun scripts/scene-program-qa.mjs
       - name: Collision layout frames (authored, no AI)
         continue-on-error: true
-        run: bun scripts/collision-visual-qa.mjs
+        env:
+          QA_VIDEO: '1'
+        run: |
+          bun scripts/collision-visual-qa.mjs
+          for d in tmp/collision-qa/video/*/; do [ -d "$d" ] && ffmpeg -y -loglevel error -framerate 24 -i "$d%04d.png" -c:v libx264 -crf 20 -preset veryfast -pix_fmt yuv420p "tmp/collision-qa/video-$(basename $d).mp4"; done; true
       - name: Real studio frames (Gemini simulated)
         continue-on-error: true
         run: bun scripts/studio-freeform-3d-browser-qa.mjs
@@ -55,6 +59,7 @@ jobs:
           cp tmp/scene-program-qa/*.png "$out/scene-program/" 2>/dev/null || true
           cp tmp/real-studio-3d-qa/*.png "$out/studio/" 2>/dev/null || true
           mkdir -p "$out/collision"; cp tmp/collision-qa/*.png "$out/collision/" 2>/dev/null || true
+          mkdir -p "$out/video"; cp tmp/collision-qa/*.mp4 "$out/video/" 2>/dev/null || true
           echo "source=${GITHUB_SHA}" > "$out/SOURCE.txt"
           cd "$out"
           git init -q -b qa-frames

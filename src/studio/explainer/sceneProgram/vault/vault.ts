@@ -39,6 +39,7 @@ export function searchVault(entries: readonly VaultEntry[], request: string, lim
 const SIZE_AXES: Record<string, (s: number[]) => [number, number, number]> = {
   box: (s) => [s[0], s[1], s[2]], sphere: (s) => [s[0] * 2, s[0] * 2, s[0] * 2], capsule: (s) => [s[0] * 2, s[1] + s[0] * 2, s[0] * 2],
   cone: (s) => [s[0] * 2, s[1], s[0] * 2], cylinder: (s) => [Math.max(s[0], s[1]) * 2, s[2], Math.max(s[0], s[1]) * 2], plane: (s) => [s[0], s[1], .01], torus: (s) => [(s[0] + s[1]) * 2, (s[0] + s[1]) * 2, s[1] * 2],
+  terrain: (s) => [s[0], s[2], s[1]], water: (s) => [s[0], .1, s[1]], tree: (s) => [s[0] * .6, s[0], s[0] * .6], rock: (s) => [s[0] * 2, s[0] * 1.1, s[0] * 2], cloud: (s) => [s[0] * 3.6, s[0], s[0] * 1.4],
 };
 /** Conservative extent of a fragment from node positions and primitive sizes (ignores rotation). */
 export function estimateSize(nodes: readonly VaultNode[]): [number, number, number] {
