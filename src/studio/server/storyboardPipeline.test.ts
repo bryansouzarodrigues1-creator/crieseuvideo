@@ -12,7 +12,7 @@ describe('two-stage Gemini-compatible architecture without network or credits',(
     const order:string[]=[];
     const fake=vi.fn(async(prompt:string,pass:'events'|'geometry')=>{
       order.push(pass);
-      expect(prompt).toContain(pass==='events'?'AÇÕES': 'Acontecimentos validados');
+      expect(prompt).toContain(pass==='events'?'ACONTECIMENTOS': 'Acontecimentos validados');
       return JSON.stringify(pass==='events'?sampleStoryProposal():sceneResponse());
     });
     const r=await generateStoryboardFirst3D(sampleSources,14,fake);
