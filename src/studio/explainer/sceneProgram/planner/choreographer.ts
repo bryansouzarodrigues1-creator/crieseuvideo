@@ -133,14 +133,13 @@ export function compileStoryMotion(
       problem('O eixo do motor recebeu rotações contraditórias de duas fontes.');
     push(m.node,'rotation',0,n.rotation);
   }
-  const deltaFor=(event:CompiledStoryEvent):Vec3=>{
-    if(!event.destination)problem('Deslocamento sem destino.');
-    const target=point(bindings.placeAnchors[event.destination],'Destino '+event.destination);
-    const old=event.effects.find(x=>x.entity===event.subject)?.before.at;
-    const source=old?point(bindings.placeAnchors[old],'Origem '+old):undefined;
-    if(!source)problem('Movimento sem origem física.');
-    return sub(target,source);
+  const betweenPlaces=(from:string|null|undefined,to:string|null|undefined):Vec3=>{
+    if(!from || !to)return problem('Movimento sem origem ou destino físico.');
+    return sub(point(bindings.placeAnchors[to],'Destino '+to),
+      point(bindings.placeAnchors[from],'Origem '+from));
   };
+  const deltaFor=(event:CompiledStoryEvent):Vec3=>
+    betweenPlaces(event.effects.find(x=>x.entity===event.subject)?.before.at,event.destination);
   const diagnostics:StoryMotionDiagnostics['events']=[];
   for(const event of storyboard.events) {
     const span=spans.find(x=>x.sourceId===event.sourceId);
@@ -178,7 +177,7 @@ export function compileStoryMotion(
       case 'operate':{
         const moveId=event.action==='carry'?event.actor!:event.subject;
         const delta=event.action==='carry'
-          ? sub(point(bindings.placeAnchors[event.destination!],'Destino'),point(bindings.placeAnchors[event.effects.find(x=>x.entity===moveId)?.before.at],'Origem'))
+          ? betweenPlaces(event.effects.find(x=>x.entity===moveId)?.before.at,event.destination)
           :deltaFor(event);
         for(const e of event.effects){
           if(e.after.at!==e.before.at && position.has(e.entity))
