@@ -107,7 +107,7 @@ export class VideoExportManager {
 
       // Combine with audio stream from SFX & voice
       const audioStream = getAudioDestinationStream();
-      const combinedTracks = [...canvasStream.getVideoTracks()];
+      const combinedTracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
 
       if (audioStream && audioStream.getAudioTracks().length > 0) {
         combinedTracks.push(...audioStream.getAudioTracks());
