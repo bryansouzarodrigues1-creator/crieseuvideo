@@ -46,6 +46,13 @@ const seek=(t:number)=>{
   ctx.font='22px sans-serif';
   ctx.fillStyle='#C7D5DF';
   ctx.fillText('Mecanica + objetos novos + paisagens 3D',32,H-52);
+  const frustum=new THREE.Frustum().setFromProjectionMatrix(
+    new THREE.Matrix4().multiplyMatrices(stage.camera.projectionMatrix,stage.camera.matrixWorldInverse));
+  const sceneryInView=sample.program.nodes.filter(n=>
+    (n.id.startsWith('coast-trees-')||n.id.startsWith('city-tree-')||
+      n.id==='garden-tree'||n.id==='island'||n.id==='sea')&&
+    n.kind==='mesh'&&
+    frustum.intersectsObject(stage.nodes.get(n.id)!)).map(n=>n.id);
   const cargo=stage.nodes.get('cargo')!.position.toArray();
   const shaft=stage.nodes.get('drum-shaft')!.rotation;
   const gear=stage.nodes.get('small-gear-shaft')!.rotation;
@@ -56,6 +63,7 @@ const seek=(t:number)=>{
     sceneNodes:sample.program.nodes.length,
     worldAudit:sample.worldAudit,
     sceneryAudit:sample.sceneryAudit,
+    sceneryInView,
     source:'Storyboard compiled mechanically, no Gemini'
   };
 };
