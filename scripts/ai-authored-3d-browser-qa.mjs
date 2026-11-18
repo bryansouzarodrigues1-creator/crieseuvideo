@@ -11,12 +11,18 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 try{
   const page=await browser.newPage({viewport:{width:412,height:915}});
   page.on('pageerror',e=>errors.push(e.message));
+  page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text());});
+  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url());});
   let generationRequests=0;
   page.on('request',r=>{
     if(r.url().includes('generativelanguage.googleapis.com')||r.url().includes('ai.gateway.lovable.dev'))generationRequests++;
   });
   await page.goto(root+'/motor-3d/ia',{waitUntil:'domcontentloaded',timeout:65000});
-  await page.getByRole('heading',{name:/Crie uma cena 3D inédita/}).waitFor({timeout:65000});
+  await page.waitForTimeout(2500);
+  await page.screenshot({path:path.join(out,'route-debug.png'),fullPage:true});
+  const body=await page.locator('body').innerText().catch(()=>'(body missing)');
+  console.log('AI3D ROUTE DIAGNOSTIC',JSON.stringify({url:page.url(),body:body.slice(0,2200),errors}));
+  await page.getByRole('heading',{name:/Crie uma cena 3D inédita/}).waitFor({timeout:12000});
   const script=page.getByLabel('Roteiro da cena: 2 ou 3 frases');
   assert.ok((await script.inputValue()).includes('guindaste'));
   const provider=page.getByLabel('IA responsável pela direção');
