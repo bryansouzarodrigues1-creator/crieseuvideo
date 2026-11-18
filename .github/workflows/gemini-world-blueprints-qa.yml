@@ -1,0 +1,28 @@
+name: Gemini World Blueprints 3D - generative object grammar QA
+on:
+  push:
+    branches: [feat/gemini-world-blueprints-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: world-blueprints-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install frozen application dependencies
+        run: bun install --frozen-lockfile
+      - name: Validate generated novel objects and all regression tests
+        run: bun run test
+      - name: Verify TypeScript
+        run: bunx tsc --noEmit
+      - name: Compile product without deploy
+        run: bun run build
