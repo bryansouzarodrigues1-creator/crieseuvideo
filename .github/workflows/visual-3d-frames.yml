@@ -38,6 +38,9 @@ jobs:
       - name: Programmed fixtures (climb, comet, robot)
         continue-on-error: true
         run: bun scripts/scene-program-qa.mjs
+      - name: Collision layout frames (authored, no AI)
+        continue-on-error: true
+        run: bun scripts/collision-visual-qa.mjs
       - name: Real studio frames (Gemini simulated)
         continue-on-error: true
         run: bun scripts/studio-freeform-3d-browser-qa.mjs
@@ -51,6 +54,7 @@ jobs:
           out=$RUNNER_TEMP/frames; mkdir -p "$out/scene-program" "$out/studio"
           cp tmp/scene-program-qa/*.png "$out/scene-program/" 2>/dev/null || true
           cp tmp/real-studio-3d-qa/*.png "$out/studio/" 2>/dev/null || true
+          mkdir -p "$out/collision"; cp tmp/collision-qa/*.png "$out/collision/" 2>/dev/null || true
           echo "source=${GITHUB_SHA}" > "$out/SOURCE.txt"
           cd "$out"
           git init -q -b qa-frames
