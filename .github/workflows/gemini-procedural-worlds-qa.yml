@@ -1,7 +1,7 @@
 name: Gemini x Claude procedural worlds integration QA
 on:
   push:
-    branches: [feat/gemini-procedural-worlds-integration-20261118]
+    branches: [feat/gemini-procedural-worlds-integration-20261118, integration/native-scenery-dynamic-20261118]
   workflow_dispatch:
 permissions:
   contents: read
