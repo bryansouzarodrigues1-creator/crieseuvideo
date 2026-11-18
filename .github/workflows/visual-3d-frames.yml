@@ -5,7 +5,7 @@ name: Visual 3D frames
 on:
   push:
     branches: [integration/3d-all, feat/3d-toon-look]
-    paths: ['src/**', 'lab/**', 'scripts/scene-program-qa.mjs', '.github/workflows/visual-3d-frames.yml']
+    paths: ['src/**', 'lab/**', 'scripts/scene-program-qa.mjs', 'scripts/collision-visual-qa.mjs', '.github/workflows/visual-3d-frames.yml']
   workflow_dispatch:
 permissions:
   contents: write
