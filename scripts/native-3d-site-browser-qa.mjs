@@ -20,10 +20,26 @@ try {
  const empty=page.getByText('Seu próximo vídeo começa aqui');
  await empty.waitFor({timeout:40000});
  await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
- await page.getByRole('link',{name:/motor 3d/i}).click();
+ await page.getByRole('link',{name:/motor 3d/i}).first().click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
  const stage=page.locator('.native-3d-screen canvas');
- await stage.waitFor({timeout:60000});
+ await stage.waitFor({state:'attached',timeout:60000});
+ // On mobile, controls are accessible BEFORE any WebGL renderer is created.
+ const activate=page.getByRole('button',{name:'Carregar motor 3D'});
+ await activate.waitFor({timeout:60000});
+ const activeRect=await activate.boundingBox();
+ assert.ok(activeRect && activeRect.y>=0 && activeRect.y+activeRect.height<915,
+   'Mobile 3D start button must be visible without scrolling');
+ assert.equal(await page.getByRole('button',{name:'Reproduzir'}).isDisabled(),true);
+ await page.screenshot({path:path.join(out,'02-mobile-before-gpu-activation.png')});
+ await activate.click();
+ await page.waitForFunction(()=>{
+   const canvas=document.querySelector('.native-3d-screen canvas');
+   return canvas?.width===270 && canvas?.height===480 &&
+     !document.querySelector('.native-3d-loading');
+ },null,{timeout:60000});
+ assert.equal(await stage.evaluate(c=>c.width),270,'Mobile scene should default to low-resolution WebGL');
+ assert.equal(await stage.evaluate(c=>c.height),480,'Mobile scene height should be memory friendly');
  await page.waitForFunction(()=>{
    const s=document.querySelector('.native-3d-numbers');
    return s&&Number(s.textContent?.match(/\d+/)?.[0])>20;
@@ -49,13 +65,18 @@ try {
  await stage.screenshot({path:path.join(out,'03-motorcycle-after-motion.png')});
  await slider.press('Home');
  await page.getByRole('button',{name:'Reproduzir'}).click();
- await page.waitForTimeout(400);
+ await page.waitForFunction(()=>{
+   const slider=document.querySelector('input[aria-label="Linha do tempo 3D"]');
+   return slider&&Number(slider.value)>.05;
+ },null,{timeout:20000});
  await page.getByRole('button',{name:'Pausar'}).click();
  for(const [buttonName,filename] of [
    ['Arca e oceano','04-ark-world.png'],
    ['Prisão 3D','05-prison-world.png']]){
    await page.getByRole('button',{name:new RegExp(buttonName)}).click();
-   await page.waitForTimeout(700);
+   await page.waitForTimeout(100);
+   await page.waitForFunction(()=>!document.querySelector('.native-3d-loading'),null,{timeout:60000});
+   await page.waitForTimeout(200);
    assert.equal(await page.getByRole('alert').count(),0,'Failed loading '+buttonName);
    assert.ok((await frame()).length>10000,'Empty world '+buttonName);
    await stage.screenshot({path:path.join(out,filename)});
@@ -95,7 +116,7 @@ try {
  assert.ok(Math.abs(deliveredDuration-6)<.06,'Incorrect encoded duration: '+deliveredDuration);
  await writeFile(path.join(out,'report.json'),JSON.stringify({
   passed:true,route:'/motor-3d',worlds:['motocicleta','arca','prisão'],
-  verified:['No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length,deliveredFrames,deliveredDuration},
+  verified:['Mobile activation works before GPU load','Only selected scene compiled at phone resolution','No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length,deliveredFrames,deliveredDuration},
   errors,disclaimer:'Three scenes are authored QA fixtures. This test does not call Gemini or certify cinematic output.'
  },null,2));
  assert.deepEqual(errors.filter(x=>!/favicon|WebGL.*deprecated|GPU stall/.test(x)),[]);

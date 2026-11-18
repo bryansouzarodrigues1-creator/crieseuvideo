@@ -398,6 +398,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 <p>Escreva o roteiro e escolha 2D ou 3D Toon para gerar uma prévia. Nenhum vídeo antigo será carregado automaticamente.</p>
                 <div className="explainer-empty-actions">
                   <Button size="sm" onClick={() => document.getElementById('ex-script')?.focus()}>Escrever roteiro</Button>
+                  <a href="/motor-3d" className="native-3d-nav-link" aria-label="Testar motor 3D">Testar motor 3D</a>
                   {projects.length > 0 && <Button size="sm" variant="outline" onClick={() => setLibrary(true)}>Meus projetos ({projects.length})</Button>}
                 </div>
               </div>
