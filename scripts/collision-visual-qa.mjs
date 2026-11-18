@@ -60,7 +60,7 @@ fixture = { title: 'colisao', scenes: [{ sourceId: 's1', visual: 'character', mo
     node('ana', 'actor', [-1.6, 0, 0], { color: '#E8C55A', rotation: [0, 1.2, 0] }), node('beto', 'actor', [-1.3, 0, .05], { color: '#E8C55A', rotation: [0, 1.2, 0] })],
   tracks: [key('ana', [[0, [-1.6, 0, 0]], [.5, [1, 0, 0]], [1, [2.8, 0, .1]]]), key('beto', [[0, [-1.4, 0, .05]], [.5, [1.2, 0, 0]], [1, [3, 0, -.1]]])],
   shots: [{ sourceId: 's1', subjects: ['ana', 'beto', 'bau'], azimuth: .3, endAzimuth: .2, elevation: .15, distance: 1.25 }], contacts: [] } };
-const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75, .98]) => {
+const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75, .98], video = false) => {
   fixture = program; backend = (await import(`../dist/server/index.js?program=${name}`)).default;
   await page.locator('#script').fill(text);
   await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(seconds)); await page.locator('#duration-custom').dispatchEvent('change');
@@ -73,6 +73,11 @@ const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75,
     for (const f of shots) {
       const frame = await render(seconds * f); assert.equal(frame.action, 'scene-program3d');
       await fs.writeFile(path.join(output, `${name}-${aspect.replace(':', 'x')}-${Math.round(f * 100)}.png`), Buffer.from(frame.png, 'base64'));
+    }
+    if (video && aspect === '9:16') { // every frame of the export, rendered by the real engine through the real UI
+      const dir = path.join(output, 'video', name); await fs.mkdir(dir, { recursive: true });
+      const fps = 24, total = Math.round(seconds * fps);
+      for (let i = 0; i < total; i++) { const frame = await render(Math.min(seconds - .001, i / fps)); await fs.writeFile(path.join(dir, String(i).padStart(4, '0') + '.png'), Buffer.from(frame.png, 'base64')); }
     }
   }
 };
