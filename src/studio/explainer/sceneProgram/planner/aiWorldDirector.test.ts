@@ -40,7 +40,7 @@ describe('AI-native 3D directions cannot silently return a static stock preview'
     expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/movimentos|estática/);
     sample.clips[0].sceneProgram.tracks=structuredClone(COMPLEX_WORLD_QA_REQUEST.clips[0].sceneProgram.tracks);
     sample.clips[0].worldBlueprints.objects=[sample.clips[0].worldBlueprints.objects[0]];
-    expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/incompleto/);
+    expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/incompleto|objeto inexistente/);
   });
   it('rejects a vague single-line or oversized request without spending model credits',()=>{
     expect(()=>sourceBriefsFromScript('Uma moto corre.')).toThrow(/Escreva/);
