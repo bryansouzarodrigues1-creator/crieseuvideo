@@ -391,3 +391,14 @@
   .native-3d-choices {gap:6px;}
   .native-3d-screen canvas {height:min(60vh,560px);}
 }
+
+
+/* Keep the screen interactive on slower Android phones before initializing WebGL. */
+.native-3d-screen { position:relative; min-height:300px; align-items:center; }
+.native-3d-start { width:100%; min-height:320px; padding:28px 18px; display:flex; flex-direction:column; gap:14px; justify-content:center; align-items:center; text-align:center; color:#e5f2fc; background:#111c2a; }
+.native-3d-start svg { color:#b5e267; }
+.native-3d-start strong { font-size:18px; }
+.native-3d-start span { color:#c1d1df; font-size:13px; max-width:270px; line-height:1.55; }
+.native-3d-start button { background:#b5e267; color:#1c2811; border:0; border-radius:12px; padding:12px 22px; font-weight:800; cursor:pointer; }
+.native-3d-loading { z-index:2; position:absolute; inset:0; display:flex; justify-content:center; align-items:center; text-align:center; background:rgba(11,21,31,.87); color:#f0f9db; font-size:15px; padding:20px; }
+.native-3d-screen canvas { flex-shrink:0; }
