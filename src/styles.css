@@ -434,3 +434,49 @@ body { min-height: 100%; -webkit-overflow-scrolling: touch; }
 @media (max-width: 900px) {
   .explainer-canvas-wrap canvas { touch-action: pan-y; }
 }
+
+
+/*
+ * Mobile/Lovable embedded preview scroll contract.
+ * The parent editor or iframe may lock document scrolling. Give each
+ * full-screen studio its OWN native vertical scroller instead of relying on
+ * scrolling <body>. 3D touch gestures still pan the scroller, not the model.
+ */
+@media (max-width: 900px) {
+  .native-3d-studio {
+    box-sizing: border-box;
+    height: 100dvh;
+    min-height: 0;
+    max-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    position: relative;
+  }
+  .native-3d-studio .native-3d-layout,
+  .native-3d-studio .native-3d-player,
+  .native-3d-studio .native-3d-screen,
+  .native-3d-studio .native-3d-start,
+  .native-3d-studio canvas {
+    touch-action: pan-y;
+  }
+  .production-workspace.explainer-workspace {
+    box-sizing: border-box;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  .explainer-layout,
+  .explainer-stage,
+  .explainer-canvas-wrap,
+  .explainer-empty-preview {
+    touch-action: pan-y;
+  }
+}
