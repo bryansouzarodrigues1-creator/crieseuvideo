@@ -76,8 +76,10 @@ function parseRegions(input:unknown,sources:ProgramSource[]):Region[]{
     ids.add(id);
     const sourceId=name(r.sourceId,'sourceId',40);
     if(!sourceSet.has(sourceId))fail('Região cita uma frase inexistente.');
-    if(typeof r.shape!=='string'||!isKit(r.shape))fail('Forma procedural não autorizada.');
-    const shape=r.shape;
+    const requestedShape=r.shape;
+    if(typeof requestedShape!=='string'||!isKit(requestedShape))
+      return fail('Forma procedural não autorizada.');
+    const shape:KitShape=requestedShape;
     const sizeRaw=arr(r.size,maxSize[shape],'region.size');
     if(sizeRaw.length!==maxSize[shape])fail('O número de dimensões não corresponde à geometria.');
     const size=sizeRaw.map((x,i)=>num(x,'region.size['+i+']',.1,
@@ -154,7 +156,7 @@ export function compileWorldScenery(
     }else{
       const ground=regionMap.get(scatter.ground);
       if(!ground||ground.shape!=='terrain'||ground.scatter)
-        fail('Distribuição exige terreno real não repetido no mesmo planejamento.');
+        return fail('Distribuição exige terreno real não repetido no mesmo planejamento.');
       if(scatter.spread[0]>ground.params.size[0]||scatter.spread[1]>ground.params.size[1])
         fail('A distribuição ultrapassa o terreno que deveria sustentar as peças.');
       // All instances share the same parent. Their world-space placement is
