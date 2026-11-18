@@ -75,9 +75,10 @@ describe('narrative storyboard -> existing engine -> physical movement',()=>{
 
   it('refuses timing that does not fit the original spoken segment',()=>{
     const p:any=sampleStoryProposal();
-    p.events[3].start=3.8;
+    // The state sequence is sound, but this event is assigned to a source
+    // sentence that ended at t=4. The compiler must reject the mismatch.
     p.events[3].sourceId='s1';
-    p.events[3].evidence='a plataforma';
+    p.events[3].evidence='plataforma';
     const plan=compileStoryEvents(p,sampleSources);
     expect(()=>compileStoryMotion(plan,sampleSceneGeometry(),sampleSources,sampleBindings))
       .toThrow(/não cabe na frase/);
