@@ -1,0 +1,28 @@
+name: Gemini x Claude procedural worlds integration QA
+on:
+  push:
+    branches: [feat/gemini-procedural-worlds-integration-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: procedural-worlds-qa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Run all tests, including procedural environments and story motion
+        run: bun run test
+      - name: Check TypeScript
+        run: bunx tsc --noEmit
+      - name: Build without publication
+        run: bun run build
