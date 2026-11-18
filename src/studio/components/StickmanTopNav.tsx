@@ -32,7 +32,7 @@ export const StickmanTopNav: React.FC<StickmanTopNavProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-bold text-sm tracking-tight text-white">
-              StickStory Studio
+              CrieSeuVideo Studio
             </h1>
             <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-[10px] font-semibold text-blue-400">
               Animações, Veículos & 12 Min

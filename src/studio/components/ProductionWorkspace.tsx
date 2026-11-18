@@ -82,7 +82,7 @@ export function ProductionWorkspace({ onOpenEditor }: { onOpenEditor: () => void
       const response = await fetch(selected.url);
       if (!response.ok) throw new Error('Não foi possível baixar o vídeo.');
       const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement('a'); link.href = url; link.download = `stickstory-${selected.id}.mp4`; link.click();
+      const link = document.createElement('a'); link.href = url; link.download = `crieseuvideo-${selected.id}.mp4`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha no download.'); }
   };
@@ -90,7 +90,7 @@ export function ProductionWorkspace({ onOpenEditor }: { onOpenEditor: () => void
 
   return <div className="production-workspace">
     <header className="production-nav">
-      <div className="production-brand"><Clapperboard /><strong>StickStory <span>Studio</span></strong><span className="production-edition">PRODUÇÃO</span></div>
+      <div className="production-brand"><Clapperboard /><strong>CrieSeuVideo <span>Studio</span></strong><span className="production-edition">PRODUÇÃO</span></div>
       <div className="flex items-center gap-2"><Button variant="outline" onClick={onOpenEditor}><FolderOpen />Editor de cenas<ArrowUpRight /></Button>{userId && <Button variant="ghost" size="icon" title="Sair da conta" aria-label="Sair da conta" onClick={() => supabase.auth.signOut()}><LogOut /></Button>}</div>
     </header>
     <main className="production-layout">

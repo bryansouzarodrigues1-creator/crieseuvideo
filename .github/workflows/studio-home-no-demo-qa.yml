@@ -1,0 +1,23 @@
+name: Validate CrieSeuVideo studio entry
+on:
+  push:
+    branches: [fix/studio-home-no-demo-20261118]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Unit tests
+        run: bun run test
+      - name: TypeScript
+        run: bunx tsc --noEmit
+      - name: Build
+        run: bun run build

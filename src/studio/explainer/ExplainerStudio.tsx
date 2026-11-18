@@ -140,7 +140,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   useEffect(() => {
     // Open the latest real project; never seed a sample that would autosave itself back.
     const all = listProjects(); setProjects(all); setGallery(listGallery()); setVaultCount(listVault().length);
-    if (all[0]) openProject(all[0]);
+    // Do not auto-open old previews on startup. Existing saved projects stay in Meus projetos.
   }, []);
   useEffect(() => {
     if (!script.trim() && !plan.scenes.length) return;
@@ -310,7 +310,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   return (
     <div className="production-workspace explainer-workspace">
       <nav className="production-nav">
-        <div className="production-brand"><Clapperboard /><strong>StickStory <span>Studio</span></strong></div>
+        <div className="production-brand"><Clapperboard /><strong>CrieSeuVideo <span>Studio</span></strong></div>
         <div className="explainer-nav-links">
           <Button variant="ghost" size="sm" onClick={() => setLibrary(true)}><FolderOpen />Meus projetos</Button>
           <Button variant="ghost" size="sm" onClick={onOpenEditor}>Editor de cenas</Button>
@@ -319,7 +319,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       </nav>
       <main className="explainer-layout">
         <section className="explainer-panel">
-          <p className="explainer-kicker">ANIMAÇÃO EXPLICATIVA 2D</p>
+          <p className="explainer-kicker">CRIESEUVIDEO — ESTÚDIO DE ANIMAÇÃO 2D/3D</p>
           <h1>Do roteiro à animação.</h1>
           <p className="explainer-sub">A IA escreve a direção, o código desenha cada quadro. Sem custo de vídeo: ~0,02 crédito pela direção e ~0,1 crédito por minuto de narração.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
@@ -355,7 +355,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <option value="gemini">Voz do estúdio</option><option value="eleven">ElevenLabs (voz clonada)</option>
             </select>
             {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => setElevenId(e.target.value)} aria-label="Voice ID do ElevenLabs" />}
-            {voiceOn && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
+            {voiceOn && plan.scenes.length > 0 && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>
           <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < 4}>
             {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : 'Criar animação'}
@@ -387,13 +387,24 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
         <section className="explainer-stage">
           <div className={`explainer-canvas-wrap ${aspect === '9:16' ? 'is-portrait' : ''}`}>
-            <canvas ref={canvasRef} key={aspect} {...dims} onClick={() => { if (exportingRef.current) return; unlockAudio(); setPlaying((p) => !p); }} />
+            <canvas ref={canvasRef} key={aspect} {...dims} style={!plan.scenes.length ? { display: 'none' } : undefined} onClick={() => { if (exportingRef.current) return; unlockAudio(); setPlaying((p) => !p); }} />
+            {!plan.scenes.length && (
+              <div className="explainer-empty-preview" role="status" aria-label="Novo projeto sem vídeo gerado">
+                <Clapperboard aria-hidden="true" />
+                <h2>Seu próximo vídeo começa aqui</h2>
+                <p>Escreva o roteiro e escolha 2D ou 3D Toon para gerar uma prévia. Nenhum vídeo antigo será carregado automaticamente.</p>
+                <div className="explainer-empty-actions">
+                  <Button size="sm" onClick={() => document.getElementById('ex-script')?.focus()}>Escrever roteiro</Button>
+                  {projects.length > 0 && <Button size="sm" variant="outline" onClick={() => setLibrary(true)}>Meus projetos ({projects.length})</Button>}
+                </div>
+              </div>
+            )}
           </div>
           <div className="explainer-controls">
-            <Button size="icon" variant="secondary" onClick={() => { unlockAudio(); setPlaying((p) => !p); }} aria-label={playing ? 'Pausar' : 'Reproduzir'} disabled={recording !== null}>{playing ? <Pause /> : <Play />}</Button>
-            <input type="range" min={0} max={total} step={0.01} value={time} onChange={(e) => { setPlaying(false); seek(Number(e.target.value)); }} aria-label="Linha do tempo" disabled={recording !== null} />
+            <Button size="icon" variant="secondary" onClick={() => { unlockAudio(); setPlaying((p) => !p); }} aria-label={playing ? 'Pausar' : 'Reproduzir'} disabled={recording !== null || !plan.scenes.length}>{playing ? <Pause /> : <Play />}</Button>
+            <input type="range" min={0} max={total} step={0.01} value={time} onChange={(e) => { setPlaying(false); seek(Number(e.target.value)); }} aria-label="Linha do tempo" disabled={recording !== null || !plan.scenes.length} />
             <span className="explainer-time">{fmt(time)} / {fmt(total)}</span>
-            <Button onClick={exportVideo} disabled={recording !== null}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
+            <Button onClick={exportVideo} disabled={recording !== null || !plan.scenes.length}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
           </div>
           {genId && rated !== 'sent' && (
             <div className="explainer-scene" role="group" aria-label="Avaliação">

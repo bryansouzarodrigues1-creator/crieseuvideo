@@ -8,13 +8,13 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "StickStory Studio — Produção de animações por IA" },
+      { title: "CrieSeuVideo Studio — Produção de animações por IA" },
       {
         name: "description",
         content:
           "Produza cenas originais com IA em 2D, 3D, anime e motion graphics, com histórico privado e download MP4.",
       },
-      { property: "og:title", content: "StickStory Studio — Produção de animações por IA" },
+      { property: "og:title", content: "CrieSeuVideo Studio — Produção de animações por IA" },
       {
         property: "og:description",
         content: "Crie cenas originais em 2D, 3D, anime e motion graphics com direção livre por IA.",

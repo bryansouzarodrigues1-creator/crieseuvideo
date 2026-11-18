@@ -307,6 +307,14 @@
 .explainer-stage { position: sticky; top: 16px; align-self: start; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .explainer-canvas-wrap { background: var(--secondary); border: 1px solid var(--border); border-radius: 18px; padding: 12px; display: flex; justify-content: center; }
 .explainer-canvas-wrap canvas { width: 100%; height: auto; border-radius: 10px; cursor: pointer; }
+/* Brand-new projects show an intentional empty stage, not the last user's old demo. */
+.explainer-empty-preview { width: min(100%, 480px); min-height: 320px; aspect-ratio: 9 / 16; border-radius: 12px; padding: 24px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; background: linear-gradient(145deg,#101a29,#1d3040); color: #edf5fa; }
+.explainer-empty-preview > svg { width: 44px; height: 44px; color: #a6d853; }
+.explainer-empty-preview h2 { font-size: clamp(20px, 3vw, 28px); font-weight: 700; margin: 0; }
+.explainer-empty-preview p { font-size: 14px; max-width: 340px; line-height: 1.55; color: #c8d7e3; margin: 0; }
+.explainer-empty-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.explainer-canvas-wrap:not(.is-portrait) .explainer-empty-preview { width: 100%; max-width: none; min-height: 260px; aspect-ratio: 16 / 9; }
+
 .explainer-canvas-wrap.is-portrait canvas { width: auto; height: min(72vh, 900px); max-width: 100%; }
 .explainer-controls { display: flex; align-items: center; gap: 10px; }
 .explainer-controls input[type=range] { flex: 1; accent-color: var(--primary); min-width: 0; }
