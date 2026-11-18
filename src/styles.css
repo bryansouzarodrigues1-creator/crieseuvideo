@@ -402,3 +402,21 @@
 .native-3d-start button { background:#b5e267; color:#1c2811; border:0; border-radius:12px; padding:12px 22px; font-weight:800; cursor:pointer; }
 .native-3d-loading { z-index:2; position:absolute; inset:0; display:flex; justify-content:center; align-items:center; text-align:center; background:rgba(11,21,31,.87); color:#f0f9db; font-size:15px; padding:20px; }
 .native-3d-screen canvas { flex-shrink:0; }
+
+
+/* Mobile-first ordering: the actual player and its start action must be visible
+ * before the scene catalogue and technical statistics, not below the fold. */
+@media (max-width:850px) {
+  .native-3d-layout { display:flex; flex-direction:column; align-items:stretch; }
+  .native-3d-player { order:0; width:100%; }
+  .native-3d-choices { order:1; }
+  .native-3d-heading { margin:16px auto 12px; }
+  .native-3d-heading h1 { font-size:24px; margin:7px 0; }
+  .native-3d-heading p { font-size:12px; line-height:1.4; margin:4px auto; }
+  .native-3d-start { min-height:260px; }
+  .native-3d-screen { min-height:260px; }
+}
+@media (max-width:500px) {
+  .native-3d-screen canvas { height:min(46vh,420px); }
+  .native-3d-bar { padding-bottom:8px; }
+}
