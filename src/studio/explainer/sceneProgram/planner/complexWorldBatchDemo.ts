@@ -216,7 +216,7 @@ const vessel={
   ],['ark'],['ark','animals'],.43),
   worldBlueprints:{version:1,objects:[ark,animals]},
   worldScenery:{version:1,regions:[
-    {id:'ocean',sourceId:'s1',shape:'water',size:[100,100],
+    {id:'ocean',sourceId:'s1',shape:'water',size:[80,80],
       position:[0,-.30,0],color:'#387F9A',wave:.25,segments:32,seed:3},
     {id:'sky-cloud-1',sourceId:'s1',shape:'cloud',size:[7],
       position:[-13,9,-17],color:'#F6F2E8',seed:4},
