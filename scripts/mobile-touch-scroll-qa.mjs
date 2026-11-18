@@ -56,12 +56,17 @@ try{
   await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
   await page.getByText('Seu próximo vídeo começa aqui').waitFor({timeout:60000});
   assert.equal((await metrics()).overflowY,'auto','Global body must not be overflow:hidden');
+  assert.equal(await page.locator('.production-workspace').evaluate(
+    el=>getComputedStyle(el).overflowY), 'auto','Home must have an internal scrollport');
   await assertSwipe('home editor vertical swipe',195,725,265,'.production-workspace');
   await page.screenshot({path:path.join(out,'01-home-scrolled-on-android.png')});
 
   await page.goto(base+'/motor-3d',{waitUntil:'domcontentloaded',timeout:60000});
   await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
-  await assertSwipe('3D page before WebGL activation',195,720,260);
+  assert.equal(await page.locator('.native-3d-studio').evaluate(
+    el=>getComputedStyle(el).overflowY),'auto',
+    'Embedded 3D preview needs a real internal vertical scrollport');
+  await assertSwipe('3D page before WebGL activation',195,720,260,'.native-3d-studio');
   await page.screenshot({path:path.join(out,'02-3d-scrolled-before-activation.png')});
 
   const start=page.getByRole('button',{name:'Carregar motor 3D'});
@@ -70,7 +75,7 @@ try{
     const c=document.querySelector('.native-3d-screen canvas');
     return c?.width===270&&c?.height===480;
   },null,{timeout:60000});
-  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.locator('.native-3d-studio').evaluate(el=>el.scrollTop=0);
   await page.waitForTimeout(350);
   const canvas=page.locator('.native-3d-screen canvas');
   assert.equal(await canvas.evaluate(c=>getComputedStyle(c).touchAction),
@@ -79,7 +84,7 @@ try{
   assert.ok(rect,'WebGL preview should be visible');
   const startY=Math.round(Math.min(775,rect.y+Math.min(rect.height-25,Math.max(50,rect.height*.7))));
   const endY=Math.max(130,startY-330);
-  await assertSwipe('3D page swipe starting ON WebGL canvas',Math.round(rect.x+rect.width*.5),startY,endY);
+  await assertSwipe('3D page swipe starting ON WebGL canvas',Math.round(rect.x+rect.width*.5),startY,endY,'.native-3d-studio');
   await page.screenshot({path:path.join(out,'03-3d-scrolled-from-canvas.png')});
 
   await page.getByRole('button',{name:'Reproduzir'}).click();

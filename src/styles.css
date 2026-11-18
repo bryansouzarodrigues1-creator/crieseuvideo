@@ -434,3 +434,33 @@ body { min-height: 100%; -webkit-overflow-scrolling: touch; }
 @media (max-width: 900px) {
   .explainer-canvas-wrap canvas { touch-action: pan-y; }
 }
+
+
+/*
+ * Lovable's in-editor preview embeds the site in a smaller scrolling frame.
+ * Root/document scrolling works in a standalone Chrome tab but can be swallowed
+ * by the preview's outer iframe. Give the mobile 3D page its OWN scrollport
+ * sized to its viewport, so a finger gesture never depends on parent scroll.
+ */
+@media (max-width: 900px) {
+  .native-3d-studio {
+    height: 100dvh;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+  .production-workspace.explainer-workspace {
+    height: 100dvh;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .native-3d-screen canvas, .explainer-canvas-wrap canvas {
+    touch-action: pan-y;
+  }
+}
