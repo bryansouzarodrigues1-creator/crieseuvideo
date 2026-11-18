@@ -39,12 +39,12 @@ export function getBestSupportedVideoMimeType(): { mimeType: string; extension: 
     ];
     for (const candidate of webmCandidates) {
       if (MediaRecorder.isTypeSupported(candidate)) {
-        return { mimeType: candidate, extension: 'mp4' };
+        return { mimeType: candidate, extension: 'webm' };
       }
     }
   }
 
-  return { mimeType: 'video/mp4', extension: 'mp4' };
+  throw new Error('Este navegador não suporta gravação MP4 ou WebM via MediaRecorder.');
 }
 
 export class VideoExportManager {
@@ -107,7 +107,7 @@ export class VideoExportManager {
 
       // Combine with audio stream from SFX & voice
       const audioStream = getAudioDestinationStream();
-      const combinedTracks = [...canvasStream.getVideoTracks()];
+      const combinedTracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
 
       if (audioStream && audioStream.getAudioTracks().length > 0) {
         combinedTracks.push(...audioStream.getAudioTracks());
@@ -129,14 +129,15 @@ export class VideoExportManager {
 
       this.mediaRecorder.onstop = () => {
         this.cleanupLoops();
-        const blob = new Blob(this.recordedChunks, { type: 'video/mp4' });
+        const recordedMime = this.mediaRecorder?.mimeType || mimeType;
+        const blob = new Blob(this.recordedChunks, { type: recordedMime.split(';')[0] });
         const videoUrl = URL.createObjectURL(blob);
-        onComplete(blob, videoUrl, mimeType);
+        onComplete(blob, videoUrl, recordedMime);
       };
 
       this.mediaRecorder.onerror = (e) => {
         this.cleanupLoops();
-        onError(new Error('Erro durante a gravação MP4: ' + String(e)));
+        onError(new Error('Erro durante a gravação do vídeo: ' + String(e)));
       };
 
       this.mediaRecorder.start(150);

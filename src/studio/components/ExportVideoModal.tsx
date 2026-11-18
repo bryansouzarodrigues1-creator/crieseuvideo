@@ -10,7 +10,7 @@ import {
   Film,
 } from 'lucide-react';
 import { StickmanProject } from '../types/stickman';
-import { VideoExportManager } from '../utils/videoRecorder';
+import { VideoExportManager, getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { calculateTotalDuration } from '../utils/stickmanMath';
 
 interface ExportVideoModalProps {
@@ -33,6 +33,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
   const [progress, setProgress] = useState(0);
   const [currentSceneTitle, setCurrentSceneTitle] = useState<string>('');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [downloadMime, setDownloadMime] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const exporterRef = useRef<VideoExportManager | null>(null);
 
@@ -43,8 +44,12 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
   const sceneDuration = currentScene ? Math.max(2, currentScene.duration || 5) : 5;
   const activeDuration = exportScope === 'scene' ? sceneDuration : fullDuration;
   const activeDurationMs = Math.round(activeDuration * 1000);
+  let supportedMime: string | null = null;
+  try { supportedMime = getBestSupportedVideoMimeType().mimeType; } catch {}
+  const formatName = (downloadMime || supportedMime || '').startsWith('video/mp4') ? 'MP4' : 'WebM';
+  const extension = formatName === 'MP4' ? 'mp4' : 'webm';
 
-  const triggerBrowserDownload = (url: string) => {
+  const triggerBrowserDownload = (url: string, actualMime = downloadMime || supportedMime) => {
     const a = document.createElement('a');
     a.href = url;
     const baseName =
@@ -57,7 +62,8 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
-    a.download = `${cleanSlug || 'video_stickman'}.mp4`;
+    const ext = actualMime?.startsWith('video/mp4') ? 'mp4' : 'webm';
+    a.download = `${cleanSlug || 'crieseuvideo'}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -73,6 +79,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
     setIsRecording(true);
     setProgress(0);
     setDownloadUrl(null);
+    setDownloadMime(null);
     setErrorMessage(null);
 
     const exporter = new VideoExportManager();
@@ -87,15 +94,16 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
         setProgress(pct);
         if (sceneTitle) setCurrentSceneTitle(sceneTitle);
       },
-      onComplete: (_blob, url) => {
+      onComplete: (_blob, url, actualMime) => {
         setIsRecording(false);
         setProgress(100);
+        setDownloadMime(actualMime);
         setDownloadUrl(url);
-        triggerBrowserDownload(url);
+        triggerBrowserDownload(url, actualMime);
       },
       onError: (err) => {
         setIsRecording(false);
-        setErrorMessage(err.message || 'Erro durante a exportação MP4.');
+        setErrorMessage(err.message || 'Erro durante a exportação de vídeo.');
       },
     });
   };
@@ -119,7 +127,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
           <div className="flex items-center gap-2">
             <Video className="w-5 h-5 text-emerald-400" />
             <h3 className="text-base font-bold text-slate-100">
-              Baixar Vídeo em MP4 (60 FPS)
+              Baixar vídeo (formato real do navegador)
             </h3>
           </div>
           <button
@@ -196,7 +204,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
             <div>
               <span className="text-slate-400">Formato de Saída:</span>
               <div className="font-bold text-slate-200 mt-0.5">
-                MP4 ({project.aspectRatio === '9:16' ? '720x1280 Vertical 9:16' : '1280x720 HD Horizontal 16:9'})
+                {formatName} ({project.aspectRatio === '9:16' ? '720x1280 Vertical 9:16' : '1280x720 HD Horizontal 16:9'})
               </div>
             </div>
             <div className="text-right">
@@ -213,7 +221,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="flex items-center gap-2 text-emerald-400 font-semibold">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Gravando MP4 ({currentSceneTitle || 'Animação 2.5D'})...
+                  Gravando {formatName} ({currentSceneTitle || 'Animação 2.5D'})...
                 </span>
                 <span className="font-mono font-bold text-slate-200">
                   {progress}%
@@ -227,7 +235,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
               </div>
               <div className="flex items-center justify-between pt-1">
                 <p className="text-[11px] text-slate-400">
-                  O download do arquivo .MP4 iniciará automaticamente ao concluir.
+                  O download do arquivo .{extension} iniciará automaticamente ao concluir.
                 </p>
                 <button
                   onClick={handleStopEarly}
@@ -246,7 +254,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
               <div className="flex items-center justify-between text-emerald-400 text-xs font-semibold">
                 <span className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  Arquivo MP4 pronto e enviado para download!
+                  Arquivo {formatName} pronto e enviado para download!
                 </span>
               </div>
 
@@ -289,12 +297,12 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
               {isRecording ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Gerando MP4 ({progress}%)...
+                  Gerando {formatName} ({progress}%)...
                 </>
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  Gerar e Baixar MP4 Agora
+                  Gerar e baixar vídeo
                 </>
               )}
             </button>
@@ -304,7 +312,7 @@ export const ExportVideoModal: React.FC<ExportVideoModalProps> = ({
               className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-600/30"
             >
               <Download className="w-4 h-4" />
-              Baixar MP4 Novamente (.mp4)
+              Baixar {formatName} novamente (.{extension})
             </button>
           )}
         </div>
