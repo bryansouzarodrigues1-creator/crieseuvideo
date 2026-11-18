@@ -1,5 +1,5 @@
 import {chromium} from 'playwright';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
@@ -37,7 +37,7 @@ try {
  });
  const first=await frame();
  assert.ok(first.length>10000,'No real scene rendered');
- await page.screenshot({path:path.join(out,'02-motorcycle-first-frame.png')});
+ await stage.screenshot({path:path.join(out,'02-motorcycle-first-frame.png')});
  // The opening shot deliberately holds the bike in place for inspection.
  // Use the keyboard-operated timeline to reach the action shot (seconds 3-6).
  const slider=page.getByRole('slider',{name:'Linha do tempo 3D'});
@@ -46,7 +46,7 @@ try {
  await page.waitForTimeout(350);
  const second=await frame();
  assert.notEqual(second,first,'Motorcycle render did not respond to timeline scrubbing');
- await page.screenshot({path:path.join(out,'03-motorcycle-after-motion.png')});
+ await stage.screenshot({path:path.join(out,'03-motorcycle-after-motion.png')});
  await slider.press('Home');
  await page.getByRole('button',{name:'Reproduzir'}).click();
  await page.waitForTimeout(400);
@@ -58,14 +58,28 @@ try {
    await page.waitForTimeout(700);
    assert.equal(await page.getByRole('alert').count(),0,'Failed loading '+buttonName);
    assert.ok((await frame()).length>10000,'Empty world '+buttonName);
-   await page.screenshot({path:path.join(out,filename)});
+   await stage.screenshot({path:path.join(out,filename)});
  }
  await page.getByRole('button',{name:/Formato horizontal/}).click();
  assert.ok((await stage.getAttribute('style')).includes('16 / 9'),'Landscape mode failed');
  await page.screenshot({path:path.join(out,'06-landscape-layout.png')});
+ // Record a real clip from the site, verify its bytes and filename.
+ await page.getByRole('button',{name:/Motocicleta 3D/}).click();
+ await page.waitForTimeout(400);
+ const downloadEvent=page.waitForEvent('download',{timeout:90000});
+ await page.getByRole('button',{name:/Baixar clipe 3D/}).click();
+ const download=await downloadEvent;
+ const filename=download.suggestedFilename();
+ assert.match(filename,/^crieseuvideo-moto-3d\.(mp4|webm)$/);
+ const saved=path.join(out,filename);
+ await download.saveAs(saved);
+ const bytes=await readFile(saved);
+ assert.ok(bytes.length>10000,'Recorded video has no useful bytes');
+ if(filename.endsWith('.mp4'))assert.equal(bytes.toString('ascii',4,8),'ftyp','Fake MP4 bytes');
+ else assert.equal(bytes.subarray(0,4).toString('hex'),'1a45dfa3','Fake WebM bytes');
  await writeFile(path.join(out,'report.json'),JSON.stringify({
   passed:true,route:'/motor-3d',worlds:['motocicleta','arca','prisão'],
-  verified:['No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle animates over time','Other scenes render without error','Mobile and landscape display'],
+  verified:['No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length},
   errors,disclaimer:'Three scenes are authored QA fixtures. This test does not call Gemini or certify cinematic output.'
  },null,2));
  assert.deepEqual(errors.filter(x=>!/favicon|WebGL.*deprecated|GPU stall/.test(x)),[]);
