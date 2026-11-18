@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { toonMaterial } from './look';
 import type { Effector, ProgramChannel, Vec3 } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+export const ACTOR_LOOKS = [{ hair: 0x243549, skin: 0xe5ad83 }, { hair: 0x4b2e1e, skin: 0xc68642 }, { hair: 0x16161a, skin: 0x8d5524 }, { hair: 0xc9a24d, skin: 0xf1c27d }, { hair: 0x7a3b1d, skin: 0xffdbac }];
 type Limb = { root: THREE.Group; elbow: THREE.Group; hand: THREE.Group };
 function mesh(parent: THREE.Object3D, geometry: THREE.BufferGeometry, material: THREE.Material, position: Vec3 = [0, 0, 0]) {
   const m = new THREE.Mesh(geometry, material); m.position.set(...position); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
@@ -18,16 +20,18 @@ export class ProgramActor3D {
   private eyes: THREE.Group[] = [];
   private brows: THREE.Mesh[] = [];
   private mouth: THREE.Mesh;
-  constructor(color: string) {
-    const mat = (c: string | number) => new THREE.MeshStandardMaterial({ color: c, roughness: .83 });
-    const cloth = mat(color), dark = mat(0x243549), skin = mat(0xe5ad83), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
+  /** `variant` gives each actor in a scene its own hair and skin tone (0 keeps the original look). */
+  constructor(color: string, variant = 0) {
+    const mat = (c: string | number) => toonMaterial({ color: c });
+    const look = ACTOR_LOOKS[variant % ACTOR_LOOKS.length];
+    const cloth = mat(color), dark = mat(0x243549), hairMat = mat(look.hair), skin = mat(look.skin), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
     this.root.add(this.hips); this.hips.position.y = 1.02;
     const chest = mesh(this.hips, new THREE.CapsuleGeometry(.28, .26, 4, 10), cloth, [0, .25, 0]); chest.scale.set(1.15, 1, .73);
     mesh(this.hips, new THREE.BoxGeometry(.035, .48, .025), dark, [0, .26, .216]);
     mesh(this.hips, new THREE.CylinderGeometry(.11, .12, .16, 10), skin, [0, .59, 0]);
     this.hips.add(this.head); this.head.position.y = .88;
     const skull = mesh(this.head, new THREE.SphereGeometry(.33, 18, 12), skin); skull.scale.set(.95, 1, .9);
-    const hair = mesh(this.head, new THREE.SphereGeometry(.334, 16, 10, 0, Math.PI * 2, 0, 1.22), dark, [0, .04, -.015]); hair.scale.set(.98, 1, .92);
+    const hair = mesh(this.head, new THREE.SphereGeometry(.334, 16, 10, 0, Math.PI * 2, 0, 1.22), hairMat, [0, .04, -.015]); hair.scale.set(.98, 1, .92);
     for (const side of [-1, 1]) {
       const eye = new THREE.Group(); eye.position.set(side * .115, .035, .272); this.head.add(eye);
       mesh(eye, new THREE.SphereGeometry(.078, 12, 8), white).scale.set(1, 1.15, .48);

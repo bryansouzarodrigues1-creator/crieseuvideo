@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ProgramActor3D } from './actor3d';
 import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
 import type { ApprovedModelId } from './modelRegistry';
+import { separate, type Body, type Solid } from './separation';
+import { InkOutline, skyTexture, toonMaterial } from './look';
 import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -13,7 +16,7 @@ const SURFACE_TOLERANCE = .36;
 
 function geometry(g: ProgramGeometry): THREE.BufferGeometry {
   const d = g.size ?? [];
-  if (g.shape === 'box') return new THREE.BoxGeometry(d[0], d[1], d[2]);
+  if (g.shape === 'box') return g.bevel ? new RoundedBoxGeometry(d[0], d[1], d[2], g.bevelSegments ?? 3, g.bevel) : new THREE.BoxGeometry(d[0], d[1], d[2]);
   if (g.shape === 'sphere') return new THREE.SphereGeometry(d[0], 14, 10);
   if (g.shape === 'capsule') return new THREE.CapsuleGeometry(d[0], d[1], 4, 10);
   if (g.shape === 'cone') return new THREE.ConeGeometry(d[0], d[1], 12);
@@ -23,7 +26,8 @@ function geometry(g: ProgramGeometry): THREE.BufferGeometry {
   if (g.shape === 'tube') return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(g.points!.map((p) => new THREE.Vector3(...p))), 48, d[0], 8, false);
   if (g.shape === 'lathe') return new THREE.LatheGeometry(g.profile!.map(([radius, height]) => new THREE.Vector2(radius, height)), g.segments!);
   const mesh = new THREE.BufferGeometry(); mesh.setAttribute('position', new THREE.Float32BufferAttribute(g.vertices!, 3)); mesh.setIndex(g.indices!);
-  if (g.colors) mesh.setAttribute('color', new THREE.Float32BufferAttribute(g.colors, 3)); mesh.computeVertexNormals(); return mesh;
+  if (g.colors) mesh.setAttribute('color', new THREE.Float32BufferAttribute(g.colors, 3));
+  const faceted = mesh.toNonIndexed(); faceted.computeVertexNormals(); return faceted; // low-poly facets without relying on material flatShading
 }
 
 /** Rendering depends exclusively on the serialized graph and absolute time.
@@ -35,6 +39,7 @@ export class SceneProgram3D {
   readonly nodes = new Map<string, THREE.Object3D>();
   readonly actors = new Map<string, ProgramActor3D>();
   readonly importedModels = new Map<string, ModelInstance>();
+  readonly ink = new InkOutline();
   private states = new Map<string, ProgramState>();
   private time = 0;
   private maxContactError = 0;
@@ -43,14 +48,17 @@ export class SceneProgram3D {
   private projectedBounds = { min: [0, 0], max: [0, 0] };
   constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
     this.score = compileSceneProgram(program, sources);
-    this.scene.background = new THREE.Color(program.background); this.scene.fog = new THREE.Fog(program.background, 65, 220);
+    const sky = skyTexture(program.background); this.scene.background = sky.texture; this.scene.fog = new THREE.Fog(sky.fog, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
     const key = new THREE.DirectionalLight(0xffe6c3, 3.0); key.position.set(-12, 22, 18); key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .08; key.shadow.bias = -.0015; this.scene.add(key, key.target);
+    key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .08; key.shadow.bias = -.0015; this.scene.add(key, key.target);
     const rim = new THREE.DirectionalLight(0xb5dcff, 1.8); rim.position.set(8, 10, -12); this.scene.add(rim);
     for (const n of program.nodes) {
       let root: THREE.Object3D;
-      if (n.kind === 'actor') { const actor = new ProgramActor3D(n.color); this.actors.set(n.id, actor); root = actor.root; }
+      if (n.kind === 'actor') { const index = this.actors.size, repeats = [...this.actors.keys()].filter((id) => this.program.nodes.find((m) => m.id === id)?.color.toLowerCase() === n.color.toLowerCase()).length;
+        // Same-colour actors would be indistinguishable: vary the outfit hue and give each a different look.
+        const actor = new ProgramActor3D(repeats ? '#' + new THREE.Color(n.color).offsetHSL(.17 * repeats, 0, 0).getHexString() : n.color, index); this.actors.set(n.id, actor); root = actor.root;
+        const parts: THREE.Mesh[] = []; actor.root.traverse((o) => { if (o instanceof THREE.Mesh) parts.push(o); }); for (const part of parts) this.ink.attach(part, .1); }
       else if (n.kind === 'model') {
         const loaded = loadedModels.get(n.assetId!);
         if (!loaded) throw new SceneProgramError('O modelo 3D autorizado ainda não foi carregado. Aguarde a importação antes de renderizar.');
@@ -60,8 +68,8 @@ export class SceneProgram3D {
       else if (n.kind === 'group') root = new THREE.Group();
       else {
         const opacity = n.material?.opacity ?? 1;
-        const geo = geometry(n.geometry!), material = new THREE.MeshStandardMaterial({ color: n.color, roughness: n.material?.roughness ?? .85, metalness: n.material?.metalness ?? 0, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
-          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, flatShading: n.geometry!.shape === 'mesh', vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
+        const geo = geometry(n.geometry!), material = toonMaterial({ color: n.color, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
+          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
         if (n.repeat) {
           const instances = new THREE.InstancedMesh(geo, material, n.repeat.count), dummy = new THREE.Object3D(); let seed = n.repeat.seed;
           const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 - .5; };
@@ -69,6 +77,8 @@ export class SceneProgram3D {
           instances.instanceMatrix.needsUpdate = true; root = instances;
         } else root = new THREE.Mesh(geo, material);
         root.castShadow = opacity === 1; root.receiveShadow = opacity === 1;
+        // Ink line only on solid, single meshes: glows, particles and instanced swarms stay clean.
+        if (opacity === 1 && !n.repeat && n.geometry!.shape !== 'plane' && !(n.material?.emissiveIntensity && n.material.emissiveIntensity > .3)) this.ink.attach(root as THREE.Mesh);
       }
       root.name = n.id; this.nodes.set(n.id, root);
     }
@@ -76,7 +86,60 @@ export class SceneProgram3D {
       const parent = n.parent ? this.actors.get(n.parent)?.socket(n.socket) ?? this.nodes.get(n.parent)! : this.scene;
       parent.add(this.nodes.get(n.id)!);
     }
-    this.update(0);
+    this.update(0); this.extendGround();
+  }
+  /** Finite floors show a hard edge against the sky. A large, static, flat, upright slab is continued by a
+   * wide matching disc just below it; fog blends the disc into the horizon. Structure-only: no keywords. */
+  private extendGround() {
+    const byId = new Map(this.program.nodes.map((n) => [n.id, n])), moving = new Set(this.program.tracks.filter((t) => ['position', 'rotation', 'scale'].includes(t.channel)).map((t) => t.node));
+    const isStatic = (id?: string) => { for (let n = id, depth = 0; n && depth < 20; n = byId.get(n)?.parent, depth++) if (moving.has(n)) return false; return true; };
+    let best: { top: number; thick: number; center: THREE.Vector3; color: string; object: THREE.Object3D } | undefined;
+    for (const n of this.program.nodes) {
+      const shape = n.geometry?.shape;
+      if (n.kind !== 'mesh' || n.repeat || !shape || !['box', 'cylinder', 'plane'].includes(shape) || (n.material?.opacity ?? 1) < 1 || !isStatic(n.id)) continue;
+      const object = this.nodes.get(n.id)!; object.updateWorldMatrix(true, false);
+      const up = V(0, shape === 'plane' ? 0 : 1, shape === 'plane' ? 1 : 0).applyQuaternion(object.getWorldQuaternion(new THREE.Quaternion()));
+      if (up.y < .99) continue;
+      const box = new THREE.Box3().setFromObject(object), size = box.getSize(V()), width = Math.min(size.x, size.z), thick = size.y;
+      if (width < 10 || width >= 150 || thick > 1.5 || thick > width * .1) continue;
+      if (!best || box.max.y < best.top - 1e-6) best = { top: box.max.y, thick, center: box.getCenter(V()), color: n.color, object };
+    }
+    if (!best) return;
+    const line = best.object.getObjectByName('ink'); if (line instanceof THREE.Mesh) { best.object.remove(line); line.geometry.dispose(); } // an ink edge would draw a seam where the slab meets its continuation
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(900, 48), toonMaterial({ color: best.color }));
+    disc.name = 'horizon-ground'; disc.rotation.x = -Math.PI / 2; disc.position.set(best.center.x, best.top - (best.thick > .06 ? .03 : .008), best.center.z); disc.receiveShadow = true; this.scene.add(disc);
+  }
+  private solidMeshes: { id: string; object: THREE.Mesh }[] | undefined;
+  /** Moves top-level actors out of each other and out of solid props, before contacts are solved. */
+  private validating = false;
+  private bodyShift = new Map<string, [number, number]>();
+  private separateBodies(): boolean {
+    this.bodyShift.clear();
+    if (this.validating) return false; // validation judges the authored positions, never the corrected ones
+    const byId = new Map(this.program.nodes.map((n) => [n.id, n]));
+    const actors = [...this.actors.keys()].filter((id) => !byId.get(id)?.parent);
+    if (!actors.length) return false;
+    this.solidMeshes ??= this.program.nodes.filter((n) => n.kind === 'mesh' && !n.repeat && n.geometry && ['box', 'cylinder', 'sphere', 'capsule', 'cone'].includes(n.geometry.shape) && (n.material?.opacity ?? 1) >= 1)
+      .filter((n) => { for (let id: string | undefined = n.id, d = 0; id && d < 20; id = byId.get(id)?.parent, d++) if (byId.get(id)?.kind === 'actor') return false; return true; })
+      .map((n) => ({ id: n.id, object: this.nodes.get(n.id) as THREE.Mesh }));
+    const solids: Solid[] = [];
+    for (const { id, object } of this.solidMeshes) {
+      const box = new THREE.Box3().setFromObject(object, false), size = box.getSize(V());
+      if (box.max.y < .45 || size.y < .35 && box.min.y < .1 || Math.max(size.x, size.z) > 60) continue; // floors, rugs and low steps are walked on
+      solids.push({ id, min: box.min.toArray() as Solid['min'], max: box.max.toArray() as Solid['max'] });
+    }
+    const bodies: Body[] = actors.map((id) => { const p = this.nodes.get(id)!.getWorldPosition(V()); return { id, x: p.x, z: p.z, y: p.y, radius: .32 }; });
+    const targets = (id: string) => new Set(this.score.contacts.filter((c) => c.actor === id).map((c) => c.target));
+    const touches = new Map(actors.map((id) => [id, targets(id)]));
+    const inside = (solidId: string, ancestors: Set<string>) => { for (let n: string | undefined = solidId, d = 0; n && d < 20; n = byId.get(n)?.parent, d++) if (ancestors.has(n)) return true; return false; };
+    const pinned = new Set(actors.filter((id) => this.score.contacts.some((c) => c.actor === id && this.time >= c.start && this.time <= c.finish)));
+    const shifts = separate(bodies, solids, {
+      pinned,
+      ignoreSolid: (bodyId, solidId) => inside(solidId, touches.get(bodyId)!),
+      ignorePair: (a, b) => touches.get(a)!.has(b) || touches.get(b)!.has(a),
+    });
+    for (const [id, [dx, dz]] of shifts) { const object = this.nodes.get(id)!; object.position.x += dx; object.position.z += dz; this.bodyShift.set(id, [dx, dz]); }
+    return shifts.size > 0;
   }
   update(time: number) {
     this.time = Number.isFinite(time) ? Math.max(0, Math.min(this.score.duration, time)) : 0;
@@ -87,12 +150,13 @@ export class SceneProgram3D {
     }
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
+    if (this.separateBodies()) this.scene.updateMatrixWorld(true);
     for (const [id, actor] of this.actors) {
       const state = this.states.get(id)!;
       for (const effector of EFFECTORS) {
         const contact = this.score.contacts.filter((c) => c.actor === id && c.effector === effector && this.time >= c.start && this.time <= c.finish).pop();
         const target = contact ? this.nodes.get(contact.target)!.localToWorld(new THREE.Vector3(...contact.offset))
-          : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!)
+          : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!).add(V(this.bodyShift.get(id)?.[0] ?? 0, 0, this.bodyShift.get(id)?.[1] ?? 0))
           : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
         if (target) {
           const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
@@ -111,7 +175,8 @@ export class SceneProgram3D {
   }
   /** Bounded contact audit before accepting an AI-authored preview. Export also
    * checks each actual frame. This is not a semantic or artistic approval. */
-  validateContacts() {
+  validateContacts() { this.validating = true; try { this.runValidation(); } finally { this.validating = false; } }
+  private runValidation() {
     const times = new Set<number>([0, this.score.duration]);
     for (const span of this.score.spans) for (const f of [0, .25, .5, .75, 1]) times.add(span.start + span.duration * f);
     for (const track of this.program.tracks) for (const key of track.keys) { const span = this.score.spans.find((s) => s.sourceId === key.sourceId)!; times.add(span.start + key.phase * span.duration); }
@@ -225,7 +290,7 @@ export class SceneProgram3D {
     const direction = V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
     const points: THREE.Vector3[] = [];
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) points.push(V(x, y, z));
-    this.camera.aspect = aspect; this.camera.updateProjectionMatrix();
+    this.camera.aspect = aspect; this.camera.near = .05; this.camera.far = 1500; this.camera.updateProjectionMatrix(); // wide range while searching the distance
     const fit = (distance: number) => {
       this.camera.position.copy(look).addScaledVector(direction, distance); this.camera.lookAt(look); this.camera.updateMatrixWorld(true);
       return points.every((p) => { const n = p.clone().project(this.camera); return n.z > -1 && n.z < 1 && Math.abs(n.x) <= .88 && n.y >= -.63 && n.y <= .86; });
@@ -234,6 +299,9 @@ export class SceneProgram3D {
     if (!fit(hi)) throw new SceneProgramError('A cena excedeu os limites de enquadramento.');
     for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (fit(mid)) hi = mid; else lo = mid; }
     fit(hi * shot.distance);
+    // Depth precision follows the shot: a fixed 0.05..1500 range makes overlapping surfaces shimmer.
+    const view = this.camera.matrixWorldInverse, depth = Math.min(...points.map((p) => -p.clone().applyMatrix4(view).z)), dist = this.camera.position.distanceTo(look);
+    this.camera.near = THREE.MathUtils.clamp(Math.min(dist * .04, depth * .5), .05, 6); this.camera.far = Math.max(400, dist * 30); this.camera.updateProjectionMatrix();
     const projected = points.map((p) => p.clone().project(this.camera));
     this.projectedBounds = { min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))], max: [Math.max(...projected.map((p) => p.x)), Math.max(...projected.map((p) => p.y))] };
   }
@@ -243,7 +311,7 @@ export class SceneProgram3D {
     if (source && needsGroundedClimb(source.text)) {
       for (const id of this.actors.keys()) this.rejectSolidAscentPenetration(span.sourceId, id);
     }
-    this.frame(w / h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
+    this.frame(w / h); this.ink.resize(w, h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
   }
   diagnostics() {
     return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,
