@@ -20,6 +20,8 @@ export interface MechanicalDrive {
   output: string;
   /** Effective wheel/drum radius in metres. A larger radius turns less. */
   radius: number;
+  /** Unit direction of powered travel: reverse travel reverses shaft rotation. */
+  travelDirection: Vec3;
   /** Every coupled rotating mesh/bone pivot, not just a painted prop. */
   parts: MechanicalPart[];
 }
@@ -29,13 +31,14 @@ export interface PreparedDrive {
   mechanism: string;
   output: string;
   radius: number;
+  travelDirection: Vec3;
   parts: MechanicalPart[];
 }
 
 export const linearDistance = (a:Vec3,b:Vec3) => Math.hypot(
   b[0]-a[0],b[1]-a[1],b[2]-a[2]);
 
-export function coupledAngle(from:Vec3,to:Vec3,radius:number,ratio:number):number {
+export function coupledAngle(from:Vec3,to:Vec3,radius:number,ratio:number,travelDirection?:Vec3):number {
   if (!Number.isFinite(radius)||radius<.03||radius>20)
     throw new Error('Raio físico do eixo/roda fora dos limites.');
   if (!Number.isFinite(ratio)||ratio===0||Math.abs(ratio)>12)
@@ -43,8 +46,22 @@ export function coupledAngle(from:Vec3,to:Vec3,radius:number,ratio:number):numbe
   const travel=linearDistance(from,to);
   if (!Number.isFinite(travel)||travel>180)
     throw new Error('Deslocamento mecânico inválido.');
-  // radians = s/r, optionally multiplied by a signed gear ratio.
-  return travel/radius*ratio;
+  let signedDistance=travel;
+  if(travelDirection){
+    if(!Array.isArray(travelDirection)||travelDirection.length!==3||
+       travelDirection.some(x=>!Number.isFinite(x)))
+      throw new Error('Direção mecânica inválida.');
+    const norm=Math.hypot(...travelDirection);
+    if(norm<.99||norm>1.01)
+      throw new Error('Direção mecânica precisa ter comprimento unitário.');
+    signedDistance=((to[0]-from[0])*travelDirection[0]+
+      (to[1]-from[1])*travelDirection[1]+
+      (to[2]-from[2])*travelDirection[2])/norm;
+    if(travel>1e-5 && Math.abs(signedDistance)<.85*travel)
+      throw new Error('A carga saiu do eixo físico controlado pela máquina.');
+  }
+  // Signed radians = projected travel / wheel radius * gear ratio.
+  return signedDistance/radius*ratio;
 }
 
 /** Validate before authoring tracks, including prohibition of contradictory shafts. */
@@ -76,6 +93,10 @@ export function prepareMechanicalDrives(
       throw new Error('Uma máquina precisa de peças rotativas reais.');
     if(!Number.isFinite(raw.radius)||raw.radius<.03||raw.radius>20)
       throw new Error('Raio mecânico fora dos limites.');
+    if(!Array.isArray(raw.travelDirection)||raw.travelDirection.length!==3||
+       raw.travelDirection.some(x=>!Number.isFinite(x))||
+       Math.abs(Math.hypot(...raw.travelDirection)-1)>.01)
+      throw new Error('Direção do deslocamento da máquina deve ser unitária.');
     for(const part of raw.parts){
       if(typeof part?.node!=='string'||!['x','y','z'].includes(part.axis)||
          !Number.isFinite(part.ratio)||part.ratio===0||Math.abs(part.ratio)>12)
@@ -104,6 +125,7 @@ export function prepareMechanicalDrives(
     }
     output.push({
       mechanism,output:raw.output,radius:raw.radius,
+      travelDirection:[...raw.travelDirection],
       parts:raw.parts.map(p=>({...p}))
     });
   }
