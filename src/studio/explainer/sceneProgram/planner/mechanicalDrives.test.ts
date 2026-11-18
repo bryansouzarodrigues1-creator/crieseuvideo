@@ -39,7 +39,7 @@ describe('3D machinery coupled to physical travel instead of arbitrary spin',()=
         for(const sampleTime of [0,.5,1.1,3.3,5,6]){
           stage.update(sampleTime);
           expect(stage.nodes.get('cargo')).toBe(cargo);
-          expect(stage.nodes.get('drum-shaft')!.rotation.toArray().every(Number.isFinite)).toBe(true);
+          expect(stage.nodes.get('drum-shaft')!.rotation.toArray().slice(0,3).every(Number.isFinite)).toBe(true);
           stage.frame(9/16);
           expect(stage.camera.position.toArray().every(Number.isFinite)).toBe(true);
         }
