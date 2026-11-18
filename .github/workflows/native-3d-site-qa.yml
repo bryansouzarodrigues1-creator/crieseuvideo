@@ -1,0 +1,26 @@
+name: Integrate native 3D engine into official studio
+on:
+  push:
+    branches: [feat/native-3d-studio-integration-20261118]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: native-3d-site-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install without modifying lockfile
+        run: bun install --frozen-lockfile
+      - name: Run all 2D, 3D, validation and codec tests
+        run: bun run test
+      - name: Typecheck entire studio
+        run: bunx tsc --noEmit
+      - name: Build Lovable app with new /motor-3d route
+        run: bun run build
