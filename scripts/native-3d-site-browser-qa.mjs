@@ -23,7 +23,7 @@ try {
  await page.getByRole('link',{name:/motor 3d/i}).click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
  const stage=page.locator('.native-3d-screen canvas');
- await stage.waitFor({timeout:60000});
+ await stage.waitFor({state:'attached',timeout:60000});
  // On mobile, controls are accessible BEFORE any WebGL renderer is created.
  const activate=page.getByRole('button',{name:'Carregar motor 3D'});
  await activate.waitFor({timeout:60000});
