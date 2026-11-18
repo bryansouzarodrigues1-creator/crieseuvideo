@@ -45,10 +45,17 @@ try{
       'Actual Claude scenery kit was not included in '+start.setting);
     assert.ok(start.worldAudit?.objects?.length===2,
       'Gemini-compatible assembly not included in '+start.setting);
+    let waveDeltaMetres=0;
     if(start.setting==='harbor'){
       const visible=[...start.sceneryInView,...end.sceneryInView];
       assert.ok(visible.some(id=>id.startsWith('coast-trees-')),
         'Coastal vegetation exists but the camera never shows it');
+      const initial=start.waterWave.find(w=>w.id==='sea');
+      const final=end.waterWave.find(w=>w.id==='sea');
+      assert.ok(initial&&final,'Native water surface missing from harbor');
+      waveDeltaMetres=Math.max(...initial.y.map((y,j)=>Math.abs(final.y[j]-y)));
+      assert.ok(waveDeltaMetres>.005,
+        'Water vertex geometry stayed frozen while timeline advanced');
     }
     const distance=Math.hypot(...end.cargo.map((v,j)=>v-start.cargo[j]));
     assert.ok(distance>=4.9,'Blueprint object failed to move under machine '+start.setting);
@@ -79,7 +86,7 @@ try{
     assert.ok(pixelDelta>.002,
       'Actual 3D pixels are frozen despite numeric mechanics: '+start.setting+' '+pixelDelta);
     scenes.push({name:start.setting,visibleScenery:[...new Set([...start.sceneryInView,...end.sceneryInView])],
-      distanceMetres:distance,changedPixelFraction:pixelDelta,
+      distanceMetres:distance,changedPixelFraction:pixelDelta,waveDeltaMetres,
       shaftRads:end.shaft[2]-start.shaft[2],
       counterGearRads:end.gear[2]-start.gear[2],nodes:start.sceneNodes});
     for(const t of [1,3,5])
@@ -112,7 +119,7 @@ try{
   assert.deepEqual(errors,[]);
   await writeFile(path.join(out,'report.json'),JSON.stringify({
     info,scenes,frames:FPS*DURATION,
-    disclaimer:'QA authored JSON demonstrates original Claude scenery generators together with generic Gemini-compatible object blueprint compiler and existing kinematic machine. There was NO live Gemini generation, water waves are a STATIC sampled mesh, no voice or physical torque.',
+    disclaimer:'QA authored JSON demonstrates original Claude scenery generators together with generic Gemini-compatible object blueprint compiler and existing kinematic machine. There was NO live Gemini generation, water is a timeline-updated procedural mesh (harbor measured directly), no fluid physics, no voice or physical torque.',
     errors
   },null,2));
   console.log('PASS three real Three.js scenes with generated objects, Claude scenery and causal motion, MP4 18 sec');
