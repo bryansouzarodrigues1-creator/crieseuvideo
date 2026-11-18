@@ -131,7 +131,6 @@ export function titanicProgram() {
   const swing = []; for (let i = 0; i < 5; i++) swing.push(['s4', .1 + i * .18, [-60.75, 1.95, .75]], ['s4', .17 + i * .18, [-60.75, 1.4, .3]]);
   track('op1', 'rightHand', 'smooth', swing);
   track('op1', 'leftHand', 'smooth', [['s4', 0, [-60.1, 1.5, .4]], ['s4', .95, [-60.1, 1.5, .4]]]);
-  onlyDuring('op1', [-60.4, 0, 1.05], 4, 4);
 
   // ---------- Sentence 5: one rivet, cold water, a crack ----------
   group('junta', 's5', [-62, 0, -14]);
