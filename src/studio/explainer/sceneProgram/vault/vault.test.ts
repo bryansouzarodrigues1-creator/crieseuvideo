@@ -75,12 +75,12 @@ describe('end to end through the director', () => {
     const first = await directExplainer({ script: sample.script, engine: '3d', mode: 'program' }, env, { vault: store });
     expect(first.plan.sceneProgram?.nodes.some((n) => 'asset' in n)).toBe(false);
     const saved = [...store.items.values()]; expect(saved).toHaveLength(1);
-    expect(vi.mocked(askAiResult).mock.calls[0][0]).not.toContain('COFRE DE PEÇAS');
+    expect(vi.mocked(askAiResult).mock.calls[0][0]).not.toContain('COFRE DE PEÇAS JÁ PRONTAS');
 
     const script = 'Outro cometa cruza o céu escuro e brilha.';
     vi.mocked(askAiResult).mockResolvedValueOnce(ok(second(saved[0].id)));
     const reused = await directExplainer({ script, engine: '3d', mode: 'program', targetDuration: 6 }, env, { vault: store });
-    const prompt = vi.mocked(askAiResult).mock.calls[1][0]; expect(prompt).toContain('COFRE DE PEÇAS'); expect(prompt).toContain(saved[0].id);
+    const prompt = vi.mocked(askAiResult).mock.calls[1][0]; expect(prompt).toContain('COFRE DE PEÇAS JÁ PRONTAS'); expect(prompt).toContain(saved[0].id);
     const nodes = reused.plan.sceneProgram!.nodes;
     expect(nodes.find((n) => n.id === 'cometa')?.scale[0]).toBeCloseTo(1.4); expect(nodes.length).toBe(1 + 6);
     expect(reused.plan.sceneProgram!.tracks.length).toBeGreaterThan(0);
@@ -92,7 +92,7 @@ describe('end to end through the director', () => {
     vi.mocked(askAiResult).mockResolvedValueOnce(ok(response)); await directExplainer({ script: sample.script, engine: '3d', mode: 'program' }, env, { vault: store });
     vi.mocked(askAiResult).mockResolvedValueOnce(ok(comet().response));
     await directExplainer({ script: 'O ferreiro bate o ferro quente na bigorna.', engine: '3d', mode: 'program' }, env, { vault: store }).catch(() => undefined);
-    expect(vi.mocked(askAiResult).mock.calls[1][0]).not.toContain('COFRE DE PEÇAS');
+    expect(vi.mocked(askAiResult).mock.calls[1][0]).not.toContain('COFRE DE PEÇAS JÁ PRONTAS');
   });
   it('keeps working when the store is unavailable', async () => {
     const broken = supabaseVaultStore(async () => { throw new Error('no table'); }), { sample, response } = comet();

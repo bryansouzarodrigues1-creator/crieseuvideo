@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { ProgramActor3D } from './actor3d';
 import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
 import type { ApprovedModelId } from './modelRegistry';
+import { separate, type Body, type Solid } from './separation';
 import { InkOutline, skyTexture, toonMaterial } from './look';
 import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
 
@@ -54,7 +55,9 @@ export class SceneProgram3D {
     const rim = new THREE.DirectionalLight(0xb5dcff, 1.8); rim.position.set(8, 10, -12); this.scene.add(rim);
     for (const n of program.nodes) {
       let root: THREE.Object3D;
-      if (n.kind === 'actor') { const actor = new ProgramActor3D(n.color); this.actors.set(n.id, actor); root = actor.root;
+      if (n.kind === 'actor') { const index = this.actors.size, repeats = [...this.actors.keys()].filter((id) => this.program.nodes.find((m) => m.id === id)?.color.toLowerCase() === n.color.toLowerCase()).length;
+        // Same-colour actors would be indistinguishable: vary the outfit hue and give each a different look.
+        const actor = new ProgramActor3D(repeats ? '#' + new THREE.Color(n.color).offsetHSL(.17 * repeats, 0, 0).getHexString() : n.color, index); this.actors.set(n.id, actor); root = actor.root;
         const parts: THREE.Mesh[] = []; actor.root.traverse((o) => { if (o instanceof THREE.Mesh) parts.push(o); }); for (const part of parts) this.ink.attach(part, .1); }
       else if (n.kind === 'model') {
         const loaded = loadedModels.get(n.assetId!);
@@ -106,6 +109,32 @@ export class SceneProgram3D {
     const disc = new THREE.Mesh(new THREE.CircleGeometry(900, 48), toonMaterial({ color: best.color }));
     disc.name = 'horizon-ground'; disc.rotation.x = -Math.PI / 2; disc.position.set(best.center.x, best.top - (best.thick > .06 ? .03 : .008), best.center.z); disc.receiveShadow = true; this.scene.add(disc);
   }
+  private solidMeshes: { id: string; object: THREE.Mesh }[] | undefined;
+  /** Moves top-level actors out of each other and out of solid props, before contacts are solved. */
+  private separateBodies(): boolean {
+    const byId = new Map(this.program.nodes.map((n) => [n.id, n]));
+    const actors = [...this.actors.keys()].filter((id) => !byId.get(id)?.parent);
+    if (!actors.length) return false;
+    this.solidMeshes ??= this.program.nodes.filter((n) => n.kind === 'mesh' && !n.repeat && n.geometry && ['box', 'cylinder', 'sphere', 'capsule', 'cone'].includes(n.geometry.shape) && (n.material?.opacity ?? 1) >= 1)
+      .filter((n) => { for (let id: string | undefined = n.id, d = 0; id && d < 20; id = byId.get(id)?.parent, d++) if (byId.get(id)?.kind === 'actor') return false; return true; })
+      .map((n) => ({ id: n.id, object: this.nodes.get(n.id) as THREE.Mesh }));
+    const solids: Solid[] = [];
+    for (const { id, object } of this.solidMeshes) {
+      const box = new THREE.Box3().setFromObject(object, false), size = box.getSize(V());
+      if (box.max.y < .45 || size.y < .35 && box.min.y < .1 || Math.max(size.x, size.z) > 60) continue; // floors, rugs and low steps are walked on
+      solids.push({ id, min: box.min.toArray() as Solid['min'], max: box.max.toArray() as Solid['max'] });
+    }
+    const bodies: Body[] = actors.map((id) => { const p = this.nodes.get(id)!.getWorldPosition(V()); return { id, x: p.x, z: p.z, y: p.y, radius: .32 }; });
+    const targets = (id: string) => new Set(this.score.contacts.filter((c) => c.actor === id).map((c) => c.target));
+    const touches = new Map(actors.map((id) => [id, targets(id)]));
+    const inside = (solidId: string, ancestors: Set<string>) => { for (let n: string | undefined = solidId, d = 0; n && d < 20; n = byId.get(n)?.parent, d++) if (ancestors.has(n)) return true; return false; };
+    const shifts = separate(bodies, solids, {
+      ignoreSolid: (bodyId, solidId) => inside(solidId, touches.get(bodyId)!),
+      ignorePair: (a, b) => touches.get(a)!.has(b) || touches.get(b)!.has(a),
+    });
+    for (const [id, [dx, dz]] of shifts) { const object = this.nodes.get(id)!; object.position.x += dx; object.position.z += dz; }
+    return shifts.size > 0;
+  }
   update(time: number) {
     this.time = Number.isFinite(time) ? Math.max(0, Math.min(this.score.duration, time)) : 0;
     this.states = this.score.sample(this.time); this.maxContactError = 0; this.maxIKError = 0; this.contactProblems = [];
@@ -115,6 +144,7 @@ export class SceneProgram3D {
     }
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);
+    if (this.separateBodies()) this.scene.updateMatrixWorld(true);
     for (const [id, actor] of this.actors) {
       const state = this.states.get(id)!;
       for (const effector of EFFECTORS) {
