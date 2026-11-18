@@ -3,11 +3,13 @@
  * layouts the model got wrong; bodies that a contact deliberately touches are exempt. */
 export interface Body { id: string; x: number; z: number; y: number; radius: number }
 export interface Solid { id: string; min: [number, number, number]; max: [number, number, number] }
-export interface SeparationRules { bodyHeight?: number; pairDistance?: number; ignoreSolid?: (bodyId: string, solidId: string) => boolean; ignorePair?: (a: string, b: string) => boolean }
+export interface SeparationRules { bodyHeight?: number; pairDistance?: number; ignoreSolid?: (bodyId: string, solidId: string) => boolean; ignorePair?: (a: string, b: string) => boolean;
+  /** Bodies that must not move (they are mid-contact); others yield to them. */ pinned?: ReadonlySet<string> }
 
 export function separate(bodies: readonly Body[], solids: readonly Solid[], rules: SeparationRules = {}): Map<string, [number, number]> {
   const height = rules.bodyHeight ?? 1.7, pair = rules.pairDistance ?? .7, pos = new Map(bodies.map((b) => [b.id, [b.x, b.z] as [number, number]]));
   const out = (b: Body, s: Solid) => {
+    if (rules.pinned?.has(b.id)) return;
     const p = pos.get(b.id)!, r = b.radius;
     if (b.y > s.max[1] - .25 || b.y + height < s.min[1] + .05) return; // standing on it, or it is entirely overhead
     const left = p[0] - (s.min[0] - r), right = (s.max[0] + r) - p[0], back = p[1] - (s.min[2] - r), front = (s.max[2] + r) - p[1];
@@ -24,8 +26,10 @@ export function separate(bodies: readonly Body[], solids: readonly Solid[], rule
       let dx = pc[0] - pa[0], dz = pc[1] - pa[1], d = Math.hypot(dx, dz);
       if (d >= pair) continue;
       if (d < 1e-4) { dx = 1; dz = 0; d = 1; }
-      const push = (pair - Math.hypot(pc[0] - pa[0], pc[1] - pa[1])) / 2, ux = dx / d, uz = dz / d;
-      pa[0] -= ux * push; pa[1] -= uz * push; pc[0] += ux * push; pc[1] += uz * push;
+      const need = pair - Math.hypot(pc[0] - pa[0], pc[1] - pa[1]), ux = dx / d, uz = dz / d, pa_ = rules.pinned?.has(a.id), pc_ = rules.pinned?.has(c.id);
+      if (pa_ && pc_) continue;
+      const fa = pa_ ? 0 : pc_ ? need : need / 2, fc = pc_ ? 0 : pa_ ? need : need / 2;
+      pa[0] -= ux * fa; pa[1] -= uz * fa; pc[0] += ux * fc; pc[1] += uz * fc;
     }
   }
   const shift = new Map<string, [number, number]>();

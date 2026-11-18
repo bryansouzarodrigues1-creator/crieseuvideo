@@ -25,3 +25,12 @@ describe('body separation', () => {
     expect(separate([body('a', 0, 0), body('b', .2, 0)], [], { ignorePair: () => true }).size).toBe(0);
   });
 });
+
+describe('pinned bodies', () => {
+  it('lets the free actor yield completely to one that is mid-contact', () => {
+    const shift = separate([body('a', 0, 0), body('b', .2, 0)], [], { pinned: new Set(['a']) });
+    expect(shift.has('a')).toBe(false); expect(.2 + shift.get('b')![0]).toBeGreaterThanOrEqual(.69);
+    expect(separate([body('a', 0, 0), body('b', .2, 0)], [], { pinned: new Set(['a', 'b']) }).size).toBe(0);
+    expect(separate([body('a', 2.2, 0)], [crate], { pinned: new Set(['a']) }).size).toBe(0);
+  });
+});

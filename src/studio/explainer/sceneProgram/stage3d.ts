@@ -111,7 +111,11 @@ export class SceneProgram3D {
   }
   private solidMeshes: { id: string; object: THREE.Mesh }[] | undefined;
   /** Moves top-level actors out of each other and out of solid props, before contacts are solved. */
+  private validating = false;
+  private bodyShift = new Map<string, [number, number]>();
   private separateBodies(): boolean {
+    this.bodyShift.clear();
+    if (this.validating) return false; // validation judges the authored positions, never the corrected ones
     const byId = new Map(this.program.nodes.map((n) => [n.id, n]));
     const actors = [...this.actors.keys()].filter((id) => !byId.get(id)?.parent);
     if (!actors.length) return false;
@@ -128,11 +132,13 @@ export class SceneProgram3D {
     const targets = (id: string) => new Set(this.score.contacts.filter((c) => c.actor === id).map((c) => c.target));
     const touches = new Map(actors.map((id) => [id, targets(id)]));
     const inside = (solidId: string, ancestors: Set<string>) => { for (let n: string | undefined = solidId, d = 0; n && d < 20; n = byId.get(n)?.parent, d++) if (ancestors.has(n)) return true; return false; };
+    const pinned = new Set(actors.filter((id) => this.score.contacts.some((c) => c.actor === id && this.time >= c.start && this.time <= c.finish)));
     const shifts = separate(bodies, solids, {
+      pinned,
       ignoreSolid: (bodyId, solidId) => inside(solidId, touches.get(bodyId)!),
       ignorePair: (a, b) => touches.get(a)!.has(b) || touches.get(b)!.has(a),
     });
-    for (const [id, [dx, dz]] of shifts) { const object = this.nodes.get(id)!; object.position.x += dx; object.position.z += dz; }
+    for (const [id, [dx, dz]] of shifts) { const object = this.nodes.get(id)!; object.position.x += dx; object.position.z += dz; this.bodyShift.set(id, [dx, dz]); }
     return shifts.size > 0;
   }
   update(time: number) {
@@ -150,7 +156,7 @@ export class SceneProgram3D {
       for (const effector of EFFECTORS) {
         const contact = this.score.contacts.filter((c) => c.actor === id && c.effector === effector && this.time >= c.start && this.time <= c.finish).pop();
         const target = contact ? this.nodes.get(contact.target)!.localToWorld(new THREE.Vector3(...contact.offset))
-          : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!)
+          : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!).add(V(this.bodyShift.get(id)?.[0] ?? 0, 0, this.bodyShift.get(id)?.[1] ?? 0))
           : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
         if (target) {
           const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
@@ -169,7 +175,8 @@ export class SceneProgram3D {
   }
   /** Bounded contact audit before accepting an AI-authored preview. Export also
    * checks each actual frame. This is not a semantic or artistic approval. */
-  validateContacts() {
+  validateContacts() { this.validating = true; try { this.runValidation(); } finally { this.validating = false; } }
+  private runValidation() {
     const times = new Set<number>([0, this.score.duration]);
     for (const span of this.score.spans) for (const f of [0, .25, .5, .75, 1]) times.add(span.start + span.duration * f);
     for (const track of this.program.tracks) for (const key of track.keys) { const span = this.score.spans.find((s) => s.sourceId === key.sourceId)!; times.add(span.start + key.phase * span.duration); }
