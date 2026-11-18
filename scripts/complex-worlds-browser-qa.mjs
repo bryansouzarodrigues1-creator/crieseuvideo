@@ -47,7 +47,9 @@ try{
       'Required visible 3D geometry was not created in '+a.setting);
     const deltas={};
     if(i===0){
-      deltas.arkBobMetres=Math.abs(b.nodes.ark.position[1]-a.nodes.ark.position[1]);
+      // The boat returns close to its starting height; sample its crest, not two similar endpoints.
+      const crest=await at(i*6+2.9);
+      deltas.arkBobMetres=Math.abs(crest.nodes.ark.position[1]-a.nodes.ark.position[1]);
       deltas.hatchRadians=Math.abs(b.nodes['ark-hatch'].rotation[1]-a.nodes['ark-hatch'].rotation[1]);
       deltas.animalMetres=Math.hypot(...b.nodes.animals.position.map((x,j)=>x-a.nodes.animals.position[j]));
       assert.ok(deltas.arkBobMetres>.02,'Ark should bob');
