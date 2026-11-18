@@ -145,7 +145,8 @@ export default function Native3DShowcase() {
 
   const exportVideo = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || exportingRef.current) return;
+    if (!canvas || exportingRef.current || loading || !activated || !!error) return;
+    abortRef.current = new AbortController();
     exportingRef.current=true;
     playingRef.current=false;
     setPlaying(false);
@@ -157,6 +158,7 @@ export default function Native3DShowcase() {
         canvas,
         durationSeconds:CLIP_SECONDS,
         fps:FRAME_RATE,
+        signal:abortRef.current.signal,
         renderFrame:t=>drawRef.current(t),
         onProgress:p=>setRecording(p),
       });
@@ -171,6 +173,7 @@ export default function Native3DShowcase() {
     } catch(e) {
       setError('Não foi possível exportar: '+(e instanceof Error?e.message:String(e)));
     } finally {
+      abortRef.current = null;
       exportingRef.current=false;
       setRecording(null);
       timeRef.current=0;
@@ -193,7 +196,7 @@ export default function Native3DShowcase() {
       <div className="native-3d-layout">
         <section className="native-3d-choices" aria-label="Cenas de demonstração">
           {showcase.map((m,i)=>(
-            <button type="button" key={m.source} disabled={recording!==null}
+            <button type="button" key={m.source} disabled={recording!==null || loading}
               aria-pressed={choice===i} onClick={()=>setChoice(i)} className="native-3d-choice">
               <strong>{m.title}</strong><span>{m.subtitle}</span>
             </button>
@@ -206,29 +209,44 @@ export default function Native3DShowcase() {
         </section>
         <section className="native-3d-player" aria-label="Prévia interativa SceneProgram3D">
           <div className="native-3d-screen">
-            <canvas ref={canvasRef} style={{aspectRatio:landscape?'16 / 9':'9 / 16'}} aria-label={`Cena 3D real: ${mode.title}`}/>
+            <canvas ref={canvasRef} style={{aspectRatio:landscape?'16 / 9':'9 / 16',display:activated?'block':'none'}} aria-label={`Cena 3D real: ${mode.title}`}/>
+            {!activated && (
+              <div className="native-3d-start">
+                <Box size={32} aria-hidden="true"/>
+                <strong>Motor 3D pronto para carregar</strong>
+                <span>No celular, carregamos somente a cena escolhida para evitar travamentos.</span>
+                <button type="button" onClick={()=>setActivated(true)}>Carregar motor 3D</button>
+              </div>
+            )}
+            {loading && <div className="native-3d-loading" role="status">Preparando {mode.title} em {lite?'modo leve':'modo normal'}…</div>}
           </div>
           <div className="native-3d-controls">
-            <button type="button" disabled={recording!==null || !!error} onClick={()=>{if(timeRef.current>=CLIP_SECONDS-.01)seek(0);setPlaying(p=>!p);}}>
+            <button type="button" disabled={recording!==null || !!error || !activated || loading} onClick={()=>{if(timeRef.current>=CLIP_SECONDS-.01)seek(0);setPlaying(p=>!p);}}>
               {playing?<Pause size={17}/>:<Play size={17}/>} {playing?'Pausar':'Reproduzir'}
             </button>
             <input type="range" aria-label="Linha do tempo 3D" min={0} max={CLIP_SECONDS-.001} step=".05"
-              value={time} disabled={recording!==null} onChange={e=>{setPlaying(false);seek(Number(e.target.value));}}/>
+              value={time} disabled={recording!==null || !activated || loading} onChange={e=>{setPlaying(false);seek(Number(e.target.value));}}/>
             <span className="native-3d-clock">{time.toFixed(1)} / 6.0s</span>
-            <button type="button" className="native-3d-icon" title="Reiniciar" disabled={recording!==null} onClick={()=>{setPlaying(false);seek(0);}}>
+            <button type="button" className="native-3d-icon" title="Reiniciar" disabled={recording!==null || !activated || loading} onClick={()=>{setPlaying(false);seek(0);}}>
               <RefreshCw size={17}/>
             </button>
           </div>
           <div className="native-3d-actions">
-            <button type="button" disabled={recording!==null} onClick={()=>{setLandscape(v=>!v);setPlaying(false);}}>
+            <button type="button" disabled={recording!==null || loading} onClick={()=>{setLandscape(v=>!v);setPlaying(false);}}>
               <Box size={17}/> {landscape?'Formato vertical 9:16':'Formato horizontal 16:9'}
             </button>
-            <button type="button" className="native-3d-download" disabled={recording!==null || !!error} onClick={()=>void exportVideo()}>
+            <button type="button" disabled={recording!==null || loading} onClick={()=>setLite(v=>!v)}>
+              <RefreshCw size={17}/> {lite?'Modo leve: ativado':'Modo leve: desativado'}
+            </button>
+            {recording!==null && (
+              <button type="button" onClick={()=>abortRef.current?.abort()}>Cancelar exportação</button>
+            )}
+            <button type="button" className="native-3d-download" disabled={recording!==null || !!error || !activated || loading} onClick={()=>void exportVideo()}>
               <Download size={17}/> {recording!==null?`Gravando ${recording}%`:'Baixar clipe 3D'}
             </button>
           </div>
           {error&&<p className="native-3d-error" role="alert">{error}</p>}
-          <p className="native-3d-small">Exportação determinística com 144 quadros em 24 fps, sem áudio. Usa MP4 quando o codificador suporta H.264 ou WebM quando necessário.</p>
+          <p className="native-3d-small">Prévia adaptativa: modo leve usa menos memória e reduz os quadros por segundo apenas na visualização. A exportação tenta manter 24 fps, sem áudio; no modo leve a resolução é reduzida.</p>
         </section>
       </div>
     </main>
