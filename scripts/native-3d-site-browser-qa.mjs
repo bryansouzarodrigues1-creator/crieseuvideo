@@ -38,12 +38,19 @@ try {
  const first=await frame();
  assert.ok(first.length>10000,'No real scene rendered');
  await page.screenshot({path:path.join(out,'02-motorcycle-first-frame.png')});
- await page.getByRole('button',{name:'Reproduzir'}).click();
- await page.waitForTimeout(1100);
+ // The opening shot deliberately holds the bike in place for inspection.
+ // Use the keyboard-operated timeline to reach the action shot (seconds 3-6).
+ const slider=page.getByRole('slider',{name:'Linha do tempo 3D'});
+ await slider.focus();
+ await slider.press('End');
+ await page.waitForTimeout(350);
  const second=await frame();
- assert.notEqual(second,first,'The displayed motorcycle is a static sprite');
- await page.getByRole('button',{name:'Pausar'}).click();
+ assert.notEqual(second,first,'Motorcycle render did not respond to timeline scrubbing');
  await page.screenshot({path:path.join(out,'03-motorcycle-after-motion.png')});
+ await slider.press('Home');
+ await page.getByRole('button',{name:'Reproduzir'}).click();
+ await page.waitForTimeout(400);
+ await page.getByRole('button',{name:'Pausar'}).click();
  for(const [buttonName,filename] of [
    ['Arca e oceano','04-ark-world.png'],
    ['Prisão 3D','05-prison-world.png']]){
