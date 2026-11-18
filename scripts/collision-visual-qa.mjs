@@ -43,6 +43,11 @@ try {
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
 
+const render = async (at) => page.evaluate((time) => {
+  const timeline = document.getElementById('timeline'); timeline.value = String(time); timeline.dispatchEvent(new Event('input', { bubbles: true }));
+  const canvas = document.getElementById('canvas');
+  return { png: canvas.toDataURL('image/png').split(',')[1], data: JSON.parse(canvas.dataset.production || 'null'), action: canvas.dataset.action };
+}, at);
 // Developer-authored layout that used to go wrong: two same-coloured actors start on top of each other and
 // both walk INTO a solid chest. After the fix they must stay apart, stay outside the chest and look different.
 const script = 'Dois colegas carregam uma caixa vermelha até o baú marrom.', duration = 6;
