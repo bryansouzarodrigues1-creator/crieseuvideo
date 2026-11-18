@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { ArrowLeft, Box, Download, Pause, Play, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Box, Download, Pause, Play, RefreshCw, Sparkles } from 'lucide-react';
 import { buildComplexWorldClipDemo } from '../explainer/sceneProgram/planner/complexWorldBatchDemo';
 import { SceneProgram3D } from '../explainer/sceneProgram/stage3d';
 
@@ -192,7 +192,7 @@ export default function Native3DShowcase() {
     <main className="native-3d-studio">
       <div className="native-3d-bar">
         <a href="/" className="native-3d-return"><ArrowLeft size={19}/> Voltar ao CrieSeuVideo</a>
-        <span className="native-3d-engine"><Box size={17}/> SceneProgram3D • motor nativo</span>
+        <a className="native-3d-engine" href="/motor-3d/ia"><Sparkles size={17}/> Gerar cena 3D com IA</a>
       </div>
       <header className="native-3d-heading">
         <span className="native-3d-eyebrow">LABORATÓRIO INTEGRADO • VERSÃO EXPERIMENTAL</span>

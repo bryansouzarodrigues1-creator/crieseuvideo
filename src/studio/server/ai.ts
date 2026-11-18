@@ -94,3 +94,26 @@ export function parseJson(text: string | null): any {
     return null;
   }
 }
+
+
+/** Explicitly user-initiated complex-world planning. The user's provider choice
+ * is honored; "auto" uses Lovable direction first, Gemini as fallback.
+ * This is an LLM planning call (credits may apply), not generative video.
+ */
+export async function ask3DWorldAi(
+  prompt:string,
+  preferred:'auto'|'gemini'|'lovable'='auto'
+):Promise<{provider:'gemini'|'lovable';text:string}|null> {
+  const order:('gemini'|'lovable')[]=preferred==='auto'
+    ? providerOrder('direction',!!process.env.GEMINI_API_KEY)
+    : [preferred];
+  for(const provider of order){
+    const text=provider==='lovable'
+      ?await askLovable(prompt,LOVABLE_MODEL)
+      :await askGemini(prompt);
+    if(text && text.length<=480000){
+      return {provider,text};
+    }
+  }
+  return null;
+}
