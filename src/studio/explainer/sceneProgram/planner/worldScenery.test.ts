@@ -1,4 +1,5 @@
 import {describe,expect,it} from 'vitest';
+import * as THREE from 'three';
 import {normalizeSceneProgram,type ProgramSource} from '../score';
 import {terrainHeight} from '../scenery';
 import {SceneProgram3D} from '../stage3d';
@@ -17,7 +18,6 @@ const forest={
 const water={id:'water',sourceId:'s1',shape:'water',size:[36,36],
   position:[0,-.5,0],seed:3,wave:.18,color:'#3A8FAD',segments:20};
 const proposal=(...regions:unknown[])=>({version:1,regions});
-const numericMesh=(node:any)=>node.geometry?.shape==='mesh';
 
 describe('Gemini-defined procedural scenes composed with exact Claude generators',()=>{
   it('creates deterministic real terrain, floating sea, grounded forest and clouds from compact JSON',()=>{
@@ -30,9 +30,12 @@ describe('Gemini-defined procedural scenes composed with exact Claude generators
     expect(a.nodes.filter(n=>String(n.id).startsWith('forest-'))).toHaveLength(7);
     expect(a.audit.environments.find(e=>e.id==='island')?.vertices).toBe(441);
     const terrain=a.nodes.find(n=>n.id==='island') as any;
-    expect(terrain.geometry.vertices.length).toBe(441*3);
-    expect(terrain.geometry.indices.length).toBeGreaterThan(1000);
-    expect(terrain.geometry.colors.length).toBe(441*3);
+    expect(terrain.geometry).toMatchObject({
+      shape:'terrain',size:[18,18,4],seed:9,roughness:.7,segments:20
+    });
+    expect((a.nodes.find(n=>n.id==='water') as any).geometry).toMatchObject({
+      shape:'water',wave:.18,segments:20
+    });
     for(const node of a.nodes.filter(n=>String(n.id).startsWith('forest-')) as any[]){
       const pos=node.position as number[];
       const localX=pos[0]-4,localZ=pos[2];
@@ -52,7 +55,12 @@ describe('Gemini-defined procedural scenes composed with exact Claude generators
     },source);
     const stage=new SceneProgram3D(program,source);
     try {
+      const waterMesh=stage.nodes.get('water') as THREE.Mesh<THREE.BufferGeometry>;
+      stage.update(0);
+      const first=Array.from(waterMesh.geometry.getAttribute('position').array);
       stage.update(1.2);
+      const later=Array.from(waterMesh.geometry.getAttribute('position').array);
+      expect(later).not.toEqual(first); // time-varying vertices, not a frozen t=0 mesh
       for(const region of ['island','water','cloud','forest']){
         expect(stage.nodes.get(region)).toBeDefined();
       }
