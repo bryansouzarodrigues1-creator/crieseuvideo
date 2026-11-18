@@ -33,7 +33,11 @@ try {
  assert.equal(await page.getByRole('button',{name:'Reproduzir'}).isDisabled(),true);
  await page.screenshot({path:path.join(out,'02-mobile-before-gpu-activation.png')});
  await activate.click();
- await page.waitForFunction(()=>!document.querySelector('.native-3d-loading'),null,{timeout:60000});
+ await page.waitForFunction(()=>{
+   const canvas=document.querySelector('.native-3d-screen canvas');
+   return canvas?.width===270 && canvas?.height===480 &&
+     !document.querySelector('.native-3d-loading');
+ },null,{timeout:60000});
  assert.equal(await stage.evaluate(c=>c.width),270,'Mobile scene should default to low-resolution WebGL');
  assert.equal(await stage.evaluate(c=>c.height),480,'Mobile scene height should be memory friendly');
  await page.waitForFunction(()=>{
@@ -70,6 +74,7 @@ try {
    ['Arca e oceano','04-ark-world.png'],
    ['Prisão 3D','05-prison-world.png']]){
    await page.getByRole('button',{name:new RegExp(buttonName)}).click();
+   await page.waitForTimeout(100);
    await page.waitForFunction(()=>!document.querySelector('.native-3d-loading'),null,{timeout:60000});
    await page.waitForTimeout(200);
    assert.equal(await page.getByRole('alert').count(),0,'Failed loading '+buttonName);
