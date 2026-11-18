@@ -82,7 +82,7 @@ export function normalizeStoryMotionBindings(raw:unknown):StoryMotionBindings {
     if(Object.keys(mechanical).length>24)bad('Máquinas demais no planejamento.');
     for(const [mechanism,rawDrive] of Object.entries(mechanical)){
       const d=record(rawDrive,'mechanicalDrive');
-      names(d,['output','radius','parts'],'mechanicalDrive');
+      names(d,['output','radius','travelDirection','parts'],'mechanicalDrive');
       const radius=d.radius;
       if(typeof radius!=='number'||!Number.isFinite(radius)||radius<.03||radius>20)
         return bad('Raio da transmissão fora dos limites.');
@@ -99,7 +99,8 @@ export function normalizeStoryMotionBindings(raw:unknown):StoryMotionBindings {
           axis:part.axis as 'x'|'y'|'z',ratio:part.ratio};
       });
       drives[safeId(mechanism,'mechanism')]={
-        output:safeId(d.output,'output'),radius,parts
+        output:safeId(d.output,'output'),radius,
+        travelDirection:point(d.travelDirection,'travelDirection'),parts
       };
     }
   }
@@ -132,8 +133,8 @@ export function storyGeometryPrompt(storyboard:CompiledStoryboard,sources:Progra
     'bindings.entityNodes: mapeie TODA entidade actor/prop/mechanism para um nó ROOT correspondente.',
     'bindings.placeAnchors: mapa de TODOS os place ids para coordenadas [x,y,z] reais e distintas no ambiente.',
     'bindings.heldOffsets: offset do objeto da base do ator enquanto carrega; bindings.supportOffsets: offset acima do suporte.',
-    'PREFIRA bindings.mechanicalDrives:{motorId:{output:"idDaCargaSemantica",radius:0.3,parts:[{node:"eixo3d",axis:"z",ratio:1},{node:"engrenagemPequena",axis:"z",ratio:-2}]}}.',
-    'O raio é o raio físico efetivo da roda/tambor em METROS; a rotação das peças vem do deslocamento real da carga e do ratio assinado. Peças devem ser nós 3D reais dentro da máquina ou da carga.',
+    'PREFIRA bindings.mechanicalDrives:{motorId:{output:"idDaCargaSemantica",radius:0.3,travelDirection:[0,1,0],parts:[{node:"eixo3d",axis:"z",ratio:1},{node:"engrenagemPequena",axis:"z",ratio:-2}]}}.',
+    'O raio é o raio físico efetivo da roda/tambor em METROS; travelDirection é vetor unitário do sentido positivo do deslocamento. A rotação acompanha o deslocamento assinado e INVERTE quando a carga volta. Peças devem ser nós 3D reais dentro da máquina ou da carga.',
     'motorVisuals com voltas arbitrárias é legado. NÃO use motorVisuals para máquinas que possuam mechanicalDrives.',
     'Para cenários novos, crie ambientes coerentes com o assunto: oficina, rua, porto, fazenda, floresta ou interior. Inclua superfícies, objetos e contexto; não apenas uma parede solta.',
     'As posições 3D podem ser planejadas no espaço, MAS não inclua qualquer track que contradiga os acontecimentos.',
