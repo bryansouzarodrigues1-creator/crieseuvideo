@@ -1,0 +1,50 @@
+name: Gemini x Claude procedural worlds - real Three.js 18s video
+on:
+  push:
+    branches: [feat/gemini-procedural-worlds-integration-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: procedural-worlds-visual-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install frozen application dependencies
+        run: bun install --frozen-lockfile
+      - name: Install headless WebGL and H264 video tools
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Serve new 3D scenery + object animation proof
+        run: |
+          mkdir -p tmp/world-and-scenery
+          bunx vite lab/world-and-scenery --host 127.0.0.1 --port 4196 --strictPort >tmp/world-and-scenery/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4196/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/world-and-scenery/vite.log
+          exit 1
+      - name: Assert causal motions, scenic objects and export 18 second 720p MP4
+        run: bun scripts/world-and-scenery-browser-qa.mjs
+      - name: Preserve actual video, 9 screenshot frames and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-claude-worlds-3d-18s-preview
+          path: tmp/world-and-scenery/
+          retention-days: 7
+          if-no-files-found: warn
