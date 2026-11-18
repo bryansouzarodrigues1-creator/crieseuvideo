@@ -25,7 +25,7 @@ const labels=[
   'MOTOCICLETA ESPORTIVA 3D'
 ];
 const required=[
-  ['ark','ark-hull','ark-hatch','animals','ocean'],
+  ['ark','ark-hull','ark-hatch','ark-gangway','animals','ocean'],
   ['compound','compound-gate','patrol','compound-towers'],
   ['bike','bike-fairing','bike-fwheel','bike-rwheel','street']
 ];
@@ -53,10 +53,12 @@ const seek=(t:number)=>{
   if(split<phrase.length)ctx.fillText(phrase.slice(split).trim(),34,H-45);
   const nodes=Object.fromEntries(required[index].map(id=>{
     const obj=stage.nodes.get(id);
-    return [id,obj?{
+    const box=obj?new THREE.Box3().setFromObject(obj):null;
+    return [id,obj&&box?{
       position:obj.position.toArray(),
       rotation:obj.rotation.toArray().slice(0,3),
-      bounds:new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3()).toArray()
+      bounds:box.getSize(new THREE.Vector3()).toArray(),
+      min:box.min.toArray(),max:box.max.toArray()
     }:null];
   }));
   const water=clip.program.nodes.filter(n=>n.geometry?.shape==='water').map(n=>{

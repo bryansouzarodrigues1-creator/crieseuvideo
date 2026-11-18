@@ -42,6 +42,9 @@ const ark={
     extrude('hull','casco','#805638',[[-8,1.35],[7.1,1.35],[9.0,.75],[7.0,-1.1],[-6.9,-1.1],[-8.3,-.55]],5.2,[0,0,0]),
     extrude('keel','quilha','#573B2A',[[-7,-1.05],[7,-1.05],[5.6,-1.52],[-5.9,-1.5]],1.7,[0,0,0]),
     box('deck','conves','#B98553',[17.4,.24,6.15],[0,1.50,0]),
+    // The animals now traverse a physical sloped boarding ramp, not the sea.
+    box('gangway','conves','#D0A270',[1.8,.14,4.6],[3.55,1.18,4.9],
+      {rotation:[.25,0,0]}),
     box('topdeck','conves','#B78B59',[11.5,.2,5.6],[-.3,5.0,0]),
     box('cabin','cabine','#B68A57',[11.4,3.6,5.25],[-.3,3.23,0]),
     extrude('roof','telhado','#5E4032',[[-6.4,0],[5.6,0],[4.8,1.4],[-5.7,1.4]],6.0,[-.3,5.0,0]),
@@ -71,7 +74,7 @@ const ark={
 };
 const animals={
   id:'animals',role:'prop',sourceId:'s2',name:'Dois animais quadrúpedes de formas distintas',
-  position:[-.8,0,7.2],features:['corpo','cabeca','patas','orelhas','cauda','olhos'],
+  position:[3.55,1.0,6.2],features:['corpo','cabeca','patas','orelhas','cauda','olhos'],
   parts:[
     {id:'body',feature:'corpo',color:'#A47B53',position:[0,1.0,0],
       geometry:{shape:'capsule',size:[.49,1.15]},rotation:[0,0,Math.PI/2],
@@ -212,8 +215,8 @@ const vessel={
   ],[
     keys('ark','position',[k('s1',0,[0,.3,0]),k('s1',1,[.18,.48,0]),k('s2',1,[.3,.34,0])]),
     keys('ark-hatch','rotation',[k('s1',0,[0,0,0]),k('s2',0,[0,0,0]),k('s2',1,[0,-1.12,0])]),
-    keys('animals','position',[k('s1',0,[-.8,0,7.2]),k('s2',0,[-.8,0,7.2]),k('s2',1,[1,0,4.8])])
-  ],['ark'],['ark','animals'],.43),
+    keys('animals','position',[k('s1',0,[3.55,1.0,6.2]),k('s2',0,[3.55,1.0,6.2]),k('s2',1,[3.55,2.0,3.4])])
+  ],['ark'],['ark-hatch','animals'],.43),
   worldBlueprints:{version:1,objects:[ark,animals]},
   worldScenery:{version:1,regions:[
     {id:'ocean',sourceId:'s1',shape:'water',size:[80,80],
@@ -231,7 +234,7 @@ const penitentiary={
   sceneProgram:storyboard('#93AAB5',[floor('s1',[95,.3,95],'#676E71')],[
     keys('compound-gate','position',[k('s1',0,[0,0,1.1]),k('s2',0,[0,0,1.1]),k('s2',1,[4.2,0,1.1])]),
     keys('patrol','position',[k('s1',0,[0,.5,8]),k('s2',0,[0,.5,8]),k('s2',1,[0,.5,-3.5])])
-  ],['compound'],['compound','patrol'],.25),
+  ],['compound'],['compound-gate','patrol'],.25),
   worldBlueprints:{version:1,objects:[compound,patrol]},
   worldScenery:{version:1,regions:[
     {id:'gray-clouds',sourceId:'s1',shape:'cloud',size:[5],
