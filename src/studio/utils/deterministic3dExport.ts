@@ -13,10 +13,11 @@ export interface FixedFrameExport {
   fps: number;
   renderFrame: (time: number) => void;
   onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
 }
 
 export async function encodeFixedFrame3DClip({
-  canvas,durationSeconds,fps,renderFrame,onProgress,
+  canvas,durationSeconds,fps,renderFrame,onProgress,signal,
 }:FixedFrameExport):Promise<Encoded3DClip>{
   if(typeof VideoEncoder==='undefined'){
     throw new Error('Seu navegador não possui WebCodecs para gerar MP4 com quadros fixos.');
@@ -46,13 +47,15 @@ export async function encodeFixedFrame3DClip({
     await output.start();started=true;
     const frames=Math.round(durationSeconds*fps);
     for(let i=0;i<frames;i++){
+      if(signal?.aborted)throw new Error('Exportação cancelada.');
       const time=i/fps;
       renderFrame(time);
       await source.add(time,1/fps,{keyFrame:i%fps===0});
-      const p=Math.round((i+1)*100/frames);
-      onProgress?.(p);
-      // Give the UI a chance to display progress without changing frame times.
-      if(i%12===0)await new Promise<void>(r=>setTimeout(r,0));
+      if(i%6===0 || i===frames-1)onProgress?.(Math.round((i+1)*100/frames));
+      // Yield EVERY frame: WebCodecs can otherwise monopolize the UI thread on Android.
+      // Frame timestamps remain fixed even when encoding needs more wall-clock time.
+      await new Promise<void>(resolve=>setTimeout(resolve,0));
+      if(signal?.aborted)throw new Error('Exportação cancelada.');
     }
     source.close();
     await output.finalize();
