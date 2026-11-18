@@ -64,9 +64,9 @@ describe('scenery kit in SceneProgram', () => {
     const s = new SceneProgram3D(program([terrain, forest]), sources), inst = s.nodes.get('forest') as THREE.InstancedMesh, m = new THREE.Matrix4(), pos = new THREE.Vector3(), sc = new THREE.Vector3();
     let shown = 0, hidden = 0;
     for (let i = 0; i < 60; i++) {
-      inst.getMatrixAt(i, m); m.decompose(pos, new THREE.Quaternion(), sc);
+      inst.getMatrixAt(i, m); m.decompose(pos, new THREE.Quaternion(), sc); sc.x = m.elements[0]; // instances are never rotated, so element 0 is the scale
       const h = terrainHeight({ size: [40, 40, 8], seed: 4, roughness: .7 }, pos.x, pos.z);
-      expect(pos.y).toBeCloseTo(h, 5); if (sc.x === 0) { hidden++; expect(h).toBeLessThan(1); } else { shown++; expect(h).toBeGreaterThanOrEqual(1); }
+      expect(pos.y).toBeCloseTo(h, 5); if (sc.x === 0) { hidden++; expect(h).toBeLessThan(1); } else { shown++; expect(h, `instance ${i} scale ${sc.x} y ${pos.y}`).toBeGreaterThanOrEqual(1); }
     }
     expect(shown).toBeGreaterThan(0); expect(hidden).toBeGreaterThan(0); s.dispose();
   });
