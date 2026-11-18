@@ -2,6 +2,7 @@ import {chromium} from 'playwright';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 
 const base='http://127.0.0.1:4198';
 const out=path.resolve('tmp/native-3d-site');
@@ -66,7 +67,7 @@ try {
  // Record a real clip from the site, verify its bytes and filename.
  await page.getByRole('button',{name:/Motocicleta 3D/}).click();
  await page.waitForTimeout(400);
- const downloadEvent=page.waitForEvent('download',{timeout:90000});
+ const downloadEvent=page.waitForEvent('download',{timeout:240000});
  await page.getByRole('button',{name:/Baixar clipe 3D/}).click();
  const download=await downloadEvent;
  const filename=download.suggestedFilename();
@@ -77,9 +78,18 @@ try {
  assert.ok(bytes.length>10000,'Recorded video has no useful bytes');
  if(filename.endsWith('.mp4'))assert.equal(bytes.toString('ascii',4,8),'ftyp','Fake MP4 bytes');
  else assert.equal(bytes.subarray(0,4).toString('hex'),'1a45dfa3','Fake WebM bytes');
+ const probe=JSON.parse(execFileSync('ffprobe',[
+   '-v','error','-count_frames','-select_streams','v:0',
+   '-show_entries','stream=nb_read_frames,avg_frame_rate:format=duration',
+   '-of','json',saved,
+ ],{encoding:'utf8'}));
+ const deliveredFrames=Number(probe.streams?.[0]?.nb_read_frames);
+ const deliveredDuration=Number(probe.format?.duration);
+ assert.equal(deliveredFrames,144,'Dropped frames: deterministic export must contain every 24fps frame');
+ assert.ok(Math.abs(deliveredDuration-6)<.06,'Incorrect encoded duration: '+deliveredDuration);
  await writeFile(path.join(out,'report.json'),JSON.stringify({
   passed:true,route:'/motor-3d',worlds:['motocicleta','arca','prisão'],
-  verified:['No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length},
+  verified:['No automatically loaded 4-second demo at root','SceneProgram3D renders nontrivial canvas','Motorcycle changes pose and position on its motion timeline','Other scenes render without error','Mobile and landscape display','Browser downloaded a valid video container'],download:{filename,bytes:bytes.length,deliveredFrames,deliveredDuration},
   errors,disclaimer:'Three scenes are authored QA fixtures. This test does not call Gemini or certify cinematic output.'
  },null,2));
  assert.deepEqual(errors.filter(x=>!/favicon|WebGL.*deprecated|GPU stall/.test(x)),[]);
