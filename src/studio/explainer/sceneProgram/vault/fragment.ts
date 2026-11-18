@@ -49,6 +49,7 @@ export function extractEntry(program: SceneProgram, rootId: string, marker?: Raw
 export function instantiate(entry: VaultEntry, use: Required<Pick<RawUse, 'id' | 'sourceId'>> & RawUse) {
   const order = new Map(entry.nodes.map((n, i) => [n.id, i])), rename = (id: string) => id === entry.root ? use.id : `${use.id}-${order.get(id)}`; // short ids keep the 40-char identifier limit
   const nodes = entry.nodes.map((n) => ({ ...n, id: rename(n.id), ...(n.parent ? { parent: rename(n.parent) } : {}), contextSourceId: use.sourceId,
+    ...(typeof n.repeat?.ground === 'string' && order.has(n.repeat.ground) ? { repeat: { ...n.repeat, ground: rename(n.repeat.ground) } } : {}),
     ...(n.id === entry.root ? { position: use.position ?? n.position, rotation: [n.rotation[0], use.rotationY ?? n.rotation[1], n.rotation[2]], scale: n.scale.map((v) => v * (use.scale ?? 1)) } : {}) }));
   const tracks = entry.tracks.map((t) => ({ node: rename(t.node), channel: t.channel, interpolation: t.interpolation, keys: t.keys.map((k) => ({ sourceId: use.sourceId, phase: k.phase, value: k.value })) }));
   return { nodes, tracks };

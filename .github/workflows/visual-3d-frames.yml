@@ -4,7 +4,7 @@ name: Visual 3D frames
 # without downloading CI artifacts. Zero AI calls: only developer-authored fixtures.
 on:
   push:
-    branches: [integration/3d-all, feat/3d-toon-look]
+    branches: [integration/3d-all, feat/3d-toon-look, feat/3d-scenery-kit]
     paths: ['src/**', 'lab/**', 'scripts/scene-program-qa.mjs', 'scripts/collision-visual-qa.mjs', '.github/workflows/visual-3d-frames.yml']
   workflow_dispatch:
 permissions:

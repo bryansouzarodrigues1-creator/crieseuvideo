@@ -5,6 +5,7 @@ import { instantiateModel, type ModelInstance, type PreparedModel } from './mode
 import type { ApprovedModelId } from './modelRegistry';
 import { separate, type Body, type Solid } from './separation';
 import { InkOutline, skyTexture, toonMaterial } from './look';
+import { isKit, kitMesh, terrainHeight, waterMesh, type KitParams, type KitShape, type MeshData } from './scenery';
 import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -14,8 +15,22 @@ const needsGroundedClimb = (text: string) => /\b(escal\w*|subi\w*|subiu|subindo|
 );
 const SURFACE_TOLERANCE = .36;
 
-function geometry(g: ProgramGeometry): THREE.BufferGeometry {
+function kitParams(g: ProgramGeometry, color: string): KitParams {
+  return { shape: g.shape as KitShape, size: g.size ?? [1], seed: g.seed ?? 1, roughness: g.roughness ?? .5, wave: g.wave ?? 0, segments: g.segments ?? 32, peakColor: g.peakColor ?? '#E8ECEF', foliage: g.foliage ?? '#3F8F4E', color };
+}
+/** Builds a BufferGeometry from scenery-kit data. Kit meshes carry vertex colours; faceted normals give the low-poly look. */
+function kitGeometry(data: MeshData) {
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3)); geo.setIndex(data.indices);
+  if (data.colors) geo.setAttribute('color', new THREE.Float32BufferAttribute(data.colors, 3));
+  const faceted = geo.toNonIndexed(); faceted.computeVertexNormals(); return faceted;
+}
+/** Water keeps its indexed grid so the surface can be re-displaced every frame. */
+function waterGeometry(p: KitParams) {
+  const data = waterMesh(p, 0), geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3)); geo.setIndex(data.indices); geo.computeVertexNormals(); return geo;
+}
+function geometry(g: ProgramGeometry, color = '#ffffff'): THREE.BufferGeometry {
   const d = g.size ?? [];
+  if (isKit(g.shape)) return kitGeometry(kitMesh(kitParams(g, color)));
   if (g.shape === 'box') return g.bevel ? new RoundedBoxGeometry(d[0], d[1], d[2], g.bevelSegments ?? 3, g.bevel) : new THREE.BoxGeometry(d[0], d[1], d[2]);
   if (g.shape === 'sphere') return new THREE.SphereGeometry(d[0], 14, 10);
   if (g.shape === 'capsule') return new THREE.CapsuleGeometry(d[0], d[1], 4, 10);
@@ -40,6 +55,7 @@ export class SceneProgram3D {
   readonly actors = new Map<string, ProgramActor3D>();
   readonly importedModels = new Map<string, ModelInstance>();
   readonly ink = new InkOutline();
+  private readonly waters = new Map<string, { mesh: THREE.Mesh; params: KitParams }>();
   private states = new Map<string, ProgramState>();
   private time = 0;
   private maxContactError = 0;
@@ -68,17 +84,28 @@ export class SceneProgram3D {
       else if (n.kind === 'group') root = new THREE.Group();
       else {
         const opacity = n.material?.opacity ?? 1;
-        const geo = geometry(n.geometry!), material = toonMaterial({ color: n.color, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
-          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, vertexColors: !!n.geometry!.colors, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
+        const kit = isKit(n.geometry!.shape) && n.geometry!.shape !== 'water', geo = n.geometry!.shape === 'water' ? waterGeometry(kitParams(n.geometry!, n.color)) : geometry(n.geometry!, n.color), material = toonMaterial({ color: kit ? '#ffffff' : n.color, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
+          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, vertexColors: !!n.geometry!.colors || kit, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
         if (n.repeat) {
           const instances = new THREE.InstancedMesh(geo, material, n.repeat.count), dummy = new THREE.Object3D(); let seed = n.repeat.seed;
           const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 - .5; };
-          for (let i = 0; i < n.repeat.count; i++) { dummy.position.set(...n.repeat.step.map((v, axis) => v * i + random() * n.repeat!.jitter[axis]) as [number, number, number]); dummy.updateMatrix(); instances.setMatrixAt(i, dummy.matrix); }
+          const terrain = n.repeat.ground ? program.nodes.find((m) => m.id === n.repeat!.ground)! : undefined;
+          const here = this.score.sample(0).get(n.id)!.position, there = terrain ? this.score.sample(0).get(terrain.id)!.position : [0, 0, 0];
+          for (let i = 0; i < n.repeat.count; i++) {
+            const p = n.repeat.step.map((v, axis) => v * i + random() * n.repeat!.jitter[axis]) as [number, number, number];
+            dummy.scale.setScalar(1);
+            if (terrain) { // snap to the terrain surface (both nodes must be static); skip spots below the shoreline
+              const height = terrainHeight(kitParams(terrain.geometry!, terrain.color), here[0] + p[0] - there[0], here[2] + p[2] - there[2]);
+              p[1] = there[1] + height - here[1]; if (height < n.repeat.above!) dummy.scale.setScalar(0);
+            }
+            dummy.position.set(...p); dummy.updateMatrix(); instances.setMatrixAt(i, dummy.matrix);
+          }
           instances.instanceMatrix.needsUpdate = true; root = instances;
         } else root = new THREE.Mesh(geo, material);
+        if (n.geometry!.shape === 'water') this.waters.set(n.id, { mesh: root as THREE.Mesh, params: kitParams(n.geometry!, n.color) });
         root.castShadow = opacity === 1; root.receiveShadow = opacity === 1;
         // Ink line only on solid, single meshes: glows, particles and instanced swarms stay clean.
-        if (opacity === 1 && !n.repeat && n.geometry!.shape !== 'plane' && !(n.material?.emissiveIntensity && n.material.emissiveIntensity > .3)) this.ink.attach(root as THREE.Mesh);
+        if (opacity === 1 && !n.repeat && n.geometry!.shape !== 'plane' && !['terrain', 'water', 'cloud'].includes(n.geometry!.shape) && !(n.material?.emissiveIntensity && n.material.emissiveIntensity > .3)) this.ink.attach(root as THREE.Mesh);
       }
       root.name = n.id; this.nodes.set(n.id, root);
     }
@@ -147,6 +174,10 @@ export class SceneProgram3D {
     for (const [id, object] of this.nodes) {
       const state = this.states.get(id)!; object.position.set(...state.position); object.rotation.set(...state.rotation); object.scale.set(...state.scale);
       this.actors.get(id)?.reset(state.pose, this.time);
+    }
+    for (const { mesh, params } of this.waters.values()) {
+      const data = waterMesh(params, this.time), position = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+      position.array.set(data.positions); position.needsUpdate = true; mesh.geometry.computeVertexNormals(); mesh.geometry.computeBoundingSphere();
     }
     for (const imported of this.importedModels.values()) imported.setTime(this.time);
     this.scene.updateMatrixWorld(true);

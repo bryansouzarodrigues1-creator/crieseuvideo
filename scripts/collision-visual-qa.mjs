@@ -60,20 +60,37 @@ fixture = { title: 'colisao', scenes: [{ sourceId: 's1', visual: 'character', mo
     node('ana', 'actor', [-1.6, 0, 0], { color: '#E8C55A', rotation: [0, 1.2, 0] }), node('beto', 'actor', [-1.3, 0, .05], { color: '#E8C55A', rotation: [0, 1.2, 0] })],
   tracks: [key('ana', [[0, [-1.6, 0, 0]], [.5, [1, 0, 0]], [1, [2.8, 0, .1]]]), key('beto', [[0, [-1.4, 0, .05]], [.5, [1.2, 0, 0]], [1, [3, 0, -.1]]])],
   shots: [{ sourceId: 's1', subjects: ['ana', 'beto', 'bau'], azimuth: .3, endAzimuth: .2, elevation: .15, distance: 1.25 }], contacts: [] } };
-backend = (await import('../dist/server/index.js?program=collision')).default;
-await page.locator('#script').fill(script);
-await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(duration)); await page.locator('#duration-custom').dispatchEvent('change');
-await page.locator('#generate').click();
-await page.waitForFunction(() => !document.getElementById('generate').disabled);
-await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 30000 });
-await page.evaluate(() => document.fonts.ready);
-for (const aspect of ['9:16', '16:9']) {
-  await page.locator(`[data-aspect="${aspect}"]`).click();
-  for (const f of [.02, .3, .5, .75, .98]) {
-    const frame = await render(duration * f); assert.equal(frame.action, 'scene-program3d');
-    await fs.writeFile(path.join(output, `colisao-${aspect.replace(':', 'x')}-${Math.round(f * 100)}.png`), Buffer.from(frame.png, 'base64'));
+const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75, .98]) => {
+  fixture = program; backend = (await import(`../dist/server/index.js?program=${name}`)).default;
+  await page.locator('#script').fill(text);
+  await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(seconds)); await page.locator('#duration-custom').dispatchEvent('change');
+  await page.locator('#generate').click();
+  await page.waitForFunction(() => !document.getElementById('generate').disabled);
+  await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 30000 });
+  await page.evaluate(() => document.fonts.ready);
+  for (const aspect of ['9:16', '16:9']) {
+    await page.locator(`[data-aspect="${aspect}"]`).click();
+    for (const f of shots) {
+      const frame = await render(seconds * f); assert.equal(frame.action, 'scene-program3d');
+      await fs.writeFile(path.join(output, `${name}-${aspect.replace(':', 'x')}-${Math.round(f * 100)}.png`), Buffer.from(frame.png, 'base64'));
+    }
   }
-}
+};
+await scenario('colisao', script, duration, fixture);
+
+// Scenery kit: an island with mountains, a lake, a forest snapped to the relief, rocks and clouds. Authored, no AI.
+const land = 'Uma ilha verde com montanhas, floresta e um lago sob as nuvens.';
+const at = (id, kind, position, more = {}) => ({ id, kind, position, evidence: land, ...more });
+await scenario('paisagem', land, 8, { title: 'paisagem', scenes: [{ sourceId: 's1', visual: 'character', mood: 'neutral', palette: 'teal' }], sceneProgram: { version: 1, background: '#8EC5EA',
+  nodes: [at('mar', 'mesh', [0, -.35, 0], { geometry: { shape: 'water', size: [180, 180], wave: .25, segments: 48 }, color: '#2E86C1', material: { opacity: .88 } }),
+    at('ilha', 'mesh', [0, -.3, 0], { geometry: { shape: 'terrain', size: [90, 90, 16], seed: 11, roughness: .75, segments: 56, peakColor: '#F1F3F5' }, color: '#5E9A48' }),
+    at('lago', 'mesh', [6, 1.1, 8], { geometry: { shape: 'water', size: [14, 10], wave: .08, segments: 16 }, color: '#4FB3E8', material: { opacity: .9 } }),
+    at('floresta', 'mesh', [0, 0, 0], { geometry: { shape: 'tree', size: [3.2], seed: 3, foliage: '#2F7D45' }, color: '#6B4A2B', repeat: { count: 220, step: [0, 0, 0], jitter: [70, 0, 70], seed: 9, ground: 'ilha', above: 1.2 } }),
+    at('pedras', 'mesh', [0, 0, 0], { geometry: { shape: 'rock', size: [.9], seed: 5 }, color: '#8A8D93', repeat: { count: 40, step: [0, 0, 0], jitter: [60, 0, 60], seed: 21, ground: 'ilha', above: 3 } }),
+    at('nuvens', 'mesh', [0, 24, -10], { geometry: { shape: 'cloud', size: [5], seed: 2 }, color: '#FFFFFF', repeat: { count: 9, step: [0, 0, 0], jitter: [120, 8, 60], seed: 4 } }),
+    at('ana', 'actor', [-2, 12.5, 2], { color: '#E8C55A', rotation: [0, .6, 0] })],
+  tracks: [key('ana', [[0, [-2, 12.5, 2]], [1, [2, 12.5, -1]]])],
+  shots: [{ sourceId: 's1', subjects: ['ilha', 'ana'], azimuth: .5, endAzimuth: -.4, elevation: .35, distance: 2.4 }], contacts: [] } }, [.02, .35, .7, .98]);
 assert.deepEqual(errors, []);
 console.log('Collision frames written to', output);
 } finally { globalThis.fetch = originalFetch; await browser?.close(); await new Promise((resolve) => server.close(resolve)); }
