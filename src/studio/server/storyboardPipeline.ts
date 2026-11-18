@@ -13,6 +13,7 @@ import type { ProgramSource, SceneProgram, Vec3 } from '../explainer/sceneProgra
 import { compileStoryEvents, type CompiledStoryboard } from '../explainer/sceneProgram/planner/events';
 import { compileStoryMotion, type StoryMotionBindings, type StoryMotionResult } from '../explainer/sceneProgram/planner/choreographer';
 import { storyEventsPrompt } from '../explainer/sceneProgram/planner/prompt';
+import { compileWorldBlueprints, type CompiledWorldBlueprint } from '../explainer/sceneProgram/planner/worldBlueprints';
 import { askAiResult, parseJson, type AiEnvironment } from './ai';
 
 export type StoryboardPass = 'events'|'geometry';
@@ -20,6 +21,8 @@ export type StoryboardProvider = (prompt:string,pass:StoryboardPass)=>Promise<st
 export interface TwoPassStoryboardResult extends StoryMotionResult {
   storyboard:CompiledStoryboard;
   providerPasses:2;
+  /** Present only when the Gemini geometry pass designed new parametric objects. */
+  worldAudit?: CompiledWorldBlueprint['audit'];
 }
 export class StoryboardPipelineError extends Error {
   readonly code='invalid_two_pass_storyboard';
@@ -120,10 +123,16 @@ export function storyGeometryPrompt(storyboard:CompiledStoryboard,sources:Progra
   }));
   return [
     'Você é DIRETOR DE ARTE 3D de um storyboard JÁ VALIDADO. Sua tarefa é construir objetos reconhecíveis.',
-    'Responda APENAS JSON com {sceneProgram:{version:1,background,nodes,tracks:[],shots,contacts:[]},bindings:{entityNodes,placeAnchors,heldOffsets?,supportOffsets?,mechanicalDrives?,motorVisuals?}}.',
+    'Responda APENAS JSON com {sceneProgram:{version:1,background,nodes,tracks:[],shots,contacts:[]},bindings:{entityNodes,placeAnchors,heldOffsets?,supportOffsets?,mechanicalDrives?,motorVisuals?},worldBlueprints?:{version:1,objects:[...]}}.',
     'NÃO invente fatos, mude a sequência ou anime a posição dos objetos principais.',
     'O COMPILADOR gera automaticamente curvas de pegar, transportar, apoiar e subir. Portanto sceneProgram.tracks DEVE SER [] e motionChecks deve ser omitido.',
-    'Crie nodes 3D reais com id,kind:"group|mesh|actor",contextSourceId,position:[x,y,z],rotation:[x,y,z] (em radianos),scale:[x,y,z],color,geometry?.',
+    'O Gemini pode criar OBJETOS INÉDITOS com worldBlueprints: em vez de listar manualmente dezenas de meshes desconectados, descreva um objeto por suas partes 3D distintivas. Não escolha um preset de objetos.',
+    'worldBlueprints:{version:1,objects:[{id,role:"prop|mechanism|environment",sourceId,name,position?,rotation?,scale?,features:["corpo","rodas"],parts:[{id,feature,kind?:"mesh|group",parent?,position?,rotation?,scale?,color:"#RRGGBB",geometry,material?,repeat?,mirror?:"x|z"}]}]}.',
+    'Para objetos móveis, o id do objectBlueprint deve ser exatamente o id de nó usado em bindings.entityNodes; o compilador criará o ROOT e seus filhos com nomes objeto-parte.',
+    'features são características visuais essenciais que precisam ter malhas reais — por exemplo, objeto com rodas deve ter corpo e rodas, não uma esfera com nome de veículo.',
+    'Cada part visível indica uma feature declarada. Use grupos para partes articuláveis, lathe para objetos de revolução e mirror para simetria de duas peças; repeat para fileiras limitadas. O motor valida características, hierarquia, orçamento e IDs.',
+    'Se usar worldBlueprints, NÃO duplique seus objetos no sceneProgram.nodes. Deixe nodes apenas para atores e outras entidades não cobertas; no máximo 160 nós no total.',
+    'Crie nodes 3D reais com id,kind:"group|mesh|actor",contextSourceId,position:[x,y,z],rotation:[x,y,z] (em radianos),scale:[sx,sy,sz],color,geometry?.',
     'mesh geometry pode ser box(size:[w,h,d]),sphere(size:[raio]),capsule(size:[raio,comprimento]),cylinder(size:[raioTopo,raioBase,altura]),cone,torus,tube ou lathe.',
     'Use materiais estilizados e proporções específicas; nunca substitua tomate por esfera vermelha ou caminhão por bloco.',
     'Agrupe as peças de um objeto em parent:id. Os nós referenciados em bindings.entityNodes devem ser ROOTS (sem parent).',
@@ -165,7 +174,7 @@ export async function generateStoryboardFirst3D(
   const rawStage=await provider(storyGeometryPrompt(storyboard,sources),'geometry');
   if(rawStage.length>240000)bad('Resposta da segunda etapa é longa demais.');
   const data=bounded(parseJson(rawStage),190000,'geometria');
-  names(data,['sceneProgram','bindings'],'geometria');
+  names(data,['sceneProgram','bindings','worldBlueprints'],'geometria');
   const scene=bounded(data.sceneProgram,150000,'sceneProgram');
   // The only source of motion for principal entities is compiled state.
   const authoredTracks=scene.tracks;
@@ -175,8 +184,15 @@ export async function generateStoryboardFirst3D(
   if(authoredTracks.length)
     return bad('A etapa de modelagem não pode escrever keyframes dos objetos.');
   const bindings=normalizeStoryMotionBindings(data.bindings);
-  const motion=compileStoryMotion(storyboard,scene as unknown as SceneProgram,sources,bindings);
-  return {...motion,storyboard,providerPasses:2};
+  // Object blueprints are an optional generic expansion stage. Existing raw
+  // SceneProgram nodes stay valid; the LLM can introduce ORIGINAL grouped
+  // shapes without changing the motion planner or deploying a fixed catalog.
+  const world=data.worldBlueprints===undefined?undefined
+    :compileWorldBlueprints(data.worldBlueprints,sources,scene.nodes as {id:string}[]);
+  const expanded=world?{...scene,nodes:[...scene.nodes,...world.nodes]}:scene;
+  const motion=compileStoryMotion(storyboard,expanded as unknown as SceneProgram,sources,bindings);
+  return {...motion,storyboard,providerPasses:2,
+    ...(world?{worldAudit:world.audit}:{})};
 }
 
 /** Optional server-only provider wiring. Not called by current public routes. */

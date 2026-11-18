@@ -1,0 +1,50 @@
+name: Generative 3D object blueprints - real Chromium movie
+on:
+  push:
+    branches: [feat/gemini-world-blueprints-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: genworld-visual-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  render-worlds:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 23
+    env:
+      CI: 'true'
+      FREEFORM_3D_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install project dependencies
+        run: bun install --frozen-lockfile
+      - name: Install headless Chromium and H264 support
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+      - name: Start world-blueprints Three.js preview
+        run: |
+          mkdir -p tmp/world-blueprints
+          bunx vite lab/world-blueprints --host 127.0.0.1 --port 4197 --strictPort >tmp/world-blueprints/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4197/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/world-blueprints/vite.log
+          exit 1
+      - name: Verify 3D geometry and export real 18-second MP4
+        run: bun scripts/world-blueprints-browser-qa.mjs
+      - name: Save user-reviewable movie and nine image frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generative-world-blueprints-18s
+          path: tmp/world-blueprints/
+          retention-days: 7
+          if-no-files-found: warn

@@ -9,6 +9,56 @@ const sceneResponse=()=>({
   bindings:sampleBindings
 });
 describe('two-stage Gemini-compatible architecture without network or credits',()=>{
+  it('turns a freshly designed cement bag into a stable object that the SAME event compiler can pick, carry and lift',async()=>{
+    const fromModel=sceneResponse();
+    const omit=new Set(['saco','sack-body','sack-green-band']);
+    const composed={
+      sceneProgram:{...fromModel.sceneProgram,
+        nodes:fromModel.sceneProgram.nodes.filter(n=>!omit.has(n.id))},
+      bindings:fromModel.bindings,
+      worldBlueprints:{version:1,objects:[{
+        id:'saco',role:'prop',sourceId:'s1',name:'Saco de cimento com lacre e etiqueta',
+        position:[-2.25,.19,.15],features:['corpo','etiqueta','lacre'],
+        parts:[
+          {id:'corpo',feature:'corpo',color:'#E2DAC7',
+            geometry:{shape:'box',size:[.76,.33,.46],bevel:.09}},
+          {id:'etiqueta',feature:'etiqueta',color:'#37885C',position:[0,.04,.237],
+            geometry:{shape:'box',size:[.30,.25,.012]}},
+          {id:'lacre',feature:'lacre',color:'#ECEAE2',position:[0,.17,0],
+            geometry:{shape:'box',size:[.58,.035,.24]}}
+        ]
+      }]}
+    };
+    const mock=vi.fn(async(_prompt:string,pass:'events'|'geometry')=>
+      JSON.stringify(pass==='events'?sampleStoryProposal():composed));
+    const result=await generateStoryboardFirst3D(sampleSources,14,mock);
+    expect(mock).toHaveBeenCalledTimes(2);
+    expect(result.worldAudit?.objects[0].features).toEqual(['corpo','etiqueta','lacre']);
+    expect(result.program.nodes.some(n=>n.id==='saco-corpo')).toBe(true);
+    expect(result.program.nodes.some(n=>n.id==='saco-etiqueta')).toBe(true);
+    expect(result.program.nodes.filter(n=>n.id==='saco')).toHaveLength(1);
+    const score=compileSceneProgram(result.program,sampleSources);
+    expect(score.sample(14).get('saco')?.position[1]).toBeCloseTo(5.05,3);
+    expect(result.diagnostics.gripWindows).toHaveLength(1);
+  });
+
+  it('rejects a model-authored world that forgets advertised object parts before producing 3D',async()=>{
+    const base=sceneResponse();
+    const malformed={
+      ...base,worldBlueprints:{version:1,objects:[{
+        id:'caixa2',role:'prop',sourceId:'s1',name:'Caixa com rodas',
+        features:['corpo','rodas'],
+        parts:[{id:'bola',feature:'corpo',color:'#BB0000',
+          geometry:{shape:'sphere',size:[1]}}]
+      }]}
+    };
+    const mock=vi.fn(async(_prompt:string,pass:'events'|'geometry')=>
+      JSON.stringify(pass==='events'?sampleStoryProposal():malformed));
+    await expect(generateStoryboardFirst3D(sampleSources,14,mock))
+      .rejects.toThrow(/partes suficientes/);
+  });
+
+
   it('allows safe mechanisms and distinct environments without changing the story planner',()=>{
     for(const kind of ['workshop','city','harbor'] as const){
       const scene=buildMechanicalScenario(kind);
