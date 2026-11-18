@@ -11,6 +11,8 @@ describe('3D machinery coupled to physical travel instead of arbitrary spin',()=
     expect(coupledAngle(a,[6,0,0],.30,1)).toBeCloseTo(20,5);
     expect(coupledAngle(a,[6,0,0],.30,-2)).toBeCloseTo(-40,5);
     expect(coupledAngle(a,[0,0,0],.30,1)).toBe(0);
+    expect(coupledAngle([6,0,0],[0,0,0],.30,1,[1,0,0])).toBeCloseTo(-20,5);
+    expect(()=>coupledAngle(a,[0,0,2],.30,1,[1,0,0])).toThrow(/saiu do eixo/);
     expect(()=>coupledAngle(a,[1,0,0],0,1)).toThrow(/Raio/);
     expect(()=>coupledAngle(a,[1,0,0],.30,0)).toThrow(/Relação/);
   });
@@ -52,18 +54,18 @@ describe('3D machinery coupled to physical travel instead of arbitrary spin',()=
     const ids=scene.bindings.entityNodes;
     const entities=scene.storyboard.entities;
     const wrong={
-      machine:{output:'cargo',radius:.3,parts:[{node:'drum-shaft',axis:'z' as const,ratio:1},
+      machine:{output:'cargo',radius:.3,travelDirection:[1,0,0] as [number,number,number],parts:[{node:'drum-shaft',axis:'z' as const,ratio:1},
         {node:'drum-shaft',axis:'z' as const,ratio:-2}]}
     };
     expect(()=>prepareMechanicalDrives(wrong,scene.program.nodes,[],entities,ids))
       .toThrow(/duas transmissões/);
     const foreign={
-      machine:{output:'cargo',radius:.3,parts:[{node:'tool-cabinet',axis:'z' as const,ratio:1}]}
+      machine:{output:'cargo',radius:.3,travelDirection:[1,0,0] as [number,number,number],parts:[{node:'tool-cabinet',axis:'z' as const,ratio:1}]}
     };
     expect(()=>prepareMechanicalDrives(foreign,scene.program.nodes,[],entities,ids))
       .toThrow(/não está ligado/);
     expect(()=>prepareMechanicalDrives({
-      machine:{output:'cargo',radius:.3,parts:[{node:'drum-shaft',axis:'z',ratio:1}]}
+      machine:{output:'cargo',radius:.3,travelDirection:[1,0,0] as [number,number,number],parts:[{node:'drum-shaft',axis:'z',ratio:1}]}
     },scene.program.nodes,[{
       node:'drum-shaft',channel:'rotation',interpolation:'linear',
       keys:[{sourceId:'s1',phase:0,value:[0,0,0]},{sourceId:'s1',phase:1,value:[0,0,1]}]
