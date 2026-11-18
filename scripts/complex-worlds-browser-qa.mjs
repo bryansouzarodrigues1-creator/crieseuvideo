@@ -55,6 +55,16 @@ try{
       assert.ok(deltas.arkBobMetres>.02,'Ark should bob');
       assert.ok(deltas.hatchRadians>.5,'Ark hatch not opened');
       assert.ok(deltas.animalMetres>1.0,'Animals have no progress');
+      for(const step of [a,b]){
+        const feet=step.nodes.animals.position;
+        const ramp=step.nodes['ark-gangway'];
+        assert.ok(
+          feet[0]>=ramp.min[0]-.20&&feet[0]<=ramp.max[0]+.20&&
+          feet[2]>=ramp.min[2]-.20&&feet[2]<=ramp.max[2]+.20&&
+          feet[1]>=ramp.min[1]-.20&&feet[1]<=ramp.max[1]+.20,
+          'Animals are not boarding on the ramp — likely floating or standing in sea'
+        );
+      }
       const w1=a.water.find(n=>n.id==='ocean'),w2=b.water.find(n=>n.id==='ocean');
       assert.ok(w1&&w2,'Ocean missing');
       deltas.waterWaveMetres=Math.max(...w1.samples.map((y,j)=>Math.abs(w2.samples[j]-y)));
@@ -69,6 +79,8 @@ try{
       deltas.wheelRadians=Math.abs(b.nodes['bike-fwheel'].rotation[2]-a.nodes['bike-fwheel'].rotation[2]);
       assert.ok(deltas.bikeMetres>6,'Motorcycle root is stationary');
       assert.ok(deltas.wheelRadians>9,'Motorcycle wheels do not turn');
+      assert.ok(Math.abs(deltas.wheelRadians/deltas.bikeMetres-1/.62)<.3,
+        'Wheel spin does not follow vehicle distance and wheel radius');
     }
     const pixelDelta=await page.evaluate(([start,end])=>{
       const canvas=document.querySelector('#scene'), target=document.createElement('canvas');
