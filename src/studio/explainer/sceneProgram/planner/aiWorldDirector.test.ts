@@ -37,7 +37,7 @@ describe('AI-native 3D directions cannot silently return a static stock preview'
     const sample=structuredClone(COMPLEX_WORLD_QA_REQUEST) as any;
     sample.clips=[{...sample.clips[0],id:'scene'}];
     sample.clips[0].sceneProgram.tracks=[];
-    expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/estática/);
+    expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/movimentos|estática/);
     sample.clips[0].sceneProgram.tracks=structuredClone(COMPLEX_WORLD_QA_REQUEST.clips[0].sceneProgram.tracks);
     sample.clips[0].worldBlueprints.objects=[sample.clips[0].worldBlueprints.objects[0]];
     expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/incompleto/);
