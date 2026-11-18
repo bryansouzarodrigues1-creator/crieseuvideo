@@ -22,8 +22,8 @@ page.on('pageerror',err=>errors.push(err.message));
 
 async function metrics(selector){
   return page.evaluate(sel=>{
-    // The old 2D editor has a dedicated scrolling pane; /motor-3d uses
-    // document scrolling. Both must accept real native finger gestures.
+    // Both studios use their own native scrolling panes so embedded Lovable
+    // iframe parents cannot lock or intercept document-level scrolling.
     const root=sel?document.querySelector(sel):document.scrollingElement;
     return {y:root?.scrollTop??0,scrollHeight:root?.scrollHeight??0,
       viewport:root?.clientHeight??0,overflowY:getComputedStyle(document.body).overflowY};
@@ -61,7 +61,7 @@ try{
 
   await page.goto(base+'/motor-3d',{waitUntil:'domcontentloaded',timeout:60000});
   await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
-  await assertSwipe('3D page before WebGL activation',195,720,260);
+  await assertSwipe('3D page before WebGL activation',195,720,260,'.native-3d-studio');
   await page.screenshot({path:path.join(out,'02-3d-scrolled-before-activation.png')});
 
   const start=page.getByRole('button',{name:'Carregar motor 3D'});
@@ -70,7 +70,7 @@ try{
     const c=document.querySelector('.native-3d-screen canvas');
     return c?.width===270&&c?.height===480;
   },null,{timeout:60000});
-  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.locator('.native-3d-studio').evaluate(el=>{el.scrollTop=0;});
   await page.waitForTimeout(350);
   const canvas=page.locator('.native-3d-screen canvas');
   assert.equal(await canvas.evaluate(c=>getComputedStyle(c).touchAction),
@@ -79,7 +79,7 @@ try{
   assert.ok(rect,'WebGL preview should be visible');
   const startY=Math.round(Math.min(775,rect.y+Math.min(rect.height-25,Math.max(50,rect.height*.7))));
   const endY=Math.max(130,startY-330);
-  await assertSwipe('3D page swipe starting ON WebGL canvas',Math.round(rect.x+rect.width*.5),startY,endY);
+  await assertSwipe('3D page swipe starting ON WebGL canvas',Math.round(rect.x+rect.width*.5),startY,endY,'.native-3d-studio');
   await page.screenshot({path:path.join(out,'03-3d-scrolled-from-canvas.png')});
 
   await page.getByRole('button',{name:'Reproduzir'}).click();
@@ -87,8 +87,26 @@ try{
     document.querySelector('input[aria-label="Linha do tempo 3D"]')?.value||0)>.07,
     null,{timeout:25000});
   await page.getByRole('button',{name:'Pausar'}).click();
+  // Reproduce the actual user environment: the project preview is framed by
+  // a Lovable-like fixed-height host whose document cannot scroll.
+  await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"/></head>
+    <body style="margin:0;height:100dvh;overflow:hidden">
+      <iframe id="lovable-preview" title="CrieSeuVideo preview"
+        src="${base}/motor-3d"
+        style="border:0;display:block;width:100vw;height:100dvh"></iframe>
+    </body></html>`);
+  const embedded=page.frameLocator('#lovable-preview');
+  await embedded.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
+  const internal=embedded.locator('.native-3d-studio');
+  const before=await internal.evaluate(el=>({y:el.scrollTop,extent:el.scrollHeight-el.clientHeight}));
+  assert.ok(before.extent>120,'Embedded studio must contain internal scrollable content');
+  await swipe(195,720,225);
+  const after=await internal.evaluate(el=>el.scrollTop);
+  assert.ok(after-before.y>75,
+    'Fixed-height Lovable iframe swallowed the finger swipe: '+JSON.stringify({before,after}));
+  await page.screenshot({path:path.join(out,'04-embedded-lovable-scroll.png')});
   assert.deepEqual(errors,[]);
-  console.log('PASS: native mobile touch swipes work on home and 3D canvas; playback remains interactive');
+  console.log('PASS: native mobile touch swipes work on home, 3D canvas, and fixed-height Lovable iframe');
 }finally{
   await session.detach();
   await browser.close();
