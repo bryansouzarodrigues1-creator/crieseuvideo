@@ -41,7 +41,7 @@ function validateBriefs(briefs:readonly ComplexSceneBrief[]) {
         bad('Texto inválido na frase.');
       if(typeof s.duration!=='number'||!Number.isFinite(s.duration)||s.duration<.3||s.duration>60)
         bad('Duração inválida na frase.');
-      totalDuration+=s.duration;
+      totalDuration+=s.duration as number;
     }
   }
   if(totalDuration>720)bad('Duração total ultrapassa 12 minutos.');
