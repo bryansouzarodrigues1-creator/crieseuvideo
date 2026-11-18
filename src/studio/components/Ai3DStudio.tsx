@@ -40,12 +40,16 @@ export default function Ai3DStudio(){
 
   useEffect(()=>{
     let alive=true;
-    supabase.auth.getSession().then(({data})=>{if(alive)setUserId(data.session?.user.id??null);})
-      .catch(()=>{if(alive)setUserId(null);});
-    const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
-      if(alive)setUserId(session?.user.id??null);
-    });
-    return ()=>{alive=false;data.subscription.unsubscribe();};
+    let unsubscribe=()=>{};
+    try{
+      supabase.auth.getSession().then(({data})=>{if(alive)setUserId(data.session?.user.id??null);})
+        .catch(()=>{if(alive)setUserId(null);});
+      const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
+        if(alive)setUserId(session?.user.id??null);
+      });
+      unsubscribe=()=>data.subscription.unsubscribe();
+    }catch{setUserId(null);}
+    return ()=>{alive=false;unsubscribe();};
   },[]);
   useEffect(()=>{playingRef.current=playing;},[playing]);
   useEffect(()=>{
