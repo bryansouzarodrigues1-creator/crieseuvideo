@@ -1,0 +1,69 @@
+/** Exporting a realtime captureStream gives unpredictable frame counts on slow
+ * mobile GPUs. Render SceneProgram3D at fixed timeline coordinates and feed every
+ * frame into a WebCodecs-based muxer. No API calls or external rendering service. */
+export interface Encoded3DClip {
+  blob: Blob;
+  filenameExtension: 'mp4' | 'webm';
+  frames: number;
+  fps: number;
+}
+export interface FixedFrameExport {
+  canvas: HTMLCanvasElement;
+  durationSeconds: number;
+  fps: number;
+  renderFrame: (time: number) => void;
+  onProgress?: (percent: number) => void;
+}
+
+export async function encodeFixedFrame3DClip({
+  canvas,durationSeconds,fps,renderFrame,onProgress,
+}:FixedFrameExport):Promise<Encoded3DClip>{
+  if(typeof VideoEncoder==='undefined'){
+    throw new Error('Seu navegador não possui WebCodecs para gerar MP4 com quadros fixos.');
+  }
+  if(!Number.isFinite(durationSeconds)||durationSeconds<=0||durationSeconds>30||
+    !Number.isInteger(fps)||fps<12||fps>60){
+    throw new Error('Parâmetros de renderização inválidos.');
+  }
+  const {Output,Mp4OutputFormat,WebMOutputFormat,BufferTarget,
+    CanvasSource,Quality,getFirstEncodableVideoCodec}=await import('mediabunny');
+  const mp4=new Mp4OutputFormat();
+  const request={width:canvas.width,height:canvas.height};
+  const avc=await getFirstEncodableVideoCodec(['avc'],request);
+  const webm=new WebMOutputFormat();
+  const fallbackCodec=avc?null:await getFirstEncodableVideoCodec(['vp9','vp8'],request);
+  const codec=avc||fallbackCodec;
+  if(!codec)throw new Error('Este dispositivo não possui um codificador de vídeo compatível.');
+  const mp4Ready=!!avc;
+  const output=new Output({format:mp4Ready?mp4:webm,target:new BufferTarget()});
+  const source=new CanvasSource(canvas,{
+    codec,quality:new Quality({bitrate:4_500_000}),
+    latencyMode:'quality'
+  });
+  output.addVideoTrack(source,{frameRate:fps});
+  let started=false;
+  try{
+    await output.start();started=true;
+    const frames=Math.round(durationSeconds*fps);
+    for(let i=0;i<frames;i++){
+      const time=i/fps;
+      renderFrame(time);
+      await source.add(time,1/fps,{keyFrame:i%fps===0});
+      const p=Math.round((i+1)*100/frames);
+      onProgress?.(p);
+      // Give the UI a chance to display progress without changing frame times.
+      if(i%12===0)await new Promise<void>(r=>setTimeout(r,0));
+    }
+    source.close();
+    await output.finalize();
+    const buffer=output.target.buffer;
+    if(!buffer?.byteLength)throw new Error('O codificador não devolveu dados.');
+    return {
+      blob:new Blob([buffer],{type:mp4Ready?'video/mp4':'video/webm'}),
+      filenameExtension:mp4Ready?'mp4':'webm',frames,fps,
+    };
+  }catch(e){
+    if(started)await output.cancel().catch(()=>{});
+    throw e;
+  }
+}
