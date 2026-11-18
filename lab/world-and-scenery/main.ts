@@ -53,6 +53,13 @@ const seek=(t:number)=>{
       n.id==='garden-tree'||n.id==='island'||n.id==='sea')&&
     n.kind==='mesh'&&
     frustum.intersectsObject(stage.nodes.get(n.id)!)).map(n=>n.id);
+  // Measure real surface geometry, independently from camera and cargo motion.
+  const waterWave=sample.program.nodes.filter(n=>n.geometry?.shape==='water').map(n=>{
+    const surface=stage.nodes.get(n.id) as THREE.Mesh<THREE.BufferGeometry>;
+    const vertices=surface.geometry.getAttribute('position');
+    return {id:n.id,y:[0,Math.floor(vertices.count/2),vertices.count-1]
+      .map(i=>vertices.getY(i))};
+  });
   const cargo=stage.nodes.get('cargo')!.position.toArray();
   const shaft=stage.nodes.get('drum-shaft')!.rotation;
   const gear=stage.nodes.get('small-gear-shaft')!.rotation;
@@ -63,7 +70,7 @@ const seek=(t:number)=>{
     sceneNodes:sample.program.nodes.length,
     worldAudit:sample.worldAudit,
     sceneryAudit:sample.sceneryAudit,
-    sceneryInView,
+    sceneryInView,waterWave,
     source:'Storyboard compiled mechanically, no Gemini'
   };
 };
@@ -71,7 +78,7 @@ const seek=(t:number)=>{
   seek,
   frame:()=>overlay.toDataURL('image/png'),
   info:{duration:18,fps:24,scenes:names,captions:true,
-    source:'Hand-authored QA blueprints and original Claude scenery generator. No live Gemini. Water is currently static.'}
+    source:'Hand-authored QA blueprints and original Claude scenery generator. No live Gemini. Water is native geometry animated on the timeline; no fluid physics.'}
 };
 seek(0);
 document.body.dataset.ready='world-and-scenery';
