@@ -40,12 +40,12 @@ function coast(p: Pick<KitParams, 'seed'>, u: number, v: number) {
 export function terrainHeight(p: Pick<KitParams, 'size' | 'seed' | 'roughness'>, x: number, z: number): number {
   const [width, depth, height] = p.size, u = x / width + .5, v = z / depth + .5;
   const n = fbm(u * (3 + p.roughness * 5), v * (3 + p.roughness * 5), p.seed), bump = Math.max(0, 1 - Math.hypot(u - .5, v - .5) * 1.7);
-  return Math.min(1, Math.max(0, (.3 + .7 * p.roughness) * n * 1.25 + (1 - .6 * p.roughness) * bump * .75)) * coast(p, u, v).land * height;
+  return Math.min(1, Math.max(0, ((.3 + .7 * p.roughness) * n * 1.25 + (1 - .6 * p.roughness) * bump * .75) * .78)) * coast(p, u, v).land * height;
 }
 export function terrainMesh(p: KitParams): MeshData {
   const [width, depth, height] = p.size, n = p.segments, low = linear(p.color), high = linear(p.peakColor), positions: number[] = [], colors: number[] = [], indices: number[] = [];
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
-    const x = (i / n - .5) * width, z = (j / n - .5) * depth, h = terrainHeight(p, x, z), t = smoothstep(.62, .95, h / Math.max(height, 1e-6)), y = h - coast(p, x / width + .5, z / depth + .5).sink * height * .35; // the seabed sinks past the coast
+    const x = (i / n - .5) * width, z = (j / n - .5) * depth, h = terrainHeight(p, x, z), t = smoothstep(.55, .82, h / Math.max(height, 1e-6)), y = h - coast(p, x / width + .5, z / depth + .5).sink * height * .35; // the seabed sinks past the coast
     const tint = .92 + hash(i, j, p.seed + 91) * .16; positions.push(x, y, z); colors.push(...mix(low, high, t).map((c) => Math.min(1, c * tint)));
   }
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; indices.push(a, c, b, b, c, d); }
