@@ -24,3 +24,27 @@ jobs:
         run: bun run build
       - name: Typecheck entire studio after routes are generated
         run: bunx tsc --noEmit
+      - name: Install Chromium for actual visual QA
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start CrieSeuVideo preview server
+        run: |
+          mkdir -p tmp/native-3d-site
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/native-3d-site/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 tmp/native-3d-site/vite.log
+          exit 1
+      - name: Prove motion, no old demo, and actual WebGL on mobile
+        run: bun scripts/native-3d-site-browser-qa.mjs
+      - name: Archive actual browser screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-3d-site-real-browser-qa
+          path: tmp/native-3d-site/
+          retention-days: 7
+          if-no-files-found: warn
