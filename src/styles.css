@@ -338,3 +338,56 @@
 .explainer-drawer-body .explainer-row strong { flex: 1; }
 .explainer-drawer-body .explainer-scene-body { display: flex; flex-direction: column; gap: 2px; }
 .explainer-drawer-body small { opacity: .65; font-size: 12px; }
+
+
+/* Native 3D laboratory: isolated from legacy StickStory styles. */
+.native-3d-nav-link { display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #9aca57;border-radius:10px;color:#dbf6b1;font-size:13px;font-weight:700;text-decoration:none;background:#263819; }
+.native-3d-nav-link span {background:#b5e267;color:#182319;border-radius:10px;padding:2px 5px;font-size:10px;}
+.native-3d-studio {min-height:100vh;background:#0c1321;color:#f2f6f9;padding:20px clamp(15px,3vw,38px) 64px;font-family:system-ui,sans-serif;}
+.native-3d-bar {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid #2c3c50;padding-bottom:14px;}
+.native-3d-return,.native-3d-engine {display:inline-flex;align-items:center;gap:8px;font-size:14px;}
+.native-3d-return {text-decoration:none;color:#e9f5fb;}
+.native-3d-engine {color:#c8eb8b;}
+.native-3d-heading {max-width:800px;margin:28px auto;text-align:center;}
+.native-3d-eyebrow {color:#aad879;font-weight:800;font-size:11px;letter-spacing:1.6px;}
+.native-3d-heading h1 {font-size:clamp(25px,4vw,40px);line-height:1.14;margin:12px 0;}
+.native-3d-heading p {color:#bdcbd9;line-height:1.6;font-size:15px;}
+.native-3d-layout {max-width:1080px;margin:auto;display:grid;grid-template-columns:minmax(230px,.8fr) minmax(330px,1.2fr);gap:24px;align-items:start;}
+.native-3d-choices {display:flex;flex-direction:column;gap:10px;}
+.native-3d-choice {border:1px solid #334457;border-radius:14px;background:#142235;color:#f3f7fa;padding:16px 18px;text-align:left;display:flex;flex-direction:column;gap:5px;cursor:pointer;}
+.native-3d-choice:hover,.native-3d-choice[aria-pressed="true"] {border-color:#abdb64;background:#20331f;}
+.native-3d-choice strong {font-size:17px;}
+.native-3d-choice span {font-size:13px;color:#cad4e2;}
+.native-3d-numbers {display:grid;gap:7px;border:1px solid #324255;padding:14px;border-radius:14px;background:#111d2a;color:#bfd9e8;font-size:13px;}
+.native-3d-numbers strong {color:#e0f4b3;font-size:16px;}
+.native-3d-small {color:#aebdc8;font-size:12px;line-height:1.6;margin:10px 0 0;}
+.native-3d-player {background:#151f2d;border:1px solid #334355;padding:14px;border-radius:20px;}
+.native-3d-screen {background:#030b17;border-radius:12px;display:flex;justify-content:center;overflow:hidden;max-height:75vh;}
+.native-3d-screen canvas {display:block;height:min(65vh,620px);max-width:100%;width:auto;object-fit:contain;}
+.native-3d-controls {display:flex;align-items:center;gap:10px;padding:12px 0;min-width:0;}
+.native-3d-controls input[type="range"] {flex:1;min-width:35px;accent-color:#b5e267;}
+.native-3d-controls button,.native-3d-actions button {display:inline-flex;align-items:center;justify-content:center;gap:7px;background:#20334a;color:#f1f6f9;border:1px solid #42566d;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px;}
+.native-3d-controls button:disabled,.native-3d-actions button:disabled,.native-3d-choice:disabled {opacity:.45;cursor:not-allowed;}
+.native-3d-clock {font-size:12px;color:#b7c9d4;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.native-3d-actions {display:flex;gap:10px;flex-wrap:wrap;}
+.native-3d-actions .native-3d-download {background:#b5e267;border-color:#b5e267;color:#192319;font-weight:800;}
+.native-3d-error {color:#ffd3d3;border:1px solid #933a3a;background:#411f2a;padding:12px;border-radius:9px;font-size:13px;}
+@media (max-width:850px) {
+  .native-3d-layout {grid-template-columns:minmax(0,1fr);}
+  .native-3d-choices {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));}
+  .native-3d-choice {padding:12px 9px;}
+  .native-3d-choice strong {font-size:13px;}
+  .native-3d-choice span {font-size:11px;}
+  .native-3d-numbers,.native-3d-choices>.native-3d-small {grid-column:1/-1;}
+  .native-3d-screen canvas {height:min(63vh,600px);}
+  .native-3d-bar {align-items:flex-start;}
+}
+@media (max-width:500px) {
+  .native-3d-player {padding:8px;}
+  .native-3d-heading {margin:20px auto;}
+  .native-3d-clock {font-size:11px;}
+  .native-3d-controls {gap:5px;}
+  .native-3d-controls button {padding:8px;}
+  .native-3d-choices {gap:6px;}
+  .native-3d-screen canvas {height:min(60vh,560px);}
+}
