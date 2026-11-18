@@ -108,9 +108,15 @@ export default function Native3DShowcase() {
           if (!live) return;
           const dt = Math.min(.12, Math.max(0, (now - last) / 1000));
           last = now;
-          if (playingRef.current && !exportingRef.current && !document.hidden && now >= nextFrame) {
-            nextFrame = now + (lite ? 68 : 34);
+          if (playingRef.current && !exportingRef.current && !document.hidden) {
+            // Advance time every RAF, even if drawing is capped at 15 FPS.
+            // Otherwise playback takes 4x longer and appears frozen on mobile.
             timeRef.current += dt;
+            if (now < nextFrame) {
+              animRef.current = requestAnimationFrame(animate);
+              return;
+            }
+            nextFrame = now + (lite ? 68 : 34);
             if (timeRef.current >= CLIP_SECONDS - .001) {
               timeRef.current = CLIP_SECONDS - .001;
               playingRef.current = false;
@@ -245,7 +251,10 @@ export default function Native3DShowcase() {
               <Download size={17}/> {recording!==null?`Gravando ${recording}%`:'Baixar clipe 3D'}
             </button>
           </div>
-          {error&&<p className="native-3d-error" role="alert">{error}</p>}
+          {error&&<div className="native-3d-error" role="alert">
+            <p>{error}</p>
+            <button type="button" onClick={()=>window.location.reload()}>Recarregar motor em modo leve</button>
+          </div>}
           <p className="native-3d-small">Prévia adaptativa: modo leve usa menos memória e reduz os quadros por segundo apenas na visualização. A exportação tenta manter 24 fps, sem áudio; no modo leve a resolução é reduzida.</p>
         </section>
       </div>
