@@ -11,17 +11,6 @@ const showcase = [
 ] as const;
 const CLIP_SECONDS = 6;
 const FRAME_RATE = 24;
-const downloadFormats = [
-  'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1',
-  'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm',
-];
-
-function preferredFormat() {
-  if (typeof MediaRecorder === 'undefined') return null;
-  const mime = downloadFormats.find(m => MediaRecorder.isTypeSupported(m));
-  return mime ? { mime, extension: mime.startsWith('video/mp4') ? 'mp4' : 'webm' } : null;
-}
-
 /** Distinct from the old StickStory renderer. The same procedural SceneProgram3D
  * that passed the standalone GitHub Chromium tests is used by this site. */
 export default function Native3DShowcase() {
@@ -38,7 +27,6 @@ export default function Native3DShowcase() {
   const timeRef = useRef(0);
   const drawRef = useRef<(t:number)=>void>(()=>{});
   const animRef = useRef<number>(0);
-  const stopExportRef = useRef<(() => void) | null>(null);
   const mode = showcase[choice];
 
   const seek = useCallback((next:number) => {
@@ -96,75 +84,45 @@ export default function Native3DShowcase() {
     }
     return ()=>{
       live=false;cancelAnimationFrame(animRef.current);playingRef.current=false;
-      stopExportRef.current?.();stopExportRef.current=null;
       drawRef.current=()=>{};
       stage?.dispose();renderer?.dispose();
     };
   },[choice,landscape,mode.source]);
 
   const exportVideo = async () => {
-    const canvas=canvasRef.current, format=preferredFormat();
-    if(!canvas || !format || typeof canvas.captureStream!=='function'){
-      setError('Este navegador não oferece gravação de vídeo em um formato suportado.');
-      return;
-    }
-    if(exportingRef.current)return;
-    exportingRef.current=true;playingRef.current=false;setPlaying(false);setError('');setRecording(0);
-    let stream:MediaStream|undefined,rec:MediaRecorder|undefined;
-    let tick=0,timeout=0;
-    try{
-      seekBeforeExport(0);
-      stream=canvas.captureStream(FRAME_RATE);
-      const tracks=stream.getVideoTracks();
-      if(!tracks.length)throw new Error('A captura de quadros não iniciou.');
-      rec=new MediaRecorder(stream,{mimeType:format.mime,videoBitsPerSecond:4_500_000});
-      const activeRec=rec;
-      const chunks:Blob[]=[];
-      activeRec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-      const done=new Promise<void>((resolve,reject)=>{
-        activeRec.onstop=()=>resolve();
-        activeRec.onerror=e=>reject((e as unknown as {error?:Error}).error||new Error('Erro ao gravar.'));
+    const canvas = canvasRef.current;
+    if (!canvas || exportingRef.current) return;
+    exportingRef.current=true;
+    playingRef.current=false;
+    setPlaying(false);
+    setError('');
+    setRecording(0);
+    try {
+      const {encodeFixedFrame3DClip}=await import('../utils/deterministic3dExport');
+      const clip=await encodeFixedFrame3DClip({
+        canvas,
+        durationSeconds:CLIP_SECONDS,
+        fps:FRAME_RATE,
+        renderFrame:t=>drawRef.current(t),
+        onProgress:p=>setRecording(p),
       });
-      let cancelled=false;
-      stopExportRef.current=()=>{cancelled=true;if(activeRec.state!=='inactive')activeRec.stop();};
-      activeRec.start(200);
-      const start=performance.now();
-      await new Promise<void>((resolve,reject)=>{
-        const step=(now:number)=>{
-          if(cancelled){reject(new Error('Exportação interrompida.'));return;}
-          const t=Math.min(CLIP_SECONDS,(now-start)/1000);
-          try{drawRef.current(Math.min(CLIP_SECONDS-.001,t));}catch(e){reject(e);return;}
-          setRecording(Math.min(99,Math.floor((t/CLIP_SECONDS)*100)));
-          if(t>=CLIP_SECONDS){resolve();return;}
-          tick=requestAnimationFrame(step);
-        };
-        tick=requestAnimationFrame(step);
-      });
-      // Give MediaRecorder a chance to flush its final video samples.
-      await new Promise<void>(r=>{timeout=window.setTimeout(r,100);});
-      if(activeRec.state!=='inactive'){activeRec.requestData();activeRec.stop();}
-      await done;
-      const mime=activeRec.mimeType||format.mime;
-      const extension=mime.startsWith('video/mp4')?'mp4':'webm';
-      const blob=new Blob(chunks,{type:mime.split(';')[0]});
-      if(!blob.size)throw new Error('Gravação vazia.');
-      const url=URL.createObjectURL(blob),a=document.createElement('a');
-      a.href=url;a.download=`crieseuvideo-${mode.source===2?'moto':mode.source===0?'arca':'prisao'}-3d.${extension}`;
-      document.body.appendChild(a);a.click();a.remove();
+      const url=URL.createObjectURL(clip.blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=`crieseuvideo-${mode.source===2?'moto':mode.source===0?'arca':'prisao'}-3d.${clip.filenameExtension}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),60000);
-    }catch(e){
+    } catch(e) {
       setError('Não foi possível exportar: '+(e instanceof Error?e.message:String(e)));
-      if(rec && rec.state!=='inactive')rec.stop();
-    }finally{
-      cancelAnimationFrame(tick);window.clearTimeout(timeout);
-      stream?.getTracks().forEach(t=>t.stop());
-      stopExportRef.current=null;exportingRef.current=false;setRecording(null);
-      timeRef.current=0;setTime(0);
-      try{drawRef.current(0);}catch{}
+    } finally {
+      exportingRef.current=false;
+      setRecording(null);
+      timeRef.current=0;
+      setTime(0);
+      try { drawRef.current(0); } catch {}
     }
-  };
-  const seekBeforeExport=(t:number)=>{
-    timeRef.current=t;setTime(t);drawRef.current(t);
   };
 
   return (
@@ -216,7 +174,7 @@ export default function Native3DShowcase() {
             </button>
           </div>
           {error&&<p className="native-3d-error" role="alert">{error}</p>}
-          <p className="native-3d-small">O download usa MP4 quando o navegador realmente oferece MP4; caso contrário, baixa WebM corretamente identificado. Exportação sem áudio nesta prova.</p>
+          <p className="native-3d-small">Exportação determinística com 144 quadros em 24 fps, sem áudio. Usa MP4 quando o codificador suporta H.264 ou WebM quando necessário.</p>
         </section>
       </div>
     </main>
