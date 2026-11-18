@@ -14,6 +14,7 @@ import { compileStoryEvents, type CompiledStoryboard } from '../explainer/sceneP
 import { compileStoryMotion, type StoryMotionBindings, type StoryMotionResult } from '../explainer/sceneProgram/planner/choreographer';
 import { storyEventsPrompt } from '../explainer/sceneProgram/planner/prompt';
 import { compileWorldBlueprints, type CompiledWorldBlueprint } from '../explainer/sceneProgram/planner/worldBlueprints';
+import { compileWorldScenery, type WorldSceneryResult } from '../explainer/sceneProgram/planner/worldScenery';
 import { askAiResult, parseJson, type AiEnvironment } from './ai';
 
 export type StoryboardPass = 'events'|'geometry';
@@ -23,6 +24,8 @@ export interface TwoPassStoryboardResult extends StoryMotionResult {
   providerPasses:2;
   /** Present only when the Gemini geometry pass designed new parametric objects. */
   worldAudit?: CompiledWorldBlueprint['audit'];
+  /** Procedural biomes generated from Claude's deterministic scenery kit. */
+  sceneryAudit?: WorldSceneryResult['audit'];
 }
 export class StoryboardPipelineError extends Error {
   readonly code='invalid_two_pass_storyboard';
@@ -123,12 +126,17 @@ export function storyGeometryPrompt(storyboard:CompiledStoryboard,sources:Progra
   }));
   return [
     'Você é DIRETOR DE ARTE 3D de um storyboard JÁ VALIDADO. Sua tarefa é construir objetos reconhecíveis.',
-    'Responda APENAS JSON com {sceneProgram:{version:1,background,nodes,tracks:[],shots,contacts:[]},bindings:{entityNodes,placeAnchors,heldOffsets?,supportOffsets?,mechanicalDrives?,motorVisuals?},worldBlueprints?:{version:1,objects:[...]}}.',
+    'Responda APENAS JSON com {sceneProgram:{version:1,background,nodes,tracks:[],shots,contacts:[]},bindings:{entityNodes,placeAnchors,heldOffsets?,supportOffsets?,mechanicalDrives?,motorVisuals?},worldBlueprints?:{version:1,objects:[...]},worldScenery?:{version:1,regions:[...]}}.',
     'NÃO invente fatos, mude a sequência ou anime a posição dos objetos principais.',
     'O COMPILADOR gera automaticamente curvas de pegar, transportar, apoiar e subir. Portanto sceneProgram.tracks DEVE SER [] e motionChecks deve ser omitido.',
     'O Gemini pode criar OBJETOS INÉDITOS com worldBlueprints: em vez de listar manualmente dezenas de meshes desconectados, descreva um objeto por suas partes 3D distintivas. Não escolha um preset de objetos.',
     'worldBlueprints:{version:1,objects:[{id,role:"prop|mechanism|environment",sourceId,name,position?,rotation?,scale?,features:["corpo","rodas"],parts:[{id,feature,kind?:"mesh|group",parent?,position?,rotation?,scale?,color:"#RRGGBB",geometry,material?,repeat?,mirror?:"x|z"}]}]}.',
     'Para objetos móveis, o id do objectBlueprint deve ser exatamente o id de nó usado em bindings.entityNodes; o compilador criará o ROOT e seus filhos com nomes objeto-parte.',
+    'Para novos AMBIENTES completos, inclua worldScenery:{version:1,regions:[{id,sourceId,shape:"terrain|water|tree|rock|cloud",size,position?,color?,peakColor?,foliage?,seed?,roughness?,wave?,segments?,scatter?}]} usando geometrias procedurais. Não produza milhares de vértices manualmente.',
+    'terrain.size=[largura,profundidade,altura]; water.size=[largura,profundidade]; tree,rock,cloud.size=[escala]. seed inteiro cria ambientes reproduzíveis.',
+    'scatter só em tree e rock: {ground:"idDoTerreno",count:12,seed:21,spread:[largura,profundidade],minimumHeight:.3}; distribui árvores/rochas no relevo da mesma ilha, nunca abaixo da costa.',
+    'O scenery é independente de caixas, veículos e máquinas: use worldBlueprints para objetos reconhecíveis e worldScenery para paisagens e vegetação. Não duplique IDs entre os dois formatos ou sceneProgram.nodes.',
+    'A versão atual das paisagens no pipeline é estática (inclusive a água); não atribua efeitos dinâmicos ou física que o motor ainda não executa.',
     'features são características visuais essenciais que precisam ter malhas reais — por exemplo, objeto com rodas deve ter corpo e rodas, não uma esfera com nome de veículo.',
     'Cada part visível indica uma feature declarada. Use grupos para partes articuláveis, lathe para objetos de revolução e mirror para simetria de duas peças; repeat para fileiras limitadas. O motor valida características, hierarquia, orçamento e IDs.',
     'Se usar worldBlueprints, NÃO duplique seus objetos no sceneProgram.nodes. Deixe nodes apenas para atores e outras entidades não cobertas; no máximo 160 nós no total.',
@@ -174,7 +182,7 @@ export async function generateStoryboardFirst3D(
   const rawStage=await provider(storyGeometryPrompt(storyboard,sources),'geometry');
   if(rawStage.length>240000)bad('Resposta da segunda etapa é longa demais.');
   const data=bounded(parseJson(rawStage),190000,'geometria');
-  names(data,['sceneProgram','bindings','worldBlueprints'],'geometria');
+  names(data,['sceneProgram','bindings','worldBlueprints','worldScenery'],'geometria');
   const scene=bounded(data.sceneProgram,150000,'sceneProgram');
   // The only source of motion for principal entities is compiled state.
   const authoredTracks=scene.tracks;
@@ -189,10 +197,14 @@ export async function generateStoryboardFirst3D(
   // shapes without changing the motion planner or deploying a fixed catalog.
   const world=data.worldBlueprints===undefined?undefined
     :compileWorldBlueprints(data.worldBlueprints,sources,scene.nodes as {id:string}[]);
-  const expanded=world?{...scene,nodes:[...scene.nodes,...world.nodes]}:scene;
+  const createdNodes=world?[...scene.nodes,...world.nodes]:scene.nodes;
+  const scenery=data.worldScenery===undefined?undefined
+    :compileWorldScenery(data.worldScenery,sources,createdNodes as {id:string}[]);
+  const expanded={...scene,nodes:scenery?[...createdNodes,...scenery.nodes]:createdNodes};
   const motion=compileStoryMotion(storyboard,expanded as unknown as SceneProgram,sources,bindings);
   return {...motion,storyboard,providerPasses:2,
-    ...(world?{worldAudit:world.audit}:{})};
+    ...(world?{worldAudit:world.audit}:{}),
+    ...(scenery?{sceneryAudit:scenery.audit}:{})};
 }
 
 /** Optional server-only provider wiring. Not called by current public routes. */
