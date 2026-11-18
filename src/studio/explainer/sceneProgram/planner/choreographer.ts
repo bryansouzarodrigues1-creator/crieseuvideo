@@ -14,6 +14,7 @@ import {
   type ProgramTrack, type SceneProgram, type Vec3
 } from '../score';
 import type { CompiledStoryboard, CompiledStoryEvent, StoryEntity } from './events';
+import { planGripContacts } from './gripContacts';
 
 export interface StoryMotionBindings {
   /** Semantic entity id -> already defined SceneProgram3D node id. */
@@ -32,6 +33,7 @@ export interface StoryMotionDiagnostics {
     id:string;action:string;start:number;end:number;nodeIds:string[];
     movedMetres:number; visibleMechanicalMotion:boolean
   }>;
+  gripWindows: Array<{ cargo: string; actor: string; from: number; to: number; contactCount: number }>;
   limitations:string;
 }
 export interface StoryMotionResult {
@@ -233,13 +235,14 @@ export function compileStoryMotion(
     added.push({node,channel,interpolation:'linear',
       keys:changes.map(x=>key(x.t,x.value))});
   }
+  const gripPlan=planGripContacts(storyboard,sources,bindings.entityNodes);
   const program=normalizeSceneProgram({
     version:1, background:base.background,nodes:base.nodes,
     tracks:[...base.tracks,...added],shots:base.shots,
-    contacts:base.contacts,motionChecks:base.motionChecks??[]
+    contacts:[...base.contacts,...gripPlan.contacts],motionChecks:base.motionChecks??[]
   },sources);
   return {program,diagnostics:{
-    events:diagnostics,
-    limitations:'Compila posições e rotação de eixos; não gera geometria, não resolve IK, agarrar/soltar em runtime, colisões físicas ou direção cinematográfica. Confirme visualmente cada objeto no MP4.'
+    events:diagnostics,gripWindows:gripPlan.windows,
+    limitations:'Compila movimentos e contatos de mãos com a carga para o IK existente. Não simula peso, dedos, rig real, física, solas apoiadas ou câmera cinematográfica; verifique erros de alcance e render do MP4.'
   }};
 }
