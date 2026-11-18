@@ -90,7 +90,7 @@ const level = base + low.h + 1.1, land = 'Uma ilha verde com montanhas, floresta
 const at = (id, kind, position, more = {}) => ({ id, kind, position, evidence: land, ...more });
 const walkY = (x, z) => base + terrainHeight(relief, x, z);
 await scenario('paisagem', land, 8, { title: 'paisagem', scenes: [{ sourceId: 's1', visual: 'character', mood: 'neutral', palette: 'teal' }], sceneProgram: { version: 1, background: '#8EC5EA',
-  nodes: [at('mar', 'mesh', [0, base - .15, 0], { geometry: { shape: 'water', size: [220, 220], wave: .25, segments: 48 }, color: '#2E86C1', material: { opacity: .9 } }),
+  nodes: [at('mar', 'mesh', [0, base - .15, 0], { geometry: { shape: 'water', size: [200, 200], wave: .25, segments: 48 }, color: '#2E86C1', material: { opacity: .9 } }),
     at('ilha', 'mesh', [0, base, 0], { geometry: { shape: 'terrain', ...relief, segments: 56, peakColor: '#F1F3F5' }, color: '#5E9A48' }),
     at('lago', 'mesh', [low.x, level, low.z], { geometry: { shape: 'water', size: [24, 24], wave: .06, segments: 16 }, color: '#4FB3E8', material: { opacity: .92 } }),
     at('floresta', 'mesh', [0, base, 0], { geometry: { shape: 'tree', size: [3.2], seed: 3, foliage: '#2F7D45' }, color: '#6B4A2B', repeat: { count: 260, step: [0, 0, 0], jitter: [70, 0, 70], seed: 9, ground: 'ilha', above: 1.4 } }),
