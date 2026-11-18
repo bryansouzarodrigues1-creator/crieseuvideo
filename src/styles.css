@@ -161,7 +161,10 @@
     background-color: #0c0e14;
     color: #f1f5f9;
     user-select: none;
-    overflow: hidden;
+    /* The editor has its own h-screen / overflow-hidden shell.
+       Never lock the document itself: / and /motor-3d need native touch scrolling. */
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   .font-mono-time {
     font-family: 'JetBrains Mono', monospace;
@@ -419,4 +422,15 @@
 @media (max-width:500px) {
   .native-3d-screen canvas { height:min(46vh,420px); }
   .native-3d-bar { padding-bottom:8px; }
+}
+
+/* Android Chrome: vertical swipes must scroll the document even when they
+   begin on the 3D canvas or its WebGL preview wrapper. Horizontal range
+   controls keep their own drag behavior. */
+html { min-height: 100%; overflow-x: clip; }
+body { min-height: 100%; -webkit-overflow-scrolling: touch; }
+.native-3d-studio { overflow: visible; }
+.native-3d-screen, .native-3d-screen canvas { touch-action: pan-y; }
+@media (max-width: 900px) {
+  .explainer-canvas-wrap canvas { touch-action: pan-y; }
 }
