@@ -248,9 +248,9 @@ const motorcycle={
   sources:sources('Uma motocicleta esportiva mostra carenagem, motor, suspensão e rodas.',
     'A motocicleta acelera pela avenida, fazendo as rodas girarem.'),
   sceneProgram:storyboard('#AFDCE5',[],[
-    keys('bike','position',[k('s1',0,[-4,0,0]),k('s1',1,[-4,0,0]),k('s2',1,[5,0,0])]),
-    keys('bike-fwheel','rotation',[k('s1',0,[0,0,0]),k('s1',1,[0,0,0]),k('s2',1,[0,0,-14])]),
-    keys('bike-rwheel','rotation',[k('s1',0,[0,0,0]),k('s1',1,[0,0,0]),k('s2',1,[0,0,-14])])
+    keys('bike','position',[k('s1',0,[-4,0,0]),k('s1',1,[-2.9,0,0]),k('s2',1,[5,0,0])]),
+    keys('bike-fwheel','rotation',[k('s1',0,[0,0,0]),k('s1',1,[0,0,-1.8]),k('s2',1,[0,0,-14.5])]),
+    keys('bike-rwheel','rotation',[k('s1',0,[0,0,0]),k('s1',1,[0,0,-1.8]),k('s2',1,[0,0,-14.5])])
   ],['bike'],['bike'],.30),
   worldBlueprints:{version:1,objects:[bike,street]},
   worldScenery:{version:1,regions:[
@@ -266,3 +266,15 @@ export const COMPLEX_WORLD_QA_REQUEST={version:1,clips:[vessel,penitentiary,moto
 export function buildComplexWorldBatchDemo(){
   return compileComplexWorldBatch(COMPLEX_WORLD_QA_REQUEST);
 }
+/** Mobile browser entry: compile only the selected scene instead of compiling
+ * the arca, prison and motorcycle into three huge scene graphs on every click. */
+export function buildComplexWorldClipDemo(index: number) {
+  if (!Number.isInteger(index) || index < 0 || index >= COMPLEX_WORLD_QA_REQUEST.clips.length) {
+    throw new Error('Cena 3D não encontrada.');
+  }
+  return compileComplexWorldBatch({
+    version: 1,
+    clips: [COMPLEX_WORLD_QA_REQUEST.clips[index]],
+  }).clips[0]!;
+}
+
