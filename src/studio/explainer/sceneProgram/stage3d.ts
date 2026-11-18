@@ -333,6 +333,8 @@ export class SceneProgram3D {
     // Depth precision follows the shot: a fixed 0.05..1500 range makes overlapping surfaces shimmer.
     const view = this.camera.matrixWorldInverse, depth = Math.min(...points.map((p) => -p.clone().applyMatrix4(view).z)), dist = this.camera.position.distanceTo(look);
     this.camera.near = THREE.MathUtils.clamp(Math.min(dist * .04, depth * .5), .05, 6); this.camera.far = Math.max(400, dist * 30); this.camera.updateProjectionMatrix();
+    // Haze follows the shot: a wide landscape framed from 200 m must not be swallowed by fog that suits a 10 m room.
+    if (this.scene.fog instanceof THREE.Fog) { this.scene.fog.near = Math.max(65, dist * 1.5); this.scene.fog.far = Math.max(220, dist * 6); }
     const projected = points.map((p) => p.clone().project(this.camera));
     this.projectedBounds = { min: [Math.min(...projected.map((p) => p.x)), Math.min(...projected.map((p) => p.y))], max: [Math.max(...projected.map((p) => p.x)), Math.max(...projected.map((p) => p.y))] };
   }

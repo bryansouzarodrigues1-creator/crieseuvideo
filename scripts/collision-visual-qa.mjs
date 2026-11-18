@@ -79,18 +79,26 @@ const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75,
 await scenario('colisao', script, duration, fixture);
 
 // Scenery kit: an island with mountains, a lake, a forest snapped to the relief, rocks and clouds. Authored, no AI.
-const land = 'Uma ilha verde com montanhas, floresta e um lago sob as nuvens.';
+// Water floods every part of the relief below its level, so the lake is a water plane placed over a low spot.
+const { terrainHeight } = await import('../src/studio/explainer/sceneProgram/scenery.ts');
+const relief = { size: [90, 90, 16], seed: 11, roughness: .75 }, base = -.3;
+let low = { x: 0, z: 0, h: Infinity };
+for (let x = -22; x <= 22; x += 2) for (let z = -22; z <= 22; z += 2) { const h = terrainHeight(relief, x, z); if (h < low.h) low = { x, z, h }; }
+let shore = { x: 0, z: 0, d: Infinity }; // dry spot next to the lake for the walker
+for (let x = -30; x <= 30; x += 1) for (let z = -30; z <= 30; z += 1) { const h = terrainHeight(relief, x, z), d = Math.hypot(x - low.x, z - low.z); if (h > low.h + 1.6 && d < shore.d && d > 7) shore = { x, z, d }; }
+const level = base + low.h + 1.1, land = 'Uma ilha verde com montanhas, floresta e um lago sob as nuvens.';
 const at = (id, kind, position, more = {}) => ({ id, kind, position, evidence: land, ...more });
+const walkY = (x, z) => base + terrainHeight(relief, x, z);
 await scenario('paisagem', land, 8, { title: 'paisagem', scenes: [{ sourceId: 's1', visual: 'character', mood: 'neutral', palette: 'teal' }], sceneProgram: { version: 1, background: '#8EC5EA',
-  nodes: [at('mar', 'mesh', [0, -.35, 0], { geometry: { shape: 'water', size: [180, 180], wave: .25, segments: 48 }, color: '#2E86C1', material: { opacity: .88 } }),
-    at('ilha', 'mesh', [0, -.3, 0], { geometry: { shape: 'terrain', size: [90, 90, 16], seed: 11, roughness: .75, segments: 56, peakColor: '#F1F3F5' }, color: '#5E9A48' }),
-    at('lago', 'mesh', [6, 1.1, 8], { geometry: { shape: 'water', size: [14, 10], wave: .08, segments: 16 }, color: '#4FB3E8', material: { opacity: .9 } }),
-    at('floresta', 'mesh', [0, 0, 0], { geometry: { shape: 'tree', size: [3.2], seed: 3, foliage: '#2F7D45' }, color: '#6B4A2B', repeat: { count: 220, step: [0, 0, 0], jitter: [70, 0, 70], seed: 9, ground: 'ilha', above: 1.2 } }),
-    at('pedras', 'mesh', [0, 0, 0], { geometry: { shape: 'rock', size: [.9], seed: 5 }, color: '#8A8D93', repeat: { count: 40, step: [0, 0, 0], jitter: [60, 0, 60], seed: 21, ground: 'ilha', above: 3 } }),
-    at('nuvens', 'mesh', [0, 24, -10], { geometry: { shape: 'cloud', size: [5], seed: 2 }, color: '#FFFFFF', repeat: { count: 9, step: [0, 0, 0], jitter: [120, 8, 60], seed: 4 } }),
-    at('ana', 'actor', [-2, 12.5, 2], { color: '#E8C55A', rotation: [0, .6, 0] })],
-  tracks: [key('ana', [[0, [-2, 12.5, 2]], [1, [2, 12.5, -1]]])],
-  shots: [{ sourceId: 's1', subjects: ['ilha', 'ana'], azimuth: .5, endAzimuth: -.4, elevation: .35, distance: 2.4 }], contacts: [] } }, [.02, .35, .7, .98]);
+  nodes: [at('mar', 'mesh', [0, base - .15, 0], { geometry: { shape: 'water', size: [220, 220], wave: .25, segments: 48 }, color: '#2E86C1', material: { opacity: .9 } }),
+    at('ilha', 'mesh', [0, base, 0], { geometry: { shape: 'terrain', ...relief, segments: 56, peakColor: '#F1F3F5' }, color: '#5E9A48' }),
+    at('lago', 'mesh', [low.x, level, low.z], { geometry: { shape: 'water', size: [24, 24], wave: .06, segments: 16 }, color: '#4FB3E8', material: { opacity: .92 } }),
+    at('floresta', 'mesh', [0, base, 0], { geometry: { shape: 'tree', size: [3.2], seed: 3, foliage: '#2F7D45' }, color: '#6B4A2B', repeat: { count: 260, step: [0, 0, 0], jitter: [70, 0, 70], seed: 9, ground: 'ilha', above: 1.4 } }),
+    at('pedras', 'mesh', [0, base, 0], { geometry: { shape: 'rock', size: [.9], seed: 5 }, color: '#8A8D93', repeat: { count: 50, step: [0, 0, 0], jitter: [60, 0, 60], seed: 21, ground: 'ilha', above: 3 } }),
+    at('nuvens', 'mesh', [0, 26, -10], { geometry: { shape: 'cloud', size: [5], seed: 2 }, color: '#FFFFFF', repeat: { count: 9, step: [0, 0, 0], jitter: [120, 8, 60], seed: 4 } }),
+    at('ana', 'actor', [shore.x, walkY(shore.x, shore.z), shore.z], { color: '#E8C55A', rotation: [0, 2.2, 0] })],
+  tracks: [key('ana', [[0, [shore.x, walkY(shore.x, shore.z), shore.z]], [1, [shore.x, walkY(shore.x, shore.z), shore.z]]])],
+  shots: [{ sourceId: 's1', subjects: ['ana', 'lago'], azimuth: .5, endAzimuth: -.4, elevation: .3, distance: 1.5 }], contacts: [] } }, [.02, .35, .7, .98]);
 assert.deepEqual(errors, []);
 console.log('Collision frames written to', output);
 } finally { globalThis.fetch = originalFetch; await browser?.close(); await new Promise((resolve) => server.close(resolve)); }
