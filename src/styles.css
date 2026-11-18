@@ -467,7 +467,7 @@ body { min-height: 100%; -webkit-overflow-scrolling: touch; }
 
 
 /* AI-authored SceneProgram3D studio — mobile first, no blocked page scroll. */
-.ai3d-studio .ai3d-panel {background:#142033;border:1px solid #334455;border-radius:16px;padding:18px;}
+.ai3d-studio .ai3d-panel {display:flex;flex-direction:column;align-items:stretch;gap:10px;min-width:0;background:#142033;border:1px solid #334455;border-radius:16px;padding:18px;}
 .ai3d-panel label {font-size:14px;color:#e9f3f8;font-weight:700;}
 .ai3d-panel textarea,.ai3d-panel select {background:#0b1523;color:#f0f6fc;border:1px solid #41556b;border-radius:10px;width:100%;padding:12px;line-height:1.55;font-family:inherit;font-size:15px;resize:vertical;}
 .ai3d-panel textarea:focus,.ai3d-panel select:focus {outline:2px solid #acd56c;outline-offset:1px;}
