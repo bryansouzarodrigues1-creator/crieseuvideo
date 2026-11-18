@@ -66,7 +66,8 @@ const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75,
   await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(seconds)); await page.locator('#duration-custom').dispatchEvent('change');
   await page.locator('#generate').click();
   await page.waitForFunction(() => !document.getElementById('generate').disabled);
-  await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 30000 });
+  try { await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 30000 }); }
+  catch (error) { console.error(`[${name}] the engine did not start. UI message:`, await page.locator('#message').innerText(), '\nlast /api/direct body:', JSON.stringify(requests.at(-1))?.slice(0, 600)); throw error; }
   await page.evaluate(() => document.fonts.ready);
   for (const aspect of ['9:16', '16:9']) {
     await page.locator(`[data-aspect="${aspect}"]`).click();
