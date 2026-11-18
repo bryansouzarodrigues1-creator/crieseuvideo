@@ -103,7 +103,7 @@ await scenario('paisagem', land, 8, { title: 'paisagem', scenes: [{ sourceId: 's
     at('nuvens', 'mesh', [0, 26, -10], { geometry: { shape: 'cloud', size: [5], seed: 2 }, color: '#FFFFFF', repeat: { count: 9, step: [0, 0, 0], jitter: [120, 8, 60], seed: 4 } }),
     at('ana', 'actor', [shore.x, walkY(shore.x, shore.z), shore.z], { color: '#E8C55A', rotation: [0, 2.2, 0] })],
   tracks: [key('ana', [[0, [shore.x, walkY(shore.x, shore.z), shore.z]], [1, [shore.x, walkY(shore.x, shore.z), shore.z]]])],
-  shots: [{ sourceId: 's1', subjects: ['ana', 'lago'], azimuth: .5, endAzimuth: -.4, elevation: .42, distance: 1.9 }], contacts: [] } }, [.02, .35, .7, .98]);
+  shots: [{ sourceId: 's1', subjects: ['ana', 'lago'], azimuth: .5, endAzimuth: -.4, elevation: .42, distance: 1.9 }], contacts: [] } }, [.02, .35, .7, .98], process.env.QA_VIDEO === '1');
 assert.deepEqual(errors, []);
 console.log('Collision frames written to', output);
 } finally { globalThis.fetch = originalFetch; await browser?.close(); await new Promise((resolve) => server.close(resolve)); }
