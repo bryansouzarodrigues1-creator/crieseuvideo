@@ -2,6 +2,7 @@
  * This module is also the server validator. It never imports/evaluates model code. */
 import { approvedModel, type ApprovedModelId } from './modelRegistry';
 import { isKit, kitVertexCount } from './scenery';
+import {validatePolygon2D} from './profile2d';
 
 export type Vec3 = [number, number, number];
 export interface ProgramSource { sourceId: string; text: string; duration?: number }
@@ -10,7 +11,7 @@ export type ProgramChannel = typeof PROGRAM_CHANNELS[number];
 export const EFFECTORS = ['leftHand', 'rightHand', 'leftFoot', 'rightFoot'] as const;
 export type Effector = typeof EFFECTORS[number];
 export type Socket = 'root' | 'head' | Effector;
-export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe' | 'terrain' | 'water' | 'tree' | 'rock' | 'cloud'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; segments?: number; /** Rounded edge radius for box (metres); cosmetic only. */ bevel?: number; bevelSegments?: number; /** Scenery kit: seed, relief (terrain), wave height (water), peak and foliage colours. */ seed?: number; roughness?: number; wave?: number; peakColor?: string; foliage?: string }
+export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe' | 'extrude' | 'terrain' | 'water' | 'tree' | 'rock' | 'cloud'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; /** XY outline extruded along Z */ contour?: [number,number][]; depth?: number; segments?: number; /** Rounded edge radius for box (metres); cosmetic only. */ bevel?: number; bevelSegments?: number; /** Scenery kit: seed, relief (terrain), wave height (water), peak and foliage colours. */ seed?: number; roughness?: number; wave?: number; peakColor?: string; foliage?: string }
 export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
@@ -70,8 +71,9 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
     let geometry: ProgramGeometry | undefined;
     if (n.kind === 'mesh') {
-      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'segments', 'bevel', 'bevelSegments', 'seed', 'roughness', 'wave', 'peakColor', 'foliage']);
+      const g = obj(n.geometry); only(g, ['shape', 'size', 'vertices', 'indices', 'colors', 'points', 'profile', 'contour', 'depth', 'segments', 'bevel', 'bevelSegments', 'seed', 'roughness', 'wave', 'peakColor', 'foliage']);
       const arity: Record<string, number> = { box: 3, sphere: 1, capsule: 2, cone: 2, cylinder: 3, plane: 2, torus: 2, tube: 1, terrain: 3, water: 2, tree: 1, rock: 1, cloud: 1 };
+      if (g.shape !== 'extrude' && (g.contour !== undefined || g.depth !== undefined)) fail('Somente extrude aceita contour e depth.');
       if (g.shape === 'lathe') {
         // Generic surface-of-revolution: jars, bottles, gears, vases, wheels, etc.
         // All values are data. No JavaScript, remote resources or arbitrary shaders.
@@ -90,6 +92,15 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
         const segments = num(g.segments ?? 24, 8, 64);
         if (!Number.isInteger(segments)) fail('A resolução do perfil lathe precisa ser inteira.');
         geometry = { shape: 'lathe', profile, segments };
+      } else if (g.shape === 'extrude') {
+        if(g.size!==undefined||g.vertices!==undefined||g.indices!==undefined||g.colors!==undefined||
+           g.points!==undefined||g.profile!==undefined||g.segments!==undefined||
+           g.bevel!==undefined||g.bevelSegments!==undefined)
+          fail('Extrude aceita apenas contour e depth.');
+        let contour:[number,number][];
+        try {contour=validatePolygon2D(g.contour);}catch(e){return fail((e as Error).message);}
+        const depth=num(g.depth,.005,80);
+        geometry={shape:'extrude',contour,depth};
       } else if (g.shape === 'mesh') {
         const vertices = list(g.vertices, 18000).map((v) => num(v, -200, 200));
         if (vertices.length < 9 || vertices.length % 3) fail('Uma malha precisa de vértices 3D completos.');
@@ -141,7 +152,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200), ...(p.ground !== undefined ? { ground: identifier(p.ground), above: num(p.above ?? 0, 0, 200) } : {}) };
       if (p.above !== undefined && p.ground === undefined) fail('A altura mínima só vale junto com o terreno de apoio (ground).');
     }
-    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
+    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry?.shape === 'extrude' ? geometry.contour!.length * 12 : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
     if (n.groundTo !== undefined && n.kind !== 'actor') fail('Somente um personagem pode seguir o terreno.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
