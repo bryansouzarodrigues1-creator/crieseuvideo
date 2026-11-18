@@ -8,6 +8,7 @@
  * Scenery-kit support can be integrated separately without forking its branch.
  */
 import type { ProgramSource, Vec3 } from '../score';
+import {validatePolygon2D} from '../profile2d';
 
 export type WorldObjectRole = 'prop'|'mechanism'|'environment';
 export interface WorldObjectQA {
@@ -53,14 +54,26 @@ const optional=(x:unknown,def:Vec3,where:string,min=-180,max=180):Vec3=>
 const nonZeroVec=(v:Vec3,where:string)=>{
   if(v.some(n=>n<=0))bad(where+' requer escala positiva.');
 };
-const permittedShapes=new Set(['box','sphere','capsule','cone','cylinder','plane','torus','tube','lathe']);
+const permittedShapes=new Set(['box','sphere','capsule','cone','cylinder','plane','torus','tube','lathe','extrude']);
 const arity:Record<string,number>={box:3,sphere:1,capsule:2,cone:2,cylinder:3,plane:2,torus:2,tube:1};
 
 function geometry(raw:unknown,where:string):Record<string,unknown>{
   const g=record(raw,where);
-  only(g,['shape','size','profile','points','segments','bevel','bevelSegments'],where);
+  only(g,['shape','size','profile','contour','depth','points','segments','bevel','bevelSegments'],where);
   if(!permittedShapes.has(String(g.shape)))return bad('Geometria não parametrizada/permitida em '+where);
   const shape=g.shape as string;
+  if(shape==='extrude'){
+    if(g.size!==undefined||g.profile!==undefined||g.points!==undefined||
+       g.segments!==undefined||g.bevel!==undefined||g.bevelSegments!==undefined)
+      bad('Contorno extrudado aceita só contour e depth.');
+    let contour:[number,number][];
+    try{contour=validatePolygon2D(g.contour);}catch(e){return bad((e as Error).message);}
+    if(typeof g.depth!=='number'||!Number.isFinite(g.depth)||g.depth<.005||g.depth>80)
+      bad('Profundidade extrudada inválida.');
+    return {shape:'extrude',contour,depth:g.depth};
+  }
+  if(g.contour!==undefined||g.depth!==undefined)
+    bad('contour e depth só são permitidos em extrude.');
   if(shape==='lathe'){
     if(g.size!==undefined||g.points!==undefined||g.bevel!==undefined||g.bevelSegments!==undefined)
       bad('Lathe recebe somente perfil e segmentos.');
@@ -156,11 +169,11 @@ export function compileWorldBlueprints(
     const sourceId=identifier(o.sourceId,'sourceId',40);
     if(!sourcesSet.has(sourceId))bad('Objeto cita trecho de roteiro inexistente.');
     smallText(o.name,'object.name');
-    const features=list(o.features,12,'features').map(x=>identifier(x,'feature',18));
+    const features=list(o.features,20,'features').map(x=>identifier(x,'feature',18));
     if(features.length<(role==='environment'?1:2)||
        new Set(features).size!==features.length)
       bad('O objeto precisa listar características visuais distintas.');
-    const parts=list(o.parts,18,'parts');
+    const parts=list(o.parts,48,'parts');
     if(parts.length<(role==='environment'?1:2))
       bad('Objeto sem partes suficientes para ser reconhecível.');
     const position=optional(o.position,[0,0,0],'object.position');
@@ -245,7 +258,7 @@ export function compileWorldBlueprints(
       bad('Objeto sem as partes reconhecíveis prometidas no projeto visual.');
     audit.push({id:objId,role:role as WorldObjectRole,
       sourceId,features,parts:visible,mirrored});
-    if(output.length>150)bad('Cena excede orçamento preventivo de nós 3D.');
+    if(output.length+existingNodes.length>160)bad('Cena excede orçamento preventivo de 160 nós 3D.');
   }
   if(output.length+existingNodes.length>160)
     bad('Cena excede o limite total de 160 nós.');
