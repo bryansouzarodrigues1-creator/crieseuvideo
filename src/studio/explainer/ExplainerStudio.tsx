@@ -49,7 +49,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('auto');
   const [ai3dConsent,setAi3dConsent] = useState(false);
   const [ai3dClip,setAi3dClip] = useState<ComplexWorldClip|null>(null);
-  const [ai3dUsedProvider,setAi3dUsedProvider] = useState<'gemini'|'lovable'|null>(null);
+  const [ai3dUsedProvider,setAi3dUsedProvider] = useState<'gemini'|'lovable'|'demo'|null>(null);
   const [ai3dLoginNeeded,setAi3dLoginNeeded] = useState(false);
   const sendAi3D = useServerFn(generateAi3DWorld);
   const toonRef = useRef<Toon3D | null>(null);
@@ -216,6 +216,20 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       window.location.assign('/motor-3d/ia');
     } catch {
       setNote('Não foi possível transferir o roteiro. Copie o texto antes de abrir o laboratório separado.');
+    }
+  };
+
+  /** Explicit, offline engineering sample using the same real stage as generated AI 3D. */
+  const openSmartphoneDemo = async () => {
+    if (busy) return;
+    setPlaying(false);
+    try {
+      const { buildSmartphoneAssemblyDemo } = await import('./sceneProgram/demo/smartphoneAssembly');
+      setAi3dClip(buildSmartphoneAssemblyDemo());
+      setAi3dUsedProvider('demo');
+      setNote('Demonstração local de 12s, sem uso de créditos: montagem contínua da bateria, do processador, das lentes e da tela. Ainda sem narração.');
+    } catch (error) {
+      setNote('Falha ao montar demonstração 3D: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -419,6 +433,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 Autorizo esta tentativa. A geração pode consumir créditos mesmo se a resposta for inválida. No modo automático, até dois provedores podem ser chamados.
               </label>
               <p className="explainer-sub">Cada geração produz 8–12 segundos, com 2–3 frases. Vídeos maiores serão compostos em etapas. Sem chamadas automáticas, sem vídeo de demonstração como substituto.</p>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void openSmartphoneDemo()}>
+                <Box /> Testar montagem de celular (12s, sem IA)
+              </Button>
+              <p className="explainer-sub">Teste isolado de continuidade no motor SceneProgram3D; não usa o seu roteiro nem substitui um vídeo gerado por IA.</p>
               {ai3dLoginNeeded&&<Button size="sm" variant="secondary" onClick={()=>void loginForAi3D()}>
                 Entrar com Google para gerar 3D
               </Button>}

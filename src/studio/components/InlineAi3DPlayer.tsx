@@ -14,7 +14,7 @@ export function InlineAi3DPlayer({
 }:{
   clip:ComplexWorldClip|null;
   aspect:'9:16'|'16:9';
-  provider:'gemini'|'lovable'|null;
+  provider:'gemini'|'lovable'|'demo'|null;
 }){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const rendererRef=useRef<THREE.WebGLRenderer|null>(null);
@@ -146,7 +146,7 @@ export function InlineAi3DPlayer({
 
   return <section className="explainer-stage inline-ai3d-player" aria-label="Prévia do 3D avançado">
     <div className="native-3d-screen inline-ai3d-stage" style={!clip?{display:'none'}:undefined}>
-      <canvas ref={canvasRef} aria-label="Prévia da cena 3D gerada pela IA"
+      <canvas ref={canvasRef} aria-label={provider==='demo'?'Prévia da montagem 3D de celular':'Prévia da cena 3D gerada pela IA'}
         style={{aspectRatio:aspect==='9:16'?'9 / 16':'16 / 9'}}/>
     </div>
     {!clip ? <div className="explainer-empty-preview" role="status">
@@ -178,7 +178,7 @@ export function InlineAi3DPlayer({
               disabled={!!error}><Download size={17}/> Baixar cena 3D</button>}
       </div>
       <div className="native-3d-numbers">
-        <strong>Direção: {provider==='lovable'?'IA do Lovable':'Gemini'}</strong>
+        <strong>Direção: {provider==='demo'?'Demonstração offline (sem IA)':provider==='lovable'?'IA do Lovable':provider==='gemini'?'Gemini':'Não informado'}</strong>
         <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras</span>
       </div>
       <p className="native-3d-small">Arquivo 3D experimental com quadros fixos. Este download ainda não inclui voz nem legendas, mesmo que a preferência de narração esteja ativa no editor.</p>
