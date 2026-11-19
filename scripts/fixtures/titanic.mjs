@@ -67,7 +67,7 @@ export function titanicProgram() {
 
   // ---------- Yard, river, background ----------
   mesh('chao', 's1', [-44, -.25, 0], { shape: 'box', size: [149, .5, 190] }, '#8D8678');
-  mesh('rio', 's1', [136, .03, 0], { shape: 'water', size: [200, 200], wave: .2, segments: 40 }, '#3C6E8F', { material: { opacity: .94 } });
+  mesh('rio', 's1', [136, .3, 0], { shape: 'water', size: [200, 200], wave: .2, segments: 40 }, '#3C6E8F', { material: { opacity: .94 } });
   mesh('rampa', 's1', [-9, .4, 0], { shape: 'box', size: [78, .8, 15], bevel: .1 }, '#7A5C3E');
   mesh('calcos', 's1', [-30, 1.1, 0], { shape: 'box', size: [1, .6, 3], bevel: .05 }, '#4D3B2A', { repeat: { count: 13, step: [5, 0, 0], jitter: [0, 0, 0], seed: 1 } });
   mesh('predios', 's1', [-100, 6.5, -70], { shape: 'box', size: [11, 13, 15], bevel: .3 }, '#A0614A', { repeat: { count: 6, step: [22, 0, 0], jitter: [0, 4, 6], seed: 3 } });
