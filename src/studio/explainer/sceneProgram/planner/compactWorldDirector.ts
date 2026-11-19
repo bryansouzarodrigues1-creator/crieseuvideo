@@ -356,6 +356,11 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     tracks.push({node:crane.id+'-cable',channel:'position',interpolation:'smooth',
       keys:frames(sourceIds,[crane.size[0]*.40,crane.size[1]*.56,0],
         [crane.size[0]*.40,round(crane.size[1]*.56+action.delta[1]*.5),0])});
+    // The hook must stay on the same load, not remain as a disconnected
+    // marker below the drum while the cargo rises.
+    tracks.push({node:crane.id+'-hook',channel:'position',interpolation:'smooth',
+      keys:frames(sourceIds,[crane.size[0]*.40,crane.size[1]*.21,0],
+        [crane.size[0]*.40,round(crane.size[1]*.21+action.delta[1]),0])});
   }
   const world={version:1,clips:[{
     id:'scene',sources:sources.map(s=>({sourceId:s.sourceId,text:s.text,duration:s.duration})),
