@@ -8,6 +8,7 @@
  */
 import {compileComplexWorldBatch, type ComplexWorldClip} from './complexWorldBatch';
 import type {SourceBrief} from './aiWorldDirector';
+import {normalizeCompactWorldOutput} from './normalizeCompactWorld';
 
 type Vec=[number,number,number];
 export type SceneSetting='city'|'industrial'|'coast'|'forest'|'interior'|'desert';
@@ -308,7 +309,7 @@ function frames(sourceIds:string[],from:Vec,to:Vec) {
 export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):ComplexWorldClip{
   if(!sources.length||sources.length>3||sources.some(s=>!s.text||!s.sourceId))
     fail('A sequência não possui roteiro e tempo corretos.');
-  const input=parsePlan(raw),sourceIds=sources.map(s=>s.sourceId);
+  const input=parsePlan(normalizeCompactWorldOutput(raw)),sourceIds=sources.map(s=>s.sourceId);
   const objects=[...input.entities];
   const addBackground=(e:Entity)=>{
     if(objects.some(o=>o.id===e.id))fail('Cena usa um ID reservado do motor.');

@@ -35,9 +35,9 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
         // Failure to parse/build is not a successful output; never show a
         // different pre-recorded scene as a silent fallback.
         const json=parseJson(text);
-        if(!json)return false;
+        if(!json)return 'invalid_json';
         try {compileCompactWorld(json,sources);return true;}
-        catch {return false;}
+        catch {return 'invalid_scene';}
       });
       if(!answer)throw new Error('Os provedores não entregaram uma cena 3D válida.');
       const raw=parseJson(answer.text);
