@@ -9,6 +9,7 @@ import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import {prepareAi3DHandoff,saveAi3DHandoff} from './ai3dHandoff';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -37,6 +38,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voiceOn, setVoiceOn] = useState(true);
   const [voicing, setVoicing] = useState<number | null>(null);
   const [engine, setEngine] = useState<'2d' | '3d'>('3d');
+  const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
   const toonRef = useRef<Toon3D | null>(null);
   const [toonReady, setToonReady] = useState(0);
   const [genId, setGenId] = useState<string | null>(null);
@@ -147,8 +149,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now() }); setProjects(listProjects()); }, 800);
     return () => clearTimeout(id);
   }, [plan, script, projectId]);
-  const openProject = (p: SavedProject) => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
-  const newProject = () => { setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
+  const openProject = (p: SavedProject) => { setEngine3dMode('classic'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
+  const newProject = () => { setEngine3dMode('advanced'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
 
   const transcribe = async (blob: Blob, name: string) => {
     const fd = new FormData(); fd.append('file', blob, name);
@@ -193,7 +195,23 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const ac = ctx(); void ac.resume();
     const b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start();
   };
+  const openAdvanced3D = (text=script) => {
+    // No model request happens here. Consent, auth and provider selection stay
+    // in the advanced builder, after we preserve the main editor's draft.
+    try {
+      const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
+      saveAi3DHandoff(window.sessionStorage,handoff);
+      window.location.assign('/motor-3d/ia');
+    } catch {
+      setNote('Não foi possível transferir o roteiro neste navegador. Copie o texto antes de abrir o gerador avançado.');
+    }
+  };
+
   const generate = async (text = script) => {
+    if(engine==='3d' && engine3dMode==='advanced'){
+      openAdvanced3D(text);
+      return;
+    }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
       const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: [...gallery, ...vaultFor(text)] }) });
@@ -324,7 +342,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         <section className="explainer-panel">
           <p className="explainer-kicker">CRIESEUVIDEO — ESTÚDIO DE ANIMAÇÃO 2D/3D</p>
           <h1>Do roteiro à animação.</h1>
-          <p className="explainer-sub">A IA escreve a direção, o código desenha cada quadro. Sem custo de vídeo: ~0,02 crédito pela direção e ~0,1 crédito por minuto de narração.</p>
+          <p className="explainer-sub">Escolha o 3D avançado com Gemini/Lovable, o Toon clássico ou o Motion 2D. Os custos dependem do provedor e da narração; o modo avançado pede autorização antes de chamar uma IA.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
           <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => setScript(e.target.value)} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
           <div className="explainer-row">
@@ -334,16 +352,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           </div>
           <p className="explainer-label">Estilo de animação</p>
           <div className="explainer-row">
-            <Button size="sm" variant={engine === '3d' ? 'default' : 'secondary'} onClick={() => { setEngine('3d'); setPlan((p) => ({ ...p, engine: '3d' })); }} aria-pressed={engine === '3d'}><Box />3D Toon</Button>
-            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setEngine('2d'); setPlan((p) => ({ ...p, engine: '2d' })); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+            <Button size="sm" variant={engine === '3d' && engine3dMode==='advanced' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('advanced'); }} aria-pressed={engine === '3d' && engine3dMode==='advanced'}><Box />3D Avançado (IA)</Button>
+            <Button size="sm" variant={engine === '3d' && engine3dMode==='classic' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('classic'); }} aria-pressed={engine === '3d' && engine3dMode==='classic'}>3D Toon clássico</Button>
+            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('2d'); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
-          <p className="explainer-label">Modo de criação</p>
-          <div className="explainer-row">
-            {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
-              <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
-            ))}
-          </div>
-          <p className="explainer-sub">{mode === 'creative' ? `A IA programa um cenário único para cada cena e reaproveita seus ${gallery.length} desenhos salvos e os ${vaultCount} do cofre automático quando combinarem. Sem custo de vídeo.` : mode === 'gallery' ? `A IA reaproveita seus ${gallery.length} desenhos salvos e os visuais prontos, o modo mais barato.` : ''}</p>
+          {engine==='3d' && engine3dMode==='advanced' ? (
+            <p className="explainer-sub" role="status">O 3D Avançado usa Gemini ou IA do Lovable para propor cenários, mecanismos e câmeras no motor SceneProgram3D. Na próxima tela, escolha o provedor e autorize a chamada. Cada teste gera apenas 8–12 segundos; a narração automática ainda não está conectada ao exportador avançado.</p>
+          ) : (<>
+            <p className="explainer-label">Modo de criação</p>
+            <div className="explainer-row">
+              {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
+                <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
+              ))}
+            </div>
+            <p className="explainer-sub">{mode === 'creative' ? `A IA cria um visual próprio para cada cena no renderizador clássico, usando sua galeria de ${gallery.length} desenhos e os ${vaultCount} do cofre automático.` : `A IA reaproveita seus ${gallery.length} desenhos e os visuais prontos no renderizador clássico.`}</p>
+          </>)}
           <div className="explainer-row">
             {(['9:16', '16:9'] as const).map((a) => (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
@@ -360,12 +383,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => setElevenId(e.target.value)} aria-label="Voice ID do ElevenLabs" />}
             {voiceOn && plan.scenes.length > 0 && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>
-          <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < 4}>
-            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : 'Criar animação'}
+          <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < (engine==='3d'&&engine3dMode==='advanced'?45:4)}>
+            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? 'Continuar no gerador 3D por IA' : 'Criar animação'}
           </Button>
           {note && <p className="explainer-note" role="status">{note}</p>}
 
-          <div className="explainer-scenes">
+          {!(engine==='3d'&&engine3dMode==='advanced') && <div className="explainer-scenes">
             <p className="explainer-label">Cenas ({plan.scenes.length})</p>
             {plan.scenes.map((s, i) => (
               <div key={i} className={`explainer-scene ${i === current ? 'is-active' : ''}`} onClick={() => jumpTo(i)}>
@@ -385,9 +408,20 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </section>
 
+        {engine==='3d'&&engine3dMode==='advanced' ? (
+          <section className="explainer-stage" aria-label="3D avançado com Gemini e Lovable">
+            <div className="explainer-empty-preview" role="region">
+              <Box aria-hidden="true"/>
+              <h2>3D Avançado com cenários completos</h2>
+              <p>Este modo utiliza o SceneProgram3D, não o antigo boneco Toon. Transfira seu roteiro ao gerador, escolha Gemini ou Lovable e autorize o custo antes de gerar uma cena.</p>
+              <Button onClick={()=>openAdvanced3D()} disabled={script.trim().length<45}><Sparkles/> Abrir gerador 3D avançado</Button>
+              {voiceOn&&<p>Preferência de narração preservada, mas áudio e legendas ainda não são exportados neste modo experimental.</p>}
+            </div>
+          </section>
+        ) : (
         <section className="explainer-stage">
           <div className={`explainer-canvas-wrap ${aspect === '9:16' ? 'is-portrait' : ''}`}>
             <canvas ref={canvasRef} key={aspect} {...dims} style={!plan.scenes.length ? { display: 'none' } : undefined} onClick={() => { if (exportingRef.current) return; unlockAudio(); setPlaying((p) => !p); }} />
@@ -428,6 +462,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           {rated === 'sent' && <p className="explainer-note" role="status">Obrigado! A IA vai usar isso nos próximos vídeos.</p>}
           <p className="explainer-hint"><Wand2 /> Toque numa cena para ir até ela e troque o visual, a expressão ou a etiqueta.</p>
         </section>
+        )}
       </main>
       {library && (
         <div className="explainer-drawer" role="dialog" aria-label="Meus projetos" onClick={() => setLibrary(false)}>
