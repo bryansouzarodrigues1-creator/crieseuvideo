@@ -40,7 +40,8 @@ export class Ai3DProviderError extends Error {
 }
 
 
-const LOVABLE_MODEL = "google/gemini-3-flash-preview";
+// Configurable without redeploying code; the previous preview model can be retired.
+const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
 async function askLovable(prompt: string, model: string, onProblem?: (reason: ProviderProblem) => void): Promise<string | null> {
