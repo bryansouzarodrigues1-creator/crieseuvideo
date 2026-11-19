@@ -46,7 +46,7 @@ describe('realistic AI JSON formats from Lovable / Gemini',()=>{
     invalid.scene.javascript='alert(1)';
     expect(()=>compileCompactWorld(invalid,sources)).toThrow(/não suportado/);
     delete invalid.scene.javascript;
-    invalid.scene.motion.objectId='Objeto que não existe';
+    invalid.scene.motion.objectId='missingobject';
     expect(()=>compileCompactWorld(invalid,sources)).toThrow(/objeto/);
   });
   it('will not accept arbitrary prose as a scene',()=>{
