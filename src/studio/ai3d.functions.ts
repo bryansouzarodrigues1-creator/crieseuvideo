@@ -1,7 +1,8 @@
 import {createServerFn} from '@tanstack/react-start';
 import {z} from 'zod';
 import {requireSupabaseAuth} from '@/integrations/supabase/auth-middleware';
-import {sourceBriefsFromScript,aiWorldPrompt,verifyAiWorldProposal} from './explainer/sceneProgram/planner/aiWorldDirector';
+import {sourceBriefsFromScript} from './explainer/sceneProgram/planner/aiWorldDirector';
+import {compactWorldPrompt,compileCompactWorld} from './explainer/sceneProgram/planner/compactWorldDirector';
 
 const input=z.object({
   script:z.string().min(45).max(750),
@@ -24,21 +25,29 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
     const last=lastRequest.get(userId)||0;
     if(now-last<30000)throw new Error('Espere ao menos 30 segundos entre pedidos para evitar gastos repetidos.');
     const sources=sourceBriefsFromScript(data.script);
-    const prompt=aiWorldPrompt(sources);
+    const prompt=compactWorldPrompt(sources);
     inFlight.add(userId);
     lastRequest.set(userId,now);
     try{
       const {ask3DWorldAi,parseJson}=await import('./server/ai');
-      const answer=await ask3DWorldAi(prompt,data.provider);
-      if(!answer)throw new Error('Nenhum provedor retornou uma proposta 3D. Confira as chaves, limites de uso e configuração das IAs.');
+      const answer=await ask3DWorldAi(prompt,data.provider,(text)=>{
+        // Only pay for a second provider in explicitly selected Auto mode.
+        // Failure to parse/build is not a successful output; never show a
+        // different pre-recorded scene as a silent fallback.
+        const json=parseJson(text);
+        if(!json)return false;
+        try {compileCompactWorld(json,sources);return true;}
+        catch {return false;}
+      });
+      if(!answer)throw new Error('Os provedores não entregaram uma cena 3D válida.');
       const raw=parseJson(answer.text);
-      if(!raw)throw new Error('A IA não devolveu uma cena JSON válida. Nenhum vídeo incorreto será exibido.');
-      const clip=verifyAiWorldProposal(raw,sources);
+      if(!raw)throw new Error('A IA não devolveu JSON válido.');
+      const clip=compileCompactWorld(raw,sources);
       return {
         clip,
         provider:answer.provider,
         duration:clip.duration,
-        warning:'Cena 3D experimental gerada como dados pelo modelo. Revisão visual, narração e física cinematográfica ainda não são garantidas.',
+        warning:'A IA definiu os objetos e a ação; o motor construiu as peças e as câmeras. A revisão visual e o áudio ainda precisam ser finalizados.',
       };
     }finally{
       inFlight.delete(userId);

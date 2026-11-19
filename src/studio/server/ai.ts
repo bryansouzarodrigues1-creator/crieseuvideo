@@ -40,7 +40,8 @@ export class Ai3DProviderError extends Error {
 }
 
 
-const LOVABLE_MODEL = "google/gemini-3-flash-preview";
+// Configurable without redeploying code; the previous preview model can be retired.
+const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
 async function askLovable(prompt: string, model: string, onProblem?: (reason: ProviderProblem) => void): Promise<string | null> {
@@ -149,7 +150,8 @@ export function parseJson(text: string | null): any {
  */
 export async function ask3DWorldAi(
   prompt:string,
-  preferred:'auto'|'gemini'|'lovable'='auto'
+  preferred:'auto'|'gemini'|'lovable'='auto',
+  isValid?:(content:string)=>boolean
 ):Promise<{provider:'gemini'|'lovable';text:string}|null> {
   const order:Ai3DProvider[]=preferred==='auto'
     ? providerOrder('direction',!!process.env.GEMINI_API_KEY)
@@ -161,7 +163,17 @@ export async function ask3DWorldAi(
     const text=provider==='lovable'
       ?await askLovable(prompt,LOVABLE_MODEL,mark)
       :await askGemini(prompt,mark);
-    if(text && text.length<=480000) return {provider,text};
+    if(text && text.length<=480000){
+      // An HTTP 200 with broken scene geometry is not a successful 3D video.
+      // In auto mode, allow one alternative provider, never an unbounded retry.
+      let accepted=true;
+      if(isValid){
+        try{accepted=isValid(text);}catch{accepted=false;}
+      }
+      if(accepted)return {provider,text};
+      failures.push({provider,reason:'invalid_response'});
+      continue;
+    }
     failures.push({provider,reason:text && text.length>480000?'response_too_large':problem??'invalid_response'});
   }
   throw new Ai3DProviderError(failures);
