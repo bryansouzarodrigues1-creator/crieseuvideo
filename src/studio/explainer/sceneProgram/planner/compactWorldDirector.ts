@@ -11,7 +11,7 @@ import type {SourceBrief} from './aiWorldDirector';
 
 type Vec=[number,number,number];
 export type SceneSetting='city'|'industrial'|'coast'|'forest'|'interior'|'desert';
-export type EntityKind='building'|'crane'|'machine'|'vehicle'|'boat'|'cargo'|'tree'|'custom';
+export type EntityKind='building'|'crane'|'machine'|'vehicle'|'motorcycle'|'boat'|'cargo'|'tree'|'custom';
 type ActionKind='move'|'lift'|'lower'|'drive'|'sail'|'rotate'|'open';
 type Shape='box'|'sphere'|'cylinder'|'cone'|'torus';
 type Detail={id:string;shape:Shape;size:number[];at:Vec;color?:string};
@@ -48,7 +48,7 @@ const sized=(x:unknown,context:string):Vec=>{
   const r=vec(x,context,.25,24);
   return r;
 };
-const kindAllowed=['building','crane','machine','vehicle','boat','cargo','tree','custom'];
+const kindAllowed=['building','crane','machine','vehicle','motorcycle','boat','cargo','tree','custom'];
 const settings=['city','industrial','coast','forest','interior','desert'];
 const actionKinds=['move','lift','lower','drive','sail','rotate','open'];
 
@@ -131,7 +131,7 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     '],"action":{"target":"veiculo","kind":"drive","delta":[5,0,0]}}',
     'setting: city, industrial, coast, forest, interior, desert. Escolha pelo roteiro; background é hexadecimal #RRGGBB.',
     'entities: de 2 a 7 objetos REAIS do roteiro. Cada objeto {id,name,kind,at:[x,y,z],size:[largura,altura,profundidade],color:"#RRGGBB"}.',
-    'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para motos/carros/caminhões, boat para navios/barcos, cargo para caixas/cargas, tree para árvores, custom para qualquer coisa diferente.',
+    'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para carros/caminhões, motorcycle EXCLUSIVAMENTE para motos de duas rodas, boat para navios/barcos, cargo para caixas/cargas, tree para árvores, custom para qualquer coisa diferente.',
     'kind custom DEVE ter details:[{id,shape:"box"|"sphere"|"cylinder"|"cone"|"torus",size:[dimensões corretas],at:[x,y,z],color:"#RRGGBB"},...], de 3 a 12 partes distintas, todas locais ao objeto.',
     'Ação obrigatória {target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}. Deslocamento >= 0.7 m ou rotação >= 0.45 rad, <= 18 m por eixo.',
     'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover estrutura inteira se o roteiro trata de uma carga ou portão: faça a carga ou portão outro entity.',
@@ -195,6 +195,38 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
         {rotation:[Math.PI/2,0,0]}),
       box('foot','suporte',[w,.20,d],[0,.12,0],dark),
     ];
+  }else if(e.kind==='motorcycle'){
+    // A motorcycle is NOT a four-wheel car: two inline rolling wheels,
+    // tank, saddle, steering assembly, forks, frame and exposed engine.
+    features=['rodas','quadro','motor','tanque','assento','guidao','garfo','farol','escapamento'];
+    const r=Math.max(.24,Math.min(w*.14,d*.25));
+    parts=[
+      // A rigid diamond frame and visible engine instead of an enclosed car body.
+      {id:'frame',feature:'quadro',position:[0,h*.41,0],color:dark,
+        geometry:{shape:'tube',size:[.10],points:[
+          [-w*.33,0,0],[-w*.12,h*.23,0],[w*.32,-h*.03,0],[-w*.33,0,0]
+        ]}},
+      cylinder('engine','motor',[h*.16,h*.16,d*.46],[0,h*.32,0],'#727D82',
+        {rotation:[Math.PI/2,0,0]}),
+      box('tank','tanque',[w*.36,h*.22,d*.55],[w*.06,h*.66,0],c,
+        {geometry:undefined}),
+      box('saddle','assento',[w*.35,.12,d*.50],[-w*.20,h*.69,0],'#292F35'),
+      {id:'bars',feature:'guidao',position:[w*.35,h*.94,0],color:'#C8CDD0',
+        geometry:{shape:'tube',size:[.065],points:[[0,-h*.20,0],[0,0,0],[0,0,d*.42]]}},
+      {id:'fork',feature:'garfo',position:[w*.31,h*.48,d*.28],color:'#A7AAAC',
+        geometry:{shape:'tube',size:[.07],points:[[0,-h*.24,0],[0,h*.19,0]]},
+        mirror:'z'},
+      box('light','farol',[.13,.21,d*.32],[w*.43,h*.74,0],'#F6E6A9'),
+      {id:'pipe',feature:'escapamento',position:[-w*.12,h*.27,-d*.26],color:'#747A80',
+        geometry:{shape:'tube',size:[.06],points:[[0,0,0],[-w*.23,-.05,0]]}},
+    ];
+    for(const [name,x] of [['rear',-w*.34],['front',w*.34]] as const){
+      parts.push(group('wheel'+name,[x,r,0]));
+      parts.push(cylinder('tire'+name,'rodas',[r,r,d*.22],[0,0,0],'#21282D',
+        {parent:'wheel'+name,rotation:[Math.PI/2,0,0]}));
+      parts.push(cylinder('hub'+name,'rodas',[r*.34,r*.34,d*.23],[0,0,0],'#D6D6D3',
+        {parent:'wheel'+name,rotation:[Math.PI/2,0,0]}));
+    }
   }else if(e.kind==='vehicle'){
     features=['chassi','cabine','vidros','rodas','farol'];
     parts=[
@@ -210,14 +242,22 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
         {parent:'wheel'+i,rotation:[Math.PI/2,0,0]}));
     }
   }else if(e.kind==='boat'){
-    features=['casco','conves','cabine','janelas','corrimao'];
+    features=['casco','conves','cabine','janelas','corrimao','proa','chamine','defensas'];
     parts=[
-      box('hull','casco',[w*.92,h*.34,d*.85],[0,h*.22,0],c),
-      box('deck','conves',[w,.12,d],[0,h*.43,0],bright),
-      box('bridge','cabine',[w*.36,h*.39,d*.62],[-w*.07,h*.67,0],shade(c,.12)),
-      box('window','janelas',[.14,h*.15,.07],[-w*.18,h*.71,d*.32],'#337F9C',
-        {repeat:{count:3,step:[w*.14,0,0],seed:8}}),
-      box('rail','corrimao',[w*.90,.08,.06],[0,h*.61,d*.48],'#EAE8D5',{mirror:'z'}),
+      {id:'hull',feature:'casco',color:c,position:[0,0,-d*.44],
+        geometry:{shape:'extrude',depth:d*.88,contour:[
+          [-w*.46,h*.39],[w*.37,h*.39],[w*.50,h*.27],
+          [w*.34,h*.09],[-w*.41,h*.09],[-w*.49,h*.21]
+        ]}},
+      box('deck','conves',[w*.88,.16,d*.85],[-w*.03,h*.41,0],bright),
+      box('bridge','cabine',[w*.36,h*.36,d*.60],[-w*.11,h*.67,0],shade(c,.12)),
+      box('window','janelas',[.17,h*.13,.07],[-w*.24,h*.74,d*.31],'#337F9C',
+        {repeat:{count:4,step:[w*.11,0,0],seed:8}}),
+      box('rail','corrimao',[w*.81,.07,.06],[0,h*.61,d*.45],'#EAE8D5',{mirror:'z'}),
+      box('bow','proa',[w*.21,.22,d*.55],[w*.38,h*.50,0],c),
+      cylinder('stack','chamine',[.19,.22,h*.25],[-w*.19,h*.97,0],'#525E65'),
+      cylinder('fender','defensas',[.17,.17,.18],[-w*.30,h*.35,d*.45],'#4B5B60',
+        {rotation:[Math.PI/2,0,0],repeat:{count:5,step:[w*.17,0,0],seed:4}}),
     ];
   }else if(e.kind==='cargo'){
     features=['volume','cintas','etiqueta','fechos','alcas'];
@@ -289,12 +329,14 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     node:action.target,channel:rotating?'rotation':'position',
     interpolation:'smooth',keys:frames(sourceIds,from,to),
   }];
-  const isVehicle=target.kind==='vehicle'&&!rotating;
+  const isVehicle=(target.kind==='vehicle'||target.kind==='motorcycle')&&!rotating;
   if(isVehicle){
     const distance=Math.hypot(action.delta[0],action.delta[2]);
-    const radius=Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
+    const radius=target.kind==='motorcycle'
+      ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
+      :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
     const theta=round(distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
-    for(const side of ['lf','rf','lb','rb']){
+    for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb'])){
       tracks.push({node:target.id+'-wheel'+side,channel:'rotation',
         interpolation:'smooth',keys:frames(sourceIds,[0,0,0],[0,0,theta])});
     }
@@ -321,7 +363,7 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     sceneProgram:{
       version:1,background:input.background,nodes:[],tracks,
       shots:sourceIds.map((s,i)=>camera(s,
-        i===0?[objects[0].id,target.id]:[target.id,objects.find(o=>o.id!==target.id)!.id],i)),
+        i===0?[...new Set([objects[0].id,target.id])]:[target.id],i)),
       contacts:[]
     },
     worldBlueprints:{
