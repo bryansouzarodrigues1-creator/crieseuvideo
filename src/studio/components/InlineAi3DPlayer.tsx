@@ -145,16 +145,16 @@ export function InlineAi3DPlayer({
   };
 
   return <section className="explainer-stage inline-ai3d-player" aria-label="Prévia do 3D avançado">
+    <div className="native-3d-screen inline-ai3d-stage" style={!clip?{display:'none'}:undefined}>
+      <canvas ref={canvasRef} aria-label="Prévia da cena 3D gerada pela IA"
+        style={{aspectRatio:aspect==='9:16'?'9 / 16':'16 / 9'}}/>
+    </div>
     {!clip ? <div className="explainer-empty-preview" role="status">
       <Box aria-hidden="true"/>
       <h2>Cenário 3D criado pelo Gemini ou Lovable</h2>
       <p>Seu roteiro será transformado em objetos, cenário, movimento e câmeras. Após autorização, a prévia aparecerá aqui, dentro deste editor — sem o personagem antigo.</p>
       <p>Primeira etapa: 8–12 segundos por sequência. Narração e legendas 3D continuam pendentes.</p>
     </div> : <>
-      <div className="native-3d-screen inline-ai3d-stage">
-        <canvas ref={canvasRef} aria-label="Prévia da cena 3D gerada pela IA"
-          style={{aspectRatio:aspect==='9:16'?'9 / 16':'16 / 9'}}/>
-      </div>
       <div className="native-3d-controls">
         <button type="button" disabled={progress!==null||!!error}
           onClick={()=>{if(clockRef.current>=seconds-.01)seek(0);setPlaying(v=>!v);}}>
