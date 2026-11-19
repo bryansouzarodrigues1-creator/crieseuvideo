@@ -15,7 +15,7 @@ const detail={
 export const GEMINI_COMPACT_WORLD_SCHEMA={
   type:'OBJECT',
   properties:{
-    version:{type:'INTEGER',enum:[1]},
+    version:{type:'INTEGER',description:'Use always the numeric value 1'},
     setting:{type:'STRING',enum:['city','industrial','coast','forest','interior','desert']},
     background:{type:'STRING',description:'six-digit hexadecimal sky color, e.g. #C9E2F4'},
     entities:{
