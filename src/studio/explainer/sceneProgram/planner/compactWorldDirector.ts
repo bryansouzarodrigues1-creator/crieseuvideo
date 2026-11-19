@@ -222,11 +222,13 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
       box('rail','corrimao',[w*.90,.08,.06],[0,h*.61,d*.48],'#EAE8D5',{mirror:'z'}),
     ];
   }else if(e.kind==='cargo'){
-    features=['volume','cintas','etiqueta'];
+    features=['volume','cintas','etiqueta','fechos','alcas'];
     parts=[
       box('crate','volume',[w*.94,h*.94,d*.94],[0,h*.52,0],c),
       box('strap','cintas',[.12,h,d*.98],[0,h*.52,0],dark),
       box('mark','etiqueta',[w*.29,h*.16,.07],[w*.22,h*.63,d*.48],'#F3F0DE'),
+      box('buckle','fechos',[.23,.12,.08],[0,h*.80,d*.50],'#D0B66C'),
+      box('handle','alcas',[w*.22,.08,.15],[-w*.28,h*.95,0],bright),
     ];
   }else if(e.kind==='tree'){
     features=['tronco','folhas','galhos'];
@@ -333,12 +335,23 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
       regions:input.setting==='coast'
         ?[{id:'sea',sourceId:sourceIds[0],shape:'water',size:[60,60],
           position:[0,-.28,0],color:'#3B83A9',wave:.13,segments:16}]
-        :[{id:'ground',sourceId:sourceIds[0],shape:'terrain',size:[60,60,.2],
-          position:[0,-.24,0],color:
-            input.setting==='desert'?'#C5AB79':
-            input.setting==='forest'?'#668F64':
-            input.setting==='interior'?'#ADAAA5':'#8B9991',
-          roughness:.03,segments:16}],
+        :[
+          {id:'ground',sourceId:sourceIds[0],shape:'terrain',size:[60,60,.2],
+           position:[0,-.24,0],color:
+             input.setting==='desert'?'#C5AB79':
+             input.setting==='forest'?'#668F64':
+             input.setting==='interior'?'#ADAAA5':'#8B9991',
+           roughness:.03,segments:16},
+          ...(input.setting==='forest'||input.setting==='desert'?[{
+            id:input.setting==='forest'?'woodland':'boulders',
+            sourceId:sourceIds[0],shape:input.setting==='forest'?'tree':'rock',
+            size:[input.setting==='forest'?2.2:.9],color:
+              input.setting==='forest'?'#3F8256':'#A69A7A',
+            foliage:'#4C9351',seed:9,position:[0,0,0],
+            scatter:{ground:'ground',count:8,seed:9,spread:[36,36],
+              minimumHeight:0},
+          }]:[]),
+        ],
     },
   }]};
   try{
