@@ -162,15 +162,20 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
   const [w,h,d]=e.size,c=e.color,dark=shade(c),bright=lighten(c);
   let features:string[]=[],parts:Part[]=[];
   if(e.kind==='building'){
-    features=['parede','teto','janelas','porta','pilares'];
+    features=['parede','teto','janelas','porta','pilares','fachada','sacadas'];
     parts=[
       box('shell','parede',[w,h*.89,d],[0,h*.445,0],c),
       box('roof','teto',[w*1.1,.25,d*1.1],[0,h*.91,0],dark),
-      box('glass','janelas',[Math.max(.3,w*.12),Math.max(.35,h*.12),.08],
-        [-w*.33,h*.57,d*.505],'#336780',
-        {repeat:{count:3,step:[w*.30,0,0],seed:1}}),
+      // Facade windows form a grid of floors/columns rather than three static squares.
+      ...([-1,0,1] as const).map((column,index)=>
+        box('glass'+index,'janelas',[Math.max(.26,w*.14),Math.max(.35,h*.105),.08],
+          [column*w*.30,h*.27,d*.505],'#336780',
+          {repeat:{count:4,step:[0,h*.18,0],seed:index+1}})),
       box('door','porta',[Math.max(.55,w*.19),Math.max(1.3,h*.27),.10],[0,h*.14,d*.511],'#6A493A'),
       box('pillar','pilares',[.22,h*.91,.24],[-w*.49,h*.45,d*.48],bright,{mirror:'x'}),
+      box('band','fachada',[w*.92,.09,.17],[0,h*.35,d*.51],dark,
+        {repeat:{count:3,step:[0,h*.20,0],seed:3}}),
+      box('balcony','sacadas',[w*.65,.12,.32],[0,h*.53,d*.59],bright),
     ];
   }else if(e.kind==='crane'){
     features=['base','coluna','braco','cabine','tambor','cabo','gancho'];
