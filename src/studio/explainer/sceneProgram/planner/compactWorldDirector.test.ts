@@ -64,16 +64,30 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
     expect(clip.program.nodes.some(n=>n.id==='load-crate')).toBe(true);
     expect(clip.sources.map(s=>s.text)).toEqual(sources.map(s=>s.text));
   });
-  it('assembles a motorcycle with wheels rotating in sync with travel',()=>{
+  it('assembles a four-wheel road vehicle with wheels rotating in sync with travel',()=>{
     const clip=compileCompactWorld(vehicle,sources);
     expect(clip.audit.objectCount).toBe(4);
     expect(clip.program.tracks.filter(t=>t.channel==='rotation')).toHaveLength(4);
     expect(clip.program.nodes.some(n=>n.id==='motorbike-tirelf')).toBe(true);
     expect(clip.program.nodes.some(n=>n.id==='district_a-glass')).toBe(true);
   });
+  it('does not turn a motorcycle into a four-wheel toy car',()=>{
+    const bike=structuredClone(vehicle) as any;
+    bike.entities[1].kind='motorcycle';
+    bike.entities[1].name='Motocicleta de duas rodas';
+    const clip=compileCompactWorld(bike,sources);
+    const ids=new Set(clip.program.nodes.map(n=>n.id));
+    expect(ids.has('motorbike-tirerear')).toBe(true);
+    expect(ids.has('motorbike-tirefront')).toBe(true);
+    expect(ids.has('motorbike-saddle')).toBe(true);
+    expect(ids.has('motorbike-tank')).toBe(true);
+    expect(ids.has('motorbike-roof')).toBe(false);
+    expect(clip.program.tracks.filter(t=>t.channel==='rotation')).toHaveLength(2);
+  });
   it('uses animated water in a boat sequence, not a fixed city ground',()=>{
     const clip=compileCompactWorld(boat,sources);
     expect(clip.program.nodes.find(n=>n.id==='sea')?.geometry?.shape).toBe('water');
+    expect(clip.program.nodes.find(n=>n.id==='vessel-hull')?.geometry?.shape).toBe('extrude');
     expect(clip.program.tracks.find(t=>t.node==='vessel')?.channel).toBe('position');
   });
   it('can construct a novel object from model-selected primitive parts',()=>{
