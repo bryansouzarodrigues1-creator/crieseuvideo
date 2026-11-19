@@ -27,24 +27,22 @@ const keys=(o:Record<string,unknown>,allowed:string[],context:string)=>{
   const unknown=Object.keys(o).find(k=>!allowed.includes(k));
   if(unknown)fail(context+' contém campo não suportado: '+unknown);
 };
-const str=(x:unknown,context:string,min=3,max=80)=>{
-  if(typeof x!=='string'||x.trim().length<min||x.length>max)fail('Texto inválido em '+context);
-  return x.trim();
+const str=(x:unknown,context:string,min=3,max=80):string=>{
+  if(typeof x==='string'&&x.trim().length>=min&&x.length<=max)return x.trim();
+  return fail('Texto inválido em '+context);
 };
-const id=(x:unknown,context:string,max=18)=>{
-  if(typeof x!=='string'||x.length>max||!/^[a-z][a-z0-9_-]*$/.test(x))
-    fail('Identificador inválido em '+context);
-  return x;
+const id=(x:unknown,context:string,max=18):string=>{
+  if(typeof x==='string'&&x.length<=max&&/^[a-z][a-z0-9_-]*$/.test(x))return x;
+  return fail('Identificador inválido em '+context);
 };
 const hex=(x:unknown,context:string):string=>{
-  if(typeof x!=='string'||!/^#[0-9a-f]{6}$/i.test(x))
-    fail('Cor RGB hexadecimal inválida em '+context);
-  return x.toUpperCase();
+  if(typeof x==='string'&&/^#[0-9a-f]{6}$/i.test(x))return x.toUpperCase();
+  return fail('Cor RGB hexadecimal inválida em '+context);
 };
 const vec=(x:unknown,context:string,min=-40,max=40):Vec=>{
-  if(!Array.isArray(x)||x.length!==3||x.some(n=>typeof n!=='number'||!Number.isFinite(n)||n<min||n>max))
-    fail('Vetor 3D inválido em '+context);
-  return [...x] as Vec;
+  if(Array.isArray(x)&&x.length===3&&x.every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=min&&n<=max))
+    return [x[0] as number,x[1] as number,x[2] as number];
+  return fail('Vetor 3D inválido em '+context);
 };
 const sized=(x:unknown,context:string):Vec=>{
   const r=vec(x,context,.25,24);
@@ -55,16 +53,16 @@ const settings=['city','industrial','coast','forest','interior','desert'];
 const actionKinds=['move','lift','lower','drive','sail','rotate','open'];
 
 function parsePlan(raw:unknown):Plan {
-  if(!isObject(raw))fail('A IA não devolveu um plano 3D estruturado.');
+  if(!isObject(raw))return fail('A IA não devolveu um plano 3D estruturado.');
   keys(raw,['version','setting','background','entities','action'],'plano');
   if(raw.version!==1||!settings.includes(String(raw.setting)))
     fail('Versão ou categoria do cenário inválida.');
   const entitiesRaw=raw.entities;
   if(!Array.isArray(entitiesRaw)||entitiesRaw.length<2||entitiesRaw.length>7)
-    fail('A cena precisa de 2 a 7 objetos nomeados.');
+    return fail('A cena precisa de 2 a 7 objetos nomeados.');
   const seen=new Set<string>();
-  const entities=entitiesRaw.map((item,index):Entity=>{
-    if(!isObject(item))fail('Objeto '+index+' não é JSON.');
+  const entities=(entitiesRaw as unknown[]).map((item:unknown,index:number):Entity=>{
+    if(!isObject(item))return fail('Objeto '+index+' não é JSON.');
     keys(item,['id','name','kind','at','size','color','details'],'objeto');
     const entityId=id(item.id,'objeto');
     if(seen.has(entityId))fail('Dois objetos usam o mesmo identificador.');
@@ -77,8 +75,8 @@ function parsePlan(raw:unknown):Plan {
       if(!Array.isArray(detailsRaw)||detailsRaw.length<3||detailsRaw.length>12)
         fail('Objeto novo precisa de 3 a 12 peças geométricas nomeadas.');
       const partIds=new Set<string>();
-      details=detailsRaw.map((d,j):Detail=>{
-        if(!isObject(d))fail('Peça '+j+' não é JSON.');
+      details=(detailsRaw as unknown[]).map((d:unknown,j:number):Detail=>{
+        if(!isObject(d))return fail('Peça '+j+' não é JSON.');
         keys(d,['id','shape','size','at','color'],'peça');
         const detailId=id(d.id,'peça',14);
         if(partIds.has(detailId))fail('Peças com identificadores iguais.');
@@ -100,7 +98,7 @@ function parsePlan(raw:unknown):Plan {
       color:hex(item.color,'cor do objeto'),details};
   });
   const action=raw.action;
-  if(!isObject(action))fail('Falta a ação principal da cena.');
+  if(!isObject(action))return fail('Falta a ação principal da cena.');
   keys(action,['target','kind','delta'],'ação');
   const target=id(action.target,'alvo');
   if(!seen.has(target))fail('A ação deve mover um dos objetos presentes na cena.');
@@ -361,6 +359,6 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     return compiled;
   }catch(e){
     if(e instanceof CompactWorldError)throw e;
-    fail('O motor rejeitou a cena proposta: '+(e instanceof Error?e.message:'dados inválidos'));
+    return fail('O motor rejeitou a cena proposta: '+(e instanceof Error?e.message:'dados inválidos'));
   }
 }
