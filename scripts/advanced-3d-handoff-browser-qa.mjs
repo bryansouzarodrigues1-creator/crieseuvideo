@@ -38,7 +38,9 @@ try {
  assert.equal(new URL(page.url()).pathname,'/','The main Generate button redirected instead of running inside the editor');
  await page.getByText(/Confirme o uso de créditos/).waitFor({timeout:10000});
  assert.equal(providerCalls,0,'No provider call allowed without explicit consent');
- assert.equal(await page.locator('canvas[aria-label="Prévia da cena 3D gerada pela IA"]').count(),0,'No invented sample video before generation');
+ const canvas=page.locator('canvas[aria-label="Prévia da cena 3D gerada pela IA"]');
+ assert.equal(await canvas.count(),1,'Keep a stable canvas for later generations');
+ assert.equal(await canvas.isVisible(),false,'Do not show any model or sample video before AI generation');
  await page.getByRole('button',{name:'3D Toon clássico'}).click();
  assert.equal(await page.getByRole('checkbox').count(),0,'Classic editor should not show 3D model consent');
  await page.getByRole('button',{name:/3D Avançado \(IA\)/}).click();
