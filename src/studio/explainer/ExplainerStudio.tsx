@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useServerFn } from '@tanstack/react-start';
+import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
+import { generateAi3DWorld } from '../ai3d.functions';
+import { InlineAi3DPlayer } from '../components/InlineAi3DPlayer';
+import type {ComplexWorldClip} from './sceneProgram/planner/complexWorldBatch';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
@@ -39,6 +45,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voicing, setVoicing] = useState<number | null>(null);
   const [engine, setEngine] = useState<'2d' | '3d'>('3d');
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
+  const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('auto');
+  const [ai3dConsent,setAi3dConsent] = useState(false);
+  const [ai3dClip,setAi3dClip] = useState<ComplexWorldClip|null>(null);
+  const [ai3dUsedProvider,setAi3dUsedProvider] = useState<'gemini'|'lovable'|null>(null);
+  const [ai3dLoginNeeded,setAi3dLoginNeeded] = useState(false);
+  const sendAi3D = useServerFn(generateAi3DWorld);
   const toonRef = useRef<Toon3D | null>(null);
   const [toonReady, setToonReady] = useState(0);
   const [genId, setGenId] = useState<string | null>(null);
@@ -149,8 +161,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now() }); setProjects(listProjects()); }, 800);
     return () => clearTimeout(id);
   }, [plan, script, projectId]);
-  const openProject = (p: SavedProject) => { setEngine3dMode('classic'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
-  const newProject = () => { setEngine3dMode('advanced'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
+  const openProject = (p: SavedProject) => { setAi3dClip(null); setAi3dConsent(false); setEngine3dMode('classic'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
+  const newProject = () => { setAi3dClip(null); setAi3dConsent(false); setEngine3dMode('advanced'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
 
   const transcribe = async (blob: Blob, name: string) => {
     const fd = new FormData(); fd.append('file', blob, name);
@@ -196,20 +208,54 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start();
   };
   const openAdvanced3D = (text=script) => {
-    // No model request happens here. Consent, auth and provider selection stay
-    // in the advanced builder, after we preserve the main editor's draft.
+    // Optional separate editor remains available; never sends a model request.
     try {
       const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
       saveAi3DHandoff(window.sessionStorage,handoff);
       window.location.assign('/motor-3d/ia');
     } catch {
-      setNote('Não foi possível transferir o roteiro neste navegador. Copie o texto antes de abrir o gerador avançado.');
+      setNote('Não foi possível transferir o roteiro. Copie o texto antes de abrir o laboratório separado.');
     }
+  };
+
+  const loginForAi3D = async () => {
+    try {
+      const result=await lovable.auth.signInWithOAuth('google',{redirect_uri:window.location.href});
+      if(result.error)setNote('Não foi possível iniciar login: '+result.error.message);
+    }catch(e){setNote('Falha ao entrar: '+(e instanceof Error?e.message:String(e)));}
   };
 
   const generate = async (text = script) => {
     if(engine==='3d' && engine3dMode==='advanced'){
-      openAdvanced3D(text);
+      if(!ai3dConsent){
+        setNote('Confirme o uso de créditos antes de gerar uma cena com Gemini ou Lovable.');
+        return;
+      }
+      const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
+      const requested=handoff.script;
+      if(requested.trim().length<45){
+        setNote('Escreva duas ou três frases explicando o cenário, a ação e a consequência.');
+        return;
+      }
+      setNote('');setBusy(true);setPlaying(false);setAi3dLoginNeeded(false);
+      try{
+        // The existing server function is protected; no anonymous paid calls.
+        const {data:{session},error:sessionError}=await supabase.auth.getSession();
+        if(sessionError||!session?.access_token){
+          setAi3dLoginNeeded(true);
+          throw new Error('Para criar cenários 3D, entre na sua conta. Não foi feita nenhuma chamada paga.');
+        }
+        const generated=await sendAi3D({
+          data:{script:requested,provider:ai3dProvider,confirmCost:true},
+          headers:{Authorization:`Bearer ${session.access_token}`},
+        });
+        setAi3dClip(generated.clip);
+        setAi3dUsedProvider(generated.provider);
+        const shortened=handoff.fullScriptLength>requested.length;
+        setNote(`Cena 3D validada pelo ${generated.provider==='lovable'?'Lovable':'Gemini'}: ${generated.clip.audit.objectCount} objetos e ${generated.clip.program.shots.length} tomadas.${shortened?' Mostrei só as primeiras frases; o roteiro integral permanece no campo.':''} O MP4 ainda não inclui narração.`);
+      }catch(e){
+        setNote('A cena 3D não pôde ser gerada: '+(e instanceof Error?e.message:String(e)));
+      }finally{setBusy(false);}
       return;
     }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
@@ -344,7 +390,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <h1>Do roteiro à animação.</h1>
           <p className="explainer-sub">Escolha o 3D avançado com Gemini/Lovable, o Toon clássico ou o Motion 2D. Os custos dependem do provedor e da narração; o modo avançado pede autorização antes de chamar uma IA.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
-          <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => setScript(e.target.value)} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
+          <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => {setScript(e.target.value);setAi3dClip(null);}} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
           <div className="explainer-row">
             <Button size="sm" variant={listening === 'rec' ? 'destructive' : 'secondary'} onClick={toggleDictation} disabled={listening === 'busy'}>{listening === 'busy' ? <Loader2 className="animate-spin" /> : listening === 'rec' ? <MicOff /> : <Mic />}{listening === 'rec' ? 'Parar e transcrever' : listening === 'busy' ? 'Transcrevendo…' : 'Ditar roteiro'}</Button>
             <label className="explainer-file-btn"><Upload />{trackName ? 'Trocar áudio' : 'Usar meu áudio'}<input type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void useOwnAudio(f); }} /></label>
@@ -357,7 +403,25 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('2d'); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
           {engine==='3d' && engine3dMode==='advanced' ? (
-            <p className="explainer-sub" role="status">O 3D Avançado usa Gemini ou IA do Lovable para propor cenários, mecanismos e câmeras no motor SceneProgram3D. Na próxima tela, escolha o provedor e autorize a chamada. Cada teste gera apenas 8–12 segundos; a narração automática ainda não está conectada ao exportador avançado.</p>
+            <div className="explainer-advanced-settings" role="group" aria-label="Gerador 3D avançado">
+              <p className="explainer-sub">O Gemini ou a IA do Lovable criam uma cena inédita com cenário, objetos, câmera e movimento no motor SceneProgram3D. A prévia aparece neste editor; não usamos o antigo Toon.</p>
+              <label className="explainer-label" htmlFor="ex-ai3d-provider">IA responsável pelo cenário 3D</label>
+              <select id="ex-ai3d-provider" className="explainer-voice-select" value={ai3dProvider}
+                disabled={busy} onChange={e=>{setAi3dProvider(e.target.value as 'auto'|'gemini'|'lovable');}}>
+                <option value="auto">Automático: Lovable, depois Gemini se falhar</option>
+                <option value="gemini">Gemini direto</option>
+                <option value="lovable">IA do Lovable</option>
+              </select>
+              <label className="ai3d-consent">
+                <input type="checkbox" checked={ai3dConsent} disabled={busy}
+                  onChange={e=>setAi3dConsent(e.target.checked)}/>
+                Autorizo esta geração; uma chamada pode consumir créditos mesmo se a resposta for inválida.
+              </label>
+              <p className="explainer-sub">Cada geração produz 8–12 segundos, com 2–3 frases. Vídeos maiores serão compostos em etapas. Sem chamadas automáticas, sem vídeo de demonstração como substituto.</p>
+              {ai3dLoginNeeded&&<Button size="sm" variant="secondary" onClick={()=>void loginForAi3D()}>
+                Entrar com Google para gerar 3D
+              </Button>}
+            </div>
           ) : (<>
             <p className="explainer-label">Modo de criação</p>
             <div className="explainer-row">
@@ -384,9 +448,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             {voiceOn && plan.scenes.length > 0 && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>
           <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < (engine==='3d'&&engine3dMode==='advanced'?45:4)}>
-            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? 'Continuar no gerador 3D por IA' : 'Criar animação'}
+            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? 'Criar cena 3D pela IA' : 'Criar animação'}
           </Button>
-          {note && <p className="explainer-note" role="status">{note}</p>}
+          {note && <p className="explainer-note" role="status">{note}</p>
+          {engine==='3d'&&engine3dMode==='advanced'&&
+            <Button variant="ghost" size="sm" onClick={()=>openAdvanced3D()}
+              disabled={busy||script.trim().length<45}>Abrir laboratório 3D separado (opcional)</Button>}}
 
           {!(engine==='3d'&&engine3dMode==='advanced') && <div className="explainer-scenes">
             <p className="explainer-label">Cenas ({plan.scenes.length})</p>
@@ -412,15 +479,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         </section>
 
         {engine==='3d'&&engine3dMode==='advanced' ? (
-          <section className="explainer-stage" aria-label="3D avançado com Gemini e Lovable">
-            <div className="explainer-empty-preview" role="region">
-              <Box aria-hidden="true"/>
-              <h2>3D Avançado com cenários completos</h2>
-              <p>Este modo utiliza o SceneProgram3D, não o antigo boneco Toon. Transfira seu roteiro ao gerador, escolha Gemini ou Lovable e autorize o custo antes de gerar uma cena.</p>
-              <Button onClick={()=>openAdvanced3D()} disabled={script.trim().length<45}><Sparkles/> Abrir gerador 3D avançado</Button>
-              {voiceOn&&<p>Preferência de narração preservada, mas áudio e legendas ainda não são exportados neste modo experimental.</p>}
-            </div>
-          </section>
+          <InlineAi3DPlayer clip={ai3dClip} aspect={aspect} provider={ai3dUsedProvider}/>
         ) : (
         <section className="explainer-stage">
           <div className={`explainer-canvas-wrap ${aspect === '9:16' ? 'is-portrait' : ''}`}>
