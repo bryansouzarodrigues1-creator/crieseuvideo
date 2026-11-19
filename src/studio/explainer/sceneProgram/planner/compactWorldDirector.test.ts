@@ -59,7 +59,11 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
     expect(clip.audit.objectParts).toBeGreaterThan(15);
     expect(clip.program.nodes.length).toBeLessThanOrEqual(160);
     expect(clip.program.tracks.map(t=>t.node)).toEqual(
-      expect.arrayContaining(['load','crane-winch','crane-cable']));
+      expect.arrayContaining(['load','crane-winch','crane-cable','crane-hook']));
+    const load=clip.program.tracks.find(t=>t.node==='load')!;
+    const hook=clip.program.tracks.find(t=>t.node==='crane-hook')!;
+    const shift=(t:typeof load)=>t.keys.at(-1)!.value[1]-t.keys[0].value[1];
+    expect(shift(hook)).toBeCloseTo(shift(load),3);
     expect(clip.program.shots).toHaveLength(2);
     expect(clip.program.nodes.some(n=>n.id==='load-crate')).toBe(true);
     expect(clip.sources.map(s=>s.text)).toEqual(sources.map(s=>s.text));
@@ -69,7 +73,9 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
     expect(clip.audit.objectCount).toBe(4);
     expect(clip.program.tracks.filter(t=>t.channel==='rotation')).toHaveLength(4);
     expect(clip.program.nodes.some(n=>n.id==='motorbike-tirelf')).toBe(true);
-    expect(clip.program.nodes.some(n=>n.id==='district_a-glass')).toBe(true);
+    expect(clip.program.nodes.some(n=>n.id==='district_a-glass0')).toBe(true);
+    expect(clip.program.nodes.some(n=>n.id==='district_a-glass1')).toBe(true);
+    expect(clip.program.nodes.some(n=>n.id==='district_a-band')).toBe(true);
   });
   it('does not turn a motorcycle into a four-wheel toy car',()=>{
     const bike=structuredClone(vehicle) as any;
