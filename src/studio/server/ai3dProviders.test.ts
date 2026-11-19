@@ -59,6 +59,35 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     expect(error.failures).toEqual([{provider:'lovable',reason:'invalid_response'}]);
     expect(fetched).toHaveBeenCalledTimes(1);
   });
+  it('asks Gemini for a structured compact-world schema only for 3D generation',async()=>{
+    process.env.GEMINI_API_KEY='test-key-not-real';
+    const mock=vi.fn(async()=>Response.json({
+      candidates:[{content:{parts:[{text:'{"version":1,"setting":"coast"}'}]}}]
+    }));
+    vi.stubGlobal('fetch',mock);
+    const answer=await ask3DWorldAi('Gerar uma única cena','gemini',content=>{
+      return JSON.parse(content).setting==='coast';
+    });
+    expect(answer?.provider).toBe('gemini');
+    const [,options]=mock.mock.calls[0] as unknown as [string,RequestInit];
+    const body=JSON.parse(String(options.body)) as any;
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.generationConfig.responseSchema.properties.entities.items.properties.kind.enum)
+      .toContain('motorcycle');
+    expect(body.generationConfig.maxOutputTokens).toBeGreaterThan(1024);
+    expect(body.generationConfig.temperature).toBeLessThan(0.5);
+  });
+  it('separates malformed JSON and invalid scene reports without exposing the answer',async()=>{
+    process.env.LOVABLE_API_KEY='secret-sentinel';
+    const mocked=vi.fn(async()=>Response.json({choices:[{message:{content:'uma descrição solta'}}]}));
+    vi.stubGlobal('fetch',mocked);
+    const error=await ask3DWorldAi('roteiro privado','lovable',()=> 'invalid_json').catch(e=>e);
+    expect(error).toBeInstanceOf(Ai3DProviderError);
+    expect(error.failures).toEqual([{provider:'lovable',reason:'invalid_json'}]);
+    expect(error.message).toContain('JSON válido');
+    expect(error.message).not.toContain('sentinel');
+    expect(error.message).not.toContain('roteiro privado');
+  });
   it('uses Gemini only in auto mode after the failed Lovable request',async()=>{
     process.env.LOVABLE_API_KEY='dummy-lovable';
     process.env.GEMINI_API_KEY='dummy-gemini';
