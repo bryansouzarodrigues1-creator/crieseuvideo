@@ -17,8 +17,9 @@ try {
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
  await page.getByText('CrieSeuVideo',{exact:false}).first().waitFor({timeout:60000});
- const empty=page.getByText('Seu próximo vídeo começa aqui');
- await empty.waitFor({timeout:40000});
+ // Advanced SceneProgram3D is the default: do not expect the old Toon empty state.
+ await page.getByRole('heading',{name:'Cenário 3D criado pelo Gemini ou Lovable'}).waitFor({timeout:40000});
+ assert.equal(await page.getByText('Seu próximo vídeo começa aqui').count(),0);
  await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
  await page.getByRole('link',{name:/motor 3d/i}).first().click();
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});

@@ -54,7 +54,7 @@ async function assertSwipe(label,x,start,end,selector){
 try{
   const base='http://127.0.0.1:4198';
   await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
-  await page.getByText('Seu próximo vídeo começa aqui').waitFor({timeout:60000});
+  await page.getByRole('heading',{name:'Cenário 3D criado pelo Gemini ou Lovable'}).waitFor({timeout:60000});
   assert.equal((await metrics()).overflowY,'auto','Global body must not be overflow:hidden');
   assert.equal(await page.locator('.production-workspace').evaluate(
     el=>getComputedStyle(el).overflowY), 'auto','Home must have an internal scrollport');
