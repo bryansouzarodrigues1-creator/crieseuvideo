@@ -9,6 +9,7 @@ import {generateAi3DWorld} from '../ai3d.functions';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
 import type {AiWorldProvider} from '../explainer/sceneProgram/planner/aiWorldDirector';
+import {takeAi3DHandoff} from '../explainer/ai3dHandoff';
 
 const SAMPLE='Um guindaste ergue uma carga de sacos de cimento de uma obra com andaimes e prédios ao fundo. O operador aciona o freio e a carga para sobre a plataforma, enquanto a câmera mostra o tambor e os cabos.';
 const FPS=24;
@@ -27,6 +28,7 @@ export default function Ai3DStudio(){
   const [exportProgress,setExportProgress]=useState<number|null>(null);
   const [lite,setLite]=useState(true);
   const [landscape,setLandscape]=useState(false);
+  const [handoffNotice,setHandoffNotice]=useState('');
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const rendererRef=useRef<THREE.WebGLRenderer|null>(null);
   const stageRef=useRef<SceneProgram3D|null>(null);
@@ -37,6 +39,23 @@ export default function Ai3DStudio(){
   const abortRef=useRef<AbortController|null>(null);
   const send=useServerFn(generateAi3DWorld);
   const duration=clip?.duration??0;
+
+  useEffect(()=>{
+    try {
+      const handoff=takeAi3DHandoff(window.sessionStorage);
+      if(!handoff)return;
+      if(handoff.script.trim())setScript(handoff.script);
+      setLandscape(handoff.aspect==='16:9');
+      const shortened=handoff.fullScriptLength>handoff.script.length;
+      setHandoffNotice(shortened
+        ? 'Abrimos as primeiras frases do roteiro. O texto completo continua no editor original; o 3D experimental gera somente um trecho de 8–12 segundos.'
+        : handoff.wantsNarration
+          ? 'Roteiro transferido. A narração foi selecionada no editor original, mas ainda não é incluída no MP4 deste gerador experimental.'
+          : 'Roteiro e formato transferidos do estúdio principal.');
+    }catch{
+      setHandoffNotice('Não foi possível recuperar o roteiro transferido. Você pode digitá-lo aqui.');
+    }
+  },[]);
 
   useEffect(()=>{
     let alive=true;
@@ -124,7 +143,15 @@ export default function Ai3DStudio(){
     if(busy||busyExportRef.current||!userId||!consent)return;
     setError('');setPlaying(false);setBusy(true);
     try{
-      const result=await send({data:{script,provider,confirmCost:true}});
+      // The protected server function expects an Authorization Bearer header.
+      // A visible login alone did not attach the user's token to the request.
+      const {data:{session},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!session?.access_token)
+        throw new Error('Sua sessão expirou. Entre novamente antes de gerar.');
+      const result=await send({
+        data:{script,provider,confirmCost:true},
+        headers:{Authorization:`Bearer ${session.access_token}`},
+      });
       setClip(result.clip);setUsedProvider(result.provider);
     }catch(e){
       setError('A IA não conseguiu construir uma cena 3D válida: '+(e instanceof Error?e.message:String(e)));
@@ -171,6 +198,7 @@ export default function Ai3DStudio(){
       <span className="native-3d-eyebrow">GERAÇÃO 3D POR ROTEIRO • EXPERIMENTAL</span>
       <h1>Crie uma cena 3D inédita com IA</h1>
       <p>Os modelos propõem cenários, objetos, ações e câmeras. O motor Three.js monta e anima a cena validada. Nada é substituído por um vídeo de demonstração.</p>
+      {handoffNotice&&<p className="ai3d-handoff-notice" role="status">{handoffNotice}</p>}
     </header>
     <div className="native-3d-layout">
       <section className="native-3d-choices ai3d-panel">
@@ -199,7 +227,7 @@ export default function Ai3DStudio(){
             <button onClick={()=>void signIn('lovable')}>Entrar com Lovable</button>
           </div>}
         {error&&<p className="native-3d-error" role="alert">{error}</p>}
-        <p className="native-3d-small">A geração pode ser rejeitada se o modelo falhar na geometria, câmera ou trajetória. Não há cobrança adicional automática para tentar novamente.</p>
+        <p className="native-3d-small">Uma chamada pode consumir créditos mesmo se a resposta for inválida. Sem tentativas automáticas adicionais. Mensagens de erro de API identificam ausência de chave, cota, autenticação ou indisponibilidade sem expor segredos.</p>
       </section>
       <section className="native-3d-player">
         <div className="native-3d-screen ai3d-preview">
