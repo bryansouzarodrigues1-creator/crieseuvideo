@@ -66,15 +66,15 @@ export function titanicProgram() {
   };
 
   // ---------- Yard, river, background ----------
-  mesh('chao', 's1', [-44, -.25, 0], { shape: 'box', size: [160, .5, 190] }, '#8D8678');
+  mesh('chao', 's1', [-44, -.25, 0], { shape: 'box', size: [149, .5, 190] }, '#8D8678');
   mesh('rio', 's1', [136, .03, 0], { shape: 'water', size: [200, 200], wave: .2, segments: 40 }, '#3C6E8F', { material: { opacity: .94 } });
   mesh('rampa', 's1', [-9, .4, 0], { shape: 'box', size: [78, .8, 15], bevel: .1 }, '#7A5C3E');
   mesh('calcos', 's1', [-30, 1.1, 0], { shape: 'box', size: [1, .6, 3], bevel: .05 }, '#4D3B2A', { repeat: { count: 13, step: [5, 0, 0], jitter: [0, 0, 0], seed: 1 } });
   mesh('predios', 's1', [-100, 6.5, -70], { shape: 'box', size: [11, 13, 15], bevel: .3 }, '#A0614A', { repeat: { count: 6, step: [22, 0, 0], jitter: [0, 4, 6], seed: 3 } });
   mesh('chamines', 's1', [-94, 12, -80], { shape: 'cylinder', size: [.7, 1, 24] }, '#7A4B3A', { repeat: { count: 3, step: [44, 0, 0], jitter: [6, 0, 0], seed: 5 } });
 
-  mesh('caixas', 's1', [-26, .6, 27], { shape: 'box', size: [1.6, 1.2, 1.6], bevel: .12 }, '#8B5E3C', { repeat: { count: 30, step: [0, 0, 0], jitter: [72, 0, 14], seed: 2 } });
-  mesh('barris', 's1', [-26, .55, 38], { shape: 'cylinder', size: [.5, .5, 1.1] }, '#3E4A5A', { repeat: { count: 26, step: [0, 0, 0], jitter: [72, 0, 10], seed: 6 } });
+  mesh('caixas', 's1', [-26, .6, -30], { shape: 'box', size: [1.6, 1.2, 1.6], bevel: .12 }, '#8B5E3C', { repeat: { count: 30, step: [0, 0, 0], jitter: [72, 0, 14], seed: 2 } });
+  mesh('barris', 's1', [-26, .55, -40], { shape: 'cylinder', size: [.5, .5, 1.1] }, '#3E4A5A', { repeat: { count: 26, step: [0, 0, 0], jitter: [72, 0, 10], seed: 6 } });
 
   // ---------- Gantry with trolleys (sentences 1-2, and in the background after that) ----------
   group('portico', 's2', [0, 0, 0]);
@@ -166,10 +166,10 @@ export function titanicProgram() {
 
   // ---------- Sentence 7: twenty lifeboats for roughly half of the people ----------
   group('cena_botes', 's7', [0, 0, 48]);
-  mesh('conves', 's7', [0, .25, 0], { shape: 'box', size: [36, .5, 14], bevel: .06 }, '#B58E5A', { parent: 'cena_botes' });
-  mesh('botes', 's7', [-17.5, 1.3, 5], { shape: 'box', size: [4.2, 1.4, 1.9], bevel: .6 }, '#E0782D', { parent: 'cena_botes', repeat: { count: 20, step: [1.85, 0, 0], jitter: [0, 0, 0], seed: 1 } });
-  mesh('salvos', 's7', [-17.1, 1.2, 1], { shape: 'capsule', size: [.5, 1.3] }, '#3FA463', { parent: 'cena_botes', repeat: { count: 18, step: [1.9, 0, 0], jitter: [0, 0, 1.4], seed: 4 } });
-  mesh('sem_lugar', 's7', [-17.1, 1.2, -4.2], { shape: 'capsule', size: [.5, 1.3] }, '#6A6E78', { parent: 'cena_botes', repeat: { count: 18, step: [1.9, 0, 0], jitter: [0, 0, 1.4], seed: 9 } });
+  mesh('conves', 's7', [0, .25, 0], { shape: 'box', size: [46, .5, 16], bevel: .06 }, '#B58E5A', { parent: 'cena_botes' });
+  for (const [id, z] of [['botes_a', 6.5], ['botes_b', 3]]) mesh(id, 's7', [-19.5, 1.3, z], { shape: 'box', size: [3.4, 1.4, 1.9], bevel: .6 }, '#E0782D', { parent: 'cena_botes', repeat: { count: 10, step: [4.3, 0, 0], jitter: [0, 0, 0], seed: 1 } });
+  mesh('salvos', 's7', [-19.5, 1.2, -1], { shape: 'capsule', size: [.5, 1.3] }, '#3FA463', { parent: 'cena_botes', repeat: { count: 18, step: [2.4, 0, 0], jitter: [0, 0, 1.4], seed: 4 } });
+  mesh('sem_lugar', 's7', [-19.5, 1.2, -5.2], { shape: 'capsule', size: [.5, 1.3] }, '#6A6E78', { parent: 'cena_botes', repeat: { count: 18, step: [2.4, 0, 0], jitter: [0, 0, 1.4], seed: 9 } });
   onlyDuring('cena_botes', [0, 0, 48], 7, 7);
 
   // ---------- Sentence 8: crowd on the bank (launch) ----------
@@ -179,7 +179,7 @@ export function titanicProgram() {
   const shots = [
     { sourceId: 's1', subjects: ['estrutura'], azimuth: 1.1, endAzimuth: .55, elevation: .32, distance: 1.25 },
     { sourceId: 's2', subjects: ['carro1', 'carro1_chapa'], azimuth: -.5, endAzimuth: -.2, elevation: -.15, distance: 1.1 },
-    { sourceId: 's3', subjects: ['capacetes'], azimuth: -.2, endAzimuth: .15, elevation: .18, distance: 1.05 },
+    { sourceId: 's3', subjects: ['capacete1', 'capacete8', 'op3'], azimuth: -.2, endAzimuth: .15, elevation: .18, distance: 1.05 },
     { sourceId: 's4', subjects: ['painel', 'op1'], azimuth: .7, endAzimuth: .4, elevation: .12, distance: 1 },
     { sourceId: 's5', subjects: ['chapa_a', 'chapa_b', 'rebite_cabeca'], azimuth: .45, endAzimuth: .8, elevation: .1, distance: 1.0 },
     { sourceId: 's6', subjects: ['casco_corte'], azimuth: .3, endAzimuth: -.15, elevation: .2, distance: 1.0 },
