@@ -451,10 +451,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < (engine==='3d'&&engine3dMode==='advanced'?45:4)}>
             {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? 'Criar cena 3D pela IA' : 'Criar animação'}
           </Button>
-          {note && <p className="explainer-note" role="status">{note}</p>
+          {note && <p className="explainer-note" role="status">{note}</p>}
           {engine==='3d'&&engine3dMode==='advanced'&&
             <Button variant="ghost" size="sm" onClick={()=>openAdvanced3D()}
-              disabled={busy||script.trim().length<45}>Abrir laboratório 3D separado (opcional)</Button>}}
+              disabled={busy||script.trim().length<45}>Abrir laboratório 3D separado (opcional)</Button>}
 
           {!(engine==='3d'&&engine3dMode==='advanced') && <div className="explainer-scenes">
             <p className="explainer-label">Cenas ({plan.scenes.length})</p>
