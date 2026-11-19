@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable';
 import { generateAi3DWorld } from '../ai3d.functions';
-import { InlineAi3DPlayer } from '../components/InlineAi3DPlayer';
+const InlineAi3DPlayer=lazy(()=>import('../components/InlineAi3DPlayer').then(m=>({default:m.InlineAi3DPlayer})));
+
 import type {ComplexWorldClip} from './sceneProgram/planner/complexWorldBatch';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
@@ -255,7 +256,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         setNote(`Cena 3D validada pelo ${generated.provider==='lovable'?'Lovable':'Gemini'}: ${generated.clip.audit.objectCount} objetos e ${generated.clip.program.shots.length} tomadas.${shortened?' Mostrei só as primeiras frases; o roteiro integral permanece no campo.':''} O MP4 ainda não inclui narração.`);
       }catch(e){
         setNote('A cena 3D não pôde ser gerada: '+(e instanceof Error?e.message:String(e)));
-      }finally{setBusy(false);}
+      }finally{setBusy(false);setAi3dConsent(false);}
       return;
     }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
@@ -399,8 +400,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-label">Estilo de animação</p>
           <div className="explainer-row">
             <Button size="sm" variant={engine === '3d' && engine3dMode==='advanced' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('advanced'); }} aria-pressed={engine === '3d' && engine3dMode==='advanced'}><Box />3D Avançado (IA)</Button>
-            <Button size="sm" variant={engine === '3d' && engine3dMode==='classic' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('classic'); }} aria-pressed={engine === '3d' && engine3dMode==='classic'}>3D Toon clássico</Button>
-            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('2d'); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+            <Button size="sm" variant={engine === '3d' && engine3dMode==='classic' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('classic'); setAi3dConsent(false); }} aria-pressed={engine === '3d' && engine3dMode==='classic'}>3D Toon clássico</Button>
+            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('2d'); setAi3dConsent(false); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
           {engine==='3d' && engine3dMode==='advanced' ? (
             <div className="explainer-advanced-settings" role="group" aria-label="Gerador 3D avançado">
@@ -415,7 +416,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <label className="ai3d-consent">
                 <input type="checkbox" checked={ai3dConsent} disabled={busy}
                   onChange={e=>setAi3dConsent(e.target.checked)}/>
-                Autorizo esta geração; uma chamada pode consumir créditos mesmo se a resposta for inválida.
+                Autorizo esta tentativa. A geração pode consumir créditos mesmo se a resposta for inválida. No modo automático, até dois provedores podem ser chamados.
               </label>
               <p className="explainer-sub">Cada geração produz 8–12 segundos, com 2–3 frases. Vídeos maiores serão compostos em etapas. Sem chamadas automáticas, sem vídeo de demonstração como substituto.</p>
               {ai3dLoginNeeded&&<Button size="sm" variant="secondary" onClick={()=>void loginForAi3D()}>
@@ -479,7 +480,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         </section>
 
         {engine==='3d'&&engine3dMode==='advanced' ? (
-          <InlineAi3DPlayer clip={ai3dClip} aspect={aspect} provider={ai3dUsedProvider}/>
+          <Suspense fallback={<section className="explainer-stage"><p role="status">Carregando motor 3D…</p></section>}>
+            <InlineAi3DPlayer clip={ai3dClip} aspect={aspect} provider={ai3dUsedProvider}/>
+          </Suspense>
         ) : (
         <section className="explainer-stage">
           <div className={`explainer-canvas-wrap ${aspect === '9:16' ? 'is-portrait' : ''}`}>
