@@ -482,3 +482,62 @@ body { min-height: 100%; -webkit-overflow-scrolling: touch; }
   .ai3d-studio .ai3d-panel {order:0;}
   .ai3d-preview {min-height:260px;}
 }
+
+
+/* Real AI SceneProgram3D lives inside the existing main CrieSeuVideo editor.
+ * The old Toon canvas is never created as a visual fallback for this mode. */
+.explainer-advanced-settings {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+  padding:12px 0 6px;
+}
+.explainer-advanced-settings select {
+  max-width:100%;
+  width:100%;
+}
+.explainer-advanced-settings .ai3d-consent {
+  background:rgba(174,219,103,.08);
+  border:1px solid rgba(174,219,103,.25);
+  border-radius:12px;
+  padding:11px;
+}
+.inline-ai3d-player {
+  min-width:0;
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  align-items:stretch;
+  padding:14px;
+}
+.inline-ai3d-stage { 
+  width:100%;
+  max-height:min(65vh,620px);
+  min-height:260px;
+  touch-action:pan-y;
+}
+.inline-ai3d-stage canvas {
+  display:block;
+  width:auto;
+  height:min(62vh,600px);
+  max-width:100%;
+  object-fit:contain;
+  touch-action:pan-y;
+}
+.inline-ai3d-player .explainer-empty-preview {
+  min-height:300px;
+  width:100%;
+  max-width:none;
+  aspect-ratio:auto;
+  padding:28px 18px;
+}
+.inline-ai3d-player .native-3d-numbers {margin-top:4px;}
+@media(max-width:600px) {
+  .inline-ai3d-player {padding:8px;}
+  .inline-ai3d-stage {min-height:220px;}
+  .inline-ai3d-stage canvas {height:min(52vh,460px);}
+  .inline-ai3d-player .native-3d-controls {gap:6px;flex-wrap:wrap;}
+  .explainer-advanced-settings {padding:8px 0 4px;}
+}
