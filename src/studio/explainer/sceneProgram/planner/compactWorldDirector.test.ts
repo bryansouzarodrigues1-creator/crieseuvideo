@@ -1,0 +1,98 @@
+import {describe,expect,it} from 'vitest';
+import {compactWorldPrompt,compileCompactWorld,CompactWorldError} from './compactWorldDirector';
+import {sourceBriefsFromScript} from './aiWorldDirector';
+
+const sources=sourceBriefsFromScript(
+  'O guindaste levanta uma caixa de ferramentas em uma obra cheia de estruturas. '+
+  'Um operador ativa o tambor e a carga sobe até a plataforma superior.'
+);
+const crane={
+  version:1,setting:'industrial',background:'#C5DCEB',
+  entities:[
+    {id:'crane',name:'Guindaste de canteiro',kind:'crane',at:[-2,0,0],size:[7,9,3],color:'#D6A442'},
+    {id:'load',name:'Caixa transportada pelo cabo',kind:'cargo',at:[1,1,0],size:[1.5,1,1],color:'#C9B394'},
+  ],
+  action:{target:'load',kind:'lift',delta:[0,3,0]},
+};
+const vehicle={
+  version:1,setting:'city',background:'#C0D9E8',
+  entities:[
+    {id:'street',name:'Edifício com janelas',kind:'building',at:[-5,0,-7],size:[7,10,4],color:'#8495A2'},
+    {id:'motorbike',name:'Motocicleta em movimento',kind:'vehicle',at:[0,0,1],size:[2.8,1.4,1.2],color:'#E97830'},
+  ],
+  action:{target:'motorbike',kind:'drive',delta:[5,0,0]},
+};
+const boat={
+  version:1,setting:'coast',background:'#A4D1E5',
+  entities:[
+    {id:'vessel',name:'Navio navegando pelo porto',kind:'boat',at:[0,0,0],size:[11,5,4],color:'#E4E6E3'},
+    {id:'dock',name:'Galpão perto do cais',kind:'building',at:[-6,0,-8],size:[7,5,3],color:'#A7ADB0'},
+  ],
+  action:{target:'vessel',kind:'sail',delta:[0,0,4]},
+};
+const custom={
+  version:1,setting:'forest',background:'#B8DEE8',
+  entities:[
+    {id:'machine',name:'Aparato inventado para testar água',kind:'custom',at:[-2,0,0],
+      size:[3,3,2],color:'#A8B6BB',details:[
+        {id:'frame',shape:'box',size:[3,1,2],at:[0,1,0]},
+        {id:'tank',shape:'cylinder',size:[.7,.7,1.4],at:[0,2,0],color:'#2F7B99'},
+        {id:'dial',shape:'sphere',size:[.30],at:[1,2,0]},
+      ]},
+    {id:'sample',name:'Peça de teste que se desloca',kind:'cargo',at:[2,0,0],
+      size:[1,1,1],color:'#E9A653'},
+  ],
+  action:{target:'sample',kind:'move',delta:[2,0,0]},
+};
+describe('compact model-authored 3D worlds (no real AI calls)',()=>{
+  it('asks for a small actionable recipe rather than 160 raw nodes',()=>{
+    const p=compactWorldPrompt(sources);
+    expect(p).toContain('custom');
+    expect(p).toContain('câmeras');
+    expect(p).toContain('somente JSON pequeno');
+    expect(p.length).toBeLessThan(5000);
+  });
+  it('assembles a crane, urban background, winch, cable and lifted cargo',()=>{
+    const clip=compileCompactWorld(crane,sources);
+    expect(clip.duration).toBe(8);
+    expect(clip.audit.objectCount).toBeGreaterThanOrEqual(4);
+    expect(clip.audit.objectParts).toBeGreaterThan(15);
+    expect(clip.program.nodes.length).toBeLessThanOrEqual(160);
+    expect(clip.program.tracks.map(t=>t.node)).toEqual(
+      expect.arrayContaining(['load','crane-winch','crane-cable']));
+    expect(clip.program.shots).toHaveLength(2);
+    expect(clip.program.nodes.some(n=>n.id==='load-crate')).toBe(true);
+    expect(clip.sources.map(s=>s.text)).toEqual(sources.map(s=>s.text));
+  });
+  it('assembles a motorcycle with wheels rotating in sync with travel',()=>{
+    const clip=compileCompactWorld(vehicle,sources);
+    expect(clip.audit.objectCount).toBe(4);
+    expect(clip.program.tracks.filter(t=>t.channel==='rotation')).toHaveLength(4);
+    expect(clip.program.nodes.some(n=>n.id==='motorbike-tirelf')).toBe(true);
+    expect(clip.program.nodes.some(n=>n.id==='district_a-glass')).toBe(true);
+  });
+  it('uses animated water in a boat sequence, not a fixed city ground',()=>{
+    const clip=compileCompactWorld(boat,sources);
+    expect(clip.program.nodes.find(n=>n.id==='sea')?.geometry?.shape).toBe('water');
+    expect(clip.program.tracks.find(t=>t.node==='vessel')?.channel).toBe('position');
+  });
+  it('can construct a novel object from model-selected primitive parts',()=>{
+    const clip=compileCompactWorld(custom,sources);
+    expect(clip.program.nodes.some(n=>n.id==='machine-tank')).toBe(true);
+    expect(clip.program.nodes.some(n=>n.id==='machine-dial')).toBe(true);
+  });
+  it('rejects scenes with non-existent actions or motionless results',()=>{
+    expect(()=>compileCompactWorld({...crane,action:{target:'nobody',kind:'lift',delta:[0,3,0]}},sources))
+      .toThrow(/objeto/);
+    expect(()=>compileCompactWorld({...crane,action:{target:'load',kind:'lift',delta:[0,.05,0]}},sources))
+      .toThrow(/deslocamento/);
+  });
+  it('rejects executable code, unknown shapes, duplicate IDs and malformed custom geometry',()=>{
+    expect(()=>compileCompactWorld({...crane,code:'function foo(){}'},sources)).toThrow(CompactWorldError);
+    expect(()=>compileCompactWorld({...crane,entities:[crane.entities[0],crane.entities[0]]},sources)).toThrow(/identificador/);
+    const e=custom.entities[0] as any;
+    const corrupted=JSON.parse(JSON.stringify(custom));
+    corrupted.entities[0].details[0].shape='html_script';
+    expect(()=>compileCompactWorld(corrupted,sources)).toThrow(/geometria/);
+  });
+});
