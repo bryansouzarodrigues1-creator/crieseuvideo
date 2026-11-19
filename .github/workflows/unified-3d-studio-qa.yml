@@ -1,7 +1,7 @@
 name: Unified advanced 3D studio and provider diagnostics
 on:
   push:
-    branches: [fix/unify-ai-3d-studio-provider-auth-20261118]
+    branches: [fix/unify-ai-3d-studio-provider-auth-20261118, feat/inline-ai3d-main-editor-20261118]
   pull_request:
     branches: [main]
 permissions:
@@ -40,7 +40,7 @@ jobs:
           done
           tail -80 tmp/unified-3d-qa/vite.log
           exit 1
-      - name: Verify 3D UI handoff and zero unapproved billing
+      - name: Verify inline 3D generation, optional handoff, zero unapproved billing
         run: bun scripts/advanced-3d-handoff-browser-qa.mjs
       - name: Upload screenshots and report
         if: always()
