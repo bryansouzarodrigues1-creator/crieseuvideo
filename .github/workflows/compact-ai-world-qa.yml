@@ -26,3 +26,27 @@ jobs:
         run: bun run build
       - name: Typecheck entire website
         run: bunx tsc --noEmit
+      - name: Install Chromium for actual 3D render validation
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start site for real WebGL test
+        run: |
+          mkdir -p tmp/compact-ai-worlds
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/compact-ai-worlds/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/compact-ai-worlds/vite.log
+          exit 1
+      - name: Render three moving WebGL worlds and compare frames
+        run: bun scripts/compact-ai-world-browser-qa.mjs
+      - name: Archive visual QA frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compact-ai-worlds-visual-qa
+          path: tmp/compact-ai-worlds/
+          retention-days: 7
+          if-no-files-found: warn
