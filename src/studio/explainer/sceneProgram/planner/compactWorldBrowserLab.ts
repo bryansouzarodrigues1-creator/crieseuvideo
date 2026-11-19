@@ -20,7 +20,7 @@ const data={
     version:1,setting:'city',background:'#BED6E7',
     entities:[
       {id:'street',name:'Conjunto de edifícios comerciais',kind:'building',at:[-6,0,-8],size:[7,10,4],color:'#879EAD'},
-      {id:'motorbike',name:'Moto urbana em deslocamento',kind:'vehicle',at:[0,0,1],size:[2.8,1.7,1.5],color:'#DB6742'},
+      {id:'motorbike',name:'Moto urbana em deslocamento',kind:'motorcycle',at:[0,0,1],size:[2.8,1.7,1.5],color:'#DB6742'},
     ],action:{target:'motorbike',kind:'drive',delta:[5,0,0]},
   },
   boat:{
