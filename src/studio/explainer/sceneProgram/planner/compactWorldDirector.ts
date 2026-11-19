@@ -89,7 +89,7 @@ function parsePlan(raw:unknown):Plan {
         if(!Array.isArray(size)||size.length!==arity||
           size.some(n=>typeof n!=='number'||!Number.isFinite(n)||n<=0||n>20))
           fail('Dimensões da peça customizada são inválidas.');
-        return {id:detailId,shape,size:[...size],at:vec(d.at,'posição de peça',-20,20),
+        return {id:detailId,shape,size:[...(size as number[])],at:vec(d.at,'posição de peça',-20,20),
           ...(d.color===undefined?{}:{color:hex(d.color,'cor de peça')})};
       });
     } else if(detailsRaw!==undefined)fail('Peças livres somente em objeto custom.');
