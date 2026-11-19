@@ -73,6 +73,9 @@ export function titanicProgram() {
   mesh('predios', 's1', [-100, 6.5, -70], { shape: 'box', size: [11, 13, 15], bevel: .3 }, '#A0614A', { repeat: { count: 6, step: [22, 0, 0], jitter: [0, 4, 6], seed: 3 } });
   mesh('chamines', 's1', [-94, 12, -80], { shape: 'cylinder', size: [.7, 1, 24] }, '#7A4B3A', { repeat: { count: 3, step: [44, 0, 0], jitter: [6, 0, 0], seed: 5 } });
 
+  mesh('caixas', 's1', [-26, .6, 27], { shape: 'box', size: [1.6, 1.2, 1.6], bevel: .12 }, '#8B5E3C', { repeat: { count: 30, step: [0, 0, 0], jitter: [72, 0, 14], seed: 2 } });
+  mesh('barris', 's1', [-26, .55, 38], { shape: 'cylinder', size: [.5, .5, 1.1] }, '#3E4A5A', { repeat: { count: 26, step: [0, 0, 0], jitter: [72, 0, 10], seed: 6 } });
+
   // ---------- Gantry with trolleys (sentences 1-2, and in the background after that) ----------
   group('portico', 's2', [0, 0, 0]);
   const steel = '#C9622B';
@@ -97,7 +100,7 @@ export function titanicProgram() {
   // ---------- Frames of the hull (sentences 1-3), replaced by the plated hull from sentence 4 ----------
   group('estrutura', 's1', [0, 1.4, 0]);
   mesh('quilha', 's1', [0, .3, 0], { shape: 'box', size: [66, .6, .8], bevel: .1 }, '#B9B2A2', { parent: 'estrutura' });
-  mesh('costelas', 's1', [-30, 0, 0], { shape: 'tube', size: [.14], points: rib }, '#C8C2B4', { parent: 'estrutura', repeat: { count: 21, step: [3, 0, 0], jitter: [0, 0, 0], seed: 1 } });
+  mesh('costelas', 's1', [-30, 0, 0], { shape: 'tube', size: [.26], points: rib }, '#E9E3D2', { parent: 'estrutura', repeat: { count: 21, step: [3, 0, 0], jitter: [0, 0, 0], seed: 1 } });
   track('costelas', 'scale', 'smooth', [['s1', 0, [1, .03, 1]], ['s1', .95, [1, .5, 1]], ['s2', .8, [1, 1, 1]]]);
   track('estrutura', 'position', 'step', [['s1', 0, [0, 1.4, 0]], ['s4', 0, [0, HIDE, 0]]]);
 
@@ -114,8 +117,8 @@ export function titanicProgram() {
   // sentence 3: eight hard hats, one by one
   group('capacetes', 's3', [0, 0, 0]);
   for (let i = 0; i < 8; i++) {
-    const id = `capacete${i + 1}`; mesh(id, 's3', [-3.85 + i * 1.1, 0, 19], { shape: 'lathe', profile: [[0, .26], [.1, .24], [.19, .15], [.23, .05], [.32, .04], [.32, 0]], segments: 14 }, '#E8B923', { parent: 'capacetes', scale: [.01, .01, .01] });
-    track(id, 'scale', 'smooth', [['s3', .05 + i * .1, [.01, .01, .01]], ['s3', .13 + i * .1, [1.3, 1.3, 1.3]], ['s3', .17 + i * .1, [1, 1, 1]]]);
+    const id = `capacete${i + 1}`; mesh(id, 's3', [-4.9 + i * 1.4, 0, 19], { shape: 'lathe', profile: [[0, .26], [.1, .24], [.19, .15], [.23, .05], [.32, .04], [.32, 0]], segments: 14 }, '#E8B923', { parent: 'capacetes', scale: [.01, .01, .01] });
+    track(id, 'scale', 'smooth', [['s3', .05 + i * .1, [.01, .01, .01]], ['s3', .13 + i * .1, [3.9, 3.9, 3.9]], ['s3', .17 + i * .1, [3, 3, 3]]]);
   }
   add('op3', 'actor', 's3', [0, 0, 16], { color: '#E07B5B', rotation: [0, 0, 0] });
   track('op3', 'headRotation', 'smooth', [['s2', .95, [0, 0, 0]], ['s3', .25, [.45, 0, 0]], ['s4', 0, [.45, 0, 0]]]);
@@ -133,7 +136,7 @@ export function titanicProgram() {
   track('op1', 'leftHand', 'smooth', [['s4', 0, [-60.2, 1.4, .4]], ['s4', .95, [-60.2, 1.4, .4]]]);
 
   // ---------- Sentence 5: one rivet, cold water, a crack ----------
-  group('junta', 's5', [-62, 0, -14]);
+  group('junta', 's5', [-62, 0, -14], { scale: [2.2, 2.2, 2.2] });
   mesh('chapa_a', 's5', [-.8, 1.7, -.15], { shape: 'box', size: [3, 3, .3], bevel: .04 }, '#5D6872', { parent: 'junta' });
   mesh('chapa_b', 's5', [.8, 1.7, .15], { shape: 'box', size: [3, 3, .3], bevel: .04 }, '#6B7782', { parent: 'junta' });
   mesh('rebite_g', 's5', [0, 1.7, 0], { shape: 'cylinder', size: [.16, .16, 1] }, '#3A3F46', { parent: 'junta', rotation: [Math.PI / 2, 0, 0] });
@@ -149,7 +152,7 @@ export function titanicProgram() {
   onlyDuring('junta', [-62, 0, -14], 5, 5);
 
   // ---------- Sentence 6: sixteen compartments, walls too low ----------
-  group('casco_corte', 's6', [0, 0, -45]);
+  group('casco_corte', 's6', [0, 0, 48]);
   mesh('piso', 's6', [0, .2, 0], { shape: 'box', size: [31, .4, 8], bevel: .05 }, '#2C3036', { parent: 'casco_corte' });
   mesh('fundo', 's6', [0, 4.5, -4], { shape: 'box', size: [31, 9, .4], bevel: .05 }, '#2F4A66', { parent: 'casco_corte' });
   mesh('teto', 's6', [0, 8.9, 0], { shape: 'box', size: [31, .3, 8.4] }, '#9FB4C4', { parent: 'casco_corte', material: { opacity: .3 } });
@@ -159,29 +162,29 @@ export function titanicProgram() {
     mesh(`${id}_m`, 's6', [0, .5, 0], { shape: 'box', size: [4.55, 1, 7.6] }, '#3C8DBC', { parent: id, material: { opacity: .7 } });
     track(id, 'scale', 'smooth', [['s6', 0, [1, .02, 1]], ['s6', from, [1, .02, 1]], ['s6', to, [1, level, 1]]]);
   }
-  onlyDuring('casco_corte', [0, 0, -45], 6, 6);
+  onlyDuring('casco_corte', [0, 0, 48], 6, 6);
 
   // ---------- Sentence 7: twenty lifeboats for roughly half of the people ----------
-  group('cena_botes', 's7', [-40, 0, -45]);
+  group('cena_botes', 's7', [0, 0, 48]);
   mesh('conves', 's7', [0, .25, 0], { shape: 'box', size: [36, .5, 14], bevel: .06 }, '#B58E5A', { parent: 'cena_botes' });
-  mesh('botes', 's7', [-17.5, 1.1, 5], { shape: 'capsule', size: [.7, 4] }, '#E0782D', { parent: 'cena_botes', rotation: [0, 0, Math.PI / 2], repeat: { count: 20, step: [1.85, 0, 0], jitter: [0, 0, 0], seed: 1 } });
-  mesh('salvos', 's7', [-8.5, 1.1, 1], { shape: 'capsule', size: [.22, 1] }, '#3FA463', { parent: 'cena_botes', repeat: { count: 18, step: [.95, 0, 0], jitter: [0, 0, 1.2], seed: 4 } });
-  mesh('sem_lugar', 's7', [-8.5, 1.1, -4.2], { shape: 'capsule', size: [.22, 1] }, '#6A6E78', { parent: 'cena_botes', repeat: { count: 18, step: [.95, 0, 0], jitter: [0, 0, 1.2], seed: 9 } });
-  onlyDuring('cena_botes', [-40, 0, -45], 7, 7);
+  mesh('botes', 's7', [-17.5, 1.3, 5], { shape: 'box', size: [4.2, 1.4, 1.9], bevel: .6 }, '#E0782D', { parent: 'cena_botes', repeat: { count: 20, step: [1.85, 0, 0], jitter: [0, 0, 0], seed: 1 } });
+  mesh('salvos', 's7', [-17.1, 1.2, 1], { shape: 'capsule', size: [.5, 1.3] }, '#3FA463', { parent: 'cena_botes', repeat: { count: 18, step: [1.9, 0, 0], jitter: [0, 0, 1.4], seed: 4 } });
+  mesh('sem_lugar', 's7', [-17.1, 1.2, -4.2], { shape: 'capsule', size: [.5, 1.3] }, '#6A6E78', { parent: 'cena_botes', repeat: { count: 18, step: [1.9, 0, 0], jitter: [0, 0, 1.4], seed: 9 } });
+  onlyDuring('cena_botes', [0, 0, 48], 7, 7);
 
   // ---------- Sentence 8: crowd on the bank (launch) ----------
   mesh('multidao', 's8', [24, .67, 17], { shape: 'capsule', size: [.22, .9] }, '#3A3A44', { repeat: { count: 70, step: [0, 0, 0], jitter: [22, 0, 8], seed: 11 } });
   mesh('multidao2', 's8', [24, .67, -17], { shape: 'capsule', size: [.22, .9] }, '#5A4A44', { repeat: { count: 70, step: [0, 0, 0], jitter: [22, 0, 8], seed: 12 } });
 
   const shots = [
-    { sourceId: 's1', subjects: ['portico'], azimuth: .7, endAzimuth: .25, elevation: .2, distance: 1.15 },
-    { sourceId: 's2', subjects: ['carro1', 'carro1_chapa'], azimuth: -.5, endAzimuth: -.2, elevation: -.2, distance: 1.4 },
-    { sourceId: 's3', subjects: ['capacetes', 'op3'], azimuth: -.25, endAzimuth: .1, elevation: .12, distance: 1.15 },
-    { sourceId: 's4', subjects: ['painel', 'op1'], azimuth: .7, endAzimuth: .4, elevation: .12, distance: 1.1 },
-    { sourceId: 's5', subjects: ['junta'], azimuth: .45, endAzimuth: .8, elevation: .1, distance: 1.1 },
-    { sourceId: 's6', subjects: ['casco_corte'], azimuth: .35, endAzimuth: -.15, elevation: .22, distance: 1.1 },
-    { sourceId: 's7', subjects: ['cena_botes'], azimuth: -.5, endAzimuth: 0, elevation: .5, distance: 1.1 },
-    { sourceId: 's8', subjects: ['casco'], azimuth: 1, endAzimuth: .5, elevation: .18, distance: 1.35 },
+    { sourceId: 's1', subjects: ['estrutura'], azimuth: 1.1, endAzimuth: .55, elevation: .32, distance: 1.25 },
+    { sourceId: 's2', subjects: ['carro1', 'carro1_chapa'], azimuth: -.5, endAzimuth: -.2, elevation: -.15, distance: 1.1 },
+    { sourceId: 's3', subjects: ['capacetes'], azimuth: -.2, endAzimuth: .15, elevation: .18, distance: 1.05 },
+    { sourceId: 's4', subjects: ['painel', 'op1'], azimuth: .7, endAzimuth: .4, elevation: .12, distance: 1 },
+    { sourceId: 's5', subjects: ['chapa_a', 'chapa_b', 'rebite_cabeca'], azimuth: .45, endAzimuth: .8, elevation: .1, distance: 1.0 },
+    { sourceId: 's6', subjects: ['casco_corte'], azimuth: .3, endAzimuth: -.15, elevation: .2, distance: 1.0 },
+    { sourceId: 's7', subjects: ['cena_botes'], azimuth: -.45, endAzimuth: 0, elevation: .5, distance: 1.0 },
+    { sourceId: 's8', subjects: ['casco'], azimuth: 1, endAzimuth: .55, elevation: .14, distance: 1.05 },
   ];
   return { title: 'titanic', scenes: ID.map((sourceId) => ({ sourceId, visual: 'character', mood: 'neutral', palette: 'teal' })),
     sceneProgram: { version: 1, background: '#9FB4C4', nodes, tracks, shots, contacts: [], motionChecks: [] } };
