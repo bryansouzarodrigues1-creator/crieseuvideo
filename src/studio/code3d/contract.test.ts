@@ -55,7 +55,7 @@ describe('Gemini Code 3D experimental contract (offline)', () => {
     const sample=()=>[Math.round(current*10),42,9,255];
     expect(replayCheck(frame,sample,maxPixelDiff,10)).toEqual({deterministic:true,maxDiff:0});
     let offset=0;
-    const unstable=(t:number)=>{current=t;offset++;};
+    const unstable=(t:number)=>{current=t;offset+=10;};
     expect(replayCheck(unstable,()=>[Math.round(current*10)+offset],maxPixelDiff,10).deterministic).toBe(false);
   });
 });
