@@ -55,7 +55,9 @@ export class Ai3DProviderError extends Error {
 
 // Configurable without redeploying code; the previous preview model can be retired.
 const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash"; // Override via project env only
-const GEMINI_MODEL = "gemini-2.5-flash";
+// New API projects can receive 404 for legacy Gemini 2.5 Flash even when
+// models.get lists it. Prefer a current model; allow server-side override.
+const GEMINI_MODEL = process.env.GEMINI_AI_MODEL || "gemini-3.8-flash";
 
 async function askLovable(prompt: string, model: string, onProblem?: (reason: ProviderProblem) => void): Promise<string | null> {
   const key = process.env.LOVABLE_API_KEY;
