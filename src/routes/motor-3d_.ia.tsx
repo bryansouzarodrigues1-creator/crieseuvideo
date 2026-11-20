@@ -3,7 +3,7 @@ import {lazy,Suspense} from 'react';
 
 const Ai3DStudio=lazy(()=>import('@/studio/components/Ai3DStudio'));
 
-export const Route=createFileRoute('/motor-3d/ia')({
+export const Route=createFileRoute('/motor-3d_/ia')({
   ssr:false,
   head:()=>({meta:[
     {title:'Gerar 3D com Gemini e Lovable — CrieSeuVideo'},

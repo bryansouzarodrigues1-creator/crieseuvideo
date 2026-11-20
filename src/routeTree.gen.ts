@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as Motor3dRouteImport } from './routes/motor-3d'
+import { Route as Motor3dIaRouteImport } from './routes/motor-3d_.ia'
 import { Route as ApiAiExplainerPlanRouteImport } from './routes/api/ai/explainer-plan'
 import { Route as ApiAiFeedbackRouteImport } from './routes/api/ai/feedback'
 import { Route as ApiAiGenerateCaptionsRouteImport } from './routes/api/ai/generate-captions'
@@ -21,6 +23,16 @@ import { Route as ApiAiTranscribeRouteImport } from './routes/api/ai/transcribe'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Motor3dRoute = Motor3dRouteImport.update({
+  id: '/motor-3d',
+  path: '/motor-3d',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Motor3dIaRoute = Motor3dIaRouteImport.update({
+  id: '/motor-3d_/ia',
+  path: '/motor-3d/ia',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiExplainerPlanRoute = ApiAiExplainerPlanRouteImport.update({
@@ -61,6 +73,8 @@ const ApiAiTranscribeRoute = ApiAiTranscribeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/motor-3d': typeof Motor3dRoute
+  '/motor-3d/ia': typeof Motor3dIaRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/feedback': typeof ApiAiFeedbackRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
@@ -71,6 +85,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/motor-3d': typeof Motor3dRoute
+  '/motor-3d/ia': typeof Motor3dIaRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/feedback': typeof ApiAiFeedbackRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
@@ -82,6 +98,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/motor-3d': typeof Motor3dRoute
+  '/motor-3d_/ia': typeof Motor3dIaRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/feedback': typeof ApiAiFeedbackRoute
   '/api/ai/generate-captions': typeof ApiAiGenerateCaptionsRoute
@@ -94,6 +112,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/motor-3d'
+    | '/motor-3d/ia'
     | '/api/ai/explainer-plan'
     | '/api/ai/feedback'
     | '/api/ai/generate-captions'
@@ -104,6 +124,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/motor-3d'
+    | '/motor-3d/ia'
     | '/api/ai/explainer-plan'
     | '/api/ai/feedback'
     | '/api/ai/generate-captions'
@@ -114,6 +136,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/motor-3d'
+    | '/motor-3d_/ia'
     | '/api/ai/explainer-plan'
     | '/api/ai/feedback'
     | '/api/ai/generate-captions'
@@ -125,6 +149,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  Motor3dRoute: typeof Motor3dRoute
+  Motor3dIaRoute: typeof Motor3dIaRoute
   ApiAiExplainerPlanRoute: typeof ApiAiExplainerPlanRoute
   ApiAiFeedbackRoute: typeof ApiAiFeedbackRoute
   ApiAiGenerateCaptionsRoute: typeof ApiAiGenerateCaptionsRoute
@@ -141,6 +167,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/motor-3d': {
+      id: '/motor-3d'
+      path: '/motor-3d'
+      fullPath: '/motor-3d'
+      preLoaderRoute: typeof Motor3dRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/motor-3d_/ia': {
+      id: '/motor-3d_/ia'
+      path: '/motor-3d/ia'
+      fullPath: '/motor-3d/ia'
+      preLoaderRoute: typeof Motor3dIaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/explainer-plan': {
@@ -197,6 +237,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  Motor3dRoute: Motor3dRoute,
+  Motor3dIaRoute: Motor3dIaRoute,
   ApiAiExplainerPlanRoute: ApiAiExplainerPlanRoute,
   ApiAiFeedbackRoute: ApiAiFeedbackRoute,
   ApiAiGenerateCaptionsRoute: ApiAiGenerateCaptionsRoute,
