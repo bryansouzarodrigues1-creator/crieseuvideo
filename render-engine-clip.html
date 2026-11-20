@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CrieSeuVideo — Exportação experimental com motor SceneProgram3D</title>
+<style>
+  body{background:#09101b;margin:0;display:flex;flex-direction:column;align-items:center;color:white;font-family:Arial,sans-serif}
+  #frame{width:min(100vw,576px);height:auto;display:block}
+  #gl{display:none}
+  #state{margin:10px;font-size:13px}
+</style>
+</head>
+<body>
+<canvas id="gl" width="576" height="1024"></canvas>
+<canvas id="frame" width="576" height="1024"></canvas>
+<div id="state">Preparando o motor 3D…</div>
+<script type="module">
+import * as THREE from 'three';
+import {compileCompactWorld} from '/src/studio/explainer/sceneProgram/planner/compactWorldDirector.ts';
+import {normalizeSceneProgram,compileSceneProgram} from '/src/studio/explainer/sceneProgram/score.ts';
+import {SceneProgram3D} from '/src/studio/explainer/sceneProgram/stage3d.ts';
+const W=576,H=1024;
+window.__sceneReady=false;
+window.__sceneError=null;
+const source=[
+  {sourceId:'s1',duration:4,text:'Na obra, um contêiner pesado bloqueia a passagem e precisa ser levantado pela grua.'},
+  {sourceId:'s2',duration:4,text:'O cabo sustenta o contêiner enquanto a lança gira e desloca a carga até o caminhão.'},
+  {sourceId:'s3',duration:4,text:'A carga desce com cuidado sobre a plataforma, liberando o espaço no canteiro.'},
+];
+const plan={
+ version:1,setting:'industrial',background:'#A4C9DB',
+ entities:[
+  {id:'grua',name:'Grua amarela de torre e cabos',kind:'crane',at:[-3.4,0,-1.5],size:[3.6,10,3.4],color:'#EAB63E'},
+  {id:'container',name:'Contêiner azul de metal com travas',kind:'cargo',at:[-1.8,0,0.7],size:[2.4,1.5,1.8],color:'#287CAF'},
+  {id:'caminhao',name:'Caminhão vermelho com plataforma de carga',kind:'vehicle',at:[2.5,0,1.2],size:[5.2,2.2,2.2],color:'#D8513E'},
+  {id:'edificio_a',name:'Edifício alto em construção',kind:'building',at:[-11,0,-10],size:[7,10,4],color:'#8397A4'},
+  {id:'edificio_b',name:'Prédio de concreto no horizonte',kind:'building',at:[9,0,-12],size:[7,7,5],color:'#B0A7A0'},
+  {id:'pallet',name:'Pilha de blocos do canteiro',kind:'cargo',at:[-6.1,0,3.2],size:[2.6,0.8,1.5],color:'#BF9C65'}
+ ],
+ actions:[{sourceId:'s1',target:'container',kind:'lift',delta:[0,3.4,0]}]
+};
+const clips=compileCompactWorld(plan,source);
+const key=(sourceId,phase,value)=>({sourceId,phase,value});
+const tracks=clips.program.tracks.filter(t=>!(t.node==='container'&&t.channel==='position')&&!(t.node==='grua'&&t.channel==='rotation'));
+tracks.push({
+  node:'container',channel:'position',interpolation:'smooth',
+  keys:[
+    key('s1',0,[-1.8,0,0.7]),
+    key('s1',.18,[-1.8,0,0.7]),
+    key('s1',.90,[-1.8,3.4,0.7]),
+    key('s2',.05,[-1.8,3.4,0.7]),
+    key('s2',.88,[2.0,3.4,1.2]),
+    key('s3',.16,[2.0,3.4,1.2]),
+    key('s3',.83,[2.0,1.65,1.2]),
+    key('s3',1,[2.0,1.65,1.2])
+  ]
+});
+tracks.push({
+  node:'grua',channel:'rotation',interpolation:'smooth',
+  keys:[
+    key('s1',0,[0,0,0]),key('s2',.05,[0,0,0]),
+    key('s2',.86,[0,.34,0]),key('s3',1,[0,.34,0])
+  ]
+});
+const shots=[
+  {sourceId:'s1',subjects:['grua','container'],azimuth:.48,endAzimuth:.38,elevation:.19,distance:1.12},
+  {sourceId:'s2',subjects:['grua','container','caminhao'],azimuth:.38,endAzimuth:-.18,elevation:.18,distance:1.23},
+  {sourceId:'s3',subjects:['container','caminhao'],azimuth:-.18,endAzimuth:.12,elevation:.20,distance:1.13}
+];
+try{
+ const program=normalizeSceneProgram({...clips.program,tracks,shots},source);
+ compileSceneProgram(program,source);
+ const stage=new SceneProgram3D(program,source,new Map(),'technical');
+ const webgl=document.getElementById('gl');
+ const frame=document.getElementById('frame');
+ const ctx=frame.getContext('2d',{alpha:false});
+ const renderer=new THREE.WebGLRenderer({canvas:webgl,preserveDrawingBuffer:true,antialias:true,powerPreference:'high-performance'});
+ renderer.setPixelRatio(1); renderer.setSize(W,H,false);
+ renderer.shadowMap.enabled=true;
+ const beats=[
+  {title:'O PROBLEMA',headline:'UM CONTÊINER BLOQUEIA A OBRA',detail:'A grua prende a carga e inicia o içamento.',accent:'#FFD36F'},
+  {title:'O MECANISMO',headline:'CABO + LANÇA TRABALHAM JUNTOS',detail:'A carga sobe e segue para o caminhão.',accent:'#79D8FF'},
+  {title:'A SOLUÇÃO',headline:'O CONTÊINER ENCONTRA SEU LUGAR',detail:'Descida controlada sobre a plataforma.',accent:'#B8EF83'}
+ ];
+ function panel(x,y,w,h,r,color){
+  ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();
+ }
+ const draw=(seconds)=>{
+  const t=Math.max(0,Math.min(11.999,Number(seconds)||0));
+  stage.render(renderer,t,W,H);
+  ctx.drawImage(webgl,0,0,W,H);
+  const i=Math.min(2,Math.floor(t/4)),beat=beats[i];
+  // Film typography drawn into the actual output pixels, no DOM overlays.
+  const glow=ctx.createLinearGradient(0,0,0,320);
+  glow.addColorStop(0,'rgba(7,16,28,.89)');glow.addColorStop(1,'rgba(7,16,28,.0)');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,330);
+  panel(32,36,512,158,18,'rgba(9,17,31,.82)');
+  ctx.font='bold 21px Arial';ctx.fillStyle=beat.accent;ctx.fillText(beat.title,55,78);
+  ctx.font='bold 29px Arial';ctx.fillStyle='#FFFFFF';
+  const headline=beat.headline;
+  if(headline.length>29){
+    const w=headline.split(' '),lines=[''];w.forEach(z=>{let last=lines.length-1;if((lines[last]+z).length>26)lines.push('');lines[lines.length-1]+=z+' ';});
+    lines.slice(0,2).forEach((line,n)=>ctx.fillText(line.trim(),55,119+n*33));
+  }else ctx.fillText(headline,55,130);
+  panel(28,820,520,129,18,'rgba(7,16,28,.88)');
+  ctx.fillStyle='#FFFFFF';ctx.font='bold 25px Arial';
+  const words=beat.detail.split(' ');let line='';let y=872;
+  words.forEach(w=>{if(ctx.measureText(line+w).width>475){ctx.fillText(line.trim(),51,y);line='';y+=34;}line+=w+' ';});
+  if(line)ctx.fillText(line.trim(),51,y);
+  ctx.fillStyle='rgba(255,255,255,.34)';ctx.fillRect(30,977,516,5);
+  ctx.fillStyle=beat.accent;ctx.fillRect(30,977,516*Math.min(t/12,1),5);
+  ctx.font='bold 15px Arial';ctx.fillStyle='rgba(255,255,255,.88)';
+  ctx.fillText('CrieSeuVideo • Teste do motor SceneProgram3D',29,1010);
+  window.__lastSceneTime=t;
+  return {time:t,chapter:i+1};
+ };
+ window.renderDemoFrame=draw;
+ window.__sceneReady=true;
+ window.__sceneInfo={duration:12,engine:'SceneProgram3D',simulatedAi:false,objects:program.nodes.length};
+ draw(0);
+ document.getElementById('state').textContent='Motor carregado — pronto para renderizar';
+}catch(error){
+ window.__sceneError=String(error?.stack||error);
+ document.getElementById('state').textContent='Erro no motor: '+String(error?.message||error);
+ console.error(error);
+}
+</script>
+</body>
+</html>
