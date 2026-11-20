@@ -16,8 +16,8 @@ export function patrickPilotScene() {
     { id: 'wall', kind: 'mesh', geometry: { shape: 'box', size: [8,3.6,.2] }, color: '#9dabb4', position: [0,1.7,-2.0] },
     { id: 'workbench', kind: 'mesh', geometry: { shape: 'box', size: [1.05,.15,.80] }, color: '#86664c', position: [.99,.83,.35] },
     { id: 'workbench-leg', kind: 'mesh', geometry: { shape: 'box', size: [.12,.74,.12] }, color: '#5d493f', position: [1.30,.38,.51] },
-    { id: 'book', kind: 'mesh', geometry: { shape: 'box', size: [.27,.09,.22] }, color: '#4c526f', position: [.64,.98,.32] },
-    { id: 'book-label', kind: 'mesh', parent: 'book', geometry: { shape: 'box', size: [.16,.008,.1] }, color: '#d3b87a', position: [0,.051,0] },
+    { id: 'book', kind: 'mesh', geometry: { shape: 'box', size: [.36,.075,.28] }, color: '#4c526f', position: [.64,.98,.32] },
+    { id: 'book-label', kind: 'mesh', parent: 'book', geometry: { shape: 'box', size: [.22,.008,.14] }, color: '#d3b87a', position: [0,.051,0] },
     { id: 'patrick', kind: 'actor', actorPreset: 'patrick-mentalista-v1', color: '#34496d', position: [0,0,0] },
   ].map((n) => ({ ...n, contextSourceId: 's1' }));
   const track = (node: string, channel: string, values: Array<[number, [number,number,number]]>) => ({
@@ -27,8 +27,8 @@ export function patrickPilotScene() {
   const tracks = [
     track('patrick', 'headRotation', [[0,[0,.03,0]],[.35,[.17,.21,0]],[.7,[.14,.08,0]],[1,[-.05,-.08,0]]]),
     track('patrick', 'face', [[0,[.1,0,.05]],[.42,[.15,0,.06]],[.78,[.7,0,.14]],[1,[.65,0,.12]]]),
-    track('patrick', 'rightHand', [[0,[.44,1.25,.1]],[.38,[.64,1.05,.32]],[.69,[.64,1.01,.32]],[1,[.38,1.26,.2]]]),
-    track('patrick', 'leftHand', [[0,[-.38,1.20,.1]],[.6,[-.37,1.18,.21]],[1,[-.21,1.38,.18]]]),
+    track('patrick', 'rightHand', [[0,[.47,.77,.12]],[.38,[.64,1.05,.32]],[.69,[.64,1.01,.32]],[1,[.48,1.22,.24]]]),
+    track('patrick', 'leftHand', [[0,[-.43,.78,.1]],[.6,[-.42,.82,.14]],[1,[-.29,1.24,.22]]]),
     track('book', 'rotation', [[0,[0,0,0]],[.62,[0,0,0]],[.85,[0,.2,0]],[1,[0,.2,0]]]),
   ];
   const raw = {
