@@ -1,5 +1,8 @@
 import {describe,it,expect} from 'vitest';
 import {sourceBriefsFromScript,aiWorldPrompt,verifyAiWorldProposal} from './aiWorldDirector';
+import {checkSceneScript} from './sceneScript';
+import {compileCompactWorld} from './compactWorldDirector';
+import {compileSceneProgram} from '../score';
 import {COMPLEX_WORLD_QA_REQUEST} from './complexWorldBatchDemo';
 
 describe('AI-native 3D directions cannot silently return a static stock preview',()=>{
@@ -42,8 +45,44 @@ describe('AI-native 3D directions cannot silently return a static stock preview'
     sample.clips[0].worldBlueprints.objects=[sample.clips[0].worldBlueprints.objects[0]];
     expect(()=>verifyAiWorldProposal(sample,sample.clips[0].sources)).toThrow(/incompleto|objeto inexistente/);
   });
+  it('accepts one natural descriptive sentence as a single ~8 second shot',()=>{
+    const script='Um caminhão vermelho avança lentamente pela estrada e para diante de uma barreira fechada.';
+    const sources=sourceBriefsFromScript(script);
+    expect(sources).toEqual([{sourceId:'s1',text:script,duration:8}]);
+    const preflight=checkSceneScript(script);
+    expect(preflight.ok).toBe(true);
+    expect(preflight.duration).toBe(8);
+    // This is not merely UI acceptance: the actual clip compiler and
+    // camera timeline can run with a single original sentence.
+    const scene=compileCompactWorld({
+      version:1,setting:'city',background:'#A7CCDB',
+      entities:[
+        {id:'truck',name:'Caminhão vermelho',kind:'vehicle',at:[0,0,1],size:[3,2,2],color:'#D45A40'},
+        {id:'barrier',name:'Barreira fechada',kind:'cargo',at:[5,0,1],size:[.7,2,.3],color:'#E3BA50'}
+      ],
+      actions:[{target:'truck',kind:'drive',delta:[3,0,0]}]
+    },sources);
+    expect(scene.duration).toBe(8);
+    expect(scene.program.shots).toHaveLength(1);
+    const stage=compileSceneProgram(scene.program,scene.sources);
+    expect(stage.duration).toBe(8);
+  });
+  it('accepts separate lines without punctuation and matches the browser preflight',()=>{
+    const script='A moto está parada diante do portão da oficina\\nO portão sobe e libera a passagem\\nA moto acelera e sai da oficina'.replaceAll('\\n','\n');
+    const sources=sourceBriefsFromScript(script);
+    expect(sources).toHaveLength(3);
+    expect(sources.map(s=>s.sourceId)).toEqual(['s1','s2','s3']);
+    expect(sources.map(s=>s.duration)).toEqual([4,4,4]);
+    expect(checkSceneScript(script)).toMatchObject({ok:true,count:3,duration:12});
+  });
+  it('explains invalid prompts before any server/provider request',()=>{
+    expect(checkSceneScript('Crie um lovable')).toMatchObject({ok:false,count:0});
+    expect(checkSceneScript('Uma viagem longa começa na floresta. X.')).toMatchObject({ok:false});
+    const oneLong='Um celular em construção '+ 'componente '.repeat(40);
+    expect(checkSceneScript(oneLong).ok).toBe(false);
+  });
   it('rejects a vague single-line or oversized request without spending model credits',()=>{
-    expect(()=>sourceBriefsFromScript('Uma moto corre.')).toThrow(/Escreva/);
+    expect(()=>sourceBriefsFromScript('Uma moto corre.')).toThrow(/Descreva/);
     expect(()=>sourceBriefsFromScript('A'.repeat(800))).toThrow(/longo/);
   });
 });

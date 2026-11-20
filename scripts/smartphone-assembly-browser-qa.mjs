@@ -43,8 +43,17 @@ try {
   const create=page.getByRole('button',{name:/Criar cena 3D pela IA/});
   assert.equal(await create.isEnabled(),true,'Short script silently disabled generation');
   await create.click();
-  await page.getByText(/roteiro está curto para criar uma cena 3D/i).waitFor();
+  await page.getByText(/Descreva cenário e ação em pelo menos 45 caracteres/i).first().waitFor();
   assert.equal(providerRequests,0,'Short script must never spend provider credits');
+  // A natural single sentence with enough descriptive detail is now VALID.
+  // The UI must agree with the server's canonical sentence parser.
+  await page.locator('#ex-script').fill('Um caminhão vermelho avança lentamente pela estrada e para diante de uma barreira fechada.');
+  await page.getByText(/Descrição válida: será uma cena de aproximadamente 8 segundos/i).waitFor();
+  assert.equal(providerRequests,0,'Preflight of a valid single sentence cannot spend credits');
+  // A multiline storyboard without punctuation is also accepted and preserves chapters.
+  await page.locator('#ex-script').fill('A moto está parada diante do portão da oficina\nO portão sobe e libera a passagem\nA moto acelera e sai da oficina');
+  await page.getByText(/Roteiro válido: 3 etapas/i).waitFor();
+  assert.equal(providerRequests,0,'Validating line separated story must remain offline');
   await page.getByRole('button',{name:'Usar exemplo de problema e solução'}).click();
   assert.ok((await page.locator('#ex-script').inputValue()).includes('Um celular aberto'));
   assert.equal(providerRequests,0,'Example fill must be free');

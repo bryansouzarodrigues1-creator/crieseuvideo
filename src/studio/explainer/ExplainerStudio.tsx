@@ -17,6 +17,7 @@ import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
 import {prepareAi3DHandoff,saveAi3DHandoff} from './ai3dHandoff';
+import {checkSceneScript} from './sceneProgram/planner/sceneScript';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -78,6 +79,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const trackRef = useRef<AudioBuffer | null>(null);
   const micRef = useRef<MediaRecorder | null>(null);
   const voiceKey = provider === 'eleven' ? `eleven:${elevenId.trim()}` : voice;
+  const sceneScriptCheck=checkSceneScript(prepareAi3DHandoff(script,aspect,voiceOn,voice).script);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const exportingRef = useRef(false);
@@ -382,8 +384,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     if(engine==='3d' && engine3dMode==='advanced'){
       const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
       const requested=handoff.script;
-      if(requested.trim().length<45){
-        setNote('O roteiro está curto para criar uma cena 3D: escreva pelo menos 45 caracteres em duas ou três frases, mostrando o problema, a ação e o resultado. Toque em "Usar exemplo de problema e solução" para ver um modelo. Nenhum crédito foi usado.');
+      const validation=checkSceneScript(requested);
+      if(!validation.ok){
+        setNote('A cena 3D não pôde ser criada: '+validation.description+' Nenhum crédito de IA foi usado.');
         document.getElementById('ex-script')?.focus();
         return;
       }
@@ -577,11 +580,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                   onChange={e=>setAi3dConsent(e.target.checked)}/>
                 Autorizo esta tentativa. A geração pode consumir créditos mesmo se a resposta for inválida. No modo automático, até dois provedores podem ser chamados.
               </label>
-              <p className="explainer-sub">Cada geração produz 8–12 segundos, com 2–3 frases. Vídeos maiores serão compostos em etapas. Sem chamadas automáticas, sem vídeo de demonstração como substituto.</p>
+              <p className="explainer-sub">Uma descrição de pelo menos 45 caracteres gera uma cena de 8 segundos. Com 2 ou 3 frases ou linhas, são 8–12 segundos e tomadas separadas. Vídeos maiores exigem etapas. Sem chamadas automáticas ou demonstrações como substituto.</p>
               <p className="explainer-sub" role="status" aria-label="Orientação do roteiro 3D">
-                {script.trim().length<45
-                  ? `Roteiro muito curto (${script.trim().length}/45 caracteres). Descreva cenário, ação e consequência. O botão abaixo explica o requisito ao clicar, sem cobrar créditos.`
-                  : 'Roteiro com tamanho suficiente. Ao gerar, será necessário confirmar créditos e estar conectado à sua conta.'}
+                {sceneScriptCheck.description}{' '}
+                {!sceneScriptCheck.ok&&'Ajuste o texto antes de autorizar os créditos. Nenhuma chamada paga será feita enquanto o roteiro estiver inválido.'}
               </p>
               <Button size="sm" variant="outline" onClick={()=>{
                 setScript(AI3D_EXAMPLE_SCRIPT);setAi3dClip(null);setNote('Exemplo preenchido. Edite livremente e confirme os créditos apenas se quiser chamar a IA.');

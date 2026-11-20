@@ -1,5 +1,6 @@
 /** Carry the user's script into the actual advanced 3D builder, without
  * placing the script in the URL or sending it to an AI without consent. */
+import {splitSceneSentences} from './sceneProgram/planner/sceneScript';
 export const AI3D_HANDOFF_KEY = 'crieseuvideo.ai3d.handoff.v1';
 export type Ai3DHandoff = {
   script:string;
@@ -12,10 +13,12 @@ export function prepareAi3DHandoff(
   script:string,aspect:'9:16'|'16:9',wantsNarration:boolean,voice:string
 ):Ai3DHandoff {
   const clean=script.trim();
-  // AI3D currently accepts two or three sentences and at most 750 characters.
-  // Never silently lose the user's full text: its length is shown in the target UI.
-  const sentences=(clean.match(/[^.!?…]+[.!?…]?/g)||[]).map(s=>s.trim()).filter(Boolean);
-  const chosen=sentences.slice(0,Math.min(sentences.length,3)).join(' ');
+  // The SAME sentence parser is used for the editor and protected server.
+  // Preserve the original separators when 1–3 beats are within 750 characters,
+  // including newline-separated descriptions with no final punctuation.
+  const sentences=splitSceneSentences(clean);
+  const chosen=sentences.length<=3&&clean.length<=750
+    ?clean:sentences.slice(0,3).join(' ');
   const candidate=chosen.length<=750?chosen:sentences.slice(0,2).join(' ');
   return {
     script:candidate.length<=750?candidate:clean.slice(0,750),
