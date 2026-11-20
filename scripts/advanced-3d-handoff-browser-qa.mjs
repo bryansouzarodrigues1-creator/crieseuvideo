@@ -20,6 +20,32 @@ try {
  await advanced.waitFor({timeout:60000});
  assert.equal(await advanced.getAttribute('aria-pressed'),'true');
  await page.getByRole('heading',{name:'Cenário 3D criado pelo Gemini ou Lovable'}).waitFor();
+ // Account action must be accessible BEFORE an unsuccessful paid generation.
+ // Do not click it in CI: Google OAuth is an external user interaction.
+ const login=page.getByRole('button',{name:'Entrar com Google para gerar 3D'});
+ await login.waitFor({timeout:15000});
+ const alternate=page.getByRole('button',{name:'Não aparece uma conta? Entrar por e-mail'});
+ await alternate.click();
+ await page.getByRole('group',{name:'Login sem Google'}).waitFor();
+ await page.getByLabel('Seu e-mail').fill('nao-e-email');
+ await page.getByRole('button',{name:'Enviar link para entrar'}).click();
+ await page.getByText(/Informe um e-mail válido/).waitFor();
+ assert.equal(providerCalls,0,'Invalid email must not trigger paid generation');
+ await page.getByRole('button',{name:'Fechar login por e-mail'}).click();
+ assert.equal(providerCalls,0,'Checking auth status must not invoke the AI');
+ // A full-page Google return may reload the studio; preserve only the draft,
+ // not consent or credentials, and consume the draft after restoring it.
+ const redirectDraft='Uma bateria descarregada impede o celular de ligar na bancada. Uma bateria nova encaixa e a tela acende mostrando a solução.';
+ await page.evaluate((draft)=>sessionStorage.setItem('crieseuvideo.ai3d.login-draft.v1',
+   JSON.stringify({script:draft,aspect:'16:9',provider:'gemini'})),redirectDraft);
+ await page.reload({waitUntil:'domcontentloaded'});
+ await page.getByRole('button',{name:'3D Avançado (IA)'}).waitFor();
+ await page.waitForFunction((draft)=>document.querySelector('#ex-script')?.value===draft,redirectDraft,{timeout:20000});
+ assert.equal(await page.evaluate(()=>sessionStorage.getItem('crieseuvideo.ai3d.login-draft.v1')),null,
+   'Login draft must be removed once restored');
+ assert.equal(await page.getByRole('checkbox').isChecked(),false,
+   'A login return must NEVER preserve authorization to spend credits');
+ assert.equal(providerCalls,0,'Draft return must not pay for generation');
  const script='Um guindaste ergue uma carga de cimento sobre um canteiro urbano completo. O operador aciona os freios do motor e a carga para acima da plataforma.';
  await page.locator('#ex-script').fill(script);
  await page.getByRole('button',{name:'Horizontal 16:9'}).click();
