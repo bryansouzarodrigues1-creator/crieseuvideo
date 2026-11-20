@@ -1,0 +1,22 @@
+{
+  "source": "Gemini 3.6 Flash API",
+  "captureRun": 44758136409,
+  "captureCommit": "3ee13fc62a7357332c3d8eec058ab01cc50bd765",
+  "originalCharacters": 18553,
+  "originalSha256": "2caca25ada290489f373b7ae46f1e30adb4a89bc0ab7b2ed003c1e30936b5a80",
+  "reviewedSha256": "715463a27cead689fa79d829bb91e811e74ffe5865eec6ba6fde140eb212b554",
+  "apiRequestsInCapture": 1,
+  "apiRequestsInReview": 0,
+  "review": "Manual code review by Codex; not an autonomous unmodified model success",
+  "repairs": [
+    "Correct misspelled geometry and constructor reference",
+    "Seed procedural scenery",
+    "Resolve truck target with its real world transform",
+    "Keep hook below the trolley and derive slewing/trolley targets from the load path",
+    "Keep container on the ground before pickup and on the actual truck bed after release",
+    "Update cable visibility/bounds and review camera framing"
+  ],
+  "durationSeconds": 10,
+  "narration": false,
+  "productionAuthVerified": false
+}

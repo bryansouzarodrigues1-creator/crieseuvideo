@@ -18,6 +18,8 @@ export const CODE3D_MIN_SCRIPT_CHARS = 20;
 export const CODE3D_REQUEST_TIMEOUT_MS = 300_000;
 
 export type Code3DAspect = '9:16' | '16:9';
+export const CODE3D_MODELS = ['configured', 'gemini-3.6-flash', 'gemini-3.8-flash'] as const;
+export type Code3DModelChoice = typeof CODE3D_MODELS[number];
 export const code3dSize = (aspect: Code3DAspect) =>
   aspect === '16:9' ? { width: 768, height: 432 } : { width: 432, height: 768 };
 
@@ -60,6 +62,8 @@ QUALIDADE ESPERADA
 - Planeje os acontecimentos em ordem: situação inicial, antecipação, ação e resultado. Mostre a consequência de cada ação antes da próxima. Não use um apresentador diante de uma tela para substituir o acontecimento.
 - Objetos em contato devem compartilhar a mesma hierarquia ou o mesmo alvo calculado: a carga fica no gancho, o cabo acompanha o gancho, e a carga só se solta ao tocar o apoio. Não mova a carga isoladamente para imitar um içamento.
 - Não use APIs antigas de Three.js (Geometry, Face3, renderer.outputEncoding). Use BufferGeometry e renderer.outputColorSpace = THREE.SRGBColorSpace quando necessário.
+- Use nomes exatos de classes Three.js e diferencie classe de instância: const Forma = THREE.TorusGeometry; new Forma(...). Não use uma instância como construtor nem expressões do tipo new Classe || OutraClasse.
+- Calcule pontos de contato no mesmo referencial. Atualize matrizes antes de converter um ponto local em mundial. Preserve a posição inicial até o contato e derive o ponto final do apoio real, sem trocar a carga por coordenadas desconectadas na hora de soltar.
 
 RESPOSTA: apenas um bloco \`\`\`javascript com o programa completo. Sem explicações.
 

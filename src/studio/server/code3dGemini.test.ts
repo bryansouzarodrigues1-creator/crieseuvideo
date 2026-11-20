@@ -24,6 +24,19 @@ describe('Code 3D provider boundary (no paid calls)', () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it('honors the explicitly selected Gemini model without a fallback', async () => {
+    const fetch = vi.fn(async (_url: unknown) => reply([{ text: code }])); vi.stubGlobal('fetch', fetch);
+    expect(await generateCode3DWithGemini('Uma cena de guindaste', '9:16', 'gemini-3.6-flash')).toMatchObject({ ok: true, model: 'gemini-3.6-flash' });
+    expect(String(fetch.mock.calls[0][0])).toContain('/gemini-3.6-flash:generateContent');
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('rejects arbitrary browser-supplied model names before any request', async () => {
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    expect(await generateCode3DWithGemini('Uma cena de guindaste', '9:16', 'unexpected-model' as never)).toMatchObject({ ok: false, failure: 'invalid_request' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each(['gemini-3.8-flash', 'gemini-2.5-flash'])('uses only thinking settings supported by %s', async model => {
     vi.stubEnv('GEMINI_CODE3D_MODEL', model);
     let body: any;

@@ -12,6 +12,8 @@ After a real request exceeded 150 seconds, the experimental code route now allow
 
 An explicit authenticated generation click makes one server-side request to Gemini. The model comes from `GEMINI_CODE3D_MODEL`, then `GEMINI_AI_MODEL`, then `gemini-3.8-flash`. No hidden retry, repair, provider substitution or automatic generation. Syntax parsing with Acorn does not execute code. Missing key, HTTP refusal, quota and truncation are separate failures. Keys are never sent to the browser.
 
+The user can explicitly select Gemini 3.6 Flash, Gemini 3.8 Flash, or the configured server model. The experimental UI starts with 3.6 after that model returned an actual program in about 35 seconds; 3.8 exceeded both controlled deadlines. Changing the selection does not call an API. The server accepts only those named choices, preserves the configured path for older clients and never switches models automatically.
+
 The user may save a returned program as `.js`, edit it externally and explicitly reopen it without login or another model request. Imported code receives the same syntax check, iframe execution, replay check and export rules. It is identified as imported; it is never labelled a new Gemini generation. HTML documents do not meet this contract and are rejected.
 
 ## Execution and lifecycle
@@ -32,3 +34,5 @@ The shared fixed-frame encoder requests each bitmap at `n/24` seconds. It writes
 Run `bun run test`, `bunx tsc --noEmit`, `bun run build`, then start Vite on port 4198 and run `bun scripts/code3d-browser-qa.mjs` with Playwright/Chromium installed. The existing unified workflow performs these checks and retains `tmp/unified-3d-qa/code3d/`.
 
 The browser script imports `scripts/fixtures/code3d-crane.js`, a **hand-authored technical fixture**. It checks actual WebGL pixels, replay, isolation, cancellation, malformed/divergent code, recovery, aspect replacement and a full 8-second export. Its output is not evidence of live authenticated Gemini generation and is not an approved final video.
+
+The captured Gemini 3.6 response is retained separately as `code3d-gemini36-crane.original.js`. It failed at an invalid geometry constructor and also contained incorrect contact coordinates. `code3d-gemini36-crane.reviewed.js` is a **manual review**, with changes listed in its provenance JSON. Its replay uses no model request and must be described as model-generated code with manual corrections, not as an untouched autonomous success. `CODE3D_QA_SOURCE_NOTE` and `CODE3D_QA_VIDEO_TAG` keep that provenance in browser evidence and filenames.

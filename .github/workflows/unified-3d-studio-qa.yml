@@ -46,6 +46,12 @@ jobs:
         run: bun scripts/smartphone-assembly-browser-qa.mjs
       - name: Verify isolated Code 3D execution, cancellation and actual video export
         run: bun scripts/code3d-browser-qa.mjs
+      - name: Replay the captured Gemini 3.6 program after documented manual review (no API)
+        env:
+          CODE3D_QA_SCENE: scripts/fixtures/code3d-gemini36-crane.reviewed.js
+          CODE3D_QA_VIDEO_TAG: gemini-revisado
+          CODE3D_QA_SOURCE_NOTE: Captured Gemini 3.6 API program with documented manual geometry, contact and camera corrections; no new inference.
+        run: bun scripts/code3d-browser-qa.mjs
       - name: Upload screenshots and report
         if: always()
         uses: actions/upload-artifact@v4

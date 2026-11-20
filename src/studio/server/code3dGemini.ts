@@ -1,7 +1,7 @@
 // Server-only: one Gemini call that returns a Three.js program (EXPERIMENTAL).
 // No fallback provider, no retries, no repair calls. Keys stay on the server
 // and are never logged; provider response bodies are never logged or returned.
-import { CODE3D_REQUEST_TIMEOUT_MS, code3dPrompt, extractCode, type Code3DAspect } from '../code3d/contract';
+import { CODE3D_MODELS, CODE3D_REQUEST_TIMEOUT_MS, code3dPrompt, extractCode, type Code3DAspect, type Code3DModelChoice } from '../code3d/contract';
 
 export type Code3DFailure =
   | 'not_configured' | 'unauthorized' | 'forbidden' | 'quota' | 'model_unavailable'
@@ -30,8 +30,8 @@ export const code3dFailureText: Record<Code3DFailure, string> = {
   contract_error: 'o código gerado não segue o contrato',
 };
 
-export const code3dModel = () =>
-  process.env.GEMINI_CODE3D_MODEL || process.env.GEMINI_AI_MODEL || 'gemini-3.8-flash';
+export const code3dModel = (choice: Code3DModelChoice = 'configured') =>
+  choice !== 'configured' ? choice : process.env.GEMINI_CODE3D_MODEL || process.env.GEMINI_AI_MODEL || 'gemini-3.8-flash';
 
 const statusFailure = (s: number): Code3DFailure =>
   s === 400 || s === 422 ? 'invalid_request' : s === 401 ? 'unauthorized' : s === 402 ? 'billing_required'
@@ -46,12 +46,13 @@ export type Code3DResult =
   | { ok: false; failure: Code3DFailure; model: string; message: string };
 
 /** Exactly one HTTP request per invocation (or zero when the key is missing). */
-export async function generateCode3DWithGemini(script: string, aspect: Code3DAspect): Promise<Code3DResult> {
-  const model = code3dModel();
+export async function generateCode3DWithGemini(script: string, aspect: Code3DAspect, choice: Code3DModelChoice = 'configured'): Promise<Code3DResult> {
+  const model = code3dModel(CODE3D_MODELS.includes(choice) ? choice : 'configured');
   const fail = (failure: Code3DFailure, detail?: string): Code3DResult =>
     ({ ok: false, failure, model, message: code3dFailureText[failure] + (detail ? `: ${detail}` : '') });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return fail('not_configured');
+  if (!CODE3D_MODELS.includes(choice)) return fail('invalid_request', 'modelo não permitido');
   if (!/^[a-zA-Z0-9._-]{1,80}$/.test(model)) return fail('invalid_request', 'nome de modelo inválido');
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CODE3D_REQUEST_TIMEOUT_MS);

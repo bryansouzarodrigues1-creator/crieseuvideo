@@ -6,7 +6,7 @@ import { lovable } from '@/integrations/lovable';
 import { generateCode3D } from '../code3d.functions';
 import {
   CODE3D_DEFAULT_DURATION, CODE3D_MAX_CODE_CHARS, CODE3D_MAX_DURATION, CODE3D_MAX_SCRIPT_CHARS,
-  CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, type Code3DAspect,
+  CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, type Code3DAspect, type Code3DModelChoice,
 } from '../code3d/contract';
 import { SANDBOX_ATTRIBUTE, buildSandboxSrcdoc, randomHex, readSandboxMessage } from '../code3d/sandbox';
 import { FrameRequests } from '../code3d/frameRequests';
@@ -23,6 +23,7 @@ type Generated = { code: string; model: string; warnings: string[]; source: 'gem
 export default function Code3DStudio() {
   const [script, setScript] = useState(SAMPLE);
   const [aspect, setAspect] = useState<Code3DAspect>('9:16');
+  const [modelChoice, setModelChoice] = useState<Code3DModelChoice>('gemini-3.6-flash');
   const [userId, setUserId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
@@ -177,7 +178,7 @@ export default function Code3DStudio() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
-      const r = await send({ data: { script, aspect }, headers: { Authorization: `Bearer ${session.access_token}` } });
+      const r = await send({ data: { script, aspect, model: modelChoice }, headers: { Authorization: `Bearer ${session.access_token}` } });
       if (r.model) setLastModel(r.model);
       if (!r.ok) { setPhase('error'); setError(r.message); return; }
       setResult({ code: r.code, model: r.model, warnings: r.warnings, source: 'gemini' });
@@ -266,6 +267,12 @@ export default function Code3DStudio() {
           <button type="button" disabled={busy} onClick={() => setAspect((a) => (a === '9:16' ? '16:9' : '9:16'))}>
             Formato: {aspect === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}
           </button>
+          <label htmlFor="code3d-model">Modelo Gemini</label>
+          <select id="code3d-model" value={modelChoice} disabled={busy} onChange={e => setModelChoice(e.target.value as Code3DModelChoice)}>
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+            <option value="configured">Modelo configurado no servidor</option>
+          </select>
           <p className="native-3d-small" role="note">Cada clique faz uma única chamada ao Gemini e pode usar sua cota, mesmo se o código falhar. Não há nova tentativa automática nem outra IA no lugar.</p>
           <label className="native-3d-small" htmlFor="code3d-import">Reabrir uma cena salva (.js), sem nova geração</label>
           <input id="code3d-import" type="file" accept=".js,.txt,text/javascript,text/plain" disabled={busy}
