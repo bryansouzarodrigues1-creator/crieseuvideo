@@ -17,7 +17,6 @@ const FPS=24;
 export default function Ai3DStudio(){
   const [script,setScript]=useState(SAMPLE);
   const [provider,setProvider]=useState<AiWorldProvider>('auto');
-  const [consent,setConsent]=useState(false);
   const [userId,setUserId]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [clip,setClip]=useState<ComplexWorldClip|null>(null);
@@ -140,7 +139,7 @@ export default function Ai3DStudio(){
     }catch(e){setError(e instanceof Error?e.message:'Não foi possível entrar.');}
   };
   const generate=async()=>{
-    if(busy||busyExportRef.current||!userId||!consent)return;
+    if(busy||busyExportRef.current||!userId)return;
     setError('');setPlaying(false);setBusy(true);
     try{
       // The protected server function expects an Authorization Bearer header.
@@ -212,14 +211,11 @@ export default function Ai3DStudio(){
           <option value="gemini">Gemini direto</option>
           <option value="lovable">IA do Lovable</option>
         </select>
-        <label className="ai3d-consent">
-          <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>
-          Concordo em fazer uma chamada que pode consumir créditos/cotas de IA.
-        </label>
+        <p className="native-3d-small" role="note">Ao clicar em Gerar cena 3D, você solicita uma geração que pode consumir créditos mesmo que falhe. No modo Automático, até dois provedores podem ser consultados.</p>
         {userId?
-          <button type="button" className="ai3d-generate" disabled={busy||!consent||!!exportProgress} onClick={()=>void generate()}>
+          <button type="button" className="ai3d-generate" disabled={busy||!!exportProgress} onClick={()=>void generate()}>
             {busy?<Loader2 size={18}/>:<Sparkles size={18}/>}
-            {busy?'Planejando objetos, cenário e movimento…':'Gerar cena 3D pela IA'}
+            {busy?'Planejando objetos, cenário e movimento…':'Gerar cena 3D pela IA (pode usar créditos)'}
           </button>:
           <div className="ai3d-signin">
             <p>Faça login para gerar; a API não pode ser chamada anonimamente.</p>
