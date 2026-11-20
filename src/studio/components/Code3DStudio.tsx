@@ -273,7 +273,7 @@ export default function Code3DStudio() {
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE3D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
-              {phase === 'generating' ? 'Gemini escrevendo o código… (até 2 min 30 s)' : 'Gerar código 3D com Gemini'}
+              {phase === 'generating' ? 'Gemini escrevendo o código… (até 5 min)' : 'Gerar código 3D com Gemini'}
             </button>
           ) : (
             <div className="ai3d-signin">

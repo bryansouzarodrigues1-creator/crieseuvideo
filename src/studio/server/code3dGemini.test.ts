@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateCode3DWithGemini } from './code3dGemini';
 import { checkGeneratedCode } from '../code3d/validation';
-import { CODE3D_MAX_CODE_CHARS, validDuration } from '../code3d/contract';
+import { CODE3D_MAX_CODE_CHARS, CODE3D_REQUEST_TIMEOUT_MS, validDuration } from '../code3d/contract';
 import { readSandboxMessage } from '../code3d/sandbox';
 
 const code = 'function createScene(){return {duration:8,renderAt(t){},dispose(){}}}';
 const reply = (parts: unknown, finishReason = 'STOP') => Response.json({ candidates: [{ finishReason, content: { parts } }] });
 beforeEach(() => { vi.stubEnv('GEMINI_API_KEY', 'test-key-never-real'); vi.stubEnv('GEMINI_CODE3D_MODEL', 'test-model'); });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('Code 3D provider boundary (no paid calls)', () => {
   it('does not contact a provider without a configured key', async () => {
@@ -22,6 +22,33 @@ describe('Code 3D provider boundary (no paid calls)', () => {
     vi.stubGlobal('fetch', fetch);
     expect(await generateCode3DWithGemini('Uma cena de guindaste', '9:16')).toMatchObject({ ok: true, code, model: 'test-model' });
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each(['gemini-3.8-flash', 'gemini-2.5-flash'])('uses only thinking settings supported by %s', async model => {
+    vi.stubEnv('GEMINI_CODE3D_MODEL', model);
+    let body: any;
+    vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
+      body = JSON.parse(String(init.body)); return reply([{ text: code }]);
+    }));
+    expect(await generateCode3DWithGemini('Uma cena de guindaste', '9:16')).toMatchObject({ ok: true });
+    expect(body.generationConfig.maxOutputTokens).toBe(32768);
+    expect(body.generationConfig.thinkingConfig).toEqual(model.startsWith('gemini-3') ? { thinkingLevel: 'low' } : undefined);
+  });
+
+  it.each(['headers', 'body'])('aborts a long generation during %s with exactly one request and no retry', async phase => {
+    vi.useFakeTimers(); vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetch = vi.fn((_url: unknown, init: RequestInit) => {
+      const pending = () => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+      });
+      return phase === 'body' ? Promise.resolve({ ok: true, json: pending }) : pending();
+    });
+    vi.stubGlobal('fetch', fetch);
+    const result = generateCode3DWithGemini('Uma cena de guindaste', '9:16');
+    await vi.advanceTimersByTimeAsync(CODE3D_REQUEST_TIMEOUT_MS);
+    expect(await result).toMatchObject({ ok: false, failure: 'timeout' });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it.each([[400, 'invalid_request'], [401, 'unauthorized'], [403, 'forbidden'], [404, 'model_unavailable'], [429, 'quota'], [503, 'service_unavailable']])(
