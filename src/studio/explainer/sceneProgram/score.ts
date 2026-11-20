@@ -16,6 +16,7 @@ export interface ProgramNode {
   id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId;
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
   /** Optional top-level static terrain that supports the actor's root while moving. */ groundTo?: string;
+  /** Reviewed local outfit/identity; not arbitrary asset URLs. */ actorPreset?: 'patrick-mentalista-v1';
   geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number; /** id of a static terrain node: instances snap to its surface. */ ground?: string; /** with ground: instances below this height (metres) above the terrain base are skipped (lakes, shores). */ above?: number };
   material?: { roughness: number; metalness: number; opacity: number; emissive: string; emissiveIntensity: number };
 }
@@ -61,7 +62,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   const fullText = sources.map((s) => s.text).join(' ');
   let vertexBudget = 0;
   const nodes = list(r.nodes, 160).map((value): ProgramNode => {
-    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId', 'groundTo']);
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId', 'groundTo', 'actorPreset']);
     if (!['group', 'mesh', 'actor', 'model'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
     const assetId = n.kind === 'model' ? n.assetId as ApprovedModelId : undefined;
     if (n.kind === 'model' && !approvedModel(assetId)) fail('O modelo externo solicitado não está no catálogo autorizado do projeto.');
@@ -155,10 +156,12 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry?.shape === 'extrude' ? geometry.contour!.length * 12 : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
     if (n.groundTo !== undefined && n.kind !== 'actor') fail('Somente um personagem pode seguir o terreno.');
+    if (n.actorPreset !== undefined && (n.kind !== 'actor' || n.actorPreset !== 'patrick-mentalista-v1')) fail('A identidade visual do personagem não está no catálogo local aprovado.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
       position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
-      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}), ...(n.groundTo !== undefined ? { groundTo: identifier(n.groundTo) } : {}) };
+      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}), ...(n.groundTo !== undefined ? { groundTo: identifier(n.groundTo) } : {}),
+      ...(n.actorPreset === 'patrick-mentalista-v1' ? { actorPreset: n.actorPreset } : {}) };
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');
