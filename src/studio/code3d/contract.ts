@@ -15,17 +15,19 @@ export const CODE3D_DEFAULT_DURATION = 10;
 export const CODE3D_MAX_CODE_CHARS = 80_000;
 export const CODE3D_MAX_SCRIPT_CHARS = 1_200;
 export const CODE3D_MIN_SCRIPT_CHARS = 20;
+export const CODE3D_REQUEST_TIMEOUT_MS = 300_000;
 
 export type Code3DAspect = '9:16' | '16:9';
+export const CODE3D_MODELS = ['configured', 'gemini-3.6-flash', 'gemini-3.8-flash'] as const;
+export type Code3DModelChoice = typeof CODE3D_MODELS[number];
 export const code3dSize = (aspect: Code3DAspect) =>
   aspect === '16:9' ? { width: 768, height: 432 } : { width: 432, height: 768 };
 
 /** A duration outside 8–12 s is a contract violation, not something to guess. */
 export function validDuration(value: unknown): number | null {
-  if (value === undefined || value === null) return CODE3D_DEFAULT_DURATION;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < CODE3D_MIN_DURATION || n > CODE3D_MAX_DURATION) return null;
-  return n;
+  if (value === undefined) return CODE3D_DEFAULT_DURATION;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < CODE3D_MIN_DURATION || value > CODE3D_MAX_DURATION) return null;
+  return value;
 }
 
 /** Pull the program out of a model answer (```js fences or bare code). */
@@ -57,6 +59,14 @@ QUALIDADE ESPERADA
 - Materiais variados (MeshStandardMaterial/MeshPhysicalMaterial, cores, rugosidade), iluminação com luz-chave, preenchimento e sombras, céu/neblina.
 - Movimentos mecânicos plausíveis (articulações, cabos, rodas girando de acordo com o deslocamento) e câmera cinematográfica com movimentos suaves e 2 a 4 enquadramentos que acompanham a ação.
 - Use easing (ex.: smoothstep) entre etapas da ação. Código até ~60 KB. Mantenha abaixo de ~1500 malhas.
+- Planeje os acontecimentos em ordem: situação inicial, antecipação, ação e resultado. Mostre a consequência de cada ação antes da próxima. Não use um apresentador diante de uma tela para substituir o acontecimento.
+- Defina 2 a 4 planos com intervalos explícitos e comentários curtos de ação/câmera. Faça cada verbo principal do roteiro acontecer na imagem, na ordem pedida; mantenha os mesmos objetos e personagens entre os cortes. Um movimento de câmera não substitui a ação.
+- Para personagens, reutilize um rig com tronco, cabeça e juntas dos membros. Coordene olhar, postura, antecipação e reação com a intenção da ação. Quando a mão ou o pé precisar tocar algo, use o ponto de contato como alvo em vez de oscilações independentes dos membros.
+- Objetos em contato devem compartilhar a mesma hierarquia ou o mesmo alvo calculado: a carga fica no gancho, o cabo acompanha o gancho, e a carga só se solta ao tocar o apoio. Não mova a carga isoladamente para imitar um içamento.
+- Calcule a pose e a posição de soltura a partir do instante fixo do evento, inclusive quando renderAt recebe diretamente um instante posterior. Não memorize o ponto de soltura durante um quadro anterior. Para IK de dois segmentos, trate alvo coincidente, distância fora do alcance e polo colinear antes de dividir ou normalizar vetores.
+- Não use APIs antigas de Three.js (Geometry, Face3, renderer.outputEncoding). Use BufferGeometry e renderer.outputColorSpace = THREE.SRGBColorSpace quando necessário.
+- Use nomes exatos de classes Three.js e diferencie classe de instância: const Forma = THREE.TorusGeometry; new Forma(...). Não use uma instância como construtor nem expressões do tipo new Classe || OutraClasse.
+- Calcule pontos de contato no mesmo referencial. Atualize matrizes antes de converter um ponto local em mundial. Preserve a posição inicial até o contato e derive o ponto final do apoio real, sem trocar a carga por coordenadas desconectadas na hora de soltar.
 
 RESPOSTA: apenas um bloco \`\`\`javascript com o programa completo. Sem explicações.
 

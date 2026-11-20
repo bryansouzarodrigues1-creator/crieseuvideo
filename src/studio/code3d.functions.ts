@@ -2,11 +2,12 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { cooldownSecondsRemaining, ai3dCooldownMessage } from './ai3dCooldown';
-import { CODE3D_MAX_SCRIPT_CHARS, CODE3D_MIN_SCRIPT_CHARS } from './code3d/contract';
+import { CODE3D_MAX_SCRIPT_CHARS, CODE3D_MIN_SCRIPT_CHARS, CODE3D_MODELS } from './code3d/contract';
 
 const input = z.object({
   script: z.string().trim().min(CODE3D_MIN_SCRIPT_CHARS).max(CODE3D_MAX_SCRIPT_CHARS),
   aspect: z.enum(['9:16', '16:9']),
+  model: z.enum(CODE3D_MODELS).default('configured'),
 }).strict();
 
 // Signed-in users only; one Gemini call per click; separate window from the JSON 3D mode.
@@ -26,7 +27,7 @@ export const generateCode3D = createServerFn({ method: 'POST' })
     lastRequest.set(userId, now);
     try {
       const { generateCode3DWithGemini } = await import('./server/code3dGemini');
-      return await generateCode3DWithGemini(data.script, data.aspect);
+      return await generateCode3DWithGemini(data.script, data.aspect, data.model);
     } finally {
       inFlight.delete(userId);
       if (lastRequest.size > 2000) lastRequest.clear();

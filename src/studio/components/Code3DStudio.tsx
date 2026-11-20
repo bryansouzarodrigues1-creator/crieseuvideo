@@ -6,9 +6,10 @@ import { lovable } from '@/integrations/lovable';
 import { generateCode3D } from '../code3d.functions';
 import {
   CODE3D_DEFAULT_DURATION, CODE3D_MAX_CODE_CHARS, CODE3D_MAX_DURATION, CODE3D_MAX_SCRIPT_CHARS,
-  CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, type Code3DAspect,
+  CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, type Code3DAspect, type Code3DModelChoice,
 } from '../code3d/contract';
 import { SANDBOX_ATTRIBUTE, buildSandboxSrcdoc, randomHex, readSandboxMessage } from '../code3d/sandbox';
+import { FrameRequests } from '../code3d/frameRequests';
 
 const SAMPLE = 'Um guindaste amarelo levanta um contêiner na obra, gira a lança e posiciona o contêiner no caminhão. A câmera acompanha cabos, rodas, edifícios e operários no fundo.';
 const STAGE_TEXT: Record<string, string> = {
@@ -16,12 +17,13 @@ const STAGE_TEXT: Record<string, string> = {
   syntax: 'erro de sintaxe/carregamento no código gerado', contract: 'o código não segue o contrato',
   runtime: 'erro durante a execução do código gerado',
 };
-type Phase = 'idle' | 'generating' | 'loading' | 'ready' | 'error';
-type Generated = { code: string; model: string; warnings: string[] };
+type Phase = 'idle' | 'generating' | 'importing' | 'loading' | 'ready' | 'error';
+type Generated = { code: string; model: string; warnings: string[]; source: 'gemini' | 'imported' };
 
 export default function Code3DStudio() {
   const [script, setScript] = useState(SAMPLE);
   const [aspect, setAspect] = useState<Code3DAspect>('9:16');
+  const [modelChoice, setModelChoice] = useState<Code3DModelChoice>('gemini-3.6-flash');
   const [userId, setUserId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
@@ -40,8 +42,6 @@ export default function Code3DStudio() {
   const playingRef = useRef(false);
   const exportingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  const frameWaiters = useRef(new Map<number, (b: ImageBitmap) => void>());
-  const seqRef = useRef(0);
   const size = code3dSize(aspect);
 
   // New token + nonce for every program load; srcdoc never contains the code or any key.
@@ -71,6 +71,12 @@ export default function Code3DStudio() {
     // Opaque-origin iframe: '*' is the only valid target. Nothing secret is sent.
     frameRef.current?.contentWindow?.postMessage({ ...m, token: tokenRef.current }, '*');
   }, []);
+  const frames = useMemo(() => new FrameRequests(post), [post]);
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    frames.cancel('O player foi fechado.');
+  }, [frames]);
 
   // Message bridge + watchdog for each sandbox load.
   useEffect(() => {
@@ -78,41 +84,63 @@ export default function Code3DStudio() {
     tokenRef.current = sandbox.token;
     setPhase('loading'); setReplay(null); setPlaying(false); playingRef.current = false;
     timeRef.current = 0; setTime(0);
-    let ready = false;
+    let ready = false, active = true, booted = false;
+    const frameWindow = frameRef.current?.contentWindow;
     const watchdog = window.setTimeout(() => {
       if (ready) return;
+      active = false;
       setPhase('error');
       setError('A cena não respondeu em 25 s (laço infinito ou cena pesada demais). A caixa isolada foi descartada.');
       if (frameRef.current) frameRef.current.srcdoc = '';
+      frames.cancel('A cena não respondeu.');
     }, 25_000);
     const onMessage = async (ev: MessageEvent) => {
-      const m = readSandboxMessage(ev, frameRef.current?.contentWindow, sandbox.token);
+      const m = readSandboxMessage(ev, frameWindow, sandbox.token);
       if (!m) return;
+      if (!active) { if (m.type === 'frame') m.bitmap.close(); return; }
       if (m.type === 'boot') {
+        if (booted) return;
+        booted = true;
         try {
           const { threeSources } = await import('../code3d/threeSources');
-          post({ type: 'init', core: threeSources.core, module: threeSources.module, code: result.code, width: size.width, height: size.height });
+          if (!active) return;
+          // Bind init to this exact load; an old async import cannot initialize a new iframe.
+          frameWindow?.postMessage({ type: 'init', token: sandbox.token, core: threeSources.core, module: threeSources.module, code: result.code, width: size.width, height: size.height }, '*');
         } catch {
+          if (!active) return;
+          ready = true; window.clearTimeout(watchdog);
           setPhase('error'); setError('Não foi possível carregar a cópia fixa do three.js.');
         }
       } else if (m.type === 'ready') {
         ready = true; window.clearTimeout(watchdog);
-        setDuration(m.duration); setReplay({ deterministic: m.deterministic, maxDiff: m.maxDiff });
-        setPhase('ready');
+        setReplay({ deterministic: m.deterministic, maxDiff: m.maxDiff });
+        if (!m.deterministic || m.maxDiff > 3) {
+          setPhase('error'); setError('A cena não repetiu os mesmos quadros ao voltar no tempo. Revise o código antes de exportar.');
+          return;
+        }
+        setDuration(m.duration); setPhase('ready');
       } else if (m.type === 'error') {
         ready = true; window.clearTimeout(watchdog);
         setPlaying(false); playingRef.current = false;
         setPhase('error');
         setError(`${STAGE_TEXT[m.stage]}: ${m.message}`);
-        frameWaiters.current.clear();
+        frames.cancel('O código da cena falhou.');
       } else if (m.type === 'frame') {
-        const w = frameWaiters.current.get(m.seq);
-        if (w) { frameWaiters.current.delete(m.seq); w(m.bitmap); } else m.bitmap.close();
+        if (m.bitmap.width !== size.width || m.bitmap.height !== size.height) {
+          m.bitmap.close(); frames.cancel('O quadro recebido tem tamanho diferente da cena.');
+        } else frames.receive(m.seq, m.bitmap);
       }
     };
     window.addEventListener('message', onMessage);
-    return () => { window.clearTimeout(watchdog); window.removeEventListener('message', onMessage); };
-  }, [sandbox, result, post, size.width, size.height]);
+    // Recover when the iframe's initial boot message preceded the React effect.
+    frameWindow?.postMessage({ type: 'hello', token: sandbox.token }, '*');
+    return () => {
+      active = false;
+      window.clearTimeout(watchdog); window.removeEventListener('message', onMessage);
+      frameWindow?.postMessage({ type: 'dispose', token: sandbox.token }, '*');
+      frames.cancel('A cena foi substituída.');
+    };
+  }, [sandbox, result, frames, size.width, size.height]);
 
   // Playback clock lives in the app; the sandbox only answers renderAt(t).
   useEffect(() => { playingRef.current = playing; }, [playing]);
@@ -145,30 +173,52 @@ export default function Code3DStudio() {
   };
 
   const generate = async () => {
-    if (phase === 'generating' || exportingRef.current || !userId) return;
+    if (phase === 'generating' || phase === 'importing' || phase === 'loading' || exportingRef.current || !userId) return;
     setError(''); setPlaying(false); setPhase('generating');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
-      const r = await send({ data: { script, aspect }, headers: { Authorization: `Bearer ${session.access_token}` } });
+      const r = await send({ data: { script, aspect, model: modelChoice }, headers: { Authorization: `Bearer ${session.access_token}` } });
       if (r.model) setLastModel(r.model);
       if (!r.ok) { setPhase('error'); setError(r.message); return; }
-      setResult({ code: r.code, model: r.model, warnings: r.warnings });
+      setResult({ code: r.code, model: r.model, warnings: r.warnings, source: 'gemini' });
     } catch (e) {
       setPhase('error');
       setError('Falha ao pedir o código: ' + (e instanceof Error ? e.message : String(e)));
     }
   };
 
-  const requestFrame = (t: number) => new Promise<ImageBitmap>((resolve, reject) => {
-    const seq = ++seqRef.current;
-    const timer = window.setTimeout(() => { frameWaiters.current.delete(seq); reject(new Error('A cena parou de responder durante a exportação.')); }, 10_000);
-    frameWaiters.current.set(seq, (b) => { window.clearTimeout(timer); resolve(b); });
-    post({ type: 'frame', t, seq });
-  });
+  const importCode = async (file: File) => {
+    if (phase === 'generating' || phase === 'importing' || phase === 'loading' || exportingRef.current) return;
+    setError(''); setPlaying(false); setPhase('importing');
+    try {
+      if (file.size > CODE3D_MAX_CODE_CHARS * 4) throw new Error('O arquivo é grande demais para uma cena.');
+      const text = await file.text();
+      if (text.length > CODE3D_MAX_CODE_CHARS) throw new Error('O código excede 80 mil caracteres.');
+      const { extractCode } = await import('../code3d/contract');
+      const code = extractCode(text);
+      if (!code) throw new Error('Use um arquivo JavaScript com a função createScene.');
+      const { checkGeneratedCode } = await import('../code3d/validation');
+      const checked = checkGeneratedCode(code);
+      if (!checked.ok) throw new Error(checked.detail);
+      setLastModel('');
+      setResult({ code, model: '', warnings: checked.warnings, source: 'imported' });
+    } catch (e) {
+      setPhase('error'); setError('Não foi possível abrir a cena: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
+  const downloadCode = () => {
+    if (!result) return;
+    const url = URL.createObjectURL(new Blob([result.code], { type: 'text/javascript;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'crieseuvideo-cena-3d.js';
+    document.body.appendChild(a); a.click(); a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
 
   const exportVideo = async () => {
-    if (phase !== 'ready' || exportingRef.current) return;
+    if (phase !== 'ready' || !replay?.deterministic || exportingRef.current) return;
     const canvas = document.createElement('canvas');
     canvas.width = size.width; canvas.height = size.height;
     const ctx = canvas.getContext('2d');
@@ -179,7 +229,10 @@ export default function Code3DStudio() {
       const { encodeFixedFrame3DClip } = await import('../utils/deterministic3dExport');
       const video = await encodeFixedFrame3DClip({
         canvas, durationSeconds: duration, fps: 24, signal: ctrl.signal, onProgress: setExportProgress,
-        renderFrame: async (t) => { const b = await requestFrame(t); ctx.drawImage(b, 0, 0, canvas.width, canvas.height); b.close(); },
+        renderFrame: async (t) => {
+          const b = await frames.request(t, ctrl.signal);
+          try { ctx.drawImage(b, 0, 0, canvas.width, canvas.height); } finally { b.close(); }
+        },
       });
       const url = URL.createObjectURL(video.blob);
       const a = document.createElement('a');
@@ -189,11 +242,12 @@ export default function Code3DStudio() {
     } catch (e) {
       setError('Exportação falhou: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
-      abortRef.current = null; exportingRef.current = false; setExportProgress(null); seek(0);
+      abortRef.current = null; exportingRef.current = false; setExportProgress(null);
+      if (!ctrl.signal.aborted) seek(0);
     }
   };
 
-  const busy = phase === 'generating' || exportProgress !== null;
+  const busy = phase === 'generating' || phase === 'importing' || phase === 'loading' || exportProgress !== null;
   return (
     <main className="native-3d-studio ai3d-studio">
       <nav className="native-3d-bar">
@@ -213,11 +267,20 @@ export default function Code3DStudio() {
           <button type="button" disabled={busy} onClick={() => setAspect((a) => (a === '9:16' ? '16:9' : '9:16'))}>
             Formato: {aspect === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}
           </button>
+          <label htmlFor="code3d-model">Modelo Gemini</label>
+          <select id="code3d-model" value={modelChoice} disabled={busy} onChange={e => setModelChoice(e.target.value as Code3DModelChoice)}>
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+            <option value="configured">Modelo configurado no servidor</option>
+          </select>
           <p className="native-3d-small" role="note">Cada clique faz uma única chamada ao Gemini e pode usar sua cota, mesmo se o código falhar. Não há nova tentativa automática nem outra IA no lugar.</p>
+          <label className="native-3d-small" htmlFor="code3d-import">Reabrir uma cena salva (.js), sem nova geração</label>
+          <input id="code3d-import" type="file" accept=".js,.txt,text/javascript,text/plain" disabled={busy}
+            onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importCode(file); }} />
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE3D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
-              {phase === 'generating' ? 'Gemini escrevendo o código… (até 2 min)' : 'Gerar código 3D com Gemini'}
+              {phase === 'generating' ? 'Gemini escrevendo o código… (até 5 min)' : 'Gerar código 3D com Gemini'}
             </button>
           ) : (
             <div className="ai3d-signin">
@@ -228,8 +291,8 @@ export default function Code3DStudio() {
           )}
           {error && <p className="native-3d-error" role="alert">{error}</p>}
           <p className="native-3d-small" aria-live="polite">
-            Provedor: Gemini direto{lastModel ? ` · modelo ${lastModel}` : ''} · estado: {{
-              idle: 'aguardando', generating: 'gerando código', loading: 'executando na caixa isolada', ready: 'pronto', error: 'falhou',
+            {result?.source === 'imported' ? 'Código importado · nenhuma chamada à IA' : `Provedor: Gemini direto${lastModel ? ` · modelo ${lastModel}` : ''}`} · estado: {{
+              idle: 'aguardando', generating: 'gerando código', importing: 'abrindo código salvo', loading: 'executando na caixa isolada', ready: 'pronto', error: 'falhou',
             }[phase]}
           </p>
         </section>
@@ -263,7 +326,7 @@ export default function Code3DStudio() {
           {result && (
             <div className="native-3d-numbers">
               <strong><ShieldCheck size={15} /> Executado isolado · {result.code.length.toLocaleString('pt-BR')} / {CODE3D_MAX_CODE_CHARS.toLocaleString('pt-BR')} caracteres</strong>
-              {replay && <span>Replay por tempo: {replay.deterministic ? 'verificado (mesmo quadro ao voltar no tempo)' : `divergente (diferença ${replay.maxDiff}) — a exportação pode variar`}</span>}
+              {replay && <span>Replay por tempo: {replay.deterministic ? 'mesmos quadros nos três instantes testados' : `divergente (diferença ${replay.maxDiff}) — exportação bloqueada`}</span>}
               {result.warnings.map((w) => <span key={w}>Aviso: {w}</span>)}
             </div>
           )}
@@ -271,10 +334,11 @@ export default function Code3DStudio() {
             {exportProgress !== null ? (
               <button onClick={() => abortRef.current?.abort()}>Cancelar exportação ({exportProgress}%)</button>
             ) : (
-              <button className="native-3d-download" disabled={phase !== 'ready' || busy} onClick={() => void exportVideo()}>
+              <button className="native-3d-download" disabled={phase !== 'ready' || !replay?.deterministic || busy} onClick={() => void exportVideo()}>
                 <Download size={17} /> Exportar vídeo (experimental)
               </button>
             )}
+            {result && <button disabled={busy} onClick={downloadCode}><Download size={17} /> Salvar código da cena (.js)</button>}
           </div>
           <p className="native-3d-small">A exportação grava quadro a quadro em tempos fixos: MP4 quando o navegador tem codificador H.264, senão WebM. Sem narração nem legendas.</p>
           {result && (

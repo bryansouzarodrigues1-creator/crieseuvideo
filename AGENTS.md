@@ -48,3 +48,7 @@ use the editor.
 - Every 2D layer draws inside one rigid zone from safeZone.ts and exports use exportTimeline.ts (offline audio mix, frames at n/30), so text never overlaps and MP4s never cut early.
 - 3D Toon scenes show the scene's 2D illustration (drawBoardArt in render.ts) on a live presentation board beside the host, because any script line then gets a matching visual without modelling new 3D objects.
 - AI drawings pass layout.ts anti-collision (≤6 objects, ≤1 short text, later shapes give way, leftovers dropped) and scene text is rebuilt from the user's own words (keepScriptWords), so frames stay clean and scripts are never lengthened.
+
+- The separate experimental `/motor-3d/codigo` route accepts Gemini-written or explicitly imported JavaScript with the `createScene` contract. Never evaluate it on the app origin: retain the opaque-origin iframe, restrictive CSP, fixed local Three.js sources and validated postMessage bridge. See `docs/code3d-experimental.md` for the contract and isolation limits.
+- Code 3D imports/replays/exports make no model requests. Gemini generation remains one authenticated server request per explicit click. Divergent sampled replay blocks export; every pending frame must reject immediately on cancellation, sandbox error, replacement or unmount.
+- `scripts/code3d-browser-qa.mjs` uses a hand-authored crane fixture, not a Gemini response. Its rendered video proves the player/export pipeline only. Do not describe offline tests or that fixture as a successful real Gemini generation.
