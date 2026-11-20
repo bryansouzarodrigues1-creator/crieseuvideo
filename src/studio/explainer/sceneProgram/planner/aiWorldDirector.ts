@@ -9,25 +9,11 @@ import { compileComplexWorldBatch, type ComplexWorldClip } from './complexWorldB
 
 export type AiWorldProvider = 'auto' | 'gemini' | 'lovable';
 export interface AiWorldRequest {script:string;provider:AiWorldProvider}
-export interface SourceBrief {sourceId:string;text:string;duration:number}
-export class AiWorldDirectionError extends Error {
-  readonly code='ai_3d_direction_invalid';
-}
+import type {SourceBrief} from './sceneScript';
+import {AiWorldDirectionError} from './sceneScript';
+export {AiWorldDirectionError,sourceBriefsFromScript} from './sceneScript';
+export type {SourceBrief} from './sceneScript';
 const reject=(reason:string):never=>{throw new AiWorldDirectionError(reason)};
-
-export function sourceBriefsFromScript(script:string):SourceBrief[] {
-  if(typeof script!=='string'||script.length>750)reject('Roteiro longo demais para uma sequência. Use 2 ou 3 frases por tentativa.');
-  const trimmed=script.trim().replace(/\s+/g,' ');
-  if(trimmed.length<45)reject('Escreva duas frases descrevendo o cenário e a ação com consequência.');
-  const sentences=(trimmed.match(/[^.!?…]+[.!?…]?/g)||[]).map(s=>s.trim()).filter(Boolean);
-  if(sentences.length<2||sentences.length>3)
-    reject('Para a primeira cena 3D, escreva 2 ou 3 frases. Cada uma terá sua própria câmera.');
-  if(sentences.some(s=>s.length<12||s.length>350))
-    reject('Cada frase deve ter entre 12 e 350 caracteres para orientar a encenação.');
-  return sentences.map((text,i)=>({
-    sourceId:'s'+(i+1),text,duration:4
-  }));
-}
 
 export function aiWorldPrompt(sources:readonly SourceBrief[]):string {
   if(!sources.length||sources.length>3)reject('Roteiro sem frases válidas.');
