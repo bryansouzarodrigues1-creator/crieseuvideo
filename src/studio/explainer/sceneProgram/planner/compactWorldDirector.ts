@@ -11,7 +11,7 @@ import type {SourceBrief} from './aiWorldDirector';
 
 type Vec=[number,number,number];
 export type SceneSetting='city'|'industrial'|'coast'|'forest'|'interior'|'desert';
-export type EntityKind='building'|'crane'|'machine'|'vehicle'|'motorcycle'|'boat'|'cargo'|'tree'|'custom';
+export type EntityKind='building'|'crane'|'machine'|'vehicle'|'motorcycle'|'boat'|'cargo'|'gate'|'tree'|'custom';
 type ActionKind='move'|'lift'|'lower'|'drive'|'sail'|'rotate'|'open';
 type Shape='box'|'sphere'|'cylinder'|'cone'|'torus';
 type Detail={id:string;shape:Shape;size:number[];at:Vec;color?:string};
@@ -48,7 +48,7 @@ const sized=(x:unknown,context:string):Vec=>{
   const r=vec(x,context,.25,24);
   return r;
 };
-const kindAllowed=['building','crane','machine','vehicle','motorcycle','boat','cargo','tree','custom'];
+const kindAllowed=['building','crane','machine','vehicle','motorcycle','boat','cargo','gate','tree','custom'];
 const settings=['city','industrial','coast','forest','interior','desert'];
 const actionKinds=['move','lift','lower','drive','sail','rotate','open'];
 
@@ -133,6 +133,11 @@ function parsePlan(raw:unknown):Plan {
 
 export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
   const script=sources.map(s=>s.text).join(' ');
+  // Never show the model a sourceId that the current narration does not have.
+  // After accepting single-sentence 8s clips, the old static 's2' example
+  // silently encouraged an invalid response for one-shot requests.
+  const exampleSourceId=sources.length>1?sources[1].sourceId:sources[0]?.sourceId??'s1';
+  const allowedSourceIds=sources.map(s=>s.sourceId).join(', ');
   return [
     'Você é um diretor técnico que planeja UMA animação 3D com ambientes completos e ação física clara.',
     'Devolva somente JSON pequeno, não meshes, keyframes, código, storyboards ou milhares de peças. O motor constrói detalhes, câmeras e movimento.',
@@ -141,16 +146,16 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     '{"version":1,"setting":"city","background":"#C9E2F4","entities":[',
     '{"id":"estrutura","name":"Edifício principal","kind":"building","at":[-5,0,-7],"size":[7,9,4],"color":"#98A5AC"},',
     '{"id":"veiculo","name":"Veículo de serviço","kind":"vehicle","at":[0,0,1],"size":[3,2,2],"color":"#EDB45C"}',
-    '],"actions":[{"sourceId":"s2","target":"veiculo","kind":"drive","delta":[5,0,0]}]}',
+    `],"actions":[{"sourceId":"${exampleSourceId}","target":"veiculo","kind":"drive","delta":[5,0,0]}]}`, 
     'setting: city, industrial, coast, forest, interior, desert. Escolha pelo roteiro; background é hexadecimal #RRGGBB.',
     'entities: de 2 a 7 objetos REAIS do roteiro. Cada objeto {id,name,kind,at:[x,y,z],size:[largura,altura,profundidade],color:"#RRGGBB"}.',
-    'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para carros/caminhões, motorcycle EXCLUSIVAMENTE para motos de duas rodas, boat para navios/barcos, cargo para caixas/cargas, tree para árvores, custom para qualquer coisa diferente.',
+    'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para carros/caminhões, motorcycle EXCLUSIVAMENTE para motos de duas rodas, boat para navios/barcos, cargo para caixas/cargas, gate para PORTÕES de garagem ou grades deslizantes, tree para árvores, custom para qualquer coisa diferente.',
     'kind custom DEVE ter details:[{id,shape:"box"|"sphere"|"cylinder"|"cone"|"torus",size:[dimensões corretas],at:[x,y,z],color:"#RRGGBB"},...], de 3 a 12 partes distintas, todas locais ao objeto.',
-    'actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"s1"|"s2"|"s3",target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}.',
-    'sourceId deve indicar a frase EXATA em que o movimento começa. Se s1 apresenta só o problema, não inicie a solução em s1; agende-a em s2 e o resultado em s3. Ordem crescente dos sourceIds.',
+    `actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"ID de uma frase existente",target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}. IDs disponíveis: ${allowedSourceIds}.`, 
+    'sourceId indica a frase EXATA em que começa o movimento. Se a primeira frase só apresenta o problema, mostre a falha antes da solução; use os capítulos seguintes quando existirem. Em uma única frase, use somente o seu único sourceId. Ordem crescente.',
     'Quando a história tiver problema, solução e resultado, use 2 ou 3 ações com ALVOS DIFERENTES: faça a solução acontecer fisicamente e mostre sua consequência. Não entregue um único objeto girando sem explicar a história.',
     'Cada alvo só pode aparecer uma vez em actions nesta versão. Deslocamento >= 0.7 m ou rotação >= 0.45 rad; <= 18 m por eixo.',
-    'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover estrutura inteira se o roteiro trata de uma carga ou portão: faça a carga ou portão outro entity.',
+    'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover a construção inteira se o roteiro trata de um portão: crie uma entidade gate independente da garagem e use lift para o portão que sobe, drive apenas quando a passagem estiver livre.',
     'Inclua a máquina que aciona a carga e a própria carga como entidades distintas; a posição inicial deve estar próxima da máquina.',
     'Não repita citações do roteiro dentro do JSON: elas serão preservadas pelo servidor.',
     'Escolha dimensões realistas entre 0.25 e 24 metros. Evite sobrepor objetos ou deixar o objeto principal atrás de uma parede.',
@@ -278,6 +283,27 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
       cylinder('stack','chamine',[.19,.22,h*.25],[-w*.19,h*.97,0],'#525E65'),
       cylinder('fender','defensas',[.17,.17,.18],[-w*.30,h*.35,d*.45],'#4B5B60',
         {rotation:[Math.PI/2,0,0],repeat:{count:5,step:[w*.17,0,0],seed:4}}),
+    ];
+  }else if(e.kind==='gate'){
+    // The moving gate is its own object, never part of the static building.
+    // This produces a recognizable ribbed metal garage door instead of the
+    // previous cargo crate with straps, labels and handles.
+    features=['painel','laminas','moldura','reforcos','puxador','rebites'];
+    const panelDepth=Math.max(.12,d*.76);
+    parts=[
+      box('panel','painel',[w*.96,h*.86,panelDepth],[0,h*.50,0],c),
+      box('slat','laminas',[w*.90,.075,Math.max(.16,d*.9)],
+        [0,h*.23,panelDepth*.55],bright,
+        {repeat:{count:6,step:[0,h*.11,0],seed:7}}),
+      box('frame-left','moldura',[.10,h*.94,Math.max(.12,d*.83)],[-w*.46,h*.5,0],dark),
+      box('frame-right','moldura',[.10,h*.94,Math.max(.12,d*.83)],[w*.46,h*.5,0],dark),
+      box('crossbar','reforcos',[w*.93,.10,Math.max(.14,d*.84)],
+        [0,h*.85,0],dark),
+      box('handle','puxador',[Math.max(.20,w*.15),.08,.12],
+        [0,h*.31,panelDepth*.65],'#E4E5D8'),
+      box('rivet','rebites',[.06,.06,.07],
+        [-w*.40,h*.27,panelDepth*.56],'#B7C1C4',
+        {repeat:{count:6,step:[0,h*.11,0],seed:4}}),
     ];
   }else if(e.kind==='cargo'){
     features=['volume','cintas','etiqueta','fechos','alcas'];
