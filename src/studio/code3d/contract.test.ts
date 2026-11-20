@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { CODE3D_MAX_DURATION, CODE3D_MIN_DURATION, code3dPrompt, extractCode, validDuration } from './contract';
-import { SANDBOX_ATTRIBUTE, SANDBOX_CSP, buildSandboxSrcdoc, maxPixelDiff, readSandboxMessage, replayCheck } from './sandbox';
+import { SANDBOX_ATTRIBUTE, SANDBOX_CSP, bindThreeCore, buildSandboxSrcdoc, maxPixelDiff, readSandboxMessage, replayCheck } from './sandbox';
 import { checkGeneratedCode } from '../server/code3dGemini';
 
 describe('Gemini Code 3D experimental contract (offline)', () => {
+  it('binds both imports and re-exports to the exact local core module', () => {
+    const source = `import {Color} from './three.core.js'; export {Color} from "./three.core.js";`;
+    const bound = bindThreeCore(source, 'blob:null/local-core-module');
+    expect(bound).toBe('import {Color} from "blob:null/local-core-module"; export {Color} from "blob:null/local-core-module";');
+  });
   it('accepts a fenced JS function and rejects answers without the entrypoint', () => {
     const fn = 'function createScene(THREE,canvas,width,height){return {duration:10,renderAt(t){},dispose(){}};}';
     expect(extractCode('Here:\n\`\`\`javascript\n' + fn + '\n\`\`\`')).toBe(fn);

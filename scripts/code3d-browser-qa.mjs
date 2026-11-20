@@ -9,10 +9,13 @@ const out = path.resolve('tmp/unified-3d-qa/code3d');
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
+const consoleErrors = [];
+let page;
 let providerRequests = 0, generationRequests = 0;
 try {
-  const page = await browser.newPage({ viewport: { width: 1100, height: 960 }, acceptDownloads: true });
+  page = await browser.newPage({ viewport: { width: 1100, height: 960 }, acceptDownloads: true });
   page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 1200)); });
   page.on('request', r => {
     if (/ai.gateway.lovable.dev|generativelanguage.googleapis.com/.test(r.url())) providerRequests++;
     if (r.method() === 'POST' && /_serverFn/.test(r.url())) generationRequests++;
@@ -26,7 +29,11 @@ try {
   const load = async code => {
     await input.setInputFiles({ name: 'scene.js', mimeType: 'text/javascript', buffer: Buffer.from(code) });
   };
-  const ready = async () => page.getByText(/estado: pronto/).waitFor({ timeout: 45000 });
+  const ready = async () => {
+    await page.waitForFunction(() => /estado: (pronto|falhou)/.test(document.querySelector('main')?.textContent || ''), undefined, { timeout: 45000 });
+    assert.match(await page.locator('main').innerText(), /estado: pronto/,
+      `Scene did not become ready: ${await page.getByRole('alert').allTextContents()}`);
+  };
   await load(scene);
   await ready();
   const duration = Number(await page.getByRole('slider', { name: 'Linha do tempo' }).getAttribute('max'));
@@ -100,4 +107,14 @@ try {
     limitation: 'Production login/API route remains unverified. No narration in this export.',
   }, null, 2));
   console.log(`PASS: isolated Code 3D player + ${ext} export, ${Math.round(duration * 24)} frames, no browser provider calls`);
+} catch (e) {
+  if (page) {
+    await page.screenshot({ path: path.join(out, 'failure.png'), fullPage: true }).catch(() => {});
+    await writeFile(path.join(out, 'failure.json'), JSON.stringify({
+      error: String(e), errors, consoleErrors,
+      visible: await page.locator('main').innerText().catch(() => ''),
+      frames: page.frames().map(f => f.url()),
+    }, null, 2));
+  }
+  throw e;
 } finally { await browser.close(); }
