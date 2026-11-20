@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as Motor3dRouteImport } from './routes/motor-3d'
+import { Route as Motor3dCodigoRouteImport } from './routes/motor-3d_.codigo'
 import { Route as Motor3dIaRouteImport } from './routes/motor-3d_.ia'
 import { Route as ApiAiExplainerPlanRouteImport } from './routes/api/ai/explainer-plan'
 import { Route as ApiAiFeedbackRouteImport } from './routes/api/ai/feedback'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const Motor3dRoute = Motor3dRouteImport.update({
   id: '/motor-3d',
   path: '/motor-3d',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Motor3dCodigoRoute = Motor3dCodigoRouteImport.update({
+  id: '/motor-3d_/codigo',
+  path: '/motor-3d/codigo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Motor3dIaRoute = Motor3dIaRouteImport.update({
@@ -74,6 +80,7 @@ const ApiAiTranscribeRoute = ApiAiTranscribeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/motor-3d': typeof Motor3dRoute
+  '/motor-3d/codigo': typeof Motor3dCodigoRoute
   '/motor-3d/ia': typeof Motor3dIaRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/feedback': typeof ApiAiFeedbackRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/motor-3d': typeof Motor3dRoute
+  '/motor-3d/codigo': typeof Motor3dCodigoRoute
   '/motor-3d/ia': typeof Motor3dIaRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/feedback': typeof ApiAiFeedbackRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/motor-3d': typeof Motor3dRoute
+  '/motor-3d_/codigo': typeof Motor3dCodigoRoute
   '/motor-3d_/ia': typeof Motor3dIaRoute
   '/api/ai/explainer-plan': typeof ApiAiExplainerPlanRoute
   '/api/ai/feedback': typeof ApiAiFeedbackRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/motor-3d'
+    | '/motor-3d/codigo'
     | '/motor-3d/ia'
     | '/api/ai/explainer-plan'
     | '/api/ai/feedback'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/motor-3d'
+    | '/motor-3d/codigo'
     | '/motor-3d/ia'
     | '/api/ai/explainer-plan'
     | '/api/ai/feedback'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/motor-3d'
+    | '/motor-3d_/codigo'
     | '/motor-3d_/ia'
     | '/api/ai/explainer-plan'
     | '/api/ai/feedback'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   Motor3dRoute: typeof Motor3dRoute
+  Motor3dCodigoRoute: typeof Motor3dCodigoRoute
   Motor3dIaRoute: typeof Motor3dIaRoute
   ApiAiExplainerPlanRoute: typeof ApiAiExplainerPlanRoute
   ApiAiFeedbackRoute: typeof ApiAiFeedbackRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/motor-3d'
       fullPath: '/motor-3d'
       preLoaderRoute: typeof Motor3dRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/motor-3d_/codigo': {
+      id: '/motor-3d_/codigo'
+      path: '/motor-3d/codigo'
+      fullPath: '/motor-3d/codigo'
+      preLoaderRoute: typeof Motor3dCodigoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/motor-3d_/ia': {
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   Motor3dRoute: Motor3dRoute,
+  Motor3dCodigoRoute: Motor3dCodigoRoute,
   Motor3dIaRoute: Motor3dIaRoute,
   ApiAiExplainerPlanRoute: ApiAiExplainerPlanRoute,
   ApiAiFeedbackRoute: ApiAiFeedbackRoute,

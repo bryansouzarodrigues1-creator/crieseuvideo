@@ -193,6 +193,7 @@ export default function Native3DShowcase() {
       <div className="native-3d-bar">
         <a href="/" className="native-3d-return"><ArrowLeft size={19}/> Voltar ao CrieSeuVideo</a>
         <a className="native-3d-engine" href="/motor-3d/ia"><Sparkles size={17}/> Gerar cena 3D com IA</a>
+        <a className="native-3d-engine" href="/motor-3d/codigo"><Sparkles size={17}/> Gemini — Código 3D (experimental)</a>
       </div>
       <header className="native-3d-heading">
         <span className="native-3d-eyebrow">LABORATÓRIO INTEGRADO • VERSÃO EXPERIMENTAL</span>

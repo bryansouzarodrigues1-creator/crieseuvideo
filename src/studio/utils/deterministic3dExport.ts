@@ -11,7 +11,8 @@ export interface FixedFrameExport {
   canvas: HTMLCanvasElement;
   durationSeconds: number;
   fps: number;
-  renderFrame: (time: number) => void;
+  /** May be async (e.g. frames rendered inside the sandboxed code-3D iframe). */
+  renderFrame: (time: number) => void | Promise<void>;
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
   /** Optional imported narration, encoded into the same MP4/WebM timeline. */
@@ -65,7 +66,7 @@ export async function encodeFixedFrame3DClip({
     for(let i=0;i<frames;i++){
       if(signal?.aborted)throw new Error('Exportação cancelada.');
       const time=i/fps;
-      renderFrame(time);
+      await renderFrame(time);
       await source.add(time,1/fps,{keyFrame:i%fps===0});
       if(i%6===0 || i===frames-1)onProgress?.(Math.round((i+1)*100/frames));
       // Yield EVERY frame: WebCodecs can otherwise monopolize the UI thread on Android.
