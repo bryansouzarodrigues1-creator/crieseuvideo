@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { toonMaterial } from './look';
+import { decoratePatrickActor } from './patrickPreset';
 import type { Effector, ProgramChannel, Vec3 } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -21,10 +22,10 @@ export class ProgramActor3D {
   private brows: THREE.Mesh[] = [];
   private mouth: THREE.Mesh;
   /** `variant` gives each actor in a scene its own hair and skin tone (0 keeps the original look). */
-  constructor(color: string, variant = 0) {
+  constructor(color: string, variant = 0, preset?: 'patrick-mentalista-v1') {
     const mat = (c: string | number) => toonMaterial({ color: c });
-    const look = ACTOR_LOOKS[variant % ACTOR_LOOKS.length];
-    const cloth = mat(color), dark = mat(0x243549), hairMat = mat(look.hair), skin = mat(look.skin), glove = mat(0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
+    const look = preset === 'patrick-mentalista-v1' ? ACTOR_LOOKS[3] : ACTOR_LOOKS[variant % ACTOR_LOOKS.length];
+    const cloth = mat(color), dark = mat(0x243549), hairMat = mat(look.hair), skin = mat(look.skin), glove = mat(preset ? 0xf1c29d : 0x334253), white = mat(0xfaf8ed), black = mat(0x172530);
     this.root.add(this.hips); this.hips.position.y = 1.02;
     const chest = mesh(this.hips, new THREE.CapsuleGeometry(.28, .26, 4, 10), cloth, [0, .25, 0]); chest.scale.set(1.15, 1, .73);
     mesh(this.hips, new THREE.BoxGeometry(.035, .48, .025), dark, [0, .26, .216]);
@@ -56,6 +57,7 @@ export class ProgramActor3D {
       return { root, elbow, hand };
     };
     this.limbs = { leftHand: limb(-1, false), rightHand: limb(1, false), leftFoot: limb(-1, true), rightFoot: limb(1, true) };
+    if (preset === 'patrick-mentalista-v1') decoratePatrickActor(this);
   }
   socket(name: string) { return name === 'root' ? this.root : name === 'head' ? this.head : this.limbs[name as Effector]?.hand ?? this.root; }
   reset(pose: Partial<Record<ProgramChannel, Vec3>>, time: number) {
