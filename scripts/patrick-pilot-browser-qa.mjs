@@ -27,6 +27,13 @@ try {
   const slider = page.getByRole('slider', { name: 'Controlar o tempo da cena 3D' });
   const canvas = page.locator('canvas');
   const png = () => canvas.evaluate(c => c.toDataURL('image/png'));
+  // Browser automation must use the native value setter for React range inputs.
+  const seek = (value) => slider.evaluate((element, seconds) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter.call(element, String(seconds));
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
   await page.waitForFunction(() => {
     const canvas = document.querySelector('canvas');
     return canvas?.width === 360 && canvas?.height === 640 && canvas.toDataURL().length > 12000;
@@ -34,15 +41,15 @@ try {
   assert.equal(await page.getByRole('alert').count(), 0);
   const first = await png();
   await canvas.screenshot({ path: path.join(out, '01-patrick-inicial.png') });
-  await slider.fill('4.2');
+  await seek(4.2);
   const contactFrame = await png();
   assert.notEqual(contactFrame, first, 'Pose remained unchanged after scrubbing to hand contact');
   await canvas.screenshot({ path: path.join(out, '02-patrick-contato-livro.png') });
-  await slider.fill('6.8');
+  await seek(6.8);
   const discovery = await png();
   assert.notEqual(discovery, contactFrame, 'The discovery reaction has no movement');
   await canvas.screenshot({ path: path.join(out, '03-patrick-descoberta.png') });
-  await slider.fill('4.2');
+  await seek(4.2);
   assert.equal(await png(), contactFrame, 'Arbitrary-time seek is not reproducible');
   await page.getByRole('button', { name: 'Reproduzir' }).click();
   await page.waitForFunction(() => Number(document.querySelector('input[type=range]')?.value) > 4.3,
