@@ -27,6 +27,7 @@ Então ele mostrou o site pronto, com nome, endereço e botão de WhatsApp.
 Vendeu na primeira conversa.
 Agora a pergunta é: vai ser você?`;
 
+const AI3D_LOGIN_DRAFT_KEY = 'crieseuvideo.ai3d.login-draft.v1';
 const AI3D_EXAMPLE_SCRIPT = 'Um celular aberto em uma bancada não liga porque está sem energia, e a câmera mostra a tela apagada. Uma bateria desliza até o encaixe, conecta-se à placa e faz a corrente circular. A tela acende e a câmera aproxima o circuito para mostrar a solução.';
 
 const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular (conversa)', profile: 'Perfil / link na bio', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
@@ -53,6 +54,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [ai3dClip,setAi3dClip] = useState<ComplexWorldClip|null>(null);
   const [ai3dUsedProvider,setAi3dUsedProvider] = useState<'gemini'|'lovable'|'demo'|null>(null);
   const [ai3dLoginNeeded,setAi3dLoginNeeded] = useState(false);
+  const [ai3dAuthStatus,setAi3dAuthStatus] = useState<'checking'|'authenticated'|'unauthenticated'|'unavailable'>('checking');
+  const [ai3dLoginBusy,setAi3dLoginBusy] = useState(false);
   const sendAi3D = useServerFn(generateAi3DWorld);
   const toonRef = useRef<Toon3D | null>(null);
   const [toonReady, setToonReady] = useState(0);
@@ -76,6 +79,66 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const exportingRef = useRef(false);
   const buffers = useRef(new Map<string, AudioBuffer>());
   const ctx = () => (audioRef.current ??= new AudioContext());
+
+  // The OAuth account chooser is not a completed login. React to a *real*
+  // Supabase session, including a Google redirect returning to the same page.
+  useEffect(()=>{
+    if(engine!=='3d'||engine3dMode!=='advanced')return;
+    let active=true;
+    let subscription:{unsubscribe:()=>void}|undefined;
+    const check=async()=>{
+      try {
+        const {data,error}=await supabase.auth.getSession();
+        if(!active)return;
+        setAi3dAuthStatus(error?'unavailable':data.session?.access_token?'authenticated':'unauthenticated');
+        if(data.session?.access_token)setAi3dLoginNeeded(false);
+      }catch{
+        if(active)setAi3dAuthStatus('unavailable');
+      }
+    };
+    try{
+      const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
+        if(!active)return;
+        setAi3dAuthStatus(session?.access_token?'authenticated':'unauthenticated');
+        if(session?.access_token)setAi3dLoginNeeded(false);
+      });
+      subscription=data.subscription;
+    }catch{
+      setAi3dAuthStatus('unavailable');
+    }
+    void check();
+    // Mobile Google sign-in can leave the app and return via a browser tab.
+    // Checking on focus/visibility handles that without triggering generation.
+    const focus=()=>{void check();};
+    const visible=()=>{if(document.visibilityState==='visible')void check();};
+    window.addEventListener('focus',focus);
+    document.addEventListener('visibilitychange',visible);
+    return ()=>{
+      active=false;subscription?.unsubscribe();
+      window.removeEventListener('focus',focus);
+      document.removeEventListener('visibilitychange',visible);
+    };
+  },[engine,engine3dMode]);
+
+  // A full-page OAuth redirect must not erase the user's unsubmitted script.
+  // Keep it in tab-scoped storage only until the next app load; never store
+  // consent, credentials, provider tokens or charge automatically.
+  useEffect(()=>{
+    try{
+      const raw=sessionStorage.getItem(AI3D_LOGIN_DRAFT_KEY);
+      if(!raw)return;
+      sessionStorage.removeItem(AI3D_LOGIN_DRAFT_KEY);
+      const draft:unknown=JSON.parse(raw);
+      if(!draft||typeof draft!=='object')return;
+      const parsed=draft as Record<string,unknown>;
+      if(typeof parsed.script==='string'&&parsed.script.length<=750&&parsed.script.trim()){
+        setScript(current=>current.trim()?current:parsed.script as string);
+      }
+      if(parsed.aspect==='9:16'||parsed.aspect==='16:9')setAspect(parsed.aspect);
+      if(parsed.provider==='auto'||parsed.provider==='gemini'||parsed.provider==='lovable')
+        setAi3dProvider(parsed.provider);
+    }catch{/* blocked sessionStorage is not a login failure */}
+  },[]);
 
   /** Schedule every narrated scene from timeline time `from`; returns a stop function. */
   const startAudio = (from: number, extra?: AudioNode) => {
@@ -236,10 +299,43 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   };
 
   const loginForAi3D = async () => {
+    if(ai3dLoginBusy||busy)return;
+    setAi3dLoginBusy(true);
+    setNote('Escolha sua conta do Google e conclua o login. A geração não começará automaticamente.');
     try {
-      const result=await lovable.auth.signInWithOAuth('google',{redirect_uri:window.location.href});
-      if(result.error)setNote('Não foi possível iniciar login: '+result.error.message);
-    }catch(e){setNote('Falha ao entrar: '+(e instanceof Error?e.message:String(e)));}
+      // The SDK may redirect the whole browser; preserve only the draft.
+      try{
+        sessionStorage.setItem(AI3D_LOGIN_DRAFT_KEY,JSON.stringify({
+          script,aspect,provider:ai3dProvider
+        }));
+      }catch{/* login may still work without draft persistence */}
+      const result=await lovable.auth.signInWithOAuth('google',{
+        redirect_uri:window.location.origin+window.location.pathname
+      });
+      if(result.error){
+        setNote('O login do Google não foi concluído: '+result.error.message);
+        return;
+      }
+      if(result.redirected){
+        setNote('Finalize a seleção no Google e volte ao CrieSeuVideo. Sua conta será verificada antes de permitir a geração.');
+        return;
+      }
+      // The Lovable adapter has already stored the OAuth tokens in Supabase.
+      const {data,error}=await supabase.auth.getSession();
+      if(error||!data.session?.access_token){
+        setAi3dAuthStatus('unauthenticated');
+        setNote('O Google retornou, mas a sessão ainda não foi confirmada. Reabra a página e verifique se o navegador permitiu o login.');
+        return;
+      }
+      setAi3dAuthStatus('authenticated');
+      setAi3dLoginNeeded(false);
+      try{sessionStorage.removeItem(AI3D_LOGIN_DRAFT_KEY);}catch{}
+      setNote('Conta conectada! Revise o roteiro, marque a autorização de créditos e toque em Criar cena 3D pela IA.');
+    }catch(e){
+      setNote('Falha ao entrar: '+(e instanceof Error?e.message:String(e)));
+    }finally{
+      setAi3dLoginBusy(false);
+    }
   };
 
   const generate = async (text = script) => {
@@ -260,6 +356,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         // The existing server function is protected; no anonymous paid calls.
         const {data:{session},error:sessionError}=await supabase.auth.getSession();
         if(sessionError||!session?.access_token){
+          setAi3dAuthStatus('unauthenticated');
           setAi3dLoginNeeded(true);
           throw new Error('Para criar cenários 3D, entre na sua conta. Não foi feita nenhuma chamada paga.');
         }
@@ -456,9 +553,23 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 <Box /> Ver explicação do celular (12s, sem IA)
               </Button>
               <p className="explainer-sub">Exemplo narrativo com problema e solução na tela e no MP4, sem cobrar créditos. A voz é opcional via importação de MP3/WAV no player. Esse botão não gera o seu roteiro por IA.</p>
-              {ai3dLoginNeeded&&<Button size="sm" variant="secondary" onClick={()=>void loginForAi3D()}>
-                Entrar com Google para gerar 3D
-              </Button>}
+              {ai3dAuthStatus==='authenticated'
+                ? <p className="explainer-sub" role="status">Conta conectada ao CrieSeuVideo. A geração só começa quando você confirmar os créditos e clicar no botão de criar.</p>
+                : <>
+                  <p className="explainer-sub" role="status">
+                    {ai3dAuthStatus==='checking'
+                      ? 'Verificando sua sessão do Google…'
+                      : ai3dAuthStatus==='unavailable'
+                        ? 'Não foi possível verificar o login nesta prévia. Se o problema persistir depois de escolher a conta, tente abrir o site em uma aba normal.'
+                        : ai3dLoginNeeded
+                          ? 'Você ainda precisa concluir o login com Google para gerar cenas 3D.'
+                          : 'Faça login com Google antes de usar Gemini ou Lovable. O teste gratuito não exige login.'}
+                  </p>
+                  <Button size="sm" variant="secondary" disabled={busy||ai3dLoginBusy||ai3dAuthStatus==='checking'}
+                    onClick={()=>void loginForAi3D()}>
+                    {ai3dLoginBusy?'Conectando conta…':'Entrar com Google para gerar 3D'}
+                  </Button>
+                </>}
             </div>
           ) : (<>
             <p className="explainer-label">Modo de criação</p>
