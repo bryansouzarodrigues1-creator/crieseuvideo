@@ -17,7 +17,7 @@ type Shape='box'|'sphere'|'cylinder'|'cone'|'torus';
 type Detail={id:string;shape:Shape;size:number[];at:Vec;color?:string};
 type Entity={id:string;name:string;kind:EntityKind;at:Vec;size:Vec;color:string;details?:Detail[]};
 type Action={target:string;kind:ActionKind;delta:Vec};
-type Plan={version:1;setting:SceneSetting;background:string;entities:Entity[];action:Action};
+type Plan={version:1;setting:SceneSetting;background:string;entities:Entity[];actions:Action[]};
 export class CompactWorldError extends Error {
   readonly code='invalid_compact_3d_world';
 }
@@ -54,7 +54,7 @@ const actionKinds=['move','lift','lower','drive','sail','rotate','open'];
 
 function parsePlan(raw:unknown):Plan {
   if(!isObject(raw))return fail('A IA não devolveu um plano 3D estruturado.');
-  keys(raw,['version','setting','background','entities','action'],'plano');
+  keys(raw,['version','setting','background','entities','action','actions'],'plano');
   if(raw.version!==1||!settings.includes(String(raw.setting)))
     fail('Versão ou categoria do cenário inválida.');
   const entitiesRaw=raw.entities;
@@ -97,25 +97,37 @@ function parsePlan(raw:unknown):Plan {
       at:vec(item.at,'posição'),size:sized(item.size,'dimensões'),
       color:hex(item.color,'cor do objeto'),details};
   });
-  const action=raw.action;
-  if(!isObject(action))return fail('Falta a ação principal da cena.');
-  keys(action,['target','kind','delta'],'ação');
-  const target=id(action.target,'alvo');
-  if(!seen.has(target))fail('A ação deve mover um dos objetos presentes na cena.');
-  const actionKind=String(action.kind);
-  if(!actionKinds.includes(actionKind))fail('Ação de animação desconhecida.');
-  const delta=vec(action.delta,'deslocamento',-18,18);
-  const distance=Math.hypot(...delta);
-  if(distance<(actionKind==='rotate'||actionKind==='open'?.45:.7)||
-     distance>23)fail('A ação precisa produzir deslocamento ou rotação perceptível.');
-  if(actionKind==='lift'&&delta[1]<.7||actionKind==='lower'&&delta[1]>-.7)
-    fail('A carga deve subir ou descer na direção esperada.');
-  if(actionKind!=='rotate'&&actionKind!=='open'&&actionKind!=='lower'&&
-    entities.find(e=>e.id===target)!.at[1]+delta[1]<-.4)
-    fail('O objeto atravessaria o piso.');
+  // Backwards compatible with old single-action clips. New AI-directed clips
+  // can show distinct events in consecutive narration segments. Require
+  // different targets to avoid contradictory animation tracks for one node.
+  if(raw.action!==undefined && raw.actions!==undefined)
+    fail('Use action ou actions, nunca os dois ao mesmo tempo.');
+  const rawActions=raw.actions===undefined?[raw.action]:raw.actions;
+  if(!Array.isArray(rawActions)||rawActions.length<1||rawActions.length>3)
+    fail('A cena deve conter de uma a três ações verificáveis.');
+  const usedTargets=new Set<string>();
+  const actions=rawActions.map((rawAction,i):Action=>{
+    if(!isObject(rawAction))return fail('A ação '+(i+1)+' não é um objeto JSON.');
+    keys(rawAction,['target','kind','delta'],'ação');
+    const target=id(rawAction.target,'alvo');
+    if(!seen.has(target))fail('A ação deve mover um dos objetos presentes na cena.');
+    if(usedTargets.has(target))fail('Duas ações não podem comandar o mesmo objeto simultaneamente neste motor.');
+    usedTargets.add(target);
+    const actionKind=String(rawAction.kind);
+    if(!actionKinds.includes(actionKind))fail('Ação de animação desconhecida.');
+    const delta=vec(rawAction.delta,'deslocamento',-18,18);
+    const distance=Math.hypot(...delta);
+    if(distance<(actionKind==='rotate'||actionKind==='open'?.45:.7)||
+       distance>23)fail('A ação precisa produzir deslocamento ou rotação perceptível.');
+    if(actionKind==='lift'&&delta[1]<.7||actionKind==='lower'&&delta[1]>-.7)
+      fail('A carga deve subir ou descer na direção esperada.');
+    if(actionKind!=='rotate'&&actionKind!=='open'&&actionKind!=='lower'&&
+       entities.find(e=>e.id===target)!.at[1]+delta[1]<-.4)
+      fail('O objeto atravessaria o piso.');
+    return {target,kind:actionKind as ActionKind,delta};
+  });
   return {version:1,setting:raw.setting as SceneSetting,
-    background:hex(raw.background,'cor do céu'),entities,
-    action:{target,kind:actionKind as ActionKind,delta}};
+    background:hex(raw.background,'cor do céu'),entities,actions};
 }
 
 export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
@@ -128,12 +140,14 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     '{"version":1,"setting":"city","background":"#C9E2F4","entities":[',
     '{"id":"estrutura","name":"Edifício principal","kind":"building","at":[-5,0,-7],"size":[7,9,4],"color":"#98A5AC"},',
     '{"id":"veiculo","name":"Veículo de serviço","kind":"vehicle","at":[0,0,1],"size":[3,2,2],"color":"#EDB45C"}',
-    '],"action":{"target":"veiculo","kind":"drive","delta":[5,0,0]}}',
+    '],"actions":[{"target":"veiculo","kind":"drive","delta":[5,0,0]}]}',
     'setting: city, industrial, coast, forest, interior, desert. Escolha pelo roteiro; background é hexadecimal #RRGGBB.',
     'entities: de 2 a 7 objetos REAIS do roteiro. Cada objeto {id,name,kind,at:[x,y,z],size:[largura,altura,profundidade],color:"#RRGGBB"}.',
     'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para carros/caminhões, motorcycle EXCLUSIVAMENTE para motos de duas rodas, boat para navios/barcos, cargo para caixas/cargas, tree para árvores, custom para qualquer coisa diferente.',
     'kind custom DEVE ter details:[{id,shape:"box"|"sphere"|"cylinder"|"cone"|"torus",size:[dimensões corretas],at:[x,y,z],color:"#RRGGBB"},...], de 3 a 12 partes distintas, todas locais ao objeto.',
-    'Ação obrigatória {target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}. Deslocamento >= 0.7 m ou rotação >= 0.45 rad, <= 18 m por eixo.',
+    'actions: de 1 a 3 ações EM ORDEM (prefira uma por frase). Cada {target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}.',
+    'Quando a história tiver problema, solução e resultado, use 2 ou 3 ações com ALVOS DIFERENTES: faça a solução acontecer fisicamente e mostre sua consequência. Não entregue um único objeto girando sem explicar a história.',
+    'Cada alvo só pode aparecer uma vez em actions nesta versão. Deslocamento >= 0.7 m ou rotação >= 0.45 rad; <= 18 m por eixo.',
     'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover estrutura inteira se o roteiro trata de uma carga ou portão: faça a carga ou portão outro entity.',
     'Inclua a máquina que aciona a carga e a própria carga como entidades distintas; a posição inicial deve estar próxima da máquina.',
     'Não repita citações do roteiro dentro do JSON: elas serão preservadas pelo servidor.',
