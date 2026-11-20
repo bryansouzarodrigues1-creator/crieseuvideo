@@ -51,7 +51,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voicing, setVoicing] = useState<number | null>(null);
   const [engine, setEngine] = useState<'2d' | '3d'>('3d');
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
-  const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('auto');
+  const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('gemini');
   const [ai3dCooldownUntil,setAi3dCooldownUntil] = useState(0);
   const [ai3dCooldownSeconds,setAi3dCooldownSeconds] = useState(0);
   const [ai3dClip,setAi3dClip] = useState<ComplexWorldClip|null>(null);
@@ -577,7 +577,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         <section className="explainer-panel">
           <p className="explainer-kicker">CRIESEUVIDEO — ESTÚDIO DE ANIMAÇÃO 2D/3D</p>
           <h1>Do roteiro à animação.</h1>
-          <p className="explainer-sub">Escolha o 3D avançado com Gemini/Lovable, o Toon clássico ou o Motion 2D. Os custos dependem do provedor e da narração; o modo avançado pede autorização antes de chamar uma IA.</p>
+          <p className="explainer-sub">Escolha o 3D avançado com Gemini/Lovable, o Toon clássico ou o Motion 2D. Os custos dependem do provedor e da narração; clicar em Criar no modo avançado inicia a tentativa e pode consumir créditos.</p>
           <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
           <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => {setScript(e.target.value);setAi3dClip(null);}} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
           <div className="explainer-row">
