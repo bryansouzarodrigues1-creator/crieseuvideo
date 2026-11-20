@@ -13,6 +13,8 @@
  *   not a secret. No keys, tokens or account data are ever sent to the iframe.
  * The app NEVER evaluates generated code with eval/new Function/import itself.
  */
+import { validDuration } from './contract';
+
 export const SANDBOX_ATTRIBUTE = 'allow-scripts';
 export const MAX_SANDBOX_ERROR_CHARS = 500;
 
@@ -57,15 +59,16 @@ export function replayCheck(
   diff: (a: ArrayLike<number>, b: ArrayLike<number>) => number,
   duration: number,
 ): { deterministic: boolean; maxDiff: number } {
-  const t1 = Math.min(duration * 0.62, duration - 0.05);
-  renderAt(t1);
-  const a = sample();
-  renderAt(duration * 0.1);
-  renderAt(duration * 0.95);
-  renderAt(t1);
-  const b = sample();
-  const d = diff(a, b);
-  return { deterministic: d <= 3, maxDiff: d };
+  let maxDiff = 0;
+  for (const t of [0, duration * 0.37, duration * 0.74]) {
+    renderAt(t);
+    const a = sample();
+    renderAt(duration * 0.1);
+    renderAt(duration * 0.95);
+    renderAt(t);
+    maxDiff = Math.max(maxDiff, diff(a, sample()));
+  }
+  return { deterministic: maxDiff <= 3, maxDiff };
 }
 
 const js = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
@@ -97,20 +100,26 @@ for(const k of ['fetch','XMLHttpRequest','WebSocket','EventSource','RTCPeerConne
 }
 try{Object.defineProperty(navigator,'sendBeacon',{value:undefined});}catch(_){}
 const canvas=document.getElementById('c');
-let scene=null,failed=false,duration=DEF,THREE=null;
+let scene=null,failed=false,initializing=false,duration=DEF,THREE=null;
+const urls=[];
+const dispose=()=>{failed=true;try{scene?.dispose?.();}catch(_){}scene=null;for(const u of urls)URL.revokeObjectURL(u);urls.length=0;};
+addEventListener('pagehide',dispose,{once:true});
 const msg=e=>String((e&&(e.stack||e.message))||e).slice(0,${MAX_SANDBOX_ERROR_CHARS});
-const fail=(stage,e)=>{if(failed)return;failed=true;send({type:'error',stage,message:msg(e)});};
+const fail=(stage,e)=>{if(failed)return;send({type:'error',stage,message:msg(e)});dispose();};
 addEventListener('error',e=>fail(scene?'runtime':'load',e.error||e.message));
 addEventListener('unhandledrejection',e=>fail(scene?'runtime':'load',e.reason));
-const url=src=>URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
+const url=src=>{const u=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));urls.push(u);return u;};
 const clamp=t=>Math.max(0,Math.min(duration-0.001,Number(t)||0));
+const render=t=>{const result=scene.renderAt(clamp(t));if(result&&typeof result.then==='function')throw new Error('renderAt(t) precisa renderizar de forma síncrona.');};
 const sample=()=>{const c=document.createElement('canvas');c.width=c.height=24;const x=c.getContext('2d');x.drawImage(canvas,0,0,24,24);return x.getImageData(0,0,24,24).data;};
 addEventListener('message',async ev=>{
-  if(ev.source!==parent)return;
+  if(ev.source!==parent||ev.origin!==PARENT)return;
   const d=ev.data;
   if(!d||typeof d!=='object'||d.token!==TOKEN||typeof d.type!=='string')return;
+  if(d.type==='hello'){if(!failed)send({type:'boot'});return;}
   if(d.type==='init'){
-    if(THREE||failed)return;
+    if(initializing||THREE||failed)return;
+    initializing=true;
     if(typeof d.code!=='string'||typeof d.core!=='string'||typeof d.module!=='string')return fail('load','init inválido');
     const w=d.width|0,h=d.height|0;
     if(w<64||h<64||w>1920||h>1920)return fail('load','tamanho inválido');
@@ -124,19 +133,21 @@ addEventListener('message',async ev=>{
     catch(e){return fail('syntax',e);}
     if(typeof createScene!=='function')return fail('contract','createScene(THREE, canvas, width, height) não foi definida.');
     try{scene=await createScene(THREE,canvas,w,h);}catch(e){return fail('runtime',e);}
-    if(!scene||typeof scene.renderAt!=='function')return fail('contract','createScene não retornou { renderAt(t) }.');
-    const dur=scene.duration===undefined?DEF:Number(scene.duration);
-    if(!Number.isFinite(dur)||dur<MIN||dur>MAX)return fail('contract','duration deve ficar entre '+MIN+' e '+MAX+' s (recebido '+String(scene.duration).slice(0,20)+').');
+    if(!scene||typeof scene.renderAt!=='function'||typeof scene.dispose!=='function')return fail('contract','createScene deve retornar { renderAt(t), dispose() }.');
+    const dur=scene.duration===undefined?DEF:scene.duration;
+    if(typeof dur!=='number'||!Number.isFinite(dur)||dur<MIN||dur>MAX)return fail('contract','duration deve ficar entre '+MIN+' e '+MAX+' s.');
     duration=dur;
     let r;
-    try{r=replay(t=>scene.renderAt(clamp(t)),sample,diff,duration);scene.renderAt(0);}catch(e){return fail('runtime',e);}
+    try{r=replay(render,sample,diff,duration);render(0);}catch(e){return fail('runtime',e);}
+    if(!r.deterministic)return fail('contract','O mesmo instante gerou imagens diferentes. Revise renderAt(t) antes de exportar.');
     send({type:'ready',duration,deterministic:!!r.deterministic,maxDiff:Number(r.maxDiff)||0});
     return;
   }
+  if(d.type==='dispose'){dispose();return;}
   if(!scene||failed)return;
-  if(d.type==='render'){try{scene.renderAt(clamp(d.t));}catch(e){fail('runtime',e);}return;}
+  if(d.type==='render'){try{render(d.t);}catch(e){fail('runtime',e);}return;}
   if(d.type==='frame'){
-    try{scene.renderAt(clamp(d.t));const bitmap=await createImageBitmap(canvas);send({type:'frame',seq:d.seq|0,bitmap},[bitmap]);}
+    try{render(d.t);const bitmap=await createImageBitmap(canvas);send({type:'frame',seq:d.seq|0,bitmap},[bitmap]);}
     catch(e){fail('runtime',e);}
   }
 });
@@ -164,16 +175,22 @@ export function readSandboxMessage(
   switch (d.type) {
     case 'boot': return { type: 'boot' };
     case 'ready': {
-      const duration = Number(d.duration);
-      if (!Number.isFinite(duration) || duration <= 0 || duration > 30) return null;
-      return { type: 'ready', duration, deterministic: d.deterministic === true, maxDiff: Math.min(255, Math.max(0, Number(d.maxDiff) || 0)) };
+      const duration = validDuration(d.duration);
+      if (d.duration === undefined || duration === null || typeof d.deterministic !== 'boolean' ||
+          typeof d.maxDiff !== 'number' || !Number.isFinite(d.maxDiff) || d.maxDiff < 0 || d.maxDiff > 255) return null;
+      return { type: 'ready', duration, deterministic: d.deterministic, maxDiff: d.maxDiff };
     }
     case 'error':
       if (typeof d.stage !== 'string' || !STAGES.has(d.stage)) return null;
       return { type: 'error', stage: d.stage as 'runtime', message: String(d.message ?? '').slice(0, MAX_SANDBOX_ERROR_CHARS) };
     case 'frame':
       if (typeof ImageBitmap === 'undefined' || !(d.bitmap instanceof ImageBitmap)) return null;
-      return { type: 'frame', seq: Number(d.seq) | 0, bitmap: d.bitmap };
+      if (!Number.isSafeInteger(d.seq) || (d.seq as number) <= 0 ||
+          d.bitmap.width < 1 || d.bitmap.height < 1 || d.bitmap.width > 1920 || d.bitmap.height > 1920) {
+        d.bitmap.close();
+        return null;
+      }
+      return { type: 'frame', seq: d.seq as number, bitmap: d.bitmap };
     default: return null;
   }
 }

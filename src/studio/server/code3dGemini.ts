@@ -1,14 +1,13 @@
 // Server-only: one Gemini call that returns a Three.js program (EXPERIMENTAL).
 // No fallback provider, no retries, no repair calls. Keys stay on the server
 // and are never logged; provider response bodies are never logged or returned.
-import { parse } from 'acorn';
-import { CODE3D_MAX_CODE_CHARS, code3dPrompt, extractCode, type Code3DAspect } from '../code3d/contract';
+import { code3dPrompt, extractCode, type Code3DAspect } from '../code3d/contract';
 
 export type Code3DFailure =
   | 'not_configured' | 'unauthorized' | 'forbidden' | 'quota' | 'model_unavailable'
   | 'invalid_request' | 'billing_required' | 'service_unavailable' | 'timeout' | 'network'
   | 'empty_response' | 'truncated_response' | 'blocked' | 'no_code' | 'too_large'
-  | 'syntax_error' | 'contract_error';
+  | 'syntax_error' | 'contract_error' | 'invalid_response';
 
 export const code3dFailureText: Record<Code3DFailure, string> = {
   not_configured: 'GEMINI_API_KEY não está configurada no servidor. Nenhuma chamada foi feita.',
@@ -22,6 +21,7 @@ export const code3dFailureText: Record<Code3DFailure, string> = {
   timeout: 'o Gemini demorou demais para responder.',
   network: 'falha de comunicação com o Gemini.',
   empty_response: 'o Gemini respondeu sem conteúdo.',
+  invalid_response: 'o Gemini retornou uma resposta que não pode ser lida.',
   truncated_response: 'a resposta do Gemini foi cortada antes de terminar o código.',
   blocked: 'o Gemini bloqueou a resposta por política de segurança.',
   no_code: 'a resposta não contém uma função createScene.',
@@ -36,35 +36,10 @@ export const code3dModel = () =>
 const statusFailure = (s: number): Code3DFailure =>
   s === 400 || s === 422 ? 'invalid_request' : s === 401 ? 'unauthorized' : s === 402 ? 'billing_required'
     : s === 403 ? 'forbidden' : s === 404 ? 'model_unavailable' : s === 408 ? 'timeout'
-    : s === 429 ? 'quota' : 'service_unavailable';
+    : s === 413 ? 'too_large' : s === 429 ? 'quota' : 'service_unavailable';
 
-/** Syntax + contract check with a parser. Never executes the code. */
-export function checkGeneratedCode(code: string):
-  { ok: true; warnings: string[] } | { ok: false; failure: 'syntax_error' | 'contract_error' | 'too_large'; detail: string } {
-  if (code.length > CODE3D_MAX_CODE_CHARS) return { ok: false, failure: 'too_large', detail: `${code.length} caracteres` };
-  let ast: any;
-  try {
-    ast = parse(code, { ecmaVersion: 'latest', sourceType: 'module', locations: true });
-  } catch (e) {
-    const err = e as { message?: string };
-    return { ok: false, failure: 'syntax_error', detail: String(err.message ?? 'erro').slice(0, 200) };
-  }
-  let hasCreateScene = false;
-  for (const node of ast.body as any[]) {
-    if (node.type === 'ImportDeclaration' || node.type.startsWith('Export'))
-      return { ok: false, failure: 'contract_error', detail: 'import/export não são permitidos.' };
-    if (node.type === 'FunctionDeclaration' && node.id?.name === 'createScene') hasCreateScene = true;
-    if (node.type === 'VariableDeclaration')
-      for (const d of node.declarations) if (d.id?.type === 'Identifier' && d.id.name === 'createScene') hasCreateScene = true;
-  }
-  if (!hasCreateScene) return { ok: false, failure: 'contract_error', detail: 'createScene não foi declarada no nível superior.' };
-  const warnings: string[] = [];
-  if (/\b(Date\.now|performance\.now|new Date)\b/.test(code)) warnings.push('usa relógio do sistema (pode quebrar o replay por tempo)');
-  if (/\brequestAnimationFrame\b|\bsetTimeout\b|\bsetInterval\b/.test(code)) warnings.push('usa temporizadores (o player ignora; o tempo vem de renderAt)');
-  if (/\bMath\.random\b/.test(code)) warnings.push('usa Math.random (replay verificado no navegador)');
-  if (/\b(fetch|XMLHttpRequest|WebSocket|import\s*\()/.test(code)) warnings.push('tenta acessar rede/módulos (bloqueado pela caixa isolada)');
-  return { ok: true, warnings };
-}
+import { checkGeneratedCode } from '../code3d/validation';
+export { checkGeneratedCode } from '../code3d/validation';
 
 export type Code3DResult =
   | { ok: true; code: string; model: string; warnings: string[] }
@@ -95,12 +70,15 @@ export async function generateCode3DWithGemini(script: string, aspect: Code3DAsp
       console.error(`Gemini code3d failed with HTTP ${res.status}`);
       return fail(statusFailure(res.status));
     }
-    const data = await res.json() as any;
+    let data: any;
+    try { data = await res.json(); } catch { return fail('invalid_response'); }
     if (data?.promptFeedback?.blockReason) return fail('blocked');
     const c = data?.candidates?.[0];
     if (c?.finishReason === 'SAFETY' || c?.finishReason === 'PROHIBITED_CONTENT') return fail('blocked');
     if (c?.finishReason === 'MAX_TOKENS') return fail('truncated_response');
-    text = (c?.content?.parts ?? [])
+    const parts = c?.content?.parts ?? [];
+    if (!Array.isArray(parts)) return fail('invalid_response');
+    text = parts
       .filter((p: any) => p && typeof p.text === 'string' && !p.thought)
       .map((p: any) => p.text).join('');
   } catch (e) {

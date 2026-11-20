@@ -44,6 +44,8 @@ jobs:
         run: bun scripts/advanced-3d-handoff-browser-qa.mjs
       - name: Render 12s smartphone assembly and capture timeline frames
         run: bun scripts/smartphone-assembly-browser-qa.mjs
+      - name: Verify isolated Code 3D execution, cancellation and actual video export
+        run: bun scripts/code3d-browser-qa.mjs
       - name: Upload screenshots and report
         if: always()
         uses: actions/upload-artifact@v4

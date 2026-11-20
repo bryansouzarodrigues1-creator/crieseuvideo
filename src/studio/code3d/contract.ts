@@ -22,10 +22,9 @@ export const code3dSize = (aspect: Code3DAspect) =>
 
 /** A duration outside 8–12 s is a contract violation, not something to guess. */
 export function validDuration(value: unknown): number | null {
-  if (value === undefined || value === null) return CODE3D_DEFAULT_DURATION;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < CODE3D_MIN_DURATION || n > CODE3D_MAX_DURATION) return null;
-  return n;
+  if (value === undefined) return CODE3D_DEFAULT_DURATION;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < CODE3D_MIN_DURATION || value > CODE3D_MAX_DURATION) return null;
+  return value;
 }
 
 /** Pull the program out of a model answer (```js fences or bare code). */
@@ -57,6 +56,9 @@ QUALIDADE ESPERADA
 - Materiais variados (MeshStandardMaterial/MeshPhysicalMaterial, cores, rugosidade), iluminação com luz-chave, preenchimento e sombras, céu/neblina.
 - Movimentos mecânicos plausíveis (articulações, cabos, rodas girando de acordo com o deslocamento) e câmera cinematográfica com movimentos suaves e 2 a 4 enquadramentos que acompanham a ação.
 - Use easing (ex.: smoothstep) entre etapas da ação. Código até ~60 KB. Mantenha abaixo de ~1500 malhas.
+- Planeje os acontecimentos em ordem: situação inicial, antecipação, ação e resultado. Mostre a consequência de cada ação antes da próxima. Não use um apresentador diante de uma tela para substituir o acontecimento.
+- Objetos em contato devem compartilhar a mesma hierarquia ou o mesmo alvo calculado: a carga fica no gancho, o cabo acompanha o gancho, e a carga só se solta ao tocar o apoio. Não mova a carga isoladamente para imitar um içamento.
+- Não use APIs antigas de Three.js (Geometry, Face3, renderer.outputEncoding). Use BufferGeometry e renderer.outputColorSpace = THREE.SRGBColorSpace quando necessário.
 
 RESPOSTA: apenas um bloco \`\`\`javascript com o programa completo. Sem explicações.
 
