@@ -227,6 +227,10 @@ function twoBone(joint,elbow,targetParent,L1,L2,pole){
  joint.quaternion.setFromUnitVectors(down3,e.clone().sub(s).normalize());elbow.quaternion.setFromUnitVectors(down3,tip.sub(e).applyQuaternion(joint.quaternion.clone().invert()).normalize());
 }
 function reach(g,arm,targetWorld){arm.pivot.parent.updateWorldMatrix(true,false);const target=arm.pivot.parent.worldToLocal(targetWorld.clone());twoBone(arm.pivot,arm.elbow,target,arm.L1,arm.L2,V3(arm.side*.8,-1,.2));}
+function blendReach(g,arm,targetWorld,amount){
+ const shoulder=arm.pivot.quaternion.clone(),elbow=arm.elbow.quaternion.clone();reach(g,arm,targetWorld);
+ arm.pivot.quaternion.slerpQuaternions(shoulder,arm.pivot.quaternion.clone(),amount);arm.elbow.quaternion.slerpQuaternions(elbow,arm.elbow.quaternion.clone(),amount);
+}
 function punchAmount(t,hit){return smooth(hit-.2,hit,t)*(1-smooth(hit+.12,hit+.85,t));}
 function punchWind(t,hit){return smooth(hit-.85,hit-.35,t)*(1-smooth(hit-.2,hit,t));}
 function controls(i,t){
@@ -268,7 +272,7 @@ function poseActor(g,t){
 function strike(g,t,hit,target,armIndex=1){
  if(t<hit-.9||t>hit+1)return;
  g.root.updateMatrixWorld(true);const arm=g.arms[armIndex],guard=g.root.localToWorld(V3(arm.side*.75,2.15,.48)),draw=g.root.localToWorld(V3(arm.side*.8,2.25,-.35));
- const wind=punchWind(t,hit),p=punchAmount(t,hit);const point=guard.clone().lerp(draw,wind).lerp(target,p);point.y+=.16*Math.sin(p*Math.PI);reach(g,arm,point);
+ const wind=punchWind(t,hit),p=punchAmount(t,hit);const point=guard.clone().lerp(draw,wind).lerp(target,p);point.y+=.16*Math.sin(p*Math.PI);blendReach(g,arm,point,smooth(hit-.9,hit-.7,t)*(1-smooth(hit+.85,hit+1,t)));
 }
 function contactAt(time,which='mouth'){poseDragon(time);return which==='mouth'?dragon.mouth.getWorldPosition(V3()):dragon.root.localToWorld(which.clone());}
 const grappleA=contactAt(74,V3(-.85,-1.0,1.35)),grappleB=contactAt(74,V3(.85,-1.0,1.35));
@@ -276,13 +280,13 @@ function stageContacts(t){
  strike(golems[0],t,23.4,hitFirst,0);strike(golems[3],t,56.8,V3(-6.5,8,-2.72));strike(golems[0],t,106.5,hitFinal,0);
  if(t>70&&t<79){
   const blend=smooth(70,71,t)*(1-smooth(78,79,t));
-  for(const [g,point,arm] of [[golems[1],grappleA,0],[golems[2],grappleB,1]]){const idle=g.root.localToWorld(V3(arm===0?-.8:.8,2.1,.5));reach(g,g.arms[arm],idle.lerp(point,blend));}
+  for(const [g,point,arm] of [[golems[1],grappleA,0],[golems[2],grappleB,1]])blendReach(g,g.arms[arm],point,blend);
  }
- if(t>84&&t<91.8){const g=golems[5],p=V3(hurt.x+.45,.14,hurt.z+.65);reach(g,g.arms[1],p);}
+ if(t>84&&t<91.8){const g=golems[5],p=V3(hurt.x+.45,.14,hurt.z+.65);blendReach(g,g.arms[1],p,smooth(84,84.3,t)*(1-smooth(91,91.8,t)));}
  if(t>90.5&&t<97){
   const grip=V3((helper.x+hurt.x)*.5,lerp(1.7,2.5,smooth(93,96,t)),(helper.z+hurt.z)*.5);
   const amount=smooth(90.5,92,t)*(1-smooth(96.4,97,t));
-  for(const [g,a,sign] of [[golems[0],golems[0].arms[1],1],[golems[5],golems[5].arms[0],-1]]){const start=g.root.localToWorld(V3(a.side*.8,2.0,.6));reach(g,a,start.lerp(grip.clone().add(V3(sign*.07,0,0)),amount));}
+  for(const [g,a,sign] of [[golems[0],golems[0].arms[1],1],[golems[5],golems[5].arms[0],-1]])blendReach(g,a,grip.clone().add(V3(sign*.07,0,0)),amount);
  }
 }
 
