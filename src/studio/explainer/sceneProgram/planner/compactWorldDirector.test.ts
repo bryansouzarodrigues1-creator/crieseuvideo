@@ -1,6 +1,8 @@
 import {describe,expect,it} from 'vitest';
 import {compactWorldPrompt,compileCompactWorld,CompactWorldError} from './compactWorldDirector';
 import {sourceBriefsFromScript} from './aiWorldDirector';
+import {compileSceneProgram} from '../score';
+import {SceneProgram3D} from '../stage3d';
 
 const sources=sourceBriefsFromScript(
   'O guindaste levanta uma caixa de ferramentas em uma obra cheia de estruturas. '+
@@ -100,6 +102,69 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
     const clip=compileCompactWorld(custom,sources);
     expect(clip.program.nodes.some(n=>n.id==='machine-tank')).toBe(true);
     expect(clip.program.nodes.some(n=>n.id==='machine-dial')).toBe(true);
+  });
+
+  it('directs an ordered problem → solution with TWO distinct moving objects',()=>{
+    const twoSource=sourceBriefsFromScript(
+      'Uma motocicleta fica parada porque um portão bloqueia a saída da garagem. '+
+      'O portão sobe e depois a motocicleta avança para a rua.'
+    );
+    const scene={
+      version:1,setting:'city',background:'#B4D3E2',
+      entities:[
+        {id:'garage',name:'Garagem da motocicleta',kind:'building',at:[-4,0,-6],size:[8,5,3],color:'#8C969F'},
+        {id:'gate',name:'Portão deslizante',kind:'cargo',at:[1,0,2],size:[2,.8,.3],color:'#B8C9D0'},
+        {id:'bike',name:'Moto aguardando saída',kind:'motorcycle',at:[0,0,2],size:[2.8,1.5,1.4],color:'#EA8F48'}
+      ],
+      actions:[
+        {target:'gate',kind:'lift',delta:[0,2,0]},
+        {target:'bike',kind:'drive',delta:[4,0,0]}
+      ]
+    };
+    const clip=compileCompactWorld(scene,twoSource);
+    const score=compileSceneProgram(clip.program,clip.sources);
+    expect(clip.program.shots.map(s=>s.subjects))
+      .toEqual(expect.arrayContaining([expect.arrayContaining(['gate']),['bike']]));
+    const gateStart=score.sample(0).get('gate')!.position;
+    const gateAtFirst=score.sample(3.8).get('gate')!.position;
+    const bikeStart=score.sample(0).get('bike')!.position;
+    const bikeBefore=score.sample(4).get('bike')!.position;
+    const bikeEnd=score.sample(8).get('bike')!.position;
+    expect(gateAtFirst[1]-gateStart[1]).toBeGreaterThan(1.5);
+    expect(Math.hypot(...bikeBefore.map((v,i)=>v-bikeStart[i]))).toBeLessThan(.001);
+    expect(bikeEnd[0]-bikeStart[0]).toBeGreaterThan(3.5);
+    expect(clip.program.tracks.filter(t=>t.node.startsWith('bike-wheel'))).toHaveLength(2);
+    // Execute the REAL renderer stage, not only the interpreted JSON curve.
+    // The gate and bike keep the same 3D object identities across both events.
+    const stage=new SceneProgram3D(clip.program,clip.sources);
+    try{
+      const gateNode=stage.nodes.get('gate');
+      const bikeNode=stage.nodes.get('bike');
+      for(const t of [0,1,3.5,4,5,6.5,7.99]){
+        stage.update(t);
+        for(const aspect of [9/16,16/9]){
+          stage.frame(aspect);
+          expect(stage.camera.position.toArray().every(Number.isFinite)).toBe(true);
+        }
+        expect(stage.nodes.get('gate')).toBe(gateNode);
+        expect(stage.nodes.get('bike')).toBe(bikeNode);
+      }
+    }finally{stage.dispose();}
+  });
+  it('rejects overlapping targets and more action events than narrated chapters',()=>{
+    const duplicate={...crane,action:undefined,actions:[
+      {target:'load',kind:'lift',delta:[0,3,0]},
+      {target:'load',kind:'move',delta:[2,0,0]}
+    ]};
+    expect(()=>compileCompactWorld(duplicate,sources)).toThrow(/mesmo objeto/);
+    const extra={...vehicle,action:undefined,actions:[
+      {target:'motorbike',kind:'drive',delta:[5,0,0]},
+      {target:'street',kind:'rotate',delta:[0,0,1]},
+      {target:'street',kind:'lift',delta:[0,2,0]}
+    ]};
+    expect(()=>compileCompactWorld(extra,sources)).toThrow();
+    const both={...vehicle,actions:[{target:'motorbike',kind:'drive',delta:[2,0,0]}]};
+    expect(()=>compileCompactWorld(both,sources)).toThrow(/action ou actions/);
   });
   it('rejects scenes with non-existent actions or motionless results',()=>{
     expect(()=>compileCompactWorld({...crane,action:{target:'nobody',kind:'lift',delta:[0,3,0]}},sources))
