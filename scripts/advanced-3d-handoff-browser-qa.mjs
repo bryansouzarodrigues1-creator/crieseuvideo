@@ -24,6 +24,14 @@ try {
  // Do not click it in CI: Google OAuth is an external user interaction.
  const login=page.getByRole('button',{name:'Entrar com Google para gerar 3D'});
  await login.waitFor({timeout:15000});
+ const alternate=page.getByRole('button',{name:'Não aparece uma conta? Entrar por e-mail'});
+ await alternate.click();
+ await page.getByRole('group',{name:'Login sem Google'}).waitFor();
+ await page.getByLabel('Seu e-mail').fill('nao-e-email');
+ await page.getByRole('button',{name:'Enviar link para entrar'}).click();
+ await page.getByText(/Informe um e-mail válido/).waitFor();
+ assert.equal(providerCalls,0,'Invalid email must not trigger paid generation');
+ await page.getByRole('button',{name:'Fechar login por e-mail'}).click();
  assert.equal(providerCalls,0,'Checking auth status must not invoke the AI');
  // A full-page Google return may reload the studio; preserve only the draft,
  // not consent or credentials, and consume the draft after restoring it.
