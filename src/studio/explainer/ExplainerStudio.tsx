@@ -18,6 +18,7 @@ import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
 import {prepareAi3DHandoff,saveAi3DHandoff} from './ai3dHandoff';
 import {checkSceneScript} from './sceneProgram/planner/sceneScript';
+import {AI3D_COOLDOWN_MS,parseAi3DCooldown} from '../ai3dCooldown';
 
 export const SAMPLE = `Ele criou um site para a pizzaria do bairro. De graça.
 Três meses depois, ninguém tinha visto.
@@ -52,6 +53,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
   const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('auto');
   const [ai3dConsent,setAi3dConsent] = useState(false);
+  const [ai3dCooldownUntil,setAi3dCooldownUntil] = useState(0);
+  const [ai3dCooldownSeconds,setAi3dCooldownSeconds] = useState(0);
   const [ai3dClip,setAi3dClip] = useState<ComplexWorldClip|null>(null);
   const [ai3dUsedProvider,setAi3dUsedProvider] = useState<'gemini'|'lovable'|'demo'|null>(null);
   const [ai3dLoginNeeded,setAi3dLoginNeeded] = useState(false);
@@ -85,6 +88,17 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const exportingRef = useRef(false);
   const buffers = useRef(new Map<string, AudioBuffer>());
   const ctx = () => (audioRef.current ??= new AudioContext());
+  useEffect(()=>{
+    if(!ai3dCooldownUntil)return;
+    const update=()=>{
+      const remaining=Math.max(0,Math.ceil((ai3dCooldownUntil-Date.now())/1000));
+      setAi3dCooldownSeconds(remaining);
+      if(remaining===0)setAi3dCooldownUntil(0);
+    };
+    update();
+    const interval=window.setInterval(update,250);
+    return ()=>window.clearInterval(interval);
+  },[ai3dCooldownUntil]);
 
   // The OAuth account chooser is not a completed login. React to a *real*
   // Supabase session, including a Google redirect returning to the same page.
@@ -382,6 +396,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
   const generate = async (text = script) => {
     if(engine==='3d' && engine3dMode==='advanced'){
+      if(ai3dCooldownSeconds>0){
+        setNote(`Aguarde ${ai3dCooldownSeconds}s para tentar novamente. A geração NÃO será iniciada automaticamente e nenhuma chamada adicional foi feita.`);
+        return;
+      }
       const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
       const requested=handoff.script;
       const validation=checkSceneScript(requested);
@@ -403,6 +421,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           setAi3dLoginNeeded(true);
           throw new Error('Para criar cenários 3D, entre na sua conta. Não foi feita nenhuma chamada paga.');
         }
+        // A valid authenticated request can reach the paid provider.
+        // Lock locally as well, so rapid double taps on mobile cannot result
+        // in confusing repeated errors or accidental retries.
+        const requestedAt=Date.now();
+        setAi3dCooldownUntil(requestedAt+AI3D_COOLDOWN_MS);
+        setAi3dCooldownSeconds(Math.ceil(AI3D_COOLDOWN_MS/1000));
         const generated=await sendAi3D({
           data:{script:requested,provider:ai3dProvider,confirmCost:true},
           headers:{Authorization:`Bearer ${session.access_token}`},
@@ -412,7 +436,14 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         const shortened=handoff.fullScriptLength>requested.length;
         setNote(`Cena 3D validada pelo ${generated.provider==='lovable'?'Lovable':'Gemini'}: ${generated.clip.audit.objectCount} objetos e ${generated.clip.program.shots.length} tomadas.${shortened?' Mostrei só as primeiras frases; o roteiro integral permanece no campo.':''} Para colocar voz no MP4, importe MP3/WAV no player ao lado.`);
       }catch(e){
-        setNote('A cena 3D não pôde ser gerada: '+(e instanceof Error?e.message:String(e)));
+        const retryIn=parseAi3DCooldown(e);
+        if(retryIn!==null){
+          setAi3dCooldownUntil(Date.now()+retryIn*1000);
+          setAi3dCooldownSeconds(retryIn);
+          setNote(`Aguarde ${retryIn}s para uma nova tentativa. O servidor bloqueou este pedido antes de chamar a IA, para evitar gastos repetidos. Nenhuma nova geração começará automaticamente.`);
+        }else{
+          setNote('A cena 3D não pôde ser gerada: '+(e instanceof Error?e.message:String(e)));
+        }
       }finally{setBusy(false);setAi3dConsent(false);}
       return;
     }
@@ -580,6 +611,11 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                   onChange={e=>setAi3dConsent(e.target.checked)}/>
                 Autorizo esta tentativa. A geração pode consumir créditos mesmo se a resposta for inválida. No modo automático, até dois provedores podem ser chamados.
               </label>
+              {ai3dCooldownSeconds>0&&<p className="explainer-sub" role="status"
+                aria-label="Tempo restante para nova tentativa 3D">
+                <strong>Aguarde {ai3dCooldownSeconds}s para criar outra cena.</strong>{' '}
+                Essa proteção evita chamadas duplicadas. Quando chegar a zero, você poderá autorizar manualmente outra tentativa.
+              </p>}
               <p className="explainer-sub">Uma descrição de pelo menos 45 caracteres gera uma cena de 8 segundos. Com 2 ou 3 frases ou linhas, são 8–12 segundos e tomadas separadas. Vídeos maiores exigem etapas. Sem chamadas automáticas ou demonstrações como substituto.</p>
               <p className="explainer-sub" role="status" aria-label="Orientação do roteiro 3D">
                 {sceneScriptCheck.description}{' '}
@@ -660,8 +696,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => setElevenId(e.target.value)} aria-label="Voice ID do ElevenLabs" />}
             {voiceOn && plan.scenes.length > 0 && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
           </div>}
-          <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null}>
-            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? 'Criar cena 3D pela IA' : 'Criar animação'}
+          <Button className="explainer-generate" onClick={() => generate()}
+            disabled={busy || voicing !== null ||
+              (engine==='3d'&&engine3dMode==='advanced'&&ai3dCooldownSeconds>0)}>
+            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? ai3dCooldownSeconds>0?`Aguarde ${ai3dCooldownSeconds}s`:'Criar cena 3D pela IA' : 'Criar animação'}
           </Button>
           {note && <p className="explainer-note" role="status">{note}</p>}
           {engine==='3d'&&engine3dMode==='advanced'&&
