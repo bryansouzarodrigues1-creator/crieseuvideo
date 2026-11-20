@@ -5,11 +5,25 @@
  */
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
 const base = 'http://127.0.0.1:4198';
+// Deterministic, locally generated 2-second WAV; no ElevenLabs credits or calls.
+const generateTestWav = () => {
+  const rate=48000, samples=rate*2, buffer=Buffer.alloc(44+samples*2);
+  buffer.write('RIFF',0);buffer.writeUInt32LE(36+samples*2,4);
+  buffer.write('WAVE',8);buffer.write('fmt ',12);
+  buffer.writeUInt32LE(16,16);buffer.writeUInt16LE(1,20);
+  buffer.writeUInt16LE(1,22);buffer.writeUInt32LE(rate,24);
+  buffer.writeUInt32LE(rate*2,28);buffer.writeUInt16LE(2,32);
+  buffer.writeUInt16LE(16,34);buffer.write('data',36);
+  buffer.writeUInt32LE(samples*2,40);
+  for(let i=0;i<samples;i++)
+    buffer.writeInt16LE(Math.round(Math.sin(i*2*Math.PI*220/rate)*3000),44+i*2);
+  return buffer;
+};
 const out = path.resolve('tmp/unified-3d-qa');
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({
@@ -59,14 +73,37 @@ try {
   const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 4);
   assert.equal(noOverflow, true, 'Mobile layout has horizontal overflow');
   assert.equal(providerRequests, 0, 'No paid provider calls during scrubbing');
+  // Narration track should be embedded into the fixed-frame output, not just
+  // played aloud in the preview. A 2s WAV keeps browser CI lightweight.
+  const audioInput=page.locator('input[aria-label="Carregar narração no 3D avançado"]');
+  await audioInput.setInputFiles({
+    name:'qa-narration.wav',mimeType:'audio/wav',buffer:generateTestWav()
+  });
+  await page.getByText(/Narração pronta:/).waitFor({timeout:30000});
+  assert.equal(providerRequests,0,'Uploading narration must not call a model');
+  const downloadPromise=page.waitForEvent('download',{timeout:180000});
+  await page.getByRole('button',{name:/Baixar cena 3D/}).click();
+  const download=await downloadPromise;
+  const downloaded=await readFile(await download.path());
+  assert.ok(downloaded.length>3000,'Encoded video is empty');
+  const {Input,BlobSource,ALL_FORMATS}=await import('mediabunny');
+  const input=new Input({source:new BlobSource(new Blob([downloaded])),formats:ALL_FORMATS});
+  const audioTrack=await input.getPrimaryAudioTrack();
+  assert.ok(audioTrack,'Narration audio track missing from exported MP4/WebM');
+  const videoTrack=await input.getPrimaryVideoTrack();
+  assert.ok(videoTrack,'Video track missing from export');
+  assert.equal(await videoTrack.getDisplayWidth(),720,'Export must be 720px wide');
+  assert.equal(await videoTrack.getDisplayHeight(),1280,'Export must be 1280px tall');
+  assert.equal(providerRequests,0,'Export must not call a paid provider');
   assert.deepEqual(errors, [], 'Unhandled errors in browser');
 
   await writeFile(path.join(out, 'smartphone-demo-report.json'), JSON.stringify({
     passed: true, providerRequests, hashes,
     checkpoints: [0, 3.8, 7.9, 11.8],
-    caveat: 'Automated render smoke/frames only, not human visual sign-off or MP4/audio QA.',
+    audioExportBytes:downloaded.length, audioEmbedded:!!audioTrack,
+    caveat: 'Automated WebGL/render/audio mux smoke; human assessment of visual quality is still required.',
   }, null, 2));
-  console.log('PASS: 12-second smartphone assembly renders in mobile viewport, no AI billing');
+  console.log('PASS: smartphone WebGL assembly, audio track embedded in fixed-frame export, zero AI billing');
 } finally {
   await browser.close();
 }

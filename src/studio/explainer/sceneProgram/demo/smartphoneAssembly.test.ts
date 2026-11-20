@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { compileSceneProgram } from '../score';
 import { SceneProgram3D } from '../stage3d';
 import { buildSmartphoneAssemblyDemo } from './smartphoneAssembly';
@@ -10,6 +11,10 @@ describe('smartphone assembly in the real SceneProgram3D engine', () => {
     expect(clip.duration).toBe(12);
     expect(score.duration).toBe(12);
     expect(clip.program.shots).toHaveLength(3);
+    expect(clip.program.shots[0].subjects).toContain('battery');
+    expect(clip.program.shots[1].subjects).toContain('processor');
+    expect(clip.program.shots[1].subjects).toContain('camera');
+    expect(clip.program.shots[2].subjects).toContain('display');
     expect(clip.program.nodes.length).toBeGreaterThan(20);
     expect(clip.program.nodes.filter(n => n.id === 'chassis')).toHaveLength(1);
     expect(clip.program.nodes.filter(n => n.id === 'battery')).toHaveLength(1);
@@ -26,14 +31,22 @@ describe('smartphone assembly in the real SceneProgram3D engine', () => {
     expect(delta(at(8, 'processor'), at(12, 'processor'))).toBeLessThan(.001);
     expect(delta(at(4, 'camera'), at(8, 'camera'))).toBeGreaterThan(.7);
     expect(delta(at(8, 'camera'), at(12, 'camera'))).toBeLessThan(.001);
+    // The rear camera cores may be visible while the phone is open, but after
+    // installing the display they must remain BEHIND its opaque glass.
+    expect(at(12, 'camera')[2] + .235).toBeLessThan(at(12, 'display')[2] - .042);
     expect(delta(at(8, 'display'), at(12, 'display'))).toBeGreaterThan(2.5);
     expect(delta(at(0, 'chassis'), at(12, 'chassis'))).toBe(0);
   });
 
   it('updates every important frame, keeps object identities and fits both aspect ratios', () => {
     const clip = buildSmartphoneAssemblyDemo();
-    const stage = new SceneProgram3D(clip.program, clip.sources);
+    const stage = new SceneProgram3D(clip.program, clip.sources, new Map(), 'technical');
     try {
+      const chassis = stage.nodes.get('chassis');
+      expect(chassis).toBeInstanceOf(THREE.Mesh);
+      const chassisMaterial = (chassis as THREE.Mesh).material;
+      expect(chassisMaterial).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+      expect((chassisMaterial as THREE.MeshPhysicalMaterial).metalness).toBeGreaterThan(.8);
       const parts = ['chassis', 'battery', 'processor', 'camera', 'display']
         .map(id => stage.nodes.get(id)!);
       for (const t of [0, .4, 1.5, 3.8, 4, 5.4, 7.9, 8, 9, 11.8, 11.999]) {

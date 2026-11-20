@@ -69,7 +69,7 @@ export class SceneProgram3D {
   private maxIKError = 0;
   private contactProblems: unknown[] = [];
   private projectedBounds = { min: [0, 0], max: [0, 0] };
-  constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map()) {
+  constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map(), readonly renderProfile: 'toon' | 'technical' = 'toon') {
     this.score = compileSceneProgram(program, sources);
     const sky = skyTexture(program.background); this.scene.background = sky.texture; this.scene.fog = new THREE.Fog(sky.fog, 65, 220);
     this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
@@ -91,8 +91,30 @@ export class SceneProgram3D {
       else if (n.kind === 'group') root = new THREE.Group();
       else {
         const opacity = n.material?.opacity ?? 1;
-        const kit = isKit(n.geometry!.shape) && n.geometry!.shape !== 'water', geo = n.geometry!.shape === 'water' ? waterGeometry(kitParams(n.geometry!, n.color)) : geometry(n.geometry!, n.color), material = toonMaterial({ color: kit ? '#ffffff' : n.color, opacity, transparent: opacity < 1, depthWrite: opacity === 1,
-          emissive: n.material?.emissive ?? '#000000', emissiveIntensity: n.material?.emissiveIntensity ?? 0, vertexColors: !!n.geometry!.colors || kit, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
+        const kit = isKit(n.geometry!.shape) && n.geometry!.shape !== 'water';
+        const geo = n.geometry!.shape === 'water' ? waterGeometry(kitParams(n.geometry!, n.color)) : geometry(n.geometry!, n.color);
+        // Opt-in technical PBR for authored engineering demos. Existing AI/toon
+        // clips retain their original material pipeline and ink outlines.
+        const material = this.renderProfile === 'technical'
+          ? new THREE.MeshPhysicalMaterial({
+              color: kit ? '#ffffff' : n.color,
+              roughness: n.material?.roughness ?? .46,
+              metalness: n.material?.metalness ?? .18,
+              clearcoat: .25, clearcoatRoughness: .22,
+              opacity, transparent: opacity < 1, depthWrite: opacity === 1,
+              emissive: n.material?.emissive ?? '#000000',
+              emissiveIntensity: n.material?.emissiveIntensity ?? 0,
+              vertexColors: !!n.geometry!.colors || kit,
+              side: THREE.DoubleSide, shadowSide: THREE.BackSide,
+            })
+          : toonMaterial({
+              color: kit ? '#ffffff' : n.color,
+              opacity, transparent: opacity < 1, depthWrite: opacity === 1,
+              emissive: n.material?.emissive ?? '#000000',
+              emissiveIntensity: n.material?.emissiveIntensity ?? 0,
+              vertexColors: !!n.geometry!.colors || kit,
+              side: THREE.DoubleSide, shadowSide: THREE.BackSide,
+            });
         if (n.repeat) {
           const instances = new THREE.InstancedMesh(geo, material, n.repeat.count), dummy = new THREE.Object3D(); let seed = n.repeat.seed;
           const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 - .5; };
@@ -112,7 +134,7 @@ export class SceneProgram3D {
         if (n.geometry!.shape === 'water') this.waters.set(n.id, { mesh: root as THREE.Mesh, params: kitParams(n.geometry!, n.color) });
         root.castShadow = opacity === 1; root.receiveShadow = opacity === 1;
         // Ink line only on solid, single meshes: glows, particles and instanced swarms stay clean.
-        if (opacity === 1 && !n.repeat && n.geometry!.shape !== 'plane' && !['terrain', 'water', 'cloud'].includes(n.geometry!.shape) && !(n.material?.emissiveIntensity && n.material.emissiveIntensity > .3)) this.ink.attach(root as THREE.Mesh);
+        if (this.renderProfile === 'toon' && opacity === 1 && !n.repeat && n.geometry!.shape !== 'plane' && !['terrain', 'water', 'cloud'].includes(n.geometry!.shape) && !(n.material?.emissiveIntensity && n.material.emissiveIntensity > .3)) this.ink.attach(root as THREE.Mesh);
       }
       root.name = n.id; this.nodes.set(n.id, root);
     }
@@ -371,7 +393,7 @@ export class SceneProgram3D {
     if (source && needsGroundedClimb(source.text)) {
       for (const id of this.actors.keys()) this.rejectSolidAscentPenetration(span.sourceId, id);
     }
-    this.frame(w / h); this.ink.resize(w, h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
+    this.frame(w / h); this.ink.resize(w, h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = this.renderProfile === 'technical' ? 1.10 : 1.03; renderer.render(this.scene, this.camera);
   }
   diagnostics() {
     return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,

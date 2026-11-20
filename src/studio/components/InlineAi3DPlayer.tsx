@@ -7,7 +7,7 @@ import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
 /**
  * The actual AI-authored SceneProgram3D renders IN the original editor.
  * A generated clip is never replaced by the old Toon 3D host, a sample
- * scene, or a 2D plan. Narration/export remain separate until synchronized.
+ * scene, or a 2D plan. Optional user-uploaded narration is synchronized locally.
  */
 export function InlineAi3DPlayer({
   clip,aspect,provider
@@ -30,16 +30,31 @@ export function InlineAi3DPlayer({
   const [error,setError]=useState('');
   const [lite,setLite]=useState(true);
   const [progress,setProgress]=useState<number|null>(null);
+  const audioRef=useRef<HTMLAudioElement>(null);
+  const voiceBufferRef=useRef<AudioBuffer|null>(null);
+  const voiceUrlRef=useRef<string|null>(null);
+  const [voiceName,setVoiceName]=useState('');
+  const [voiceUrl,setVoiceUrl]=useState('');
+  const [voiceDuration,setVoiceDuration]=useState(0);
+  const [voiceNote,setVoiceNote]=useState('');
   const seconds=clip?.duration??0;
 
   useEffect(()=>{playingRef.current=playing;},[playing]);
+  // Never persist the narration as part of a different generated scene.
+  useEffect(()=>{
+    audioRef.current?.pause();
+    voiceBufferRef.current=null;setVoiceName('');setVoiceDuration(0);setVoiceUrl('');
+    if(voiceUrlRef.current)URL.revokeObjectURL(voiceUrlRef.current);
+    voiceUrlRef.current=null;setVoiceNote('');
+  },[clip]);
+  useEffect(()=>()=>{if(voiceUrlRef.current)URL.revokeObjectURL(voiceUrlRef.current);},[]);
 
   useEffect(()=>{
     const canvas=canvasRef.current;
     if(!canvas)return;
     const contextLost=(event:Event)=>{
       event.preventDefault();
-      playingRef.current=false;setPlaying(false);
+      playingRef.current=false;setPlaying(false);audioRef.current?.pause();
       setError('O navegador interrompeu o WebGL. Ative o modo leve e recarregue esta página.');
     };
     canvas.addEventListener('webglcontextlost',contextLost);
@@ -54,7 +69,7 @@ export function InlineAi3DPlayer({
     let active=true;
     let raf=0;
     setError('');setTime(0);clockRef.current=0;
-    playingRef.current=false;setPlaying(false);
+    playingRef.current=false;setPlaying(false);audioRef.current?.pause();
     try{
       const renderer=rendererRef.current??new THREE.WebGLRenderer({
         canvas,alpha:false,antialias:false,preserveDrawingBuffer:true,
@@ -66,7 +81,7 @@ export function InlineAi3DPlayer({
       renderer.outputColorSpace=THREE.SRGBColorSpace;
       renderer.shadowMap.enabled=!lite;
       stageRef.current?.dispose();
-      const stage=new SceneProgram3D(clip.program,clip.sources);
+      const stage=new SceneProgram3D(clip.program,clip.sources,new Map(),provider==='demo'?'technical':'toon');
       stageRef.current=stage;
       drawRef.current=(seconds:number)=>
         stage.render(renderer,Math.max(0,Math.min(clip.duration-.001,seconds)),width,height);
@@ -76,7 +91,18 @@ export function InlineAi3DPlayer({
         if(!active)return;
         const dt=Math.min(.10,Math.max(0,(now-previous)/1000));previous=now;
         if(playingRef.current&&!exportRef.current&&!document.hidden){
-          clockRef.current=Math.min(clip.duration-.001,clockRef.current+dt);
+          const voice=voiceBufferRef.current,audio=audioRef.current;
+          if(voice&&audio){
+            if(audio.ended){
+              playingRef.current=false;setPlaying(false);
+            }else if(!audio.paused){
+              // Audio is master clock: no drift when the device drops 3D frames.
+              clockRef.current=Math.min(clip.duration-.001,
+                Math.max(0,audio.currentTime/voice.duration*clip.duration));
+            }
+          }else{
+            clockRef.current=Math.min(clip.duration-.001,clockRef.current+dt);
+          }
           if(now>=nextPaint){
             nextPaint=now+(lite?68:34);
             try{drawRef.current(clockRef.current);}
@@ -99,7 +125,7 @@ export function InlineAi3DPlayer({
       playingRef.current=false;drawRef.current=()=>{};
       stageRef.current?.dispose();stageRef.current=null;
     };
-  },[clip,aspect,lite]);
+  },[clip,aspect,lite,provider]);
 
   useEffect(()=>()=>{
     exportAbort.current?.abort();
@@ -110,24 +136,87 @@ export function InlineAi3DPlayer({
 
   const seek=(t:number)=>{
     if(!clip||exportRef.current)return;
-    playingRef.current=false;setPlaying(false);
+    playingRef.current=false;setPlaying(false);audioRef.current?.pause();
     clockRef.current=Math.max(0,Math.min(clip.duration-.001,t));
+    if(voiceBufferRef.current&&audioRef.current){
+      try{audioRef.current.currentTime=clockRef.current/clip.duration*voiceBufferRef.current.duration;}catch{}
+    }
     setTime(clockRef.current);
     try{drawRef.current(clockRef.current);}
     catch(e){setError(e instanceof Error?e.message:String(e));}
   };
 
+  const loadNarration=async(file:File)=>{
+    if(!clip||exportRef.current)return;
+    setVoiceNote('Lendo narração…');
+    try{
+      if(file.size>24_000_000)throw new Error('Áudio muito grande: use até 24 MB.');
+      const ac=new AudioContext();
+      let buffer:AudioBuffer;
+      try{buffer=await ac.decodeAudioData(await file.arrayBuffer());}
+      finally{await ac.close();}
+      if(buffer.duration<.5||buffer.duration>30)
+        throw new Error('Para esta sequência, envie um áudio entre 0,5 e 30 segundos.');
+      audioRef.current?.pause();
+      if(voiceUrlRef.current)URL.revokeObjectURL(voiceUrlRef.current);
+      const url=URL.createObjectURL(file);
+      voiceUrlRef.current=url;voiceBufferRef.current=buffer;
+      setVoiceUrl(url);setVoiceName(file.name);setVoiceDuration(buffer.duration);
+      setVoiceNote('Narração pronta: a animação acompanhará a duração real do arquivo.');
+      seek(0);
+    }catch(e){
+      setVoiceNote('Não consegui ler a narração: '+(e instanceof Error?e.message:String(e)));
+    }
+  };
+
+  const removeNarration=()=>{
+    audioRef.current?.pause();voiceBufferRef.current=null;
+    if(voiceUrlRef.current)URL.revokeObjectURL(voiceUrlRef.current);
+    voiceUrlRef.current=null;setVoiceUrl('');setVoiceName('');setVoiceDuration(0);
+    setVoiceNote('Narração removida.');seek(0);
+  };
+
+  const togglePlayback=()=>{
+    if(!clip||exportRef.current)return;
+    const play=!playingRef.current;
+    if(!play)audioRef.current?.pause();
+    else{
+      if(clockRef.current>=clip.duration-.01)seek(0);
+      if(voiceBufferRef.current&&audioRef.current){
+        try{
+          audioRef.current.currentTime=clockRef.current/clip.duration*voiceBufferRef.current.duration;
+          void audioRef.current.play().catch(()=>{
+            playingRef.current=false;setPlaying(false);
+            setVoiceNote('O navegador bloqueou a reprodução do áudio. Toque para reproduzir novamente.');
+          });
+        }catch{setVoiceNote('Não foi possível iniciar a narração.');}
+      }
+    }
+    playingRef.current=play;setPlaying(play);
+  };
+
   const download=async()=>{
-    const canvas=canvasRef.current;
-    if(!canvas||!clip||exportRef.current||error)return;
+    const canvas=canvasRef.current,gl=rendererRef.current,stage=stageRef.current;
+    if(!canvas||!gl||!stage||!clip||exportRef.current||error)return;
+    const previousSize={width:canvas.width,height:canvas.height};
     exportRef.current=true;
-    playingRef.current=false;setPlaying(false);setProgress(0);
+    playingRef.current=false;setPlaying(false);audioRef.current?.pause();setProgress(0);
     const abort=new AbortController();exportAbort.current=abort;
     try{
       const {encodeFixedFrame3DClip}=await import('../utils/deterministic3dExport');
+      const voice=voiceBufferRef.current;
+      const exportSeconds=voice?.duration??clip.duration;
+      // Preview can be 270x480: export is always portrait 720p or landscape 720p.
+      const outputSize=aspect==='9:16'
+        ? {width:720,height:1280}:{width:1280,height:720};
+      gl.setSize(outputSize.width,outputSize.height,false);
       const result=await encodeFixedFrame3DClip({
-        canvas,durationSeconds:clip.duration,fps:24,signal:abort.signal,
-        renderFrame:t=>drawRef.current(t),onProgress:setProgress
+        canvas,durationSeconds:exportSeconds,fps:24,signal:abort.signal,
+        ...(voice?{audioBuffer:voice}:{}),
+        renderFrame:t=>stage.render(gl,
+          Math.max(0,Math.min(clip.duration-.001,t*clip.duration/exportSeconds)),
+          outputSize.width,outputSize.height),
+        onProgress:setProgress
       });
       const url=URL.createObjectURL(result.blob);
       const anchor=document.createElement('a');
@@ -136,15 +225,16 @@ export function InlineAi3DPlayer({
       document.body.appendChild(anchor);anchor.click();anchor.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),60000);
     }catch(e){
-      setError('Exportação falhou: '+(e instanceof Error?e.message:String(e)));
+      setVoiceNote('Exportação falhou: '+(e instanceof Error?e.message:String(e)));
     }finally{
       exportAbort.current=null;exportRef.current=false;setProgress(null);
       clockRef.current=0;setTime(0);
-      try{drawRef.current(0);}catch{}
+      try{gl.setSize(previousSize.width,previousSize.height,false);drawRef.current(0);}catch{}
     }
   };
 
   return <section className="explainer-stage inline-ai3d-player" aria-label="Prévia do 3D avançado">
+    <audio ref={audioRef} src={voiceUrl||undefined} preload="auto"/>
     <div className="native-3d-screen inline-ai3d-stage" style={!clip?{display:'none'}:undefined}>
       <canvas ref={canvasRef} aria-label={provider==='demo'?'Prévia da montagem 3D de celular':'Prévia da cena 3D gerada pela IA'}
         style={{aspectRatio:aspect==='9:16'?'9 / 16':'16 / 9'}}/>
@@ -157,7 +247,7 @@ export function InlineAi3DPlayer({
     </div> : <>
       <div className="native-3d-controls">
         <button type="button" disabled={progress!==null||!!error}
-          onClick={()=>{if(clockRef.current>=seconds-.01)seek(0);setPlaying(v=>!v);}}>
+          onClick={togglePlayback}>
           {playing?<Pause size={17}/>:<Play size={17}/>}
           {playing?'Pausar':'Reproduzir'}
         </button>
@@ -169,7 +259,7 @@ export function InlineAi3DPlayer({
           disabled={progress!==null}><RotateCcw size={17}/></button>
       </div>
       <div className="native-3d-actions">
-        <button type="button" disabled={progress!==null} onClick={()=>setLite(v=>!v)}>
+        <button type="button" disabled={progress!==null} onClick={()=>{audioRef.current?.pause();setPlaying(false);setLite(v=>!v);}}>
           {lite?'Modo leve ativo':'Modo normal ativo'}
         </button>
         {progress!==null
@@ -177,11 +267,22 @@ export function InlineAi3DPlayer({
           : <button type="button" className="native-3d-download" onClick={()=>void download()}
               disabled={!!error}><Download size={17}/> Baixar cena 3D</button>}
       </div>
+      <div className="native-3d-actions">
+        <label className="native-3d-download" style={{display:'inline-flex',alignItems:'center',gap:6,padding:'10px',cursor:'pointer'}}>
+          Carregar narração do ElevenLabs
+          <input type="file" hidden accept="audio/*"
+            aria-label="Carregar narração no 3D avançado" disabled={progress!==null}
+            onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void loadNarration(f);}}/>
+        </label>
+        {voiceName&&<button type="button" disabled={progress!==null} onClick={removeNarration}>Remover áudio</button>}
+      </div>
+      {voiceName&&<p className="native-3d-small">Áudio: {voiceName} · {voiceDuration.toFixed(1)}s. A sequência de {seconds.toFixed(1)}s é ajustada à duração da narração.</p>}
+      {voiceNote&&<p className="native-3d-small" role="status">{voiceNote}</p>}
       <div className="native-3d-numbers">
         <strong>Direção: {provider==='demo'?'Demonstração offline (sem IA)':provider==='lovable'?'IA do Lovable':provider==='gemini'?'Gemini':'Não informado'}</strong>
-        <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras</span>
+        <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras{provider==='demo'?' · materiais físicos PBR':''}</span>
       </div>
-      <p className="native-3d-small">Arquivo 3D experimental com quadros fixos. Este download ainda não inclui voz nem legendas, mesmo que a preferência de narração esteja ativa no editor.</p>
+      <p className="native-3d-small">Exportação 720×1280 (ou 1280×720), quadros fixos e MP4/WebM: {voiceName?'inclui a narração importada':'sem narração (importe um MP3/WAV se desejar)'}. Legendas 3D ainda não foram integradas.</p>
       {error&&<p className="native-3d-error" role="alert">{error}</p>}
     </>}
   </section>;
