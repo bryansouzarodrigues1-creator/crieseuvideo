@@ -21,6 +21,7 @@ Base revisada: `main` em `5b1201e`, após integração do PR #85. Referência vi
 4. Erros/substituições descartavam os resolvedores de quadros, deixando os pedidos pendentes até timeout. Cancelamento não interrompia imediatamente um quadro aguardado.
 5. Importação assíncrona da biblioteca podia usar o token da próxima carga. Faltava liberar explicitamente recursos e URLs do sandbox.
 6. Havia referência a documentação do Código 3D inexistente e nenhum caminho de salvar/reabrir um programa para revisá-lo sem cobrar outra geração.
+7. **Falha reproduzida no navegador:** a inicialização tentava chamar `js(core)` dentro do iframe, mas esse helper só existia na página principal. Isso causava `ReferenceError: js is not defined` antes mesmo de criar o renderer. A resolução dos módulos Three.js foi corrigida para usar uma função autossuficiente dentro do iframe.
 
 Esta revisão corrige o ciclo de execução/exportação, permite salvar/reabrir `.js`, compartilha a validação sintática, endurece duração/replay e acrescenta testes de provedor e navegador. O prompt passa a exigir causalidade e contatos explícitos, sem prometer melhoria artística ainda não observada.
 

@@ -73,6 +73,12 @@ export function replayCheck(
 
 const js = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
 
+/** Self-contained: runs inside the iframe, where helpers from the app do not exist. */
+export function bindThreeCore(source: string, coreUrl: string): string {
+  const quoted = JSON.stringify(coreUrl);
+  return source.split("'./three.core.js'").join(quoted).split('"./three.core.js"').join(quoted);
+}
+
 /** Builds the srcdoc. Contains no user code, no keys and no account data. */
 export function buildSandboxSrcdoc(opts: {
   token: string; nonce: string; parentOrigin: string;
@@ -92,6 +98,7 @@ const TOKEN=${js(opts.token)}, PARENT=${js(opts.parentOrigin)};
 const MIN=${js(opts.minDuration)}, MAX=${js(opts.maxDuration)}, DEF=${js(opts.defaultDuration)};
 const diff=(${maxPixelDiff.toString()});
 const replay=(${replayCheck.toString()});
+const bindCore=(${bindThreeCore.toString()});
 const post=parent.postMessage.bind(parent);
 const send=(m,tr)=>post(Object.assign({},m,{token:TOKEN}),PARENT,tr||[]);
 // Defense in depth only; CSP connect-src 'none' is the real network block.
@@ -126,7 +133,7 @@ addEventListener('message',async ev=>{
     canvas.width=w;canvas.height=h;
     try{
       const core=url(d.core);
-      THREE=await import(url(d.module.split("'./three.core.js'").join(js(core)).split('"./three.core.js"').join(js(core))));
+      THREE=await import(url(bindCore(d.module,core)));
     }catch(e){return fail('library',e);}
     let createScene;
     try{createScene=(await import(url(d.code+'\\n;export default (typeof createScene==="function"?createScene:null);'))).default;}
