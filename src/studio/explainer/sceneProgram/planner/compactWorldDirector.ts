@@ -360,14 +360,16 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
   // Explicit sourceId (preferred) ties every movement to its narrated cause.
   // Without sourceId, reserve the opening chapter for the problem when there
   // are more narration beats than distinct actions (3 sentences / 2 actions).
+  let previousChapter=-1;
   const chapters=input.actions.map((action,i)=>{
     const chapter=action.sourceId===undefined
       ?i+Math.max(0,sourceIds.length-input.actions.length)
       :sourceIds.indexOf(action.sourceId);
     if(chapter<0||chapter>=sourceIds.length)
       fail('A ação cita uma frase que não existe no roteiro.');
-    if(i>0&&chapter<=chapters[i-1])
+    if(chapter<=previousChapter)
       fail('As ações precisam ocorrer em frases posteriores, sem inverter o roteiro.');
+    previousChapter=chapter;
     return chapter;
   });
   const tracks:Record<string,unknown>[]=[];
