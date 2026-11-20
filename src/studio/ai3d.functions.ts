@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {requireSupabaseAuth} from '@/integrations/supabase/auth-middleware';
 import {sourceBriefsFromScript} from './explainer/sceneProgram/planner/aiWorldDirector';
 import {compactWorldPrompt,compileCompactWorld} from './explainer/sceneProgram/planner/compactWorldDirector';
+import {cooldownSecondsRemaining,ai3dCooldownMessage} from './ai3dCooldown';
 
 const input=z.object({
   script:z.string().min(45).max(750),
@@ -23,10 +24,13 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
     const now=Date.now();
     if(inFlight.has(userId))throw new Error('Uma cena sua já está sendo planejada.');
     const last=lastRequest.get(userId)||0;
-    if(now-last<30000)throw new Error('Espere ao menos 30 segundos entre pedidos para evitar gastos repetidos.');
+    const retryIn=cooldownSecondsRemaining(last,now);
+    if(retryIn>0)throw new Error(ai3dCooldownMessage(retryIn));
     const sources=sourceBriefsFromScript(data.script);
     const prompt=compactWorldPrompt(sources);
     inFlight.add(userId);
+    // A valid provider attempt starts the anti-double-spend window.
+    // Rejected repeats do not extend the window or contact either provider.
     lastRequest.set(userId,now);
     try{
       const {ask3DWorldAi,parseJson}=await import('./server/ai');
