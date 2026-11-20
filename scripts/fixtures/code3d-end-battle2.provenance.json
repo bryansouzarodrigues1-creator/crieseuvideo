@@ -1,0 +1,19 @@
+{
+  "title": "A Batalha do End — Parte 2",
+  "source_sha256": "48ddad94132776995e27ed82ca758d35653b7c67d5c062bda205e678f9e0873b",
+  "duration": 120,
+  "scenes": 12,
+  "clip_duration": 10,
+  "scene_model_calls": 0,
+  "authorship": "Original fictional continuation authored by ChatGPT; manually imported into the existing CrieSeuVideo engine",
+  "reference": "Procedural texture approach and adapted voxel actors retain the MIT notice of the supplied Artem Novitckii reference. No external game model, texture or font is downloaded.",
+  "improvements": [
+    "Arclength-driven walking with world foot targets",
+    "Upper-body weight shifts and independent head intent",
+    "Anticipation/contact/recoil/recovery for hits",
+    "Quaternion-oriented dragon flight with bank and joint lag",
+    "Shared hand target during the rescue",
+    "Persistent crystal and battle state derived from absolute time"
+  ],
+  "limits": "This is a programmed story and a repository test render, not autonomous Gemini generation or production deployment."
+}
