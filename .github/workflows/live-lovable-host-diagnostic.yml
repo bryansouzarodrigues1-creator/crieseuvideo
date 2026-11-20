@@ -1,0 +1,28 @@
+name: Diagnose actual Lovable preview and published website
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install browser driver
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Navigate actual preview and published hosts anonymously
+        run: bun scripts/live-host-healthcheck.mjs
+      - name: Preserve screenshots and sanitized report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-lovable-host-healthcheck
+          path: tmp/live-host-qa/
+          retention-days: 3
+          if-no-files-found: warn
