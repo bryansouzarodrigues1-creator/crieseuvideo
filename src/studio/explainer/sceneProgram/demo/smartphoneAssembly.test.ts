@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { compileSceneProgram } from '../score';
 import { SceneProgram3D } from '../stage3d';
 import { buildSmartphoneAssemblyDemo } from './smartphoneAssembly';
+import {activeBeat} from '../presentation';
 
 describe('smartphone assembly in the real SceneProgram3D engine', () => {
   it('validates one persistent scene graph, its cameras and its three causal acts', () => {
@@ -11,6 +12,16 @@ describe('smartphone assembly in the real SceneProgram3D engine', () => {
     expect(clip.duration).toBe(12);
     expect(score.duration).toBe(12);
     expect(clip.program.shots).toHaveLength(3);
+    const story=clip.presentation!;
+    expect(story.title).toMatch(/peça/);
+    expect(story.narration).toMatch(/Sem bateria/);
+    expect(story.beats.map(b=>b.start)).toEqual([0,4,8]);
+    expect(story.beats.map(b=>b.end)).toEqual([4,8,12]);
+    expect(activeBeat(story,0)?.problem).toMatch(/Sem bateria/);
+    expect(activeBeat(story,4.1)?.solution).toMatch(/chip/i);
+    expect(activeBeat(story,11.9)?.solution).toMatch(/tela/i);
+    expect(activeBeat(story,12.5)).toBeUndefined();
+    expect(activeBeat(story,Number.NaN)).toBeUndefined();
     expect(clip.program.shots[0].subjects).toContain('battery');
     expect(clip.program.shots[1].subjects).toContain('processor');
     expect(clip.program.shots[1].subjects).toContain('camera');
@@ -35,6 +46,9 @@ describe('smartphone assembly in the real SceneProgram3D engine', () => {
     // installing the display they must remain BEHIND its opaque glass.
     expect(at(12, 'camera')[2] + .235).toBeLessThan(at(12, 'display')[2] - .042);
     expect(delta(at(8, 'display'), at(12, 'display'))).toBeGreaterThan(2.5);
+    // A phone with no battery or unattached screen must not show lit app icons.
+    expect(score.sample(8).get('app-0-0')!.scale[0]).toBeCloseTo(.01);
+    expect(score.sample(12).get('app-0-0')!.scale[0]).toBeCloseTo(1);
     expect(delta(at(0, 'chassis'), at(12, 'chassis'))).toBe(0);
   });
 
