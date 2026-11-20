@@ -319,6 +319,21 @@ function frames(sourceIds:string[],from:Vec,to:Vec) {
   return points;
 }
 
+/** Keyframes are scheduled in the chapter where an action belongs.
+ * Other objects stay put rather than moving continuously through unrelated
+ * narration. A target is unique per action in this first multi-step version. */
+function actionFrames(sourceIds:string[],chapter:number,from:Vec,to:Vec) {
+  const current=sourceIds[chapter],last=sourceIds[sourceIds.length-1];
+  if(!current||!last)fail('A ação não possui capítulo de roteiro.');
+  return [
+    {sourceId:sourceIds[0],phase:0,value:from},
+    {sourceId:current,phase:0,value:from},
+    {sourceId:current,phase:.14,value:from},
+    {sourceId:current,phase:.90,value:to},
+    {sourceId:last,phase:1,value:to}
+  ];
+}
+
 export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):ComplexWorldClip{
   if(!sources.length||sources.length>3||sources.some(s=>!s.text||!s.sourceId))
     fail('A sequência não possui roteiro e tempo corretos.');
@@ -338,55 +353,62 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     addBackground({id:'room_back',name:'Parede e entrada de sala',kind:'building',
       at:[0,0,-13],size:[19,8,1],color:'#A9B6B9'});
   }
-  const action=input.action;
-  const target=objects.find(o=>o.id===action.target)!;
-  const rotating=action.kind==='rotate'||action.kind==='open';
-  const from:Vec=rotating?[0,0,0]:target.at;
-  const to:Vec=from.map((v,i)=>round(v+action.delta[i])) as Vec;
-  const tracks:Record<string,unknown>[]=[{
-    node:action.target,channel:rotating?'rotation':'position',
-    interpolation:'smooth',keys:frames(sourceIds,from,to),
-  }];
-  const isVehicle=(target.kind==='vehicle'||target.kind==='motorcycle')&&!rotating;
-  if(isVehicle){
-    const distance=Math.hypot(action.delta[0],action.delta[2]);
-    const radius=target.kind==='motorcycle'
-      ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
-      :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
-    const theta=round(distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
-    for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb'])){
-      tracks.push({node:target.id+'-wheel'+side,channel:'rotation',
-        interpolation:'smooth',keys:frames(sourceIds,[0,0,0],[0,0,theta])});
+  if(input.actions.length>sourceIds.length)
+    fail('A IA descreveu mais ações do que os trechos disponíveis na narração.');
+  const tracks:Record<string,unknown>[]=[];
+  for(const [chapter,action] of input.actions.entries()){
+    const target=objects.find(o=>o.id===action.target)!;
+    const rotating=action.kind==='rotate'||action.kind==='open';
+    const from:Vec=rotating?[0,0,0]:target.at;
+    const to:Vec=from.map((v,i)=>round(v+action.delta[i])) as Vec;
+    const eventKeys=(from:Vec,to:Vec)=>input.actions.length===1
+      ?frames(sourceIds,from,to)
+      :actionFrames(sourceIds,chapter,from,to);
+    tracks.push({
+      node:action.target,channel:rotating?'rotation':'position',
+      interpolation:'smooth',keys:eventKeys(from,to),
+    });
+    const isVehicle=(target.kind==='vehicle'||target.kind==='motorcycle')&&!rotating;
+    if(isVehicle){
+      const distance=Math.hypot(action.delta[0],action.delta[2]);
+      const radius=target.kind==='motorcycle'
+        ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
+        :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
+      const theta=round(distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
+      for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb'])){
+        tracks.push({node:target.id+'-wheel'+side,channel:'rotation',
+          interpolation:'smooth',keys:eventKeys([0,0,0],[0,0,theta])});
+      }
+    }
+    // Mechanically coupled drum, cable and hook follow the actual load,
+    // with the same chapter timing, instead of spinning independently.
+    const crane=objects.find(o=>o.kind==='crane');
+    if(crane && target.kind==='cargo' && Math.abs(action.delta[1])>.7){
+      const radius=.30;
+      tracks.push({node:crane.id+'-winch',channel:'rotation',
+        interpolation:'smooth',
+        keys:eventKeys([0,0,0],[0,0,round(action.delta[1]/radius)])});
+      const initialLen=crane.size[1]*.65;
+      const nextLen=Math.max(.2,initialLen-action.delta[1]);
+      tracks.push({node:crane.id+'-cable',channel:'scale',interpolation:'smooth',
+        keys:eventKeys([1,1,1],[1,round(nextLen/initialLen),1])});
+      tracks.push({node:crane.id+'-cable',channel:'position',interpolation:'smooth',
+        keys:eventKeys([crane.size[0]*.40,crane.size[1]*.56,0],
+          [crane.size[0]*.40,round(crane.size[1]*.56+action.delta[1]*.5),0])});
+      tracks.push({node:crane.id+'-hook',channel:'position',interpolation:'smooth',
+        keys:eventKeys([crane.size[0]*.40,crane.size[1]*.21,0],
+          [crane.size[0]*.40,round(crane.size[1]*.21+action.delta[1]),0])});
     }
   }
-  // Machine output coupling: a winding drum rotates as the adjacent cargo lifts.
-  const crane=objects.find(o=>o.kind==='crane');
-  if(crane && target.kind==='cargo' && Math.abs(action.delta[1])>.7){
-    const radius=.30;
-    tracks.push({node:crane.id+'-winch',channel:'rotation',
-      interpolation:'smooth',
-      keys:frames(sourceIds,[0,0,0],[0,0,round(action.delta[1]/radius)])});
-    // The cable changes length as the load changes height, instead of
-    // remaining a disconnected rigid bar. It is an approximation, not physics.
-    const initialLen=crane.size[1]*.65;
-    const nextLen=Math.max(.2,initialLen-action.delta[1]);
-    tracks.push({node:crane.id+'-cable',channel:'scale',interpolation:'smooth',
-      keys:frames(sourceIds,[1,1,1],[1,round(nextLen/initialLen),1])});
-    tracks.push({node:crane.id+'-cable',channel:'position',interpolation:'smooth',
-      keys:frames(sourceIds,[crane.size[0]*.40,crane.size[1]*.56,0],
-        [crane.size[0]*.40,round(crane.size[1]*.56+action.delta[1]*.5),0])});
-    // The hook must stay on the same load, not remain as a disconnected
-    // marker below the drum while the cargo rises.
-    tracks.push({node:crane.id+'-hook',channel:'position',interpolation:'smooth',
-      keys:frames(sourceIds,[crane.size[0]*.40,crane.size[1]*.21,0],
-        [crane.size[0]*.40,round(crane.size[1]*.21+action.delta[1]),0])});
-  }
+  // Each narrative chapter follows the action authored for that chapter.
+  // If there are fewer actions than sentences, hold the final subject.
+  const subjectFor=(i:number)=>input.actions[Math.min(i,input.actions.length-1)].target;
   const world={version:1,clips:[{
     id:'scene',sources:sources.map(s=>({sourceId:s.sourceId,text:s.text,duration:s.duration})),
     sceneProgram:{
       version:1,background:input.background,nodes:[],tracks,
       shots:sourceIds.map((s,i)=>camera(s,
-        i===0?[...new Set([objects[0].id,target.id])]:[target.id],i)),
+        i===0?[...new Set([objects[0].id,subjectFor(i)])]:[subjectFor(i)],i)),
       contacts:[]
     },
     worldBlueprints:{
