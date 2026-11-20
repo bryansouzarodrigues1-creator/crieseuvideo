@@ -40,7 +40,7 @@ jobs:
       - name: Encode MP4 and verify playback metadata
         run: |
           command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
-          ffmpeg -y -v error -framerate 18 -i tmp/current-engine-video/frames/f%04d.png -c:v libx264 -crf 19 -preset medium -pix_fmt yuv420p -r 18 -movflags +faststart tmp/current-engine-video/CrieSeuVideo_Grua_Teste_Motor_Atual.mp4
+          ffmpeg -y -v error -framerate 18 -i tmp/current-engine-video/frames/f%04d.png -c:v libx264 -crf 20 -preset ultrafast -threads 2 -pix_fmt yuv420p -r 18 -movflags +faststart tmp/current-engine-video/CrieSeuVideo_Grua_Teste_Motor_Atual.mp4
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json tmp/current-engine-video/CrieSeuVideo_Grua_Teste_Motor_Atual.mp4 >tmp/current-engine-video/video-metadata.json
           ffmpeg -y -v error -i tmp/current-engine-video/CrieSeuVideo_Grua_Teste_Motor_Atual.mp4 -vf "fps=1/3,scale=288:512,tile=4x1" -frames:v 1 tmp/current-engine-video/storyboard.png
           test -s tmp/current-engine-video/CrieSeuVideo_Grua_Teste_Motor_Atual.mp4
