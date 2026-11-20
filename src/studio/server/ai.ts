@@ -8,7 +8,8 @@ export type AiTask = "direction" | "light";
 export type ProviderProblem =
   | 'not_configured' | 'unauthorized' | 'quota' | 'forbidden'
   | 'service_unavailable' | 'timeout' | 'network'
-  | 'empty_response' | 'invalid_response' | 'response_too_large';
+  | 'empty_response' | 'invalid_response' | 'invalid_json' | 'invalid_scene'
+  | 'truncated_response' | 'response_too_large';
 export type Ai3DProvider = 'lovable' | 'gemini';
 export type ProviderFailure = { provider: Ai3DProvider; reason: ProviderProblem };
 const safeProblem = (status:number):ProviderProblem => {
@@ -26,7 +27,10 @@ const ptProblem:Record<ProviderProblem,string> = {
   timeout:'tempo de resposta esgotado',
   network:'falha de comunicação com o provedor',
   empty_response:'a IA respondeu sem conteúdo',
-  invalid_response:'a IA retornou um formato inesperado',
+  invalid_response:'a resposta não corresponde ao formato 3D esperado',
+  invalid_json:'a resposta não contém um JSON 3D legível',
+  invalid_scene:'o JSON não respeitou as regras de objetos e movimentos do motor',
+  truncated_response:'a resposta foi interrompida antes de terminar',
   response_too_large:'a IA retornou uma resposta grande demais'
 };
 export class Ai3DProviderError extends Error {
@@ -67,7 +71,16 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
       return null;
     }
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content;
+    const first=data.choices?.[0];
+    // OpenAI-compatible gateways may return content as text segments.
+    const raw=first?.message?.content;
+    const content=typeof raw==='string'?raw:
+      Array.isArray(raw)?raw.filter((p:unknown):p is {text:string}=>
+        !!p&&typeof p==='object'&&typeof (p as {text?:unknown}).text==='string')
+        .map(p=>p.text).join(''):null;
+    if(first?.finish_reason==='length'){
+      onProblem?.('truncated_response');return null;
+    }
     if(typeof content!=='string' || !content.trim()) onProblem?.('empty_response');
     return typeof content==='string' && content.trim() ? content : null;
   } catch (e) {
@@ -80,9 +93,12 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
   }
 }
 
-async function askGemini(prompt: string, onProblem?: (reason: ProviderProblem) => void): Promise<string | null> {
+async function askGemini(
+  prompt: string, onProblem?: (reason: ProviderProblem) => void,
+  responseSchema?:Record<string,unknown>
+): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
+  if (!key){onProblem?.('not_configured');return null;}
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 60000);
   try {
@@ -94,7 +110,13 @@ async function askGemini(prompt: string, onProblem?: (reason: ProviderProblem) =
         headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt + "\n\nResponda somente com JSON válido." }] }],
-          generationConfig: { responseMimeType: "application/json" },
+          // Gemini 2.5 JSON mode without responseSchema is only a format
+          // preference. The schema constrains field names, enum values,
+          // IDs and geometry before the separate strict compiler checks.
+          generationConfig: {
+            responseMimeType: "application/json",
+            ...(responseSchema?{responseSchema}:{}),
+          },
         }),
       },
     );
@@ -105,7 +127,14 @@ async function askGemini(prompt: string, onProblem?: (reason: ProviderProblem) =
       return null;
     }
     const data = await res.json();
-    const content = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") || null;
+    const candidate=data.candidates?.[0];
+    if(candidate?.finishReason==='MAX_TOKENS'){
+      onProblem?.('truncated_response');return null;
+    }
+    const content=candidate?.content?.parts
+      ?.filter((p:unknown):p is {text:string}=>
+        !!p&&typeof p==='object'&&typeof (p as {text?:unknown}).text==='string')
+      .map((p:{text:string})=>p.text).join('') || null;
     if(!content) onProblem?.('empty_response');
     return content;
   } catch (e) {
@@ -148,10 +177,12 @@ export function parseJson(text: string | null): any {
  * is honored; "auto" uses Lovable direction first, Gemini as fallback.
  * This is an LLM planning call (credits may apply), not generative video.
  */
+export type Ai3DValidation = boolean | {accepted:boolean; reason?:'invalid_json'|'invalid_scene'};
 export async function ask3DWorldAi(
   prompt:string,
   preferred:'auto'|'gemini'|'lovable'='auto',
-  isValid?:(content:string)=>boolean
+  isValid?:(content:string)=>Ai3DValidation,
+  responseSchema?:Record<string,unknown>
 ):Promise<{provider:'gemini'|'lovable';text:string}|null> {
   const order:Ai3DProvider[]=preferred==='auto'
     ? providerOrder('direction',!!process.env.GEMINI_API_KEY)
@@ -162,16 +193,22 @@ export async function ask3DWorldAi(
     const mark=(reason:ProviderProblem)=>{problem=reason;};
     const text=provider==='lovable'
       ?await askLovable(prompt,LOVABLE_MODEL,mark)
-      :await askGemini(prompt,mark);
+      :await askGemini(prompt,mark,responseSchema);
     if(text && text.length<=480000){
       // An HTTP 200 with broken scene geometry is not a successful 3D video.
       // In auto mode, allow one alternative provider, never an unbounded retry.
-      let accepted=true;
+      let validation:Ai3DValidation=true;
       if(isValid){
-        try{accepted=isValid(text);}catch{accepted=false;}
+        try{validation=isValid(text);}catch{validation={accepted:false,reason:'invalid_scene'};}
       }
+      const accepted=typeof validation==='boolean'?validation:validation.accepted;
       if(accepted)return {provider,text};
-      failures.push({provider,reason:'invalid_response'});
+      const reason=typeof validation==='boolean'
+        ?'invalid_response'
+        :validation.reason??'invalid_scene';
+      // Never log a generated scene, prompt or key, even if it failed.
+      console.warn('3D scene rejected by validator:',provider,reason);
+      failures.push({provider,reason});
       continue;
     }
     failures.push({provider,reason:text && text.length>480000?'response_too_large':problem??'invalid_response'});

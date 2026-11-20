@@ -4,6 +4,7 @@ import {requireSupabaseAuth} from '@/integrations/supabase/auth-middleware';
 import {sourceBriefsFromScript} from './explainer/sceneProgram/planner/aiWorldDirector';
 import {compactWorldPrompt,compileCompactWorld} from './explainer/sceneProgram/planner/compactWorldDirector';
 import {cooldownSecondsRemaining,ai3dCooldownMessage} from './ai3dCooldown';
+import {gemini3DResponseSchema,parseAi3DScene} from './server/ai3dSchema';
 
 const input=z.object({
   script:z.string().min(45).max(750),
@@ -33,25 +34,31 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
     // Rejected repeats do not extend the window or contact either provider.
     lastRequest.set(userId,now);
     try{
-      const {ask3DWorldAi,parseJson}=await import('./server/ai');
+      const {ask3DWorldAi}=await import('./server/ai');
+      const schema=gemini3DResponseSchema(sources.map(s=>s.sourceId));
       const answer=await ask3DWorldAi(prompt,data.provider,(text)=>{
-        // Only pay for a second provider in explicitly selected Auto mode.
-        // Failure to parse/build is not a successful output; never show a
-        // different pre-recorded scene as a silent fallback.
-        const json=parseJson(text);
-        if(!json)return false;
-        try {compileCompactWorld(json,sources);return true;}
-        catch {return false;}
-      });
+        // Validate the exact scene graph, not only syntactically valid JSON.
+        // A second provider is called ONLY when "Auto" was explicitly chosen.
+        // No paid repairs, hidden retries or demo-video substitutions.
+        const json=parseAi3DScene(text);
+        if(!json)return {accepted:false,reason:'invalid_json'} as const;
+        try{
+          compileCompactWorld(json,sources);
+          return {accepted:true} as const;
+        }catch{
+          // No raw model responses, prompts or secrets in logs/errors.
+          return {accepted:false,reason:'invalid_scene'} as const;
+        }
+      },schema);
       if(!answer)throw new Error('Os provedores não entregaram uma cena 3D válida.');
-      const raw=parseJson(answer.text);
+      const raw=parseAi3DScene(answer.text);
       if(!raw)throw new Error('A IA não devolveu JSON válido.');
       const clip=compileCompactWorld(raw,sources);
       return {
         clip,
         provider:answer.provider,
         duration:clip.duration,
-        warning:'A IA definiu os objetos e a ação; o motor construiu as peças e as câmeras. A revisão visual e o áudio ainda precisam ser finalizados.',
+        warning:'A IA definiu os objetos e as ações; o motor construiu as peças e as câmeras. A revisão visual e o áudio ainda precisam ser finalizados.',
       };
     }finally{
       inFlight.delete(userId);

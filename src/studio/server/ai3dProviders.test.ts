@@ -1,5 +1,6 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {ask3DWorldAi,Ai3DProviderError} from './ai';
+import {gemini3DResponseSchema,parseAi3DScene} from './ai3dSchema';
 
 const LOVABLE=process.env.LOVABLE_API_KEY;
 const GEMINI=process.env.GEMINI_API_KEY;
@@ -58,6 +59,71 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     expect(error).toBeInstanceOf(Ai3DProviderError);
     expect(error.failures).toEqual([{provider:'lovable',reason:'invalid_response'}]);
     expect(fetched).toHaveBeenCalledTimes(1);
+  });
+  it('sends a real 3D response schema with chapter-specific source IDs to Gemini',async()=>{
+    process.env.GEMINI_API_KEY='mock-gemini';
+    let captured:unknown;
+    const modelScene={
+      version:1,setting:'city',background:'#D6EBF0',
+      entities:[
+        {id:'home',name:'Garagem da cidade',kind:'building',at:[-4,0,-6],size:[8,5,3],color:'#9DAAB8'},
+        {id:'gate',name:'Portão de metal',kind:'gate',at:[1,0,2],size:[3,2.2,.3],color:'#BBBBCC'}
+      ],
+      actions:[{sourceId:'s1',target:'gate',kind:'lift',delta:[0,2.6,0]}]
+    };
+    vi.stubGlobal('fetch',vi.fn(async(_url:unknown,init:RequestInit)=>{
+      captured=JSON.parse(String(init.body));
+      return Response.json({candidates:[{finishReason:'STOP',
+        content:{parts:[{text:JSON.stringify(modelScene)}]}}]});
+    }));
+    const schema=gemini3DResponseSchema(['s1']);
+    const result=await ask3DWorldAi('one-shot test','gemini',
+      txt=>({accepted:!!parseAi3DScene(txt)}),schema);
+    expect(result?.provider).toBe('gemini');
+    expect((captured as any).generationConfig.responseMimeType).toBe('application/json');
+    expect((captured as any).generationConfig.responseSchema).toEqual(schema);
+    expect((captured as any).generationConfig.responseSchema.properties.actions.items.properties.sourceId.enum)
+      .toEqual(['s1']);
+  });
+  it('accepts safely segmented gateway text without spending a second request',async()=>{
+    process.env.LOVABLE_API_KEY='mock-lovable';
+    const fetchMock=vi.fn(async()=>Response.json({choices:[{
+      finish_reason:'stop',
+      message:{content:[
+        {type:'text',text:'{"version":1,'},{type:'text',text:'"setting":"city"}'}
+      ]}
+    }]}));
+    vi.stubGlobal('fetch',fetchMock);
+    const result=await ask3DWorldAi('scene','lovable',txt=>({accepted:
+      parseAi3DScene(txt)?.setting==='city'}));
+    expect(result?.provider).toBe('lovable');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('separates valid JSON with an incompatible scene from malformed JSON',async()=>{
+    process.env.LOVABLE_API_KEY='mock-lovable';process.env.GEMINI_API_KEY='mock-gemini';
+    vi.stubGlobal('fetch',vi.fn(async(url:string)=>{
+      if(url.includes('lovable'))
+        return Response.json({choices:[{message:{content:'{"scene":{"version":1,"entities":[]}}'}}]});
+      return Response.json({candidates:[{content:{parts:[{text:'not JSON'}]}}]});
+    }));
+    const error=await ask3DWorldAi('problem / solution','auto',text=>{
+      const value=parseAi3DScene(text);
+      return value?{accepted:false,reason:'invalid_scene'}:{accepted:false,reason:'invalid_json'};
+    },gemini3DResponseSchema(['s1','s2'])).catch(e=>e);
+    expect(error).toBeInstanceOf(Ai3DProviderError);
+    expect(error.failures).toEqual([
+      {provider:'lovable',reason:'invalid_scene'},
+      {provider:'gemini',reason:'invalid_json'}
+    ]);
+    expect(error.message).not.toContain('{"scene"');
+  });
+  it('flags truncated output rather than pretending it is a usable scene',async()=>{
+    process.env.GEMINI_API_KEY='mock-gemini';
+    vi.stubGlobal('fetch',vi.fn(async()=>Response.json({candidates:[{
+      finishReason:'MAX_TOKENS',content:{parts:[{text:'{"version":1,'}]}
+    }]})));
+    const error=await ask3DWorldAi('test','gemini').catch(e=>e);
+    expect(error.failures).toEqual([{provider:'gemini',reason:'truncated_response'}]);
   });
   it('uses Gemini only in auto mode after the failed Lovable request',async()=>{
     process.env.LOVABLE_API_KEY='dummy-lovable';
