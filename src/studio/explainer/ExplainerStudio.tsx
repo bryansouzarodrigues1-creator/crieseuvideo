@@ -56,6 +56,10 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [ai3dLoginNeeded,setAi3dLoginNeeded] = useState(false);
   const [ai3dAuthStatus,setAi3dAuthStatus] = useState<'checking'|'authenticated'|'unauthenticated'|'unavailable'>('checking');
   const [ai3dLoginBusy,setAi3dLoginBusy] = useState(false);
+  const [ai3dEmailOpen,setAi3dEmailOpen] = useState(false);
+  const [ai3dEmail,setAi3dEmail] = useState('');
+  const [ai3dEmailBusy,setAi3dEmailBusy] = useState(false);
+  const [ai3dEmailSent,setAi3dEmailSent] = useState(false);
   const sendAi3D = useServerFn(generateAi3DWorld);
   const toonRef = useRef<Toon3D | null>(null);
   const [toonReady, setToonReady] = useState(0);
@@ -338,6 +342,42 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     }
   };
 
+  const sendEmailLogin = async () => {
+    if(busy||ai3dEmailBusy)return;
+    const email=ai3dEmail.trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+      setNote('Informe um e-mail válido para receber seu link de acesso.');
+      return;
+    }
+    setAi3dEmailBusy(true);setAi3dEmailSent(false);
+    try{
+      // Preserve only the work-in-progress, not any credit consent.
+      try{
+        sessionStorage.setItem(AI3D_LOGIN_DRAFT_KEY,JSON.stringify({
+          script,aspect,provider:ai3dProvider
+        }));
+      }catch{/* Safari/private mode might restrict sessionStorage */}
+      const {error}=await supabase.auth.signInWithOtp({
+        email,
+        options:{
+          shouldCreateUser:true,
+          emailRedirectTo:window.location.origin+window.location.pathname
+        }
+      });
+      if(error){
+        setNote('Não foi possível enviar o link: '+error.message+
+          '. Se o provedor de e-mail estiver desativado no Lovable, será preciso habilitá-lo.');
+        return;
+      }
+      setAi3dEmailSent(true);
+      setNote('Enviamos uma solicitação de acesso. Confira a caixa de entrada e o spam do seu e-mail. Abra o link preferencialmente no mesmo navegador. Nenhuma IA foi acionada.');
+    }catch(e){
+      setNote('Falha ao solicitar o login por e-mail: '+(e instanceof Error?e.message:String(e)));
+    }finally{
+      setAi3dEmailBusy(false);
+    }
+  };
+
   const generate = async (text = script) => {
     if(engine==='3d' && engine3dMode==='advanced'){
       const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
@@ -569,6 +609,26 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                     onClick={()=>void loginForAi3D()}>
                     {ai3dLoginBusy?'Conectando conta…':'Entrar com Google para gerar 3D'}
                   </Button>
+                  <Button size="sm" variant="outline" disabled={busy||ai3dEmailBusy}
+                    onClick={()=>setAi3dEmailOpen(v=>!v)}>
+                    {ai3dEmailOpen?'Fechar login por e-mail':'Não aparece uma conta? Entrar por e-mail'}
+                  </Button>
+                  {ai3dEmailOpen&&<div className="explainer-advanced-settings"
+                    role="group" aria-label="Login sem Google">
+                    <p className="explainer-sub">Você também pode solicitar um link para entrar ou criar sua conta no CrieSeuVideo sem usar o seletor do Google.</p>
+                    <label className="explainer-label" htmlFor="ex-ai3d-login-email">Seu e-mail</label>
+                    <input id="ex-ai3d-login-email" type="email" autoComplete="email"
+                      className="explainer-badge-input" placeholder="voce@exemplo.com"
+                      value={ai3dEmail} onChange={e=>{setAi3dEmail(e.target.value);setAi3dEmailSent(false);}}
+                      disabled={ai3dEmailBusy} style={{width:'100%',maxWidth:360}}/>
+                    <Button size="sm" variant="secondary" disabled={busy||ai3dEmailBusy}
+                      onClick={()=>void sendEmailLogin()}>
+                      {ai3dEmailBusy?'Solicitando link…':'Enviar link para entrar'}
+                    </Button>
+                    {ai3dEmailSent&&<p className="explainer-sub" role="status">
+                      Confira seu e-mail e abra o link de acesso; o vídeo não será gerado automaticamente.
+                    </p>}
+                  </div>}
                 </>}
             </div>
           ) : (<>
