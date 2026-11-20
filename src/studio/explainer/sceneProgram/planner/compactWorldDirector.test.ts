@@ -53,6 +53,31 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
     expect(p).toContain('câmeras');
     expect(p).toContain('somente JSON pequeno');
     expect(p.length).toBeLessThan(5000);
+    expect(p).toContain('gate para PORTÕES');
+    expect(p).toContain('IDs disponíveis: s1, s2');
+  });
+  it('uses only existing source IDs when a single sentence defines one 8s shot',()=>{
+    const oneSource=sourceBriefsFromScript(
+      'Um portão metálico está fechado e bloqueia uma motocicleta que tenta sair da garagem.'
+    );
+    expect(oneSource).toHaveLength(1);
+    const prompt=compactWorldPrompt(oneSource);
+    expect(prompt).toContain('"sourceId":"s1"');
+    expect(prompt).not.toContain('"sourceId":"s2"');
+    expect(prompt).toContain('IDs disponíveis: s1.');
+    const gateScene={
+      version:1,setting:'city',background:'#B4D3E2',
+      entities:[
+        {id:'garage',name:'Garagem da motocicleta',kind:'building',at:[-4,0,-6],size:[8,5,3],color:'#8C969F'},
+        {id:'gate',name:'Portão metálico',kind:'gate',at:[1,0,2],size:[3,2.2,.3],color:'#B8C9D0'},
+      ],
+      actions:[{sourceId:'s1',target:'gate',kind:'lift',delta:[0,2.6,0]}]
+    };
+    const clip=compileCompactWorld(gateScene,oneSource);
+    expect(clip.program.shots).toHaveLength(1);
+    expect(clip.duration).toBe(8);
+    const score=compileSceneProgram(clip.program,clip.sources);
+    expect(score.sample(7.95).get('gate')!.position[1]).toBeGreaterThan(2.3);
   });
   it('assembles a crane, urban background, winch, cable and lifted cargo',()=>{
     const clip=compileCompactWorld(crane,sources);
@@ -113,11 +138,11 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
       version:1,setting:'city',background:'#B4D3E2',
       entities:[
         {id:'garage',name:'Garagem da motocicleta',kind:'building',at:[-4,0,-6],size:[8,5,3],color:'#8C969F'},
-        {id:'gate',name:'Portão deslizante',kind:'cargo',at:[1,0,2],size:[2,.8,.3],color:'#B8C9D0'},
+        {id:'gate',name:'Portão deslizante da garagem',kind:'gate',at:[2,0,2],size:[3,2.2,.3],color:'#B8C9D0'},
         {id:'bike',name:'Moto aguardando saída',kind:'motorcycle',at:[0,0,2],size:[2.8,1.5,1.4],color:'#EA8F48'}
       ],
       actions:[
-        {target:'gate',kind:'lift',delta:[0,2,0]},
+        {target:'gate',kind:'lift',delta:[0,2.6,0]},
         {target:'bike',kind:'drive',delta:[4,0,0]}
       ]
     };
@@ -130,7 +155,12 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
     const bikeStart=score.sample(0).get('bike')!.position;
     const bikeBefore=score.sample(4).get('bike')!.position;
     const bikeEnd=score.sample(8).get('bike')!.position;
-    expect(gateAtFirst[1]-gateStart[1]).toBeGreaterThan(1.5);
+    expect(gateAtFirst[1]-gateStart[1]).toBeGreaterThan(2.1);
+    const gateParts=new Set(clip.program.nodes.map(n=>n.id));
+    for(const id of ['gate-panel','gate-slat','gate-frame-left','gate-frame-right','gate-handle']){
+      expect(gateParts.has(id)).toBe(true);
+    }
+    expect(gateParts.has('gate-crate')).toBe(false);
     expect(Math.hypot(...bikeBefore.map((v,i)=>v-bikeStart[i]))).toBeLessThan(.001);
     expect(bikeEnd[0]-bikeStart[0]).toBeGreaterThan(3.5);
     expect(clip.program.tracks.filter(t=>t.node.startsWith('bike-wheel'))).toHaveLength(2);
