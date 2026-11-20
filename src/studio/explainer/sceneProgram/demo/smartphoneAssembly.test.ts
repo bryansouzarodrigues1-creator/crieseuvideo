@@ -31,6 +31,9 @@ describe('smartphone assembly in the real SceneProgram3D engine', () => {
     expect(delta(at(8, 'processor'), at(12, 'processor'))).toBeLessThan(.001);
     expect(delta(at(4, 'camera'), at(8, 'camera'))).toBeGreaterThan(.7);
     expect(delta(at(8, 'camera'), at(12, 'camera'))).toBeLessThan(.001);
+    // The rear camera cores may be visible while the phone is open, but after
+    // installing the display they must remain BEHIND its opaque glass.
+    expect(at(12, 'camera')[2] + .235).toBeLessThan(at(12, 'display')[2] - .042);
     expect(delta(at(8, 'display'), at(12, 'display'))).toBeGreaterThan(2.5);
     expect(delta(at(0, 'chassis'), at(12, 'chassis'))).toBe(0);
   });
