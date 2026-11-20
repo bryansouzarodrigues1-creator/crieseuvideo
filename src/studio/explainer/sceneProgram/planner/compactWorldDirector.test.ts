@@ -112,7 +112,7 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
       version:1,setting:'city',background:'#B4D3E2',
       entities:[
         {id:'garage',name:'Garagem da motocicleta',kind:'building',at:[-4,0,-6],size:[8,5,3],color:'#8C969F'},
-        {id:'gate',name:'Portão deslizante',kind:'cargo',at:[1,0,0],size:[2,.8,.3],color:'#B8C9D0'},
+        {id:'gate',name:'Portão deslizante',kind:'cargo',at:[1,0,2],size:[2,.8,.3],color:'#B8C9D0'},
         {id:'bike',name:'Moto aguardando saída',kind:'motorcycle',at:[0,0,2],size:[2.8,1.5,1.4],color:'#EA8F48'}
       ],
       actions:[
