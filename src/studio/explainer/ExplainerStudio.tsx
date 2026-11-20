@@ -477,7 +477,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           {engine==='3d'&&engine3dMode==='advanced'
           ? <p className="explainer-sub" role="note">No 3D avançado, a voz não é criada automaticamente pela opção do estúdio clássico. Após gerar ou abrir a demonstração, use “Carregar narração do ElevenLabs” no player para incluir áudio na exportação.</p>
           : <div className="explainer-row">
-            <Button size="sm" variant={voiceOn ? 'default' : 'secondary' onClick={() => setVoiceOn((v) => !v)} aria-pressed={voiceOn}><Mic />{voiceOn ? 'Com narração' : 'Sem narração'}</Button>
+            <Button size="sm" variant={voiceOn ? 'default' : 'secondary'} onClick={() => setVoiceOn((v) => !v)} aria-pressed={voiceOn}><Mic />{voiceOn ? 'Com narração' : 'Sem narração'}</Button>
             <select value={voice} onChange={(e) => { setPlaying(false); setVoice(e.target.value); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Voz" className="explainer-voice-select" disabled={!voiceOn}>
               {NARRATION_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
