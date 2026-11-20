@@ -38,7 +38,17 @@ try {
     if (/ai.gateway.lovable.dev|generativelanguage.googleapis.com/.test(request.url())) providerRequests++;
   });
   await page.goto(base + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-  const testButton = page.getByRole('button', { name: /Testar montagem de celular \(12s, sem IA\)/ });
+  // A short prompt must never leave the main button mysteriously disabled.
+  await page.locator('#ex-script').fill('Crie um lovable');
+  const create=page.getByRole('button',{name:/Criar cena 3D pela IA/});
+  assert.equal(await create.isEnabled(),true,'Short script silently disabled generation');
+  await create.click();
+  await page.getByText(/roteiro está curto para criar uma cena 3D/i).waitFor();
+  assert.equal(providerRequests,0,'Short script must never spend provider credits');
+  await page.getByRole('button',{name:'Usar exemplo de problema e solução'}).click();
+  assert.ok((await page.locator('#ex-script').inputValue()).includes('Um celular aberto'));
+  assert.equal(providerRequests,0,'Example fill must be free');
+  const testButton = page.getByRole('button', { name: /Ver explicação do celular \(12s, sem IA\)/ });
   await testButton.waitFor({ timeout: 60000 });
   assert.equal(await page.locator('canvas[aria-label="Prévia da montagem 3D de celular"]').count(), 0);
   assert.equal(providerRequests, 0, 'The demo must not trigger AI billing');
@@ -47,6 +57,10 @@ try {
   await stage.waitFor({ state: 'visible', timeout: 30000 });
   await page.waitForTimeout(800);
   assert.equal(await page.locator('.native-3d-error').count(), 0, 'Stage failed to render');
+  const storyCanvas=page.locator('canvas.inline-ai3d-overlay');
+  assert.equal(await storyCanvas.count(),1,'Narrative overlay was not mounted');
+  const alpha=await storyCanvas.evaluate(el=>el.getContext('2d').getImageData(27,27,1,1).data[3]);
+  assert.ok(alpha>0,'Narrative captions were not drawn over 3D');
   assert.equal(await page.getByText('Demonstração offline (sem IA)').count(), 1);
   assert.equal(providerRequests, 0, 'The opt-in demo must remain offline');
 
@@ -66,7 +80,7 @@ try {
   const hashes = [];
   for (const [seconds, label] of [[0, 'initial'], [3.8, 'battery-installed'], [7.9, 'cpu-camera-installed'], [11.8, 'display-installed']]) {
     await seek(seconds);
-    const bytes = await stage.screenshot({ path: path.join(out, 'phone-' + label + '.png') });
+    const bytes = await page.locator('.inline-ai3d-visual').screenshot({ path: path.join(out, 'phone-' + label + '.png') });
     hashes.push(createHash('sha256').update(bytes).digest('hex'));
   }
   assert.ok(new Set(hashes).size >= 2, 'All four rendered frames were identical');
@@ -81,6 +95,7 @@ try {
   });
   await page.getByText(/Narração pronta:/).waitFor({timeout:30000});
   assert.equal(providerRequests,0,'Uploading narration must not call a model');
+  await page.getByRole('button',{name:'Copiar narração para ElevenLabs'}).waitFor();
   const downloadPromise=page.waitForEvent('download',{timeout:180000});
   await page.getByRole('button',{name:/Baixar cena 3D/}).click();
   const download=await downloadPromise;
@@ -101,7 +116,8 @@ try {
     passed: true, providerRequests, hashes,
     checkpoints: [0, 3.8, 7.9, 11.8],
     audioExportBytes:downloaded.length, audioEmbedded:!!audioTrack,
-    caveat: 'Automated WebGL/render/audio mux smoke; human assessment of visual quality is still required.',
+    narrativeOverlay:true,
+    caveat: 'Automated browser checks overlay canvas and audio/video tracks; qualitative narrative and visual review still required.',
   }, null, 2));
   console.log('PASS: smartphone WebGL assembly, audio track embedded in fixed-frame export, zero AI billing');
 } finally {

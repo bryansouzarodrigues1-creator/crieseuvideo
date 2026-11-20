@@ -17,15 +17,15 @@ import type { ComplexWorldClip } from '../planner/complexWorldBatch';
 
 const duration = 12;
 export const SMARTPHONE_DEMO_SCRIPT = [
-  'A estrutura do celular recebe a bateria, que desliza até o encaixe e permanece instalada.',
-  'O processador e as lentes da câmera são colocados em seus pontos de montagem.',
-  'Por fim, a tela desliza sobre os componentes e fecha o aparelho.',
+  'Sem bateria, nada liga. Ela alimenta o circuito.',
+  'Sem chip, quem controla o sistema? O processador assume, e a câmera registra imagens.',
+  'Falta interagir: a tela fecha o aparelho e acende.',
 ].join(' ');
 
 const SOURCES: ProgramSource[] = [
-  { sourceId: 's1', text: 'A estrutura do celular recebe a bateria, que desliza até o encaixe e permanece instalada.', duration: 4 },
-  { sourceId: 's2', text: 'O processador e as lentes da câmera são colocados em seus pontos de montagem.', duration: 4 },
-  { sourceId: 's3', text: 'Por fim, a tela desliza sobre os componentes e fecha o aparelho.', duration: 4 },
+  { sourceId: 's1', text: 'Sem bateria, nada liga. Ela alimenta o circuito.', duration: 4 },
+  { sourceId: 's2', text: 'Sem chip, quem controla o sistema? O processador assume, e a câmera registra imagens.', duration: 4 },
+  { sourceId: 's3', text: 'Falta interagir: a tela fecha o aparelho e acende.', duration: 4 },
 ];
 
 type SourceId = 's1' | 's2' | 's3';
@@ -168,6 +168,18 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
     }
   ];
 
+  // Screen remains dark until the glass is in its socket; the icons are
+  // revealed only once the device has been assembled, avoiding an "on" screen
+  // hovering beside an unpowered phone.
+  for (const id of ['display-panel','display-highlight','home-bar',
+    ...Array.from({length:9},(_,i)=>'app-'+Math.floor(i/3)+'-'+i%3)]) {
+    tracks.push({
+      node:id, channel:'scale', interpolation:'smooth',
+      keys:[key('s1',0,V(.01,.01,.01)),key('s3',.74,V(.01,.01,.01)),
+        key('s3',.99,V(1,1,1))]
+    });
+  }
+
   const program = normalizeSceneProgram({
     version: 1, background: '#9cb7c9', nodes, tracks,
     shots: [
@@ -189,6 +201,21 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
   compileSceneProgram(program, SOURCES);
   return {
     id: 'smartphone-demo', sources: SOURCES, duration, program,
+    presentation:{
+      title:'Por que cada peça existe?',
+      narration:SMARTPHONE_DEMO_SCRIPT,
+      beats:[
+        {start:0,end:4,subject:'Energia',
+          problem:'Sem bateria, nada liga.',
+          solution:'A bateria alimenta o circuito.'},
+        {start:4,end:8,subject:'Controle e imagem',
+          problem:'Quem controla e registra?',
+          solution:'O chip processa. A câmera registra imagens.'},
+        {start:8,end:12,subject:'Interface',
+          problem:'Como enxergar e tocar?',
+          solution:'A tela fecha o aparelho e acende.'}
+      ]
+    },
     audit: { objectCount: 5, objectParts: nodes.filter(n => n.kind === 'mesh').length,
       sceneryRegions: 1, sceneNodes: program.nodes.length, shotCount: program.shots.length,
       estimatedVertexLimit: 250000 },

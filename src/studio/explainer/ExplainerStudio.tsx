@@ -27,6 +27,8 @@ Então ele mostrou o site pronto, com nome, endereço e botão de WhatsApp.
 Vendeu na primeira conversa.
 Agora a pergunta é: vai ser você?`;
 
+const AI3D_EXAMPLE_SCRIPT = 'Um celular aberto em uma bancada não liga porque está sem energia, e a câmera mostra a tela apagada. Uma bateria desliza até o encaixe, conecta-se à placa e faz a corrente circular. A tela acende e a câmera aproxima o circuito para mostrar a solução.';
+
 const VISUAL_LABEL: Record<Visual, string> = { character: 'Personagem', phone_chat: 'Celular (conversa)', profile: 'Perfil / link na bio', laptop: 'Notebook', map_pins: 'Mapa', clock: 'Relógio', scale: 'Balança', eye: 'Olho', chips: 'Etiquetas', city_night: 'Cidade à noite', chart_up: 'Gráfico subindo', money: 'Dinheiro', custom: 'Desenho livre da IA' };
 const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sad: 'Triste', worried: 'Preocupado', angry: 'Bravo' };
 
@@ -222,12 +224,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   /** Explicit, offline engineering sample using the same real stage as generated AI 3D. */
   const openSmartphoneDemo = async () => {
     if (busy) return;
-    setPlaying(false);
+    setPlaying(false);setAi3dConsent(false);
     try {
       const { buildSmartphoneAssemblyDemo } = await import('./sceneProgram/demo/smartphoneAssembly');
       setAi3dClip(buildSmartphoneAssemblyDemo());
       setAi3dUsedProvider('demo');
-      setNote('Demonstração local de 12s, sem uso de créditos: montagem contínua da bateria, do processador, das lentes e da tela. Ainda sem narração.');
+      setNote('Demonstração local de 12s: problema → solução, com textos explicativos sincronizados na prévia e no MP4. Sem custo; para voz, copie a narração e carregue o MP3 do ElevenLabs na prévia.');
     } catch (error) {
       setNote('Falha ao montar demonstração 3D: ' + (error instanceof Error ? error.message : String(error)));
     }
@@ -242,14 +244,15 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
 
   const generate = async (text = script) => {
     if(engine==='3d' && engine3dMode==='advanced'){
-      if(!ai3dConsent){
-        setNote('Confirme o uso de créditos antes de gerar uma cena com Gemini ou Lovable.');
-        return;
-      }
       const handoff=prepareAi3DHandoff(text,aspect,voiceOn,voice);
       const requested=handoff.script;
       if(requested.trim().length<45){
-        setNote('Escreva duas ou três frases explicando o cenário, a ação e a consequência.');
+        setNote('O roteiro está curto para criar uma cena 3D: escreva pelo menos 45 caracteres em duas ou três frases, mostrando o problema, a ação e o resultado. Toque em "Usar exemplo de problema e solução" para ver um modelo. Nenhum crédito foi usado.');
+        document.getElementById('ex-script')?.focus();
+        return;
+      }
+      if(!ai3dConsent){
+        setNote('Confirme o uso de créditos antes de gerar uma cena com Gemini ou Lovable. Ainda não foi feita nenhuma chamada paga.');
         return;
       }
       setNote('');setBusy(true);setPlaying(false);setAi3dLoginNeeded(false);
@@ -267,10 +270,15 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         setAi3dClip(generated.clip);
         setAi3dUsedProvider(generated.provider);
         const shortened=handoff.fullScriptLength>requested.length;
-        setNote(`Cena 3D validada pelo ${generated.provider==='lovable'?'Lovable':'Gemini'}: ${generated.clip.audit.objectCount} objetos e ${generated.clip.program.shots.length} tomadas.${shortened?' Mostrei só as primeiras frases; o roteiro integral permanece no campo.':''} O MP4 ainda não inclui narração.`);
+        setNote(`Cena 3D validada pelo ${generated.provider==='lovable'?'Lovable':'Gemini'}: ${generated.clip.audit.objectCount} objetos e ${generated.clip.program.shots.length} tomadas.${shortened?' Mostrei só as primeiras frases; o roteiro integral permanece no campo.':''} Para colocar voz no MP4, importe MP3/WAV no player ao lado.`);
       }catch(e){
         setNote('A cena 3D não pôde ser gerada: '+(e instanceof Error?e.message:String(e)));
       }finally{setBusy(false);setAi3dConsent(false);}
+      return;
+    }
+    if(text.trim().length<4){
+      setNote('Descreva a animação em pelo menos quatro caracteres antes de criar.');
+      document.getElementById('ex-script')?.focus();
       return;
     }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
@@ -433,10 +441,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 Autorizo esta tentativa. A geração pode consumir créditos mesmo se a resposta for inválida. No modo automático, até dois provedores podem ser chamados.
               </label>
               <p className="explainer-sub">Cada geração produz 8–12 segundos, com 2–3 frases. Vídeos maiores serão compostos em etapas. Sem chamadas automáticas, sem vídeo de demonstração como substituto.</p>
-              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void openSmartphoneDemo()}>
-                <Box /> Testar montagem de celular (12s, sem IA)
+              <p className="explainer-sub" role="status" aria-label="Orientação do roteiro 3D">
+                {script.trim().length<45
+                  ? `Roteiro muito curto (${script.trim().length}/45 caracteres). Descreva cenário, ação e consequência. O botão abaixo explica o requisito ao clicar, sem cobrar créditos.`
+                  : 'Roteiro com tamanho suficiente. Ao gerar, será necessário confirmar créditos e estar conectado à sua conta.'}
+              </p>
+              <Button size="sm" variant="outline" onClick={()=>{
+                setScript(AI3D_EXAMPLE_SCRIPT);setAi3dClip(null);setNote('Exemplo preenchido. Edite livremente e confirme os créditos apenas se quiser chamar a IA.');
+                document.getElementById('ex-script')?.focus();
+              }}>
+                Usar exemplo de problema e solução
               </Button>
-              <p className="explainer-sub">Teste isolado de continuidade no motor SceneProgram3D; não usa o seu roteiro nem substitui um vídeo gerado por IA.</p>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void openSmartphoneDemo()}>
+                <Box /> Ver explicação do celular (12s, sem IA)
+              </Button>
+              <p className="explainer-sub">Exemplo narrativo com problema e solução na tela e no MP4, sem cobrar créditos. A voz é opcional via importação de MP3/WAV no player. Esse botão não gera o seu roteiro por IA.</p>
               {ai3dLoginNeeded&&<Button size="sm" variant="secondary" onClick={()=>void loginForAi3D()}>
                 Entrar com Google para gerar 3D
               </Button>}
@@ -455,7 +474,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
             ))}
           </div>
-          <div className="explainer-row">
+          {engine==='3d'&&engine3dMode==='advanced'
+          ? <p className="explainer-sub" role="note">No 3D avançado, a voz não é criada automaticamente pela opção do estúdio clássico. Após gerar ou abrir a demonstração, use “Carregar narração do ElevenLabs” no player para incluir áudio na exportação.</p>
+          : <div className="explainer-row">
             <Button size="sm" variant={voiceOn ? 'default' : 'secondary'} onClick={() => setVoiceOn((v) => !v)} aria-pressed={voiceOn}><Mic />{voiceOn ? 'Com narração' : 'Sem narração'}</Button>
             <select value={voice} onChange={(e) => { setPlaying(false); setVoice(e.target.value); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Voz" className="explainer-voice-select" disabled={!voiceOn}>
               {NARRATION_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
@@ -465,8 +486,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             </select>
             {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => setElevenId(e.target.value)} aria-label="Voice ID do ElevenLabs" />}
             {voiceOn && plan.scenes.length > 0 && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
-          </div>
-          <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null || script.trim().length < (engine==='3d'&&engine3dMode==='advanced'?45:4)}>
+          </div>}
+          <Button className="explainer-generate" onClick={() => generate()} disabled={busy || voicing !== null}>
             {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? 'Criar cena 3D pela IA' : 'Criar animação'}
           </Button>
           {note && <p className="explainer-note" role="status">{note}</p>}

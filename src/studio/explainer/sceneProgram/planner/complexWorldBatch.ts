@@ -10,6 +10,7 @@ import {
 } from '../score';
 import {compileWorldBlueprints} from './worldBlueprints';
 import {compileWorldScenery} from './worldScenery';
+import type {ClipPresentation} from '../presentation';
 
 export class ComplexWorldBatchError extends Error {
   readonly code='invalid_complex_world_batch';
@@ -29,6 +30,8 @@ export interface ComplexWorldClip {
   sources:ProgramSource[];
   duration:number;
   program:SceneProgram;
+  /** Optional client-side editorial text; not accepted as AI JSON by compiler. */
+  presentation?:ClipPresentation;
   audit:{
     objectCount:number;objectParts:number;sceneryRegions:number;
     sceneNodes:number;shotCount:number;
