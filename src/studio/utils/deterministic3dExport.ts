@@ -14,10 +14,12 @@ export interface FixedFrameExport {
   renderFrame: (time: number) => void;
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
+  /** Optional imported narration, encoded into the same MP4/WebM timeline. */
+  audioBuffer?: AudioBuffer;
 }
 
 export async function encodeFixedFrame3DClip({
-  canvas,durationSeconds,fps,renderFrame,onProgress,signal,
+  canvas,durationSeconds,fps,renderFrame,onProgress,signal,audioBuffer,
 }:FixedFrameExport):Promise<Encoded3DClip>{
   if(typeof VideoEncoder==='undefined'){
     throw new Error('Seu navegador não possui WebCodecs para gerar MP4 com quadros fixos.');
@@ -26,22 +28,36 @@ export async function encodeFixedFrame3DClip({
     !Number.isInteger(fps)||fps<12||fps>60){
     throw new Error('Parâmetros de renderização inválidos.');
   }
+  if(audioBuffer && (!Number.isFinite(audioBuffer.duration) ||
+    Math.abs(audioBuffer.duration-durationSeconds)>1/fps+.01)){
+    throw new Error('A duração da narração deve coincidir com a duração exportada.');
+  }
   const {Output,Mp4OutputFormat,WebMOutputFormat,BufferTarget,
-    CanvasSource,Quality,getFirstEncodableVideoCodec}=await import('mediabunny');
+    CanvasSource,AudioBufferSource,Quality,
+    getFirstEncodableVideoCodec,getFirstEncodableAudioCodec}=await import('mediabunny');
   const mp4=new Mp4OutputFormat();
   const request={width:canvas.width,height:canvas.height};
   const avc=await getFirstEncodableVideoCodec(['avc'],request);
   const webm=new WebMOutputFormat();
-  const fallbackCodec=avc?null:await getFirstEncodableVideoCodec(['vp9','vp8'],request);
-  const codec=avc||fallbackCodec;
+  const audioOptions=audioBuffer ? {
+    sampleRate:audioBuffer.sampleRate,numberOfChannels:audioBuffer.numberOfChannels
+  } : undefined;
+  const aac=audioBuffer?await getFirstEncodableAudioCodec(['aac'],audioOptions):null;
+  const mp4Ready=!!avc&&(!audioBuffer||!!aac);
+  const codec=mp4Ready?avc:await getFirstEncodableVideoCodec(['vp9','vp8'],request);
   if(!codec)throw new Error('Este dispositivo não possui um codificador de vídeo compatível.');
-  const mp4Ready=!!avc;
+  const audioCodec=audioBuffer?(mp4Ready?aac:await getFirstEncodableAudioCodec(['opus'],audioOptions)):null;
+  if(audioBuffer&&!audioCodec)throw new Error('Este dispositivo não consegue codificar a narração em AAC ou Opus.');
   const output=new Output({format:mp4Ready?mp4:webm,target:new BufferTarget()});
   const source=new CanvasSource(canvas,{
     codec,quality:new Quality({bitrate:4_500_000}),
     latencyMode:'quality'
   });
   output.addVideoTrack(source,{frameRate:fps});
+  const audioSource=audioBuffer&&audioCodec
+    ? new AudioBufferSource({codec:audioCodec,quality:new Quality({bitrate:128_000})})
+    : null;
+  if(audioSource)output.addAudioTrack(audioSource);
   let started=false;
   try{
     await output.start();started=true;
@@ -58,6 +74,11 @@ export async function encodeFixedFrame3DClip({
       if(signal?.aborted)throw new Error('Exportação cancelada.');
     }
     source.close();
+    if(audioSource&&audioBuffer){
+      if(signal?.aborted)throw new Error('Exportação cancelada.');
+      await audioSource.add(audioBuffer);
+      audioSource.close();
+    }
     await output.finalize();
     const buffer=output.target.buffer;
     if(!buffer?.byteLength)throw new Error('O codificador não devolveu dados.');
