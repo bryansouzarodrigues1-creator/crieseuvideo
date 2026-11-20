@@ -210,7 +210,7 @@ function poseDragon(t){
 poseDragon(23.4);const hitFirst=dragon.mouth.getWorldPosition(V3());poseDragon(106.5);const hitFinal=dragon.mouth.getWorldPosition(V3());poseDragon(82.4);const tailHit=dragon.tail[4].getWorldPosition(V3());
 const hurt=V3(tailHit.x-.5,0,tailHit.z+.55),helper=V3(hurt.x+1.75,0,hurt.z+.15);
 const actorKeys=[
- [[0,0,7],[10,0,5.5],[15,0,-.3],[17,1,1],[20,1,.1],[24,1,.1],[30,2.5,4],[40,1,3],[45,0,-.5],[50,4,1.2],[55,4,2],[60,2,3],[65,-.8,1.5],[70,1,2],[78,1,2],[84,1,2],[90,helper.x,helper.z],[96,helper.x,helper.z],[99,7.1,6],[103,7.1,1.2],[108,7.1,1.2],[112,7.1,2.7],[116,0,6],[120,0,9]],
+ [[0,0,7],[10,0,5.5],[15,0,-.3],[17,1,1],[20,0,1.2],[24,0,1.2],[30,2.5,4],[40,1,3],[45,0,-.5],[50,4,1.2],[55,4,2],[60,2,3],[65,-.8,1.5],[70,1,2],[78,1,2],[84,1,2],[90,helper.x,helper.z],[96,helper.x,helper.z],[99,7.1,6],[103,6.4,1.2],[108,6.4,1.2],[112,7.1,2.7],[116,0,6],[120,0,9]],
  [[0,-3,8],[10,-3,6],[12,-6.5,5],[15,-4.6,1.6],[20,-2,.1],[28,-2,1],[35,-1.8,1.5],[40,-1,2],[46,6,-1],[50,10,-1],[55,10,6.2],[60,3,6.2],[68,-1.85,-3.8],[77,-1.85,-3.8],[84,-3,-2.8],[94,-3,0],[102,4.15,-3.2],[108,4.15,-3.2],[112,1,5.5],[116,-2.7,7],[120,-2.7,8]],
  [[0,3,8],[10,3,6],[16,3.5,1],[25,3.8,-4],[35,4,-4],[45,3.5,0],[55,3.5,-2],[65,3.5,-2],[70,1.85,-3.8],[77,1.85,-3.8],[86,4,-1],[98,4,1],[104,7.85,-3.2],[108,7.85,-3.2],[112,10.5,-.5],[116,10.5,6],[120,2.7,8]],
  [[0,-5.5,10],[20,-5.5,7],[30,-8,8],[40,-11.5,6.5],[46,-9.4,3],[51,-7.3,.1],[54,-5.5,-1.2],[58,-5.5,-1.2],[61,-7.7,.8],[65,-10,4.6],[70,-11.5,8.5],[84,-6,8.5],[98,-6,6.5],[110,-5.4,7],[120,-5.4,9]],
@@ -273,7 +273,7 @@ function strike(g,t,hit,target,armIndex=1){
 function contactAt(time,which='mouth'){poseDragon(time);return which==='mouth'?dragon.mouth.getWorldPosition(V3()):dragon.root.localToWorld(which.clone());}
 const grappleA=contactAt(74,V3(-.85,-1.0,1.35)),grappleB=contactAt(74,V3(.85,-1.0,1.35));
 function stageContacts(t){
- strike(golems[0],t,23.4,hitFirst);strike(golems[3],t,56.8,V3(-6.5,8,-2.72));strike(golems[0],t,106.5,hitFinal);
+ strike(golems[0],t,23.4,hitFirst,0);strike(golems[3],t,56.8,V3(-6.5,8,-2.72));strike(golems[0],t,106.5,hitFinal,0);
  if(t>70&&t<79){
   const blend=smooth(70,71,t)*(1-smooth(78,79,t));
   for(const [g,point,arm] of [[golems[1],grappleA,0],[golems[2],grappleB,1]]){const idle=g.root.localToWorld(V3(arm===0?-.8:.8,2.1,.5));reach(g,g.arms[arm],idle.lerp(point,blend));}
