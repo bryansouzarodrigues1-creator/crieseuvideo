@@ -1,0 +1,51 @@
+name: Patrick articulated 3D visual pilot QA
+on:
+  push:
+    branches: [feat/patrick-functional-pilot-20261120]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: patrick-pilot-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  patrick-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify rig, contact and timeline
+        run: bunx vitest run src/studio/explainer/sceneProgram/patrickPilot.test.ts
+      - name: Build routes and TypeScript
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Install browser QA dependencies
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start Vite preview
+        run: |
+          mkdir -p tmp/patrick-qa
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/patrick-qa/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/patrick-lab >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 tmp/patrick-qa/vite.log
+          exit 1
+      - name: Render front-facing actor, seek to contact, and export MP4
+        run: bun scripts/patrick-pilot-browser-qa.mjs
+      - name: Upload screenshots, QA report and rendered clip
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patrick-pilot-3d-proof
+          path: tmp/patrick-qa/
+          retention-days: 7
+          if-no-files-found: warn
