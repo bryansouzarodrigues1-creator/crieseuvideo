@@ -1,0 +1,33 @@
+{
+  "title": "A vingança dos golems",
+  "authored_by": "ChatGPT; original fictional story requested by the user",
+  "reference": "Procedural cottage and terrain adapted from Artem Novitckii, claude-animation-skills Minecraft template, MIT 2026",
+  "source_sha256": "781f3a872f1ac54897f3f5a437e96dc71db68e53ce2c3f2ad264b9e53b00ae71",
+  "engine": "Existing CrieSeuVideo Code3DStudio import/sandbox/export pipeline",
+  "duration_seconds": 40,
+  "clips": 4,
+  "clip_duration": 10,
+  "scene_model_calls": 0,
+  "narration": false,
+  "captions": "Portuguese timed captions inside the 3D canvas",
+  "actors": "Procedural articulated voxel dragon and six iron guardians; no external model or game texture",
+  "beats": [
+    {
+      "clip": 1,
+      "action": "Dragon flight, breath, cottage destruction, guardians survive"
+    },
+    {
+      "clip": 2,
+      "action": "Six guardians gather, leader rallies them, horizontal End portal activates"
+    },
+    {
+      "clip": 3,
+      "action": "Guardians cross the portal and land in the End"
+    },
+    {
+      "clip": 4,
+      "action": "Guardians advance, leader punches the dragon, confrontation begins"
+    }
+  ],
+  "limits": "Manually authored imported scene; no autonomous Gemini generation or production deployment is implied."
+}
