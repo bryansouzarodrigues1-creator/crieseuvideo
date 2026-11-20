@@ -72,6 +72,21 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
   addMesh('trace-a', 'phone', V(.48, 4.58, .291), V(.045, .70, .015), '#cfac64', 's2');
   addMesh('trace-b', 'phone', V(.72, 4.26, .291), V(.49, .035, .015), '#cfac64', 's2');
   addMesh('trace-c', 'phone', V(.25, 3.86, .291), V(.38, .035, .015), '#cfac64', 's2');
+  // Battery pocket is visible before installation, so the final placement is
+  // a physical destination rather than a loose rectangle floating in space.
+  addMesh('battery-pocket-left', 'phone', V(-1.04, 2.48, .235),
+    V(.06, 2.62, .08), '#b9c7cd', 's1', {material:{metalness:.68,roughness:.33}});
+  addMesh('battery-pocket-right', 'phone', V(.49, 2.48, .235),
+    V(.06, 2.62, .08), '#b9c7cd', 's1', {material:{metalness:.68,roughness:.33}});
+  addMesh('battery-pocket-bottom', 'phone', V(-.27, 1.14, .235),
+    V(1.58, .07, .08), '#b9c7cd', 's1', {material:{metalness:.68,roughness:.33}});
+  addMesh('camera-seat', 'phone', V(-.63, 4.93, .255),
+    V(.85, .93, .065), '#121b28', 's2', {bevel:.04,material:{metalness:.55,roughness:.32}});
+  addMesh('pcb-capacitors', 'phone', V(.14, 4.56, .297),
+    V(.10, .11, .045), '#c8c3aa', 's2', {
+      material: {metalness:.58,roughness:.44},
+      repeat:{count:5,step:V(.17,0,0),jitter:V(0,0,0),seed:9}
+    });
   addMesh('power-connector', 'phone', V(-.25, 4.0, .26), V(.35, .16, .12), '#dbb75c', 's1');
   addMesh('bottom-speaker', 'phone', V(0, .77, .26), V(.78, .12, .08), '#1a202a', 's3');
   addMesh('speaker-grille', 'phone', V(-.30, .77, .32), V(.025, .06, .025), '#a7b3c7', 's3', {
@@ -96,7 +111,7 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
     repeat: { count: 8, step: V(0, .082, 0), jitter: V(0, 0, 0), seed: 4 }
   });
 
-  addGroup('camera', V(-1.42, 4.96, 1.35), 'phone', 's2');
+  addGroup('camera', V(-1.29, 4.96, 1.35), 'phone', 's2');
   addMesh('camera-housing', 'camera', V(0, 0, 0), V(.78, .85, .20), '#222a36', 's2', { bevel: .09, material: { metalness: .67, roughness: .29 } });
   for (let i = 0; i < 3; i++) {
     const cx = i === 2 ? -.22 : .22, cy = i === 0 ? .23 : i === 1 ? -.21 : 0;
@@ -137,7 +152,7 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
   const tracks = [
     {
       node: 'battery', channel: 'position', interpolation: 'smooth',
-      keys: [key('s1', 0, V(-1.32, 2.50, 1.28)), key('s1', .86, V(-.28, 2.48, .38)), key('s3', 1, V(-.28, 2.48, .38))]
+      keys: [key('s1', 0, V(-1.32, 2.50, 1.28)), key('s1', .86, V(-.28, 2.48, .34)), key('s3', 1, V(-.28, 2.48, .34))]
     },
     {
       node: 'processor', channel: 'position', interpolation: 'smooth',
@@ -145,11 +160,11 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
     },
     {
       node: 'camera', channel: 'position', interpolation: 'smooth',
-      keys: [key('s1', 0, V(-1.42, 4.96, 1.35)), key('s2', .45, V(-1.42, 4.96, 1.35)), key('s2', .96, V(-.76, 4.92, .45)), key('s3', 1, V(-.76, 4.92, .45))]
+      keys: [key('s1', 0, V(-1.29, 4.96, 1.35)), key('s2', .45, V(-1.29, 4.96, 1.35)), key('s2', .96, V(-.63, 4.93, .35)), key('s3', 1, V(-.63, 4.93, .35))]
     },
     {
       node: 'display', channel: 'position', interpolation: 'smooth',
-      keys: [key('s1', 0, V(2.55, 3.10, 1.16)), key('s3', .14, V(2.55, 3.10, 1.16)), key('s3', .94, V(0, 3.10, .68)), key('s3', 1, V(0, 3.10, .68))]
+      keys: [key('s1', 0, V(2.55, 3.10, 1.16)), key('s3', .14, V(2.55, 3.10, 1.16)), key('s3', .94, V(0, 3.10, .51)), key('s3', 1, V(0, 3.10, .51))]
     }
   ];
 
