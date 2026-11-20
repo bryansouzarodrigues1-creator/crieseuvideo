@@ -1,0 +1,60 @@
+# User's continuous authorization: CrieSeuVideo Gemini tests as necessary.
+# Dedicated branch + exact marker only; never on PRs, normal pushes or schedules.
+name: Code 3D single real Gemini proof
+on:
+  push:
+    branches: [run/code3d-real-20261120]
+permissions:
+  contents: read
+concurrency:
+  group: code3d-one-authorized-proof-20261120
+  cancel-in-progress: false
+jobs:
+  prove:
+    if: "${{ github.event.head_commit.message == 'trial: one authorized Code 3D Gemini proof 20261120' }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify code before any model call
+        run: |
+          bun run test
+          bunx tsc --noEmit
+          bun run build
+      - name: Prepare browser
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start studio
+        run: |
+          mkdir -p tmp/unified-3d-qa
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/unified-3d-qa/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Prove isolated player/export before spending any Gemini quota
+        run: bun scripts/code3d-browser-qa.mjs
+      - name: Exactly one real Gemini request
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
+          GEMINI_CODE3D_MODEL: gemini-3.8-flash
+          CODE3D_ONE_CALL: ONE_AUTHORIZED_CALL_20261120
+        run: bun scripts/one-code3d-gemini-proof.ts
+      - name: Render and export the actual model response without another call
+        env:
+          CODE3D_QA_SCENE: tmp/unified-3d-qa/code3d-real/gemini-scene.js
+        run: bun scripts/code3d-browser-qa.mjs
+      - name: Preserve code, frames and actual video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code3d-one-real-gemini-proof
+          path: tmp/unified-3d-qa/
+          retention-days: 14
