@@ -11,10 +11,10 @@ import type { ProgramActor3D } from './actor3d';
 export function decoratePatrickActor(actor: ProgramActor3D): void {
   const navy = toonMaterial({ color: '#34496d' });
   const navyLight = toonMaterial({ color: '#52698b' });
-  const vest = toonMaterial({ color: '#36383f' });
+  const vest = toonMaterial({ color: '#555966' });
   const white = toonMaterial({ color: '#f3f1ec' });
   const gold = toonMaterial({ color: '#cfa367' });
-  const goldLight = toonMaterial({ color: '#ead09b' });
+  const goldLight = toonMaterial({ color: '#dbb579' });
   const stubble = toonMaterial({ color: '#b88b68' });
   const skin = toonMaterial({ color: '#f1c29d' });
   const brown = toonMaterial({ color: '#543829' });
@@ -37,33 +37,38 @@ export function decoratePatrickActor(actor: ProgramActor3D): void {
     part(parent, name, new THREE.SphereGeometry(radius, 12, 10), material, p, scale);
 
   // A fitted blue jacket, graphite vest and open-neck white shirt.
-  part(actor.hips, 'patrick-white-shirt', new THREE.BoxGeometry(.21, .43, .046), white, [0, .27, .215]);
+  part(actor.hips, 'patrick-white-shirt', new THREE.BoxGeometry(.20, .44, .046), white, [0, .28, .218]);
   for (const side of [-1, 1]) {
     const prefix = side === -1 ? 'left' : 'right';
-    part(actor.hips, `patrick-${prefix}-vest`, new THREE.BoxGeometry(.13, .38, .034), vest,
-      [side * .085, .23, .248]);
+    part(actor.hips, `patrick-${prefix}-vest`, new THREE.BoxGeometry(.085, .37, .023), vest,
+      [side * .133, .225, .235]);
     const lapel = part(actor.hips, `patrick-${prefix}-lapel`,
-      new THREE.CapsuleGeometry(.048, .35, 4, 8), navyLight,
-      [side * .225, .35, .245], [.86, 1, .66]);
+      new THREE.CapsuleGeometry(.030, .29, 4, 8), navyLight,
+      [side * .237, .34, .235], [.8, 1, .55]);
     lapel.rotation.z = -side * .27;
     // Neck and lapels stay inside the torso group as the torso rotates.
-    part(actor.hips, `patrick-${prefix}-collar`, new THREE.BoxGeometry(.105, .115, .045),
-      white, [side * .085, .5, .172]);
+    part(actor.hips, `patrick-${prefix}-collar`, new THREE.BoxGeometry(.09, .105, .04),
+      white, [side * .085, .49, .172]);
+  }
+  for (const side of [-1, 1]) {
+    const coat = part(actor.hips, side < 0 ? 'patrick-coat-left' : 'patrick-coat-right',
+      new THREE.BoxGeometry(.18, .31, .13), navy, [side * .2, -.12, .05]);
+    coat.rotation.z = -side * .06;
   }
   for (let i = 0; i < 3; i++) {
     ball(actor.hips, `patrick-vest-button-${i}`, .013, ink, [.037, .29 - i * .085, .281]);
   }
   // Swept-back blond waves: identifiable from front, profile and rear.
   const locks: Array<[number, number, number, number, number, number]> = [
-    [-.23,.20,.04,.145,.12,-.28], [-.12,.32,.02,.17,.13,-.14],
-    [.04,.355,.03,.18,.12,.12], [.19,.29,.065,.15,.11,.25],
-    [-.25,.08,-.13,.125,.14,-.35], [.25,.09,-.13,.13,.14,.35],
-    [-.16,.20,-.22,.16,.15,.1], [.07,.23,-.26,.19,.13,-.1],
-    [.20,.12,-.18,.14,.14,.15], [-.05,.30,.19,.16,.085,-.3],
+    [-.23,.18,.02,.105,.13,-.28], [-.12,.28,.01,.125,.13,-.14],
+    [.04,.32,.025,.14,.12,.12], [.19,.265,.045,.115,.11,.25],
+    [-.25,.07,-.13,.095,.14,-.35], [.25,.08,-.13,.105,.13,.35],
+    [-.16,.18,-.22,.12,.15,.1], [.07,.23,-.26,.14,.14,-.1],
+    [.20,.12,-.18,.11,.14,.15], [-.05,.29,.19,.13,.10,-.3],
   ];
   locks.forEach(([x,y,z,r,depth,tilt],i) => {
     const wave = ball(actor.head, `patrick-hair-wave-${i}`, r,
-      i % 3 === 0 ? goldLight : gold, [x,y,z], [1,.85,depth/r]);
+      i % 3 === 0 ? goldLight : gold, [x,y,z], [.9,1.38,depth/r]);
     wave.rotation.z = tilt;
   });
   // Light cheek stubble; the expressive mouth is still controlled by the base rig.
@@ -94,7 +99,7 @@ export function decoratePatrickActor(actor: ProgramActor3D): void {
   }
   for (const [name, foot] of [['left', actor.limbs.leftFoot], ['right', actor.limbs.rightFoot]] as const) {
     part(foot.hand, `patrick-${name}-leather-shoe`,
-      new THREE.BoxGeometry(.247, .12, .37), brown, [0,.015,.088]);
+      new THREE.BoxGeometry(.24, .10, .34), brown, [0,.015,.078]);
   }
   actor.root.userData.characterPreset = 'patrick-mentalista-v1';
 }
