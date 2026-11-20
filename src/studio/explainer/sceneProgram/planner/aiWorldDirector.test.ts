@@ -82,7 +82,7 @@ describe('AI-native 3D directions cannot silently return a static stock preview'
     expect(checkSceneScript(oneLong).ok).toBe(false);
   });
   it('rejects a vague single-line or oversized request without spending model credits',()=>{
-    expect(()=>sourceBriefsFromScript('Uma moto corre.')).toThrow(/Escreva/);
+    expect(()=>sourceBriefsFromScript('Uma moto corre.')).toThrow(/Descreva/);
     expect(()=>sourceBriefsFromScript('A'.repeat(800))).toThrow(/longo/);
   });
 });
