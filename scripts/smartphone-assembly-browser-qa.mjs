@@ -90,6 +90,10 @@ try {
   const input=new Input({source:new BlobSource(new Blob([downloaded])),formats:ALL_FORMATS});
   const audioTrack=await input.getPrimaryAudioTrack();
   assert.ok(audioTrack,'Narration audio track missing from exported MP4/WebM');
+  const videoTrack=await input.getPrimaryVideoTrack();
+  assert.ok(videoTrack,'Video track missing from export');
+  assert.equal(await videoTrack.getDisplayWidth(),720,'Export must be 720px wide');
+  assert.equal(await videoTrack.getDisplayHeight(),1280,'Export must be 1280px tall');
   assert.equal(providerRequests,0,'Export must not call a paid provider');
   assert.deepEqual(errors, [], 'Unhandled errors in browser');
 
