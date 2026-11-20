@@ -196,8 +196,9 @@ export function InlineAi3DPlayer({
   };
 
   const download=async()=>{
-    const canvas=canvasRef.current;
-    if(!canvas||!clip||exportRef.current||error)return;
+    const canvas=canvasRef.current,gl=rendererRef.current,stage=stageRef.current;
+    if(!canvas||!gl||!stage||!clip||exportRef.current||error)return;
+    const previousSize={width:canvas.width,height:canvas.height};
     exportRef.current=true;
     playingRef.current=false;setPlaying(false);audioRef.current?.pause();setProgress(0);
     const abort=new AbortController();exportAbort.current=abort;
@@ -205,10 +206,16 @@ export function InlineAi3DPlayer({
       const {encodeFixedFrame3DClip}=await import('../utils/deterministic3dExport');
       const voice=voiceBufferRef.current;
       const exportSeconds=voice?.duration??clip.duration;
+      // Preview can be 270x480: export is always portrait 720p or landscape 720p.
+      const outputSize=aspect==='9:16'
+        ? {width:720,height:1280}:{width:1280,height:720};
+      gl.setSize(outputSize.width,outputSize.height,false);
       const result=await encodeFixedFrame3DClip({
         canvas,durationSeconds:exportSeconds,fps:24,signal:abort.signal,
         ...(voice?{audioBuffer:voice}:{}),
-        renderFrame:t=>drawRef.current(t*clip.duration/exportSeconds),
+        renderFrame:t=>stage.render(gl,
+          Math.max(0,Math.min(clip.duration-.001,t*clip.duration/exportSeconds)),
+          outputSize.width,outputSize.height),
         onProgress:setProgress
       });
       const url=URL.createObjectURL(result.blob);
@@ -218,11 +225,11 @@ export function InlineAi3DPlayer({
       document.body.appendChild(anchor);anchor.click();anchor.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),60000);
     }catch(e){
-      setError('Exportação falhou: '+(e instanceof Error?e.message:String(e)));
+      setVoiceNote('Exportação falhou: '+(e instanceof Error?e.message:String(e)));
     }finally{
       exportAbort.current=null;exportRef.current=false;setProgress(null);
       clockRef.current=0;setTime(0);
-      try{drawRef.current(0);}catch{}
+      try{gl.setSize(previousSize.width,previousSize.height,false);drawRef.current(0);}catch{}
     }
   };
 
@@ -275,7 +282,7 @@ export function InlineAi3DPlayer({
         <strong>Direção: {provider==='demo'?'Demonstração offline (sem IA)':provider==='lovable'?'IA do Lovable':provider==='gemini'?'Gemini':'Não informado'}</strong>
         <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras{provider==='demo'?' · materiais físicos PBR':''}</span>
       </div>
-      <p className="native-3d-small">Quadros fixos e MP4/WebM: {voiceName?'inclui a narração importada':'sem narração (importe um MP3/WAV se desejar)'}. Legendas 3D ainda não foram integradas.</p>
+      <p className="native-3d-small">Exportação 720×1280 (ou 1280×720), quadros fixos e MP4/WebM: {voiceName?'inclui a narração importada':'sem narração (importe um MP3/WAV se desejar)'}. Legendas 3D ainda não foram integradas.</p>
       {error&&<p className="native-3d-error" role="alert">{error}</p>}
     </>}
   </section>;
