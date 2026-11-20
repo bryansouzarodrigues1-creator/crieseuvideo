@@ -1,0 +1,70 @@
+name: Dragon and golems story through the actual Code 3D studio
+on:
+  pull_request:
+    branches: [test/minecraft-code3d-engine-20261120]
+    paths:
+      - scripts/fixtures/code3d-golems-end-story.js
+      - scripts/fixtures/code3d-golems-end-story.provenance.json
+      - scripts/code3d-golems-end-browser-proof.mjs
+      - .github/workflows/golems-end-story-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: golems-end-story-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install existing locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Validate all four imported scene programs
+        run: |
+          bun -e 'import {readFileSync} from "node:fs"; import {checkGeneratedCode} from "./src/studio/code3d/validation.ts"; const s=readFileSync("scripts/fixtures/code3d-golems-end-story.js","utf8"); for(let n=0;n<4;n++){const r=checkGeneratedCode("const STORY_SHOT="+n+";\n"+s);console.log(n+1,r);if(!r.ok||r.warnings.length)process.exit(1);}'
+      - name: Build and typecheck the actual website
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Prepare Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start the actual studio
+        run: |
+          mkdir -p tmp/golems-end-story-preview tmp/golems-end-story-engine
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/golems-end-story-preview/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -60 tmp/golems-end-story-preview/vite.log
+          exit 1
+      - name: Capture story frames and check replay through the real UI
+        env:
+          GOLEMS_PROOF_MODE: frames
+        run: bun scripts/code3d-golems-end-browser-proof.mjs
+      - name: Preserve preview frames before full export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golems-end-story-preview
+          path: tmp/golems-end-story-preview/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Export all four clips using the existing studio button
+        env:
+          GOLEMS_PROOF_MODE: video
+        run: bun scripts/code3d-golems-end-browser-proof.mjs
+      - name: Preserve native engine videos and their provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golems-end-story-engine
+          path: tmp/golems-end-story-engine/
+          retention-days: 14
+          if-no-files-found: error
