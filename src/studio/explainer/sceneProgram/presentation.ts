@@ -51,8 +51,8 @@ export function drawClipPresentation(
   const panelWidth=width-left*2;
   const top=portrait?50*k:35*k;
   const headlineFont=portrait?36*k:30*k;
-  const subFont=portrait?23*k:24*k;
-  const eyebrowFont=portrait?20*k:18*k;
+  const subFont=portrait?30*k:24*k;
+  const eyebrowFont=portrait?23*k:18*k;
   const accent='#b5e16d';
   ctx.save();
   ctx.textBaseline='top';
