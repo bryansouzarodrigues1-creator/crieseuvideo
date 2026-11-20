@@ -1,0 +1,33 @@
+{
+  "source": "artemnovitckii/claude-animation-skills/skills/minecraft/template.html",
+  "source_sha256": "3bfde1afadf41af8f4fab3add8a2dd4f3e97e390aa6abc55d654c8618f4a6d3b",
+  "license": "MIT, copyright 2026 Artem Novitckii",
+  "adaptation": "ChatGPT port of the supplied reference into CrieSeuVideo createScene",
+  "scene_sha256": "8afd0aaae7d036f59cfde36d37cc0062bb52f1d035d6c4b8ed0e395f1df097d7",
+  "duration_seconds": 10,
+  "model_requests": 0,
+  "textures": "16x16 procedural; no Mojang asset, logo or character",
+  "stages_seconds": {
+    "foundation": [
+      0,
+      1.7
+    ],
+    "walls": [
+      1.55,
+      3.95
+    ],
+    "roof": [
+      3.85,
+      6.05
+    ],
+    "chimney_slam": 6.75,
+    "windows_light": 6.99,
+    "smoke": [
+      7.1,
+      10
+    ]
+  },
+  "expected_renderer": "actual CrieSeuVideo experimental Code 3D route and fixed-frame exporter",
+  "render_status": "pending browser verification",
+  "limits": "Tests imported authored code; does not prove autonomous Gemini generation or production deployment."
+}

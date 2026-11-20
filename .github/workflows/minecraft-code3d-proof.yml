@@ -1,0 +1,56 @@
+name: Minecraft through the actual Code 3D studio
+on:
+  pull_request:
+    branches: [work/review-code3d-20261120]
+    paths:
+      - scripts/fixtures/code3d-minecraft-cottage.js
+      - scripts/fixtures/code3d-minecraft-cottage.provenance.json
+      - scripts/code3d-minecraft-browser-proof.mjs
+      - .github/workflows/minecraft-code3d-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: minecraft-code3d-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install existing locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Validate scene with the existing import parser
+        run: |
+          bun -e 'import {readFileSync} from "node:fs"; import {checkGeneratedCode} from "./src/studio/code3d/validation.ts"; const r=checkGeneratedCode(readFileSync("scripts/fixtures/code3d-minecraft-cottage.js","utf8")); console.log(r); if(!r.ok||r.warnings.length)process.exit(1);'
+      - name: Build the actual website
+        run: bun run build
+      - name: Typecheck the existing studio
+        run: bunx tsc --noEmit
+      - name: Prepare Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start the actual studio
+        run: |
+          mkdir -p tmp/minecraft-code3d-proof
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/minecraft-code3d-proof/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -60 tmp/minecraft-code3d-proof/vite.log
+          exit 1
+      - name: Import, render, seek, replay and export Minecraft via the real UI
+        run: bun scripts/code3d-minecraft-browser-proof.mjs
+      - name: Preserve the engine video, stage frames and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-code3d-engine-proof
+          path: tmp/minecraft-code3d-proof/
+          retention-days: 14
+          if-no-files-found: error
