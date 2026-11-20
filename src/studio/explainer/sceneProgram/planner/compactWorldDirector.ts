@@ -106,7 +106,7 @@ function parsePlan(raw:unknown):Plan {
   if(!Array.isArray(rawActions)||rawActions.length<1||rawActions.length>3)
     fail('A cena deve conter de uma a três ações verificáveis.');
   const usedTargets=new Set<string>();
-  const actions=rawActions.map((rawAction,i):Action=>{
+  const actions=(rawActions as unknown[]).map((rawAction:unknown,i:number):Action=>{
     if(!isObject(rawAction))return fail('A ação '+(i+1)+' não é um objeto JSON.');
     keys(rawAction,['target','kind','delta'],'ação');
     const target=id(rawAction.target,'alvo');
