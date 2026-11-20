@@ -160,7 +160,7 @@ export function buildSmartphoneAssemblyDemo(): ComplexWorldClip {
     },
     {
       node: 'camera', channel: 'position', interpolation: 'smooth',
-      keys: [key('s1', 0, V(-1.29, 4.96, 1.35)), key('s2', .45, V(-1.29, 4.96, 1.35)), key('s2', .96, V(-.63, 4.93, .35)), key('s3', 1, V(-.63, 4.93, .35))]
+      keys: [key('s1', 0, V(-1.29, 4.96, 1.35)), key('s2', .45, V(-1.29, 4.96, 1.35)), key('s2', .96, V(-.63, 4.93, .20)), key('s3', 1, V(-.63, 4.93, .20))]
     },
     {
       node: 'display', channel: 'position', interpolation: 'smooth',
