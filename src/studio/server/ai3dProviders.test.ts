@@ -46,7 +46,7 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
   });
   it('reports obsolete model 404 separately and requests a current Gemini model',async()=>{
     process.env.GEMINI_API_KEY='fake-gemini-token';
-    const fetched=vi.fn(async()=>new Response('secret provider diagnostic',{status:404}));
+    const fetched=vi.fn(async(_input:RequestInfo|URL)=>new Response('secret provider diagnostic',{status:404}));
     vi.stubGlobal('fetch',fetched);
     const failure=await ask3DWorldAi('test scene','gemini').catch(e=>e);
     expect(failure.failures).toEqual([{provider:'gemini',reason:'model_unavailable'}]);
