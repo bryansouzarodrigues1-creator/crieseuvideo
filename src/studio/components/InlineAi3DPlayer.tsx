@@ -66,7 +66,7 @@ export function InlineAi3DPlayer({
       renderer.outputColorSpace=THREE.SRGBColorSpace;
       renderer.shadowMap.enabled=!lite;
       stageRef.current?.dispose();
-      const stage=new SceneProgram3D(clip.program,clip.sources);
+      const stage=new SceneProgram3D(clip.program,clip.sources,new Map(),provider==='demo'?'technical':'toon');
       stageRef.current=stage;
       drawRef.current=(seconds:number)=>
         stage.render(renderer,Math.max(0,Math.min(clip.duration-.001,seconds)),width,height);
@@ -99,7 +99,7 @@ export function InlineAi3DPlayer({
       playingRef.current=false;drawRef.current=()=>{};
       stageRef.current?.dispose();stageRef.current=null;
     };
-  },[clip,aspect,lite]);
+  },[clip,aspect,lite,provider]);
 
   useEffect(()=>()=>{
     exportAbort.current?.abort();
@@ -179,7 +179,7 @@ export function InlineAi3DPlayer({
       </div>
       <div className="native-3d-numbers">
         <strong>Direção: {provider==='demo'?'Demonstração offline (sem IA)':provider==='lovable'?'IA do Lovable':provider==='gemini'?'Gemini':'Não informado'}</strong>
-        <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras</span>
+        <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras{provider==='demo'?' · materiais físicos PBR':''}</span>
       </div>
       <p className="native-3d-small">Arquivo 3D experimental com quadros fixos. Este download ainda não inclui voz nem legendas, mesmo que a preferência de narração esteja ativa no editor.</p>
       {error&&<p className="native-3d-error" role="alert">{error}</p>}
