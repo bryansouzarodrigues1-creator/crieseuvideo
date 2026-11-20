@@ -15,6 +15,7 @@ export const CODE3D_DEFAULT_DURATION = 10;
 export const CODE3D_MAX_CODE_CHARS = 80_000;
 export const CODE3D_MAX_SCRIPT_CHARS = 1_200;
 export const CODE3D_MIN_SCRIPT_CHARS = 20;
+export const CODE3D_REQUEST_TIMEOUT_MS = 300_000;
 
 export type Code3DAspect = '9:16' | '16:9';
 export const code3dSize = (aspect: Code3DAspect) =>

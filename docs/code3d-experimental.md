@@ -8,6 +8,8 @@ One complete JavaScript program defines `function createScene(THREE, canvas, wid
 
 The prompt asks for coherent staging, hierarchical mechanisms and contacts, multiple camera compositions and procedural detail. It does not constrain the scene to the old JSON limit of 7 entities / 3 actions. Program size is limited to 80,000 characters and script size to 1,200 characters. These are resource bounds, not a guarantee of artistic quality.
 
+After a real request exceeded 150 seconds, the experimental code route now allows a bounded 300-second request and asks Gemini 3/4 for `thinkingLevel: low`, retaining the 32,768-token output cap. Legacy 2.5 models do not receive this unsupported setting. This is a latency tradeoff, not an assertion that thinking caused the timeout. See [Google's thinking guide](https://ai.google.dev/gemini-api/docs/generate-content/thinking). Other studio AI routes keep their existing configuration.
+
 An explicit authenticated generation click makes one server-side request to Gemini. The model comes from `GEMINI_CODE3D_MODEL`, then `GEMINI_AI_MODEL`, then `gemini-3.8-flash`. No hidden retry, repair, provider substitution or automatic generation. Syntax parsing with Acorn does not execute code. Missing key, HTTP refusal, quota and truncation are separate failures. Keys are never sent to the browser.
 
 The user may save a returned program as `.js`, edit it externally and explicitly reopen it without login or another model request. Imported code receives the same syntax check, iframe execution, replay check and export rules. It is identified as imported; it is never labelled a new Gemini generation. HTML documents do not meet this contract and are rejected.

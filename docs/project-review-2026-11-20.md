@@ -33,4 +33,6 @@ Somente depois dessa prova, promover a versão validada ao site e ampliar duraç
 
 ## Validação
 
-Na revisão local: 240 testes passaram; TypeScript e build passaram. A prova de navegador e o render serão registrados no workflow e no PR correspondente. Não houve geração real de Gemini nesta revisão nem publicação no site.
+Na primeira revisão completa, 243 testes, TypeScript, build e as cinco verificações de CI passaram. O [render de navegador](https://github.com/bryansouzarodrigues1-creator/crieseuvideo/actions/runs/44755841284) produziu MP4 H.264 432×768, 8 segundos, 192 quadros a 24 fps. Os quadros confirmam içamento, giro e colocação da carga no caminhão; trata-se de uma fixture manual simples, sem voz, não de qualidade artística final.
+
+No [ensaio real](https://github.com/bryansouzarodrigues1-creator/crieseuvideo/actions/runs/44755837294), o player/export passou antes da inferência. Houve exatamente uma solicitação Gemini, encerrada por timeout em 150 segundos, sem código utilizável e sem render dessa resposta. Isso não comprova indisponibilidade de chave, falta de cota nem a causa da demora. O ajuste seguinte limita o pedido a 300 segundos e usa o nível de pensamento `low` suportado por Gemini 3/4. A configuração requer nova prova; nenhum resultado simulado substitui essa evidência. Não houve publicação no site.

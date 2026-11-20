@@ -1,7 +1,7 @@
 // Server-only: one Gemini call that returns a Three.js program (EXPERIMENTAL).
 // No fallback provider, no retries, no repair calls. Keys stay on the server
 // and are never logged; provider response bodies are never logged or returned.
-import { code3dPrompt, extractCode, type Code3DAspect } from '../code3d/contract';
+import { CODE3D_REQUEST_TIMEOUT_MS, code3dPrompt, extractCode, type Code3DAspect } from '../code3d/contract';
 
 export type Code3DFailure =
   | 'not_configured' | 'unauthorized' | 'forbidden' | 'quota' | 'model_unavailable'
@@ -54,7 +54,7 @@ export async function generateCode3DWithGemini(script: string, aspect: Code3DAsp
   if (!key) return fail('not_configured');
   if (!/^[a-zA-Z0-9._-]{1,80}$/.test(model)) return fail('invalid_request', 'nome de modelo inválido');
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 150_000);
+  const timer = setTimeout(() => ctrl.abort(), CODE3D_REQUEST_TIMEOUT_MS);
   let text = '';
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -63,7 +63,12 @@ export async function generateCode3DWithGemini(script: string, aspect: Code3DAsp
       headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: code3dPrompt(script, aspect) }] }],
-        generationConfig: { responseMimeType: 'text/plain', maxOutputTokens: 32768 },
+        generationConfig: {
+          responseMimeType: 'text/plain', maxOutputTokens: 32768,
+          // Long source output needs room for code. 3.x/4.x support thinkingLevel;
+          // 2.5 does not, so a configured legacy model keeps its own defaults.
+          ...(/^gemini-[34][.-]/.test(model) ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+        },
       }),
     });
     if (!res.ok) {
@@ -71,7 +76,7 @@ export async function generateCode3DWithGemini(script: string, aspect: Code3DAsp
       return fail(statusFailure(res.status));
     }
     let data: any;
-    try { data = await res.json(); } catch { return fail('invalid_response'); }
+    try { data = await res.json(); } catch { return fail(ctrl.signal.aborted ? 'timeout' : 'invalid_response'); }
     if (data?.promptFeedback?.blockReason) return fail('blocked');
     const c = data?.candidates?.[0];
     if (c?.finishReason === 'SAFETY' || c?.finishReason === 'PROHIBITED_CONTENT') return fail('blocked');
@@ -81,8 +86,8 @@ export async function generateCode3DWithGemini(script: string, aspect: Code3DAsp
     text = parts
       .filter((p: any) => p && typeof p.text === 'string' && !p.thought)
       .map((p: any) => p.text).join('');
-  } catch (e) {
-    const timeout = e instanceof Error && e.name === 'AbortError';
+  } catch {
+    const timeout = ctrl.signal.aborted;
     console.error('Gemini code3d request failed:', timeout ? 'timeout' : 'network');
     return fail(timeout ? 'timeout' : 'network');
   } finally {
