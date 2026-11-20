@@ -16,8 +16,7 @@ const FPS=24;
 
 export default function Ai3DStudio(){
   const [script,setScript]=useState(SAMPLE);
-  const [provider,setProvider]=useState<AiWorldProvider>('auto');
-  const [consent,setConsent]=useState(false);
+  const [provider,setProvider]=useState<AiWorldProvider>('gemini');
   const [userId,setUserId]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [clip,setClip]=useState<ComplexWorldClip|null>(null);
@@ -140,7 +139,7 @@ export default function Ai3DStudio(){
     }catch(e){setError(e instanceof Error?e.message:'Não foi possível entrar.');}
   };
   const generate=async()=>{
-    if(busy||busyExportRef.current||!userId||!consent)return;
+    if(busy||busyExportRef.current||!userId)return;
     setError('');setPlaying(false);setBusy(true);
     try{
       // The protected server function expects an Authorization Bearer header.
@@ -202,24 +201,21 @@ export default function Ai3DStudio(){
     </header>
     <div className="native-3d-layout">
       <section className="native-3d-choices ai3d-panel">
-        <label htmlFor="ai3d-script">Roteiro da cena: 2 ou 3 frases</label>
+        <label htmlFor="ai3d-script">Roteiro da cena: 1 a 3 frases</label>
         <textarea id="ai3d-script" rows={7} maxLength={750} value={script} disabled={busy}
           onChange={e=>setScript(e.target.value)}/>
-        <p className="native-3d-small">Descreva o lugar completo, o objeto que se movimenta e o resultado da ação. {script.length}/750 caracteres. Uma tentativa gera 8–12 segundos, não um filme inteiro.</p>
+        <p className="native-3d-small">Descreva o lugar completo, o objeto que se movimenta e o resultado da ação. {script.length}/750 caracteres. Uma tentativa gera aproximadamente 8–12 segundos, não um filme inteiro.</p>
         <label htmlFor="ai3d-provider">IA responsável pela direção</label>
         <select id="ai3d-provider" value={provider} onChange={e=>setProvider(e.target.value as AiWorldProvider)} disabled={busy}>
           <option value="auto">Automático: Lovable, com Gemini como alternativa</option>
           <option value="gemini">Gemini direto</option>
           <option value="lovable">IA do Lovable</option>
         </select>
-        <label className="ai3d-consent">
-          <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>
-          Concordo em fazer uma chamada que pode consumir créditos/cotas de IA.
-        </label>
+        <p className="native-3d-small" role="note">Ao clicar em Gerar cena 3D, você solicita uma geração que pode consumir créditos mesmo que falhe. No modo Automático, até dois provedores podem ser consultados.</p>
         {userId?
-          <button type="button" className="ai3d-generate" disabled={busy||!consent||!!exportProgress} onClick={()=>void generate()}>
+          <button type="button" className="ai3d-generate" disabled={busy||!!exportProgress} onClick={()=>void generate()}>
             {busy?<Loader2 size={18}/>:<Sparkles size={18}/>}
-            {busy?'Planejando objetos, cenário e movimento…':'Gerar cena 3D pela IA'}
+            {busy?'Planejando objetos, cenário e movimento…':'Gerar cena 3D pela IA (pode usar créditos)'}
           </button>:
           <div className="ai3d-signin">
             <p>Faça login para gerar; a API não pode ser chamada anonimamente.</p>

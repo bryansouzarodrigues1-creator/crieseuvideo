@@ -28,6 +28,33 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     expect(error.message).not.toContain('secret body');
     expect(error.message).not.toContain('dummy-secret-token');
   });
+  it('does not mislabel provider HTTP 400 as invalid 3D JSON',async()=>{
+    process.env.LOVABLE_API_KEY='fake-lovable-token';
+    process.env.GEMINI_API_KEY='fake-gemini-token';
+    const fetched=vi.fn(async()=>new Response('request may contain private data',{status:400}));
+    vi.stubGlobal('fetch',fetched);
+    const failure=await ask3DWorldAi('test scene','auto').catch(e=>e);
+    expect(failure).toBeInstanceOf(Ai3DProviderError);
+    expect(failure.failures).toEqual([
+      {provider:'lovable',reason:'invalid_request'},
+      {provider:'gemini',reason:'invalid_request'},
+    ]);
+    expect(failure.message).toContain('HTTP 400/422');
+    expect(failure.message).not.toContain('formato 3D esperado');
+    expect(failure.message).not.toContain('private data');
+    expect(fetched).toHaveBeenCalledTimes(2);
+  });
+  it('reports obsolete model 404 separately and requests a current Gemini model',async()=>{
+    process.env.GEMINI_API_KEY='fake-gemini-token';
+    const fetched=vi.fn(async(_input:RequestInfo|URL)=>new Response('secret provider diagnostic',{status:404}));
+    vi.stubGlobal('fetch',fetched);
+    const failure=await ask3DWorldAi('test scene','gemini').catch(e=>e);
+    expect(failure.failures).toEqual([{provider:'gemini',reason:'model_unavailable'}]);
+    expect(failure.message).toContain('HTTP 404');
+    expect(failure.message).not.toContain('secret provider diagnostic');
+    expect(String(fetched.mock.calls[0][0])).toContain('gemini-3.8-flash:generateContent');
+    expect(fetched).toHaveBeenCalledTimes(1);
+  });
   it('reports a Gemini quota response clearly',async()=>{
     process.env.GEMINI_API_KEY='dummy-key';
     vi.stubGlobal('fetch',vi.fn(async()=>new Response('{}',{status:429})));

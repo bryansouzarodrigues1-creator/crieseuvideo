@@ -49,7 +49,7 @@ export function checkSceneScript(script:string):SceneScriptCheck{
       duration:sources.reduce((sum,s)=>sum+s.duration,0),
       description:sources.length===1
         ? 'Descrição válida: será uma cena de aproximadamente 8 segundos com uma câmera. Para problema e solução em tomadas diferentes, escreva 2 ou 3 frases ou linhas.'
-        : `Roteiro válido: ${sources.length} etapas, aproximadamente ${sources.length*4} segundos. A geração ainda exige conta conectada e autorização de créditos.`
+        : `Roteiro válido: ${sources.length} etapas, aproximadamente ${sources.length*4} segundos. A geração exige conta conectada e clique explícito em Criar, que pode consumir créditos.`
     };
   }catch(error){
     return {ok:false,count:0,duration:0,
