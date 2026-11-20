@@ -150,6 +150,43 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
         expect(stage.nodes.get('bike')).toBe(bikeNode);
       }
     }finally{stage.dispose();}
+    // Three narrated beats: hold the blocked gate in s1, open it in s2,
+    // and ONLY THEN drive away in s3. Source IDs are explicit editorial timing.
+    const threeSource=sourceBriefsFromScript(
+      'A motocicleta está parada diante de um portão fechado na garagem. '+
+      'O portão sobe completamente e libera a passagem. '+
+      'A motocicleta avança e sai pela abertura para a rua.'
+    );
+    const timed={...scene,actions:[
+      {...scene.actions[0],sourceId:'s2'},
+      {...scene.actions[1],sourceId:'s3'}
+    ]};
+    const timedClip=compileCompactWorld(timed,threeSource);
+    const timedScore=compileSceneProgram(timedClip.program,timedClip.sources);
+    const delta=(id:string,a:number,b:number)=>{
+      const first=timedScore.sample(a).get(id)!.position;
+      const second=timedScore.sample(b).get(id)!.position;
+      return Math.hypot(...first.map((v,i)=>v-second[i]));
+    };
+    expect(delta('gate',0,3.8)).toBeLessThan(.001);
+    expect(delta('gate',4.3,7.8)).toBeGreaterThan(1.5);
+    expect(delta('bike',0,8.2)).toBeLessThan(.001);
+    expect(delta('bike',8.3,11.8)).toBeGreaterThan(3.5);
+    expect(timedClip.program.shots[1].subjects).toContain('gate');
+    expect(timedClip.program.shots[2].subjects).toContain('bike');
+    const noTiming={...scene,actions:scene.actions};
+    const inferred=compileCompactWorld(noTiming,threeSource);
+    const inferredScore=compileSceneProgram(inferred.program,inferred.sources);
+    expect(inferredScore.sample(3.9).get('gate')!.position[1]).toBe(0);
+    expect(inferredScore.sample(7.9).get('gate')!.position[1]).toBeGreaterThan(1.5);
+    expect(()=>compileCompactWorld({...scene,actions:[
+      {...scene.actions[0],sourceId:'s3'},
+      {...scene.actions[1],sourceId:'s2'}
+    ]},threeSource)).toThrow(/frases posteriores/);
+    expect(()=>compileCompactWorld({...scene,actions:[
+      {...scene.actions[0],sourceId:'s9'},
+      {...scene.actions[1],sourceId:'s3'}
+    ]},threeSource)).toThrow(/frase que não existe/);
   });
   it('rejects overlapping targets and more action events than narrated chapters',()=>{
     const duplicate={...crane,action:undefined,actions:[

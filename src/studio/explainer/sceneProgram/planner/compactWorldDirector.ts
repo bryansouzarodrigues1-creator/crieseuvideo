@@ -16,7 +16,7 @@ type ActionKind='move'|'lift'|'lower'|'drive'|'sail'|'rotate'|'open';
 type Shape='box'|'sphere'|'cylinder'|'cone'|'torus';
 type Detail={id:string;shape:Shape;size:number[];at:Vec;color?:string};
 type Entity={id:string;name:string;kind:EntityKind;at:Vec;size:Vec;color:string;details?:Detail[]};
-type Action={target:string;kind:ActionKind;delta:Vec};
+type Action={target:string;kind:ActionKind;delta:Vec;sourceId?:string};
 type Plan={version:1;setting:SceneSetting;background:string;entities:Entity[];actions:Action[]};
 export class CompactWorldError extends Error {
   readonly code='invalid_compact_3d_world';
@@ -108,7 +108,7 @@ function parsePlan(raw:unknown):Plan {
   const usedTargets=new Set<string>();
   const actions=(rawActions as unknown[]).map((rawAction:unknown,i:number):Action=>{
     if(!isObject(rawAction))return fail('A ação '+(i+1)+' não é um objeto JSON.');
-    keys(rawAction,['target','kind','delta'],'ação');
+    keys(rawAction,['target','kind','delta','sourceId'],'ação');
     const target=id(rawAction.target,'alvo');
     if(!seen.has(target))fail('A ação deve mover um dos objetos presentes na cena.');
     if(usedTargets.has(target))fail('Duas ações não podem comandar o mesmo objeto simultaneamente neste motor.');
@@ -124,7 +124,8 @@ function parsePlan(raw:unknown):Plan {
     if(actionKind!=='rotate'&&actionKind!=='open'&&actionKind!=='lower'&&
        entities.find(e=>e.id===target)!.at[1]+delta[1]<-.4)
       fail('O objeto atravessaria o piso.');
-    return {target,kind:actionKind as ActionKind,delta};
+    return {target,kind:actionKind as ActionKind,delta,
+      ...(rawAction.sourceId===undefined?{}:{sourceId:id(rawAction.sourceId,'frase da ação')})};
   });
   return {version:1,setting:raw.setting as SceneSetting,
     background:hex(raw.background,'cor do céu'),entities,actions};
@@ -140,12 +141,13 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     '{"version":1,"setting":"city","background":"#C9E2F4","entities":[',
     '{"id":"estrutura","name":"Edifício principal","kind":"building","at":[-5,0,-7],"size":[7,9,4],"color":"#98A5AC"},',
     '{"id":"veiculo","name":"Veículo de serviço","kind":"vehicle","at":[0,0,1],"size":[3,2,2],"color":"#EDB45C"}',
-    '],"actions":[{"target":"veiculo","kind":"drive","delta":[5,0,0]}]}',
+    '],"actions":[{"sourceId":"s2","target":"veiculo","kind":"drive","delta":[5,0,0]}]}',
     'setting: city, industrial, coast, forest, interior, desert. Escolha pelo roteiro; background é hexadecimal #RRGGBB.',
     'entities: de 2 a 7 objetos REAIS do roteiro. Cada objeto {id,name,kind,at:[x,y,z],size:[largura,altura,profundidade],color:"#RRGGBB"}.',
     'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para carros/caminhões, motorcycle EXCLUSIVAMENTE para motos de duas rodas, boat para navios/barcos, cargo para caixas/cargas, tree para árvores, custom para qualquer coisa diferente.',
     'kind custom DEVE ter details:[{id,shape:"box"|"sphere"|"cylinder"|"cone"|"torus",size:[dimensões corretas],at:[x,y,z],color:"#RRGGBB"},...], de 3 a 12 partes distintas, todas locais ao objeto.',
-    'actions: de 1 a 3 ações EM ORDEM (prefira uma por frase). Cada {target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}.',
+    'actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"s1"|"s2"|"s3",target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}.',
+    'sourceId deve indicar a frase EXATA em que o movimento começa. Se s1 apresenta só o problema, não inicie a solução em s1; agende-a em s2 e o resultado em s3. Ordem crescente dos sourceIds.',
     'Quando a história tiver problema, solução e resultado, use 2 ou 3 ações com ALVOS DIFERENTES: faça a solução acontecer fisicamente e mostre sua consequência. Não entregue um único objeto girando sem explicar a história.',
     'Cada alvo só pode aparecer uma vez em actions nesta versão. Deslocamento >= 0.7 m ou rotação >= 0.45 rad; <= 18 m por eixo.',
     'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover estrutura inteira se o roteiro trata de uma carga ou portão: faça a carga ou portão outro entity.',
@@ -355,13 +357,29 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
   }
   if(input.actions.length>sourceIds.length)
     fail('A IA descreveu mais ações do que os trechos disponíveis na narração.');
+  // Explicit sourceId (preferred) ties every movement to its narrated cause.
+  // Without sourceId, reserve the opening chapter for the problem when there
+  // are more narration beats than distinct actions (3 sentences / 2 actions).
+  let previousChapter=-1;
+  const chapters=input.actions.map((action,i)=>{
+    const chapter=action.sourceId===undefined
+      ?i+Math.max(0,sourceIds.length-input.actions.length)
+      :sourceIds.indexOf(action.sourceId);
+    if(chapter<0||chapter>=sourceIds.length)
+      fail('A ação cita uma frase que não existe no roteiro.');
+    if(chapter<=previousChapter)
+      fail('As ações precisam ocorrer em frases posteriores, sem inverter o roteiro.');
+    previousChapter=chapter;
+    return chapter;
+  });
   const tracks:Record<string,unknown>[]=[];
-  for(const [chapter,action] of input.actions.entries()){
+  for(const [index,action] of input.actions.entries()){
+    const chapter=chapters[index];
     const target=objects.find(o=>o.id===action.target)!;
     const rotating=action.kind==='rotate'||action.kind==='open';
     const from:Vec=rotating?[0,0,0]:target.at;
     const to:Vec=from.map((v,i)=>round(v+action.delta[i])) as Vec;
-    const eventKeys=(from:Vec,to:Vec)=>input.actions.length===1
+    const eventKeys=(from:Vec,to:Vec)=>input.actions.length===1&&!action.sourceId
       ?frames(sourceIds,from,to)
       :actionFrames(sourceIds,chapter,from,to);
     tracks.push({
@@ -402,7 +420,11 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
   }
   // Each narrative chapter follows the action authored for that chapter.
   // If there are fewer actions than sentences, hold the final subject.
-  const subjectFor=(i:number)=>input.actions[Math.min(i,input.actions.length-1)].target;
+  const subjectFor=(i:number)=>{
+    let index=0;
+    for(let k=0;k<chapters.length;k++)if(chapters[k]<=i)index=k;
+    return input.actions[index].target;
+  };
   const world={version:1,clips:[{
     id:'scene',sources:sources.map(s=>({sourceId:s.sourceId,text:s.text,duration:s.duration})),
     sceneProgram:{
