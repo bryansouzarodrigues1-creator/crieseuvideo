@@ -31,7 +31,7 @@ try {
  await page.evaluate((draft)=>sessionStorage.setItem('crieseuvideo.ai3d.login-draft.v1',
    JSON.stringify({script:draft,aspect:'16:9',provider:'gemini'})),redirectDraft);
  await page.reload({waitUntil:'domcontentloaded'});
- await page.getByRole('button',{name:/3D Avançado \\(IA\\)/}).waitFor();
+ await page.getByRole('button',{name:'3D Avançado (IA)'}).waitFor();
  await page.waitForFunction((draft)=>document.querySelector('#ex-script')?.value===draft,redirectDraft,{timeout:20000});
  assert.equal(await page.evaluate(()=>sessionStorage.getItem('crieseuvideo.ai3d.login-draft.v1')),null,
    'Login draft must be removed once restored');
