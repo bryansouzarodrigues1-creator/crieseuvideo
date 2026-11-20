@@ -20,7 +20,8 @@ try{
   const frame=()=>page.frames().find(f=>f.url()==='about:srcdoc');
   const seek=async t=>{await page.getByRole('slider',{name:'Linha do tempo'}).fill(String(t));await page.waitForTimeout(160);return frame().evaluate(()=>{const c=document.createElement('canvas');c.width=54;c.height=96;const x=c.getContext('2d');x.drawImage(document.querySelector('canvas'),0,0,54,96);return Array.from(x.getImageData(0,0,54,96).data);});};
   const samples=[];stage='frames '+id;
-  for(const t of [1.5,5.0,8.5]){samples.push(await seek(t));const raw=await frame().evaluate(()=>document.querySelector('canvas').toDataURL('image/png').split(',')[1]);await writeFile(path.join(out,`scene-${String(id+1).padStart(2,'0')}-${t.toFixed(1)}s.png`),Buffer.from(raw,'base64'));}
+  const eventTime=({2:3.4,5:6.8,8:2.4,9:4.5,10:6.5})[id];const captureTimes=[1.5,5.0,8.5,...(eventTime!==undefined?[eventTime]:[])];
+  for(const t of captureTimes){samples.push(await seek(t));const raw=await frame().evaluate(()=>document.querySelector('canvas').toDataURL('image/png').split(',')[1]);await writeFile(path.join(out,`scene-${String(id+1).padStart(2,'0')}-${t.toFixed(1)}s.png`),Buffer.from(raw,'base64'));}
   const repeated=await seek(5);let diff=0;for(let k=0;k<repeated.length;k++)diff=Math.max(diff,Math.abs(repeated[k]-samples[1][k]));assert.ok(diff<=3,`Scene ${id+1} replay difference ${diff}`);assert.ok(new Set(repeated).size>50);assert.notDeepEqual(samples[0],samples[2]);
   let filename=null,ext=null;
   if(mode!=='preview'||id===2){
