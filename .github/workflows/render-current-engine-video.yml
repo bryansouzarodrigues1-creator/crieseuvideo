@@ -28,7 +28,7 @@ jobs:
       - name: Start original CrieSeuVideo engine
         run: |
           mkdir -p tmp/current-engine-video
-          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/current-engine-video/vite.log 2>&1 &
+          bunx vite --config vite.video.config.ts --host 127.0.0.1 --port 4198 --strictPort >tmp/current-engine-video/vite.log 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:4198/render-engine-clip.html >/dev/null; then exit 0; fi
             sleep 1
