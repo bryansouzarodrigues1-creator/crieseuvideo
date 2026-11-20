@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {Box,Download,Pause,Play,RotateCcw} from 'lucide-react';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
+import {drawClipPresentation} from '../explainer/sceneProgram/presentation';
 
 /**
  * The actual AI-authored SceneProgram3D renders IN the original editor.
@@ -17,6 +18,7 @@ export function InlineAi3DPlayer({
   provider:'gemini'|'lovable'|'demo'|null;
 }){
   const canvasRef=useRef<HTMLCanvasElement>(null);
+  const overlayRef=useRef<HTMLCanvasElement>(null);
   const rendererRef=useRef<THREE.WebGLRenderer|null>(null);
   const stageRef=useRef<SceneProgram3D|null>(null);
   const drawRef=useRef<(seconds:number)=>void>(()=>{});
@@ -83,8 +85,20 @@ export function InlineAi3DPlayer({
       stageRef.current?.dispose();
       const stage=new SceneProgram3D(clip.program,clip.sources,new Map(),provider==='demo'?'technical':'toon');
       stageRef.current=stage;
-      drawRef.current=(seconds:number)=>
+      drawRef.current=(seconds:number)=>{
         stage.render(renderer,Math.max(0,Math.min(clip.duration-.001,seconds)),width,height);
+        if(clip.presentation&&overlayRef.current){
+          const overlay=overlayRef.current;
+          if(overlay.width!==width||overlay.height!==height){
+            overlay.width=width;overlay.height=height;
+          }
+          const octx=overlay.getContext('2d');
+          if(octx){
+            octx.clearRect(0,0,width,height);
+            drawClipPresentation(octx,clip.presentation,seconds,width,height);
+          }
+        }
+      };
       drawRef.current(0);
       let previous=performance.now(),nextPaint=0,lastLabel=0;
       const frame=(now:number)=>{
@@ -210,12 +224,27 @@ export function InlineAi3DPlayer({
       const outputSize=aspect==='9:16'
         ? {width:720,height:1280}:{width:1280,height:720};
       gl.setSize(outputSize.width,outputSize.height,false);
+      // Compose technical overlays into actual video pixels, not just DOM.
+      // An HTML caption layered over WebGL would disappear from the MP4.
+      const composite=clip.presentation?document.createElement('canvas'):canvas;
+      if(clip.presentation){
+        composite.width=outputSize.width;composite.height=outputSize.height;
+      }
+      const compositionCtx=clip.presentation?composite.getContext('2d'):null;
+      if(clip.presentation&&!compositionCtx)
+        throw new Error('Não foi possível preparar as legendas na exportação.');
       const result=await encodeFixedFrame3DClip({
-        canvas,durationSeconds:exportSeconds,fps:24,signal:abort.signal,
+        canvas:composite,durationSeconds:exportSeconds,fps:24,signal:abort.signal,
         ...(voice?{audioBuffer:voice}:{}),
-        renderFrame:t=>stage.render(gl,
-          Math.max(0,Math.min(clip.duration-.001,t*clip.duration/exportSeconds)),
-          outputSize.width,outputSize.height),
+        renderFrame:t=>{
+          const sceneTime=Math.max(0,Math.min(clip.duration-.001,t*clip.duration/exportSeconds));
+          stage.render(gl,sceneTime,outputSize.width,outputSize.height);
+          if(compositionCtx){
+            compositionCtx.drawImage(canvas,0,0,outputSize.width,outputSize.height);
+            drawClipPresentation(compositionCtx,clip.presentation,sceneTime,
+              outputSize.width,outputSize.height);
+          }
+        },
         onProgress:setProgress
       });
       const url=URL.createObjectURL(result.blob);
@@ -236,8 +265,12 @@ export function InlineAi3DPlayer({
   return <section className="explainer-stage inline-ai3d-player" aria-label="Prévia do 3D avançado">
     <audio ref={audioRef} src={voiceUrl||undefined} preload="auto"/>
     <div className="native-3d-screen inline-ai3d-stage" style={!clip?{display:'none'}:undefined}>
-      <canvas ref={canvasRef} aria-label={provider==='demo'?'Prévia da montagem 3D de celular':'Prévia da cena 3D gerada pela IA'}
-        style={{aspectRatio:aspect==='9:16'?'9 / 16':'16 / 9'}}/>
+      <div className="inline-ai3d-visual">
+        <canvas ref={canvasRef} aria-label={provider==='demo'?'Prévia da montagem 3D de celular':'Prévia da cena 3D gerada pela IA'}
+          style={{aspectRatio:aspect==='9:16'?'9 / 16':'16 / 9'}}/>
+        {clip?.presentation&&<canvas ref={overlayRef} className="inline-ai3d-overlay"
+          aria-label="Explicações visuais dos problemas e soluções" aria-hidden="true"/>}
+      </div>
     </div>
     {!clip ? <div className="explainer-empty-preview" role="status">
       <Box aria-hidden="true"/>
@@ -267,6 +300,13 @@ export function InlineAi3DPlayer({
           : <button type="button" className="native-3d-download" onClick={()=>void download()}
               disabled={!!error}><Download size={17}/> Baixar cena 3D</button>}
       </div>
+      {clip.presentation&&<div className="native-3d-actions">
+        <button type="button" onClick={()=>void navigator.clipboard.writeText(clip.presentation!.narration)
+          .then(()=>setVoiceNote('Narração copiada: cole no ElevenLabs e carregue o áudio abaixo.'))
+          .catch(()=>setVoiceNote('Não foi possível copiar automaticamente. Selecione o roteiro no campo de texto.'))}>
+          Copiar narração para ElevenLabs
+        </button>
+      </div>}
       <div className="native-3d-actions">
         <label className="native-3d-download" style={{display:'inline-flex',alignItems:'center',gap:6,padding:'10px',cursor:'pointer'}}>
           Carregar narração do ElevenLabs
@@ -282,7 +322,7 @@ export function InlineAi3DPlayer({
         <strong>Direção: {provider==='demo'?'Demonstração offline (sem IA)':provider==='lovable'?'IA do Lovable':provider==='gemini'?'Gemini':'Não informado'}</strong>
         <span>{clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras{provider==='demo'?' · materiais físicos PBR':''}</span>
       </div>
-      <p className="native-3d-small">Exportação 720×1280 (ou 1280×720), quadros fixos e MP4/WebM: {voiceName?'inclui a narração importada':'sem narração (importe um MP3/WAV se desejar)'}. Legendas 3D ainda não foram integradas.</p>
+      <p className="native-3d-small">Exportação HD com quadros fixos: {voiceName?'voz importada incluída':'sem voz até importar MP3/WAV'}. {clip.presentation?'Explicações de problema e solução aparecem na prévia e no vídeo exportado.':'Legendas e explicações automáticas para cenas geradas por IA ainda não estão disponíveis.'}</p>
       {error&&<p className="native-3d-error" role="alert">{error}</p>}
     </>}
   </section>;
