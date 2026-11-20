@@ -80,7 +80,9 @@ export class SceneProgram3D {
       let root: THREE.Object3D;
       if (n.kind === 'actor') { const index = this.actors.size, repeats = [...this.actors.keys()].filter((id) => this.program.nodes.find((m) => m.id === id)?.color.toLowerCase() === n.color.toLowerCase()).length;
         // Same-colour actors would be indistinguishable: vary the outfit hue and give each a different look.
-        const actor = new ProgramActor3D(repeats ? '#' + new THREE.Color(n.color).offsetHSL(.17 * repeats, 0, 0).getHexString() : n.color, index); this.actors.set(n.id, actor); root = actor.root;
+        const outfit = n.actorPreset === 'patrick-mentalista-v1' ? '#34496d'
+          : repeats ? '#' + new THREE.Color(n.color).offsetHSL(.17 * repeats, 0, 0).getHexString() : n.color;
+        const actor = new ProgramActor3D(outfit, index, n.actorPreset); this.actors.set(n.id, actor); root = actor.root;
         const parts: THREE.Mesh[] = []; actor.root.traverse((o) => { if (o instanceof THREE.Mesh) parts.push(o); }); for (const part of parts) this.ink.attach(part, .1); }
       else if (n.kind === 'model') {
         const loaded = loadedModels.get(n.assetId!);
