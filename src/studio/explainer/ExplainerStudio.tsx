@@ -52,7 +52,6 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [engine, setEngine] = useState<'2d' | '3d'>('3d');
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
   const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('auto');
-  const [ai3dConsent,setAi3dConsent] = useState(false);
   const [ai3dCooldownUntil,setAi3dCooldownUntil] = useState(0);
   const [ai3dCooldownSeconds,setAi3dCooldownSeconds] = useState(0);
   const [ai3dClip,setAi3dClip] = useState<ComplexWorldClip|null>(null);
@@ -247,8 +246,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     const id = setTimeout(() => { saveProject({ id: projectId, title: plan.title || script.slice(0, 40), script, plan, updatedAt: Date.now() }); setProjects(listProjects()); }, 800);
     return () => clearTimeout(id);
   }, [plan, script, projectId]);
-  const openProject = (p: SavedProject) => { setAi3dClip(null); setAi3dConsent(false); setEngine3dMode('classic'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
-  const newProject = () => { setAi3dClip(null); setAi3dConsent(false); setEngine3dMode('advanced'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
+  const openProject = (p: SavedProject) => { setAi3dClip(null); setEngine3dMode('classic'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(p.id); setScript(p.script); setAspect(p.plan.aspect); setPlan(p.plan); setEngine(p.plan.engine ?? '2d'); seek(0); setLibrary(false); };
+  const newProject = () => { setAi3dClip(null); setEngine3dMode('advanced'); setPlaying(false); trackRef.current = null; setTrackName(''); setProjectId(`p${Date.now().toString(36)}`); setScript(''); setPlan({ title: 'Novo projeto', aspect, scenes: [] }); setLibrary(false); };
 
   const transcribe = async (blob: Blob, name: string) => {
     const fd = new FormData(); fd.append('file', blob, name);
@@ -307,7 +306,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   /** Explicit, offline engineering sample using the same real stage as generated AI 3D. */
   const openSmartphoneDemo = async () => {
     if (busy) return;
-    setPlaying(false);setAi3dConsent(false);
+    setPlaying(false);
     try {
       const { buildSmartphoneAssemblyDemo } = await import('./sceneProgram/demo/smartphoneAssembly');
       setAi3dClip(buildSmartphoneAssemblyDemo());
@@ -350,7 +349,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setAi3dAuthStatus('authenticated');
       setAi3dLoginNeeded(false);
       try{sessionStorage.removeItem(AI3D_LOGIN_DRAFT_KEY);}catch{}
-      setNote('Conta conectada! Revise o roteiro, marque a autorização de créditos e toque em Criar cena 3D pela IA.');
+      setNote('Conta conectada! Ao clicar em Criar cena 3D pela IA, você solicita uma tentativa que pode consumir créditos.');
     }catch(e){
       setNote('Falha ao entrar: '+(e instanceof Error?e.message:String(e)));
     }finally{
@@ -408,10 +407,6 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         document.getElementById('ex-script')?.focus();
         return;
       }
-      if(!ai3dConsent){
-        setNote('Confirme o uso de créditos antes de gerar uma cena com Gemini ou Lovable. Ainda não foi feita nenhuma chamada paga.');
-        return;
-      }
       setNote('');setBusy(true);setPlaying(false);setAi3dLoginNeeded(false);
       try{
         // The existing server function is protected; no anonymous paid calls.
@@ -444,7 +439,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         }else{
           setNote('A cena 3D não pôde ser gerada: '+(e instanceof Error?e.message:String(e)));
         }
-      }finally{setBusy(false);setAi3dConsent(false);}
+      }finally{setBusy(false);}
       return;
     }
     if(text.trim().length<4){
@@ -593,8 +588,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-label">Estilo de animação</p>
           <div className="explainer-row">
             <Button size="sm" variant={engine === '3d' && engine3dMode==='advanced' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('advanced'); }} aria-pressed={engine === '3d' && engine3dMode==='advanced'}><Box />3D Avançado (IA)</Button>
-            <Button size="sm" variant={engine === '3d' && engine3dMode==='classic' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('classic'); setAi3dConsent(false); }} aria-pressed={engine === '3d' && engine3dMode==='classic'}>3D Toon clássico</Button>
-            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('2d'); setAi3dConsent(false); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
+            <Button size="sm" variant={engine === '3d' && engine3dMode==='classic' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('3d'); setEngine3dMode('classic'); }} aria-pressed={engine === '3d' && engine3dMode==='classic'}>3D Toon clássico</Button>
+            <Button size="sm" variant={engine === '2d' ? 'default' : 'secondary'} onClick={() => { setPlaying(false); setEngine('2d'); }} aria-pressed={engine === '2d'}>Motion 2D</Button>
           </div>
           {engine==='3d' && engine3dMode==='advanced' ? (
             <div className="explainer-advanced-settings" role="group" aria-label="Gerador 3D avançado">
@@ -606,23 +601,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 <option value="gemini">Gemini direto</option>
                 <option value="lovable">IA do Lovable</option>
               </select>
-              <label className="ai3d-consent">
-                <input type="checkbox" checked={ai3dConsent} disabled={busy}
-                  onChange={e=>setAi3dConsent(e.target.checked)}/>
-                Autorizo esta tentativa. A geração pode consumir créditos mesmo se a resposta for inválida. No modo automático, até dois provedores podem ser chamados.
-              </label>
+              <p className="explainer-sub" role="note">
+                O clique em <strong>Criar cena 3D pela IA</strong> inicia uma geração que pode consumir créditos mesmo se falhar. No modo Automático, Lovable e Gemini podem ser consultados; selecione um provedor específico para limitar a uma chamada.
+              </p>
               {ai3dCooldownSeconds>0&&<p className="explainer-sub" role="status"
                 aria-label="Tempo restante para nova tentativa 3D">
                 <strong>Aguarde {ai3dCooldownSeconds}s para criar outra cena.</strong>{' '}
-                Essa proteção evita chamadas duplicadas. Quando chegar a zero, você poderá autorizar manualmente outra tentativa.
+                Essa proteção evita chamadas duplicadas. Quando chegar a zero, você poderá clicar em Criar novamente.
               </p>}
               <p className="explainer-sub">Uma descrição de pelo menos 45 caracteres gera uma cena de 8 segundos. Com 2 ou 3 frases ou linhas, são 8–12 segundos e tomadas separadas. Vídeos maiores exigem etapas. Sem chamadas automáticas ou demonstrações como substituto.</p>
               <p className="explainer-sub" role="status" aria-label="Orientação do roteiro 3D">
                 {sceneScriptCheck.description}{' '}
-                {!sceneScriptCheck.ok&&'Ajuste o texto antes de autorizar os créditos. Nenhuma chamada paga será feita enquanto o roteiro estiver inválido.'}
+                {!sceneScriptCheck.ok&&'Ajuste o roteiro antes de clicar em Criar. Nenhuma chamada paga será feita enquanto o texto estiver inválido.'}
               </p>
               <Button size="sm" variant="outline" onClick={()=>{
-                setScript(AI3D_EXAMPLE_SCRIPT);setAi3dClip(null);setNote('Exemplo preenchido. Edite livremente e confirme os créditos apenas se quiser chamar a IA.');
+                setScript(AI3D_EXAMPLE_SCRIPT);setAi3dClip(null);setNote('Exemplo preenchido. O clique em Criar solicita uma geração que pode consumir créditos.');
                 document.getElementById('ex-script')?.focus();
               }}>
                 Usar exemplo de problema e solução
@@ -632,7 +625,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               </Button>
               <p className="explainer-sub">Exemplo narrativo com problema e solução na tela e no MP4, sem cobrar créditos. A voz é opcional via importação de MP3/WAV no player. Esse botão não gera o seu roteiro por IA.</p>
               {ai3dAuthStatus==='authenticated'
-                ? <p className="explainer-sub" role="status">Conta conectada ao CrieSeuVideo. A geração só começa quando você confirmar os créditos e clicar no botão de criar.</p>
+                ? <p className="explainer-sub" role="status">Conta conectada ao CrieSeuVideo. O clique em Criar cena 3D pela IA solicita a geração e pode consumir créditos.</p>
                 : <>
                   <p className="explainer-sub" role="status">
                     {ai3dAuthStatus==='checking'
