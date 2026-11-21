@@ -38,6 +38,42 @@ function createSceneTools(THREE) {
       point.y=support+(phase>stance?Math.sin(Math.PI*swing)*lift:0);return {point,planted:phase<=stance||a===b,phase,swing:swing,pitch:phase>stance&&a!==b?-Math.sin(Math.PI*swing)*.22:0};
     });return {left:feet[0],right:feet[1],phase:d/stride*Math.PI*2};
   }
+  // Arc-length path and world-space foot anchors. Turning the body never rotates a planted foot.
+  function createWalkPath(points){
+    if(!Array.isArray(points)||points.length<2)throw new Error('O trajeto precisa de pelo menos dois pontos.');
+    const p=points.map(vec);for(let i=0;i<p.length;i++)if(!p[i].toArray().every(Number.isFinite)||(i&&p[i].distanceTo(p[i-1])<1e-5))throw new Error('Pontos de trajeto inválidos.');
+    const curve=new THREE.CatmullRomCurve3(p,false,'centripetal');curve.arcLengthDivisions=800;curve.updateArcLengths();const length=curve.getLength();
+    function at(distance){const u=clamp(distance/length),point=curve.getPointAt(u),tangent=curve.getTangentAt(u);tangent.y=0;tangent.normalize();return {point,tangent,yaw:Math.atan2(tangent.x,tangent.z)};}
+    return Object.freeze({length,at});
+  }
+  function walkOnPath(o){
+    const path=o.path,limit=o.limit===undefined?path.length:Math.min(o.limit,path.length),d=clamp(o.distance,0,limit),half=(o.stride||.86)*.5,width=o.width||.28,lift=o.lift===undefined?.105:o.lift;
+    if(!(limit>0&&half>0))throw new Error('Caminhada em trajeto inválida.');
+    const last=Math.max(0,Math.ceil(limit/half)-1),step=Math.min(last,Math.floor(d/half)),start=step*half,end=Math.min(limit,(step+1)*half),p=clamp((d-start)/(end-start)),active=step%2===0?1:0;
+    function anchor(distance,side){const a=path.at(distance),lateral=new THREE.Vector3(a.tangent.z,0,-a.tangent.x);a.point.addScaledVector(lateral,side*width*.5);if(o.surface){const hit=supportAt(o.surface,a.point.x,a.point.z);if(!hit)throw new Error('Pé fora do apoio.');a.point.y=hit.y;}return a;}
+    const feet=[-1,1].map((side,i)=>{
+      const a=anchor(i===active?Math.max(0,(step-1)*half):Math.max(0,step*half),side),b=anchor(i===active?end:Math.max(0,step*half),side),q=i===active?ease(p):0;
+      const point=a.point.clone().lerp(b.point,q);point.y+=i===active?Math.sin(Math.PI*p)*lift:0;
+      const yaw=a.yaw+Math.atan2(Math.sin(b.yaw-a.yaw),Math.cos(b.yaw-a.yaw))*q;
+      const foot={point,yaw,planted:i!==active||p===0||p===1,pitch:i===active?-Math.sin(Math.PI*p)*.16:0};
+      const settle=clamp(o.settle||0);if(d>=limit-1e-7&&settle>0){const goal=anchor(limit,side),travel=point.distanceTo(goal.point);foot.point.lerp(goal.point,ease(settle));foot.point.y+=Math.sin(Math.PI*settle)*lift*(travel>.01?1:0);foot.yaw+=Math.atan2(Math.sin(goal.yaw-yaw),Math.cos(goal.yaw-yaw))*ease(settle);foot.pitch=0;foot.planted=travel<.01||settle===1;}
+      return foot;
+    });return {left:feet[0],right:feet[1],phase:d/(half*2)*Math.PI*2,body:path.at(d)};
+  }
+  function setWorldPose(object,pose){
+    const position=vec(pose.position),quaternion=pose.quaternion?pose.quaternion.clone():new THREE.Quaternion();
+    if(![...position,...quaternion.toArray()].every(Number.isFinite)||quaternion.lengthSq()<1e-12)throw new Error('Pose do objeto inválida.');
+    quaternion.normalize();if(object.parent){object.parent.updateWorldMatrix(true,false);object.position.copy(object.parent.worldToLocal(position));const parentQ=object.parent.getWorldQuaternion(new THREE.Quaternion());object.quaternion.copy(parentQ.invert().multiply(quaternion));}else{object.position.copy(position);object.quaternion.copy(quaternion);}object.updateWorldMatrix(true,true);
+  }
+  function objectGrips(object,points){object.updateWorldMatrix(true,true);return points.map(p=>object.localToWorld(vec(p)));}
+  function createPropTransfer(object,o){
+    if(!(o.release>o.pickup)||typeof o.heldAt!=='function')throw new Error('Transferência do objeto inválida.');
+    const copy=p=>({position:vec(p.position),quaternion:p.quaternion?p.quaternion.clone():new THREE.Quaternion()});
+    const source=copy(o.source),initial=copy(o.heldAt(o.pickup));if(source.position.distanceTo(initial.position)>1e-5||1-Math.abs(source.quaternion.dot(initial.quaternion))>1e-5)throw new Error('O objeto deve partir do contato real, sem salto.');
+    function poseAt(t){return copy(t<o.pickup?source:o.heldAt(Math.min(t,o.release)));}
+    function apply(t){const p=poseAt(t);setWorldPose(object,p);return p;}
+    return Object.freeze({poseAt,apply,phase:t=>t<o.pickup?'source':t<o.release?'held':'placed'});
+  }
   function createPerson(options={}){
     const root=new THREE.Group(),pelvis=new THREE.Group(),torso=new THREE.Group();root.add(pelvis);pelvis.add(torso);
     root.scale.setScalar(options.scale||1);const skin=new THREE.MeshStandardMaterial({color:options.skin||0xe7b48c,roughness:.78}),shirt=new THREE.MeshStandardMaterial({color:options.shirt||0xf4c34e,roughness:.8}),trousers=new THREE.MeshStandardMaterial({color:options.trousers||0x31586c,roughness:.85}),shoes=new THREE.MeshStandardMaterial({color:0x28343e,roughness:.8}),dark=new THREE.MeshStandardMaterial({color:0x26333f,roughness:.7}),white=new THREE.MeshStandardMaterial({color:0xfaf7ec,roughness:.7});
@@ -45,9 +81,10 @@ function createSceneTools(THREE) {
     const body=mesh(torso,new THREE.CylinderGeometry(.26,.235,.61,12),shirt,0,.31,0);body.scale.z=.74;
     mesh(pelvis,new THREE.SphereGeometry(.23,12,8),trousers,0,-.04,0).scale.set(1,.6,.72);
     const head=new THREE.Group();head.position.set(0,.77,0);torso.add(head);mesh(head,new THREE.SphereGeometry(.25,16,12),skin,0,0,0).scale.set(1,1.08,.94);
-    const eyes=[];for(const x of [-.085,.085]){mesh(head,new THREE.SphereGeometry(.052,10,8),white,x,.025,.215).scale.set(.85,1,.4);const eye=mesh(head,new THREE.SphereGeometry(.027,10,8),dark,x,.025,.235);eyes.push(eye);mesh(head,new THREE.SphereGeometry(.013,6,6),white,x-.006,.035,.254);}
+    const eyes=[],brows=[];for(const x of [-.085,.085]){const eye=new THREE.Group();eye.position.set(x,.025,.215);head.add(eye);mesh(eye,new THREE.SphereGeometry(.052,10,8),white,0,0,0).scale.set(.85,1,.4);mesh(eye,new THREE.SphereGeometry(.027,10,8),dark,0,0,.020);mesh(eye,new THREE.SphereGeometry(.013,6,6),white,-.006,.010,.039);eyes.push(eye);brows.push(mesh(head,new THREE.BoxGeometry(.089,.018,.018),dark,x,.112,.219));}
     mesh(head,new THREE.SphereGeometry(.045,10,8),skin,0,-.025,.24);
     const smile=mesh(head,new THREE.TorusGeometry(.075,.011,5,16,Math.PI),dark,0,-.07,.225);smile.rotation.z=Math.PI;
+    const effortMouth=mesh(head,new THREE.SphereGeometry(.045,10,8),dark,0,-.091,.232);effortMouth.scale.set(1,.46,.25);effortMouth.visible=false;
     if(options.helmet!==false){const hat=new THREE.MeshStandardMaterial({color:options.helmet||0xf1c13d,roughness:.43});mesh(head,new THREE.SphereGeometry(.277,16,10,0,Math.PI*2,0,Math.PI*.52),hat,0,.07,0);mesh(head,new THREE.CylinderGeometry(.31,.31,.035,16),hat,0,.075,.025);mesh(head,new THREE.BoxGeometry(.055,.085,.39),hat,0,.32,0);}
     const shoulderMarkers=[-1,1].map(side=>{const o=new THREE.Object3D();o.position.set(side*.30,.48,0);torso.add(o);return o;});
     const hipMarkers=[-1,1].map(side=>{const o=new THREE.Object3D();o.position.set(side*.14,0,0);pelvis.add(o);return o;});
@@ -59,12 +96,13 @@ function createSceneTools(THREE) {
     function updateLimb(limb,start,target,pole,a,b){const solved=solveTwoBone(start,target,pole,a,b);segment(limb.upper,start,solved.joint);segment(limb.lower,solved.joint,solved.end);limb.joint.position.copy(solved.joint);return solved;}
     function pose(o={}){
       const time=o.time||0,crouch=o.crouch||0;pelvis.position.y=.88-crouch+(o.bob||0);torso.rotation.x=o.lean||0;
-      head.rotation.y=o.lookYaw||0;head.rotation.x=o.lookPitch||0;const blink=cue(time,2.5,2.58)*(1-cue(time,2.60,2.69))+cue(time,7.7,7.78)*(1-cue(time,7.80,7.89));eyes.forEach(e=>e.scale.y=1-.91*blink);
+      head.rotation.y=o.lookYaw||0;head.rotation.x=o.lookPitch||0;const blink=cue(time,2.5,2.58)*(1-cue(time,2.60,2.69))+cue(time,7.7,7.78)*(1-cue(time,7.80,7.89));eyes.forEach(e=>e.scale.y=1-.91*blink);const effort=clamp(o.effort||0);brows.forEach((b,i)=>b.rotation.z=(i===0?-1:1)*effort*.30);smile.visible=effort<.5;effortMouth.visible=effort>=.5;
       root.updateWorldMatrix(true,true);
       for(let i=0;i<2;i++){
         const footData=i===0?o.leftFoot:o.rightFoot,desired=vec(footData&&footData.point?footData.point:footData||root.localToWorld(new THREE.Vector3((i===0?-1:1)*.14,0,0)));
-        const local=root.worldToLocal(desired.clone()),target=local.clone().add(new THREE.Vector3(0,.115,0)),hip=root.worldToLocal(hipMarkers[i].getWorldPosition(new THREE.Vector3()));
-        const solved=updateLimb(legs[i],hip,target,new THREE.Vector3(hip.x,.35,hip.z+.7),.46,.45);feet[i].group.position.copy(solved.end);feet[i].group.rotation.x=footData&&footData.pitch||0;root.updateWorldMatrix(true,true);
+        const pitch=footData&&footData.pitch||0;if(footData&&Number.isFinite(footData.yaw)){const worldQ=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch,footData.yaw,0,'YXZ'));feet[i].group.quaternion.copy(root.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(worldQ));}else feet[i].group.rotation.set(pitch,0,0,'YXZ');
+        const local=root.worldToLocal(desired.clone()),soleOffset=new THREE.Vector3(0,-.115,0).applyQuaternion(feet[i].group.quaternion),target=local.clone().sub(soleOffset),hip=root.worldToLocal(hipMarkers[i].getWorldPosition(new THREE.Vector3()));
+        const solved=updateLimb(legs[i],hip,target,new THREE.Vector3(hip.x,.35,hip.z+.7),.46,.45);feet[i].group.position.copy(solved.end);root.updateWorldMatrix(true,true);
         diagnostics.legReach[i]=solved.error;diagnostics.feet[i]=feet[i].sole.getWorldPosition(new THREE.Vector3()).distanceTo(desired);
         const shoulder=root.worldToLocal(shoulderMarkers[i].getWorldPosition(new THREE.Vector3())),swing=Math.sin(o.phase||0)*(i===0?1:-1)*(o.swing===undefined?.22:o.swing);
         const handData=i===0?o.leftHand:o.rightHand,handTarget=handData?root.worldToLocal(vec(handData)):new THREE.Vector3((i===0?-1:1)*.40,.94,swing+.08);
@@ -85,5 +123,5 @@ function createSceneTools(THREE) {
     }
     camera.position.copy(target).addScaledVector(vec(candidates[chosen]).normalize(),distance);camera.lookAt(target);camera.updateMatrixWorld(true);camera.userData.targetVisibility={clear:best===0,blocked:best,selected:chosen};return chosen;
   }
-  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createPerson,aimCamera});
+  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,createPropTransfer,createPerson,aimCamera});
 }

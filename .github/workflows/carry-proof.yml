@@ -1,0 +1,53 @@
+name: Carry, curved steps and placement through the actual studio
+on:
+  pull_request:
+    branches: [feat/acting-supports-20261121]
+    paths:
+      - src/studio/code3d/**
+      - src/studio/components/Code3DStudio.tsx
+      - scripts/carry-browser.mjs
+      - scripts/fixtures/carry.render.json
+      - .github/workflows/carry-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: carry-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-and-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Contact, transfer and compatibility tests
+        run: bun run test
+      - name: Build and typecheck
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Prepare browser and studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/carry-logs
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/carry-logs/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Render carry study and check previous scenes
+        run: bun scripts/carry-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: carry-real-engine
+          path: |
+            tmp/carry-preview/
+            tmp/carry-full/
+            tmp/carry-logs/
+          retention-days: 14
