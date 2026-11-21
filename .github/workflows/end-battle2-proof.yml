@@ -1,0 +1,97 @@
+name: End battle part 2 through the actual Code 3D studio
+on:
+  pull_request:
+    branches: [test/golems-end-story-20261120]
+    paths:
+      - scripts/fixtures/code3d-end-battle2.js
+      - scripts/fixtures/code3d-end-battle2.provenance.json
+      - scripts/fixtures/code3d-end-battle2.render.json
+      - scripts/code3d-end-battle2-browser.mjs
+      - .github/workflows/end-battle2-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: end-battle2-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  settings:
+    runs-on: ubuntu-24.04
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: mode
+        run: echo "mode=$(node -p 'JSON.parse(require("fs").readFileSync("scripts/fixtures/code3d-end-battle2.render.json","utf8")).mode')" >> "$GITHUB_OUTPUT"
+  preview:
+    needs: settings
+    if: needs.settings.outputs.mode == 'preview'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      BATTLE_MODE: preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Build and typecheck actual app
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Prepare browser and start studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/end-battle2-preview
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/end-battle2-preview/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Preview all scenes and export a short action test
+        run: bun scripts/code3d-end-battle2-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: end-battle2-preview
+          path: tmp/end-battle2-preview/
+          retention-days: 14
+  render:
+    needs: settings
+    if: needs.settings.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1, 2, 3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      BATTLE_MODE: video
+      BATTLE_GROUP: ${{ matrix.group }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Build actual studio
+        run: bun run build
+      - name: Prepare browser and start studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/end-battle2-group-${BATTLE_GROUP}
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/end-battle2-group-${BATTLE_GROUP}/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Export three native movie scenes
+        run: bun scripts/code3d-end-battle2-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: end-battle2-engine-${{ matrix.group }}
+          path: tmp/end-battle2-group-${{ matrix.group }}/
+          retention-days: 14
