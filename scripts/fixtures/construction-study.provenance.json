@@ -1,0 +1,12 @@
+{
+  "origin": "Manually directed procedural reconstruction of a user-provided construction explainer; not a Gemini response.",
+  "source_sha256": "a57b6a0469905f3f084a9260ecb7c702aba5d32d3545964803497ffc4718f0b0",
+  "renderer": "Existing Code3DStudio, explicit import, opaque sandbox and native fixed-frame exporter",
+  "duration": 120,
+  "clipDuration": 12,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "inputs": "Reference dimensions, stages, camera cuts and illustrative counter values. No source images or audio embedded.",
+  "deployment": "Test branch only; no production deployment."
+}

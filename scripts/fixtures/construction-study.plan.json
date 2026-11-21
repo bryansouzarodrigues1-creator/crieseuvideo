@@ -1,0 +1,595 @@
+{
+  "area": 40000,
+  "floors": 2,
+  "totalCost": 240000000,
+  "timelineDuration": 120,
+  "clipDuration": 12,
+  "clipStart": 0,
+  "hookEnd": 6,
+  "title": "CUSTO ILUSTRATIVO",
+  "captions": [],
+  "shots": [
+    {
+      "start": 0,
+      "end": 2.5,
+      "target": [
+        0,
+        5,
+        22
+      ],
+      "direction": [
+        0.7,
+        0.9,
+        1
+      ],
+      "span": 500,
+      "kind": "wide"
+    },
+    {
+      "start": 2.5,
+      "end": 6,
+      "target": [
+        0,
+        3,
+        30
+      ],
+      "direction": [
+        0.05,
+        1.5,
+        0.85
+      ],
+      "span": 410,
+      "kind": "wide"
+    },
+    {
+      "start": 6,
+      "end": 10.3,
+      "target": [
+        0,
+        0,
+        25
+      ],
+      "direction": [
+        0.1,
+        1.5,
+        0.7
+      ],
+      "span": 300,
+      "kind": "plan"
+    },
+    {
+      "start": 10.3,
+      "end": 18.4,
+      "target": [
+        0,
+        0,
+        25
+      ],
+      "direction": [
+        0.05,
+        1.8,
+        0.7
+      ],
+      "span": 280,
+      "kind": "plan"
+    },
+    {
+      "start": 18.4,
+      "end": 27,
+      "target": [
+        0,
+        1,
+        26
+      ],
+      "direction": [
+        0.4,
+        0.85,
+        1
+      ],
+      "span": 345,
+      "kind": "wide"
+    },
+    {
+      "start": 27,
+      "end": 30,
+      "target": [
+        0,
+        -2,
+        25
+      ],
+      "direction": [
+        0.6,
+        0.55,
+        1
+      ],
+      "span": 310,
+      "kind": "wide"
+    },
+    {
+      "start": 30,
+      "end": 33,
+      "target": [
+        -20,
+        -9,
+        32
+      ],
+      "direction": [
+        0.8,
+        0.25,
+        1
+      ],
+      "span": 78,
+      "kind": "cutaway"
+    },
+    {
+      "start": 33,
+      "end": 36,
+      "target": [
+        0,
+        -0.3,
+        25
+      ],
+      "direction": [
+        0.4,
+        1.0,
+        1
+      ],
+      "span": 320,
+      "kind": "wide"
+    },
+    {
+      "start": 36,
+      "end": 42,
+      "target": [
+        0,
+        5,
+        25
+      ],
+      "direction": [
+        0.5,
+        0.65,
+        1
+      ],
+      "span": 320,
+      "kind": "wide"
+    },
+    {
+      "start": 42,
+      "end": 46,
+      "target": [
+        0,
+        4,
+        25
+      ],
+      "direction": [
+        0.08,
+        1.8,
+        0.8
+      ],
+      "span": 320,
+      "kind": "plan"
+    },
+    {
+      "start": 46,
+      "end": 51,
+      "target": [
+        0,
+        8,
+        25
+      ],
+      "direction": [
+        0.02,
+        1.8,
+        0.7
+      ],
+      "span": 300,
+      "kind": "plan"
+    },
+    {
+      "start": 51,
+      "end": 55,
+      "target": [
+        0,
+        7,
+        35
+      ],
+      "direction": [
+        0.6,
+        0.8,
+        1
+      ],
+      "span": 330,
+      "kind": "wide"
+    },
+    {
+      "start": 55,
+      "end": 60.5,
+      "target": [
+        0,
+        8,
+        116
+      ],
+      "direction": [
+        0.65,
+        0.4,
+        1
+      ],
+      "span": 78,
+      "kind": "entrance"
+    },
+    {
+      "start": 60.5,
+      "end": 66,
+      "target": [
+        0,
+        9,
+        25
+      ],
+      "direction": [
+        0.3,
+        1.3,
+        1
+      ],
+      "span": 330,
+      "kind": "wide"
+    },
+    {
+      "start": 66,
+      "end": 69,
+      "target": [
+        0,
+        8,
+        83
+      ],
+      "direction": [
+        1,
+        0.9,
+        0.9
+      ],
+      "span": 76,
+      "kind": "corridor"
+    },
+    {
+      "start": 69,
+      "end": 76,
+      "target": [
+        5,
+        4.2,
+        95
+      ],
+      "direction": [
+        0.7,
+        0.5,
+        1
+      ],
+      "span": 36,
+      "kind": "escalator"
+    },
+    {
+      "start": 76,
+      "end": 80,
+      "target": [
+        0,
+        5,
+        25
+      ],
+      "direction": [
+        0.25,
+        1.4,
+        1
+      ],
+      "span": 315,
+      "kind": "plan"
+    },
+    {
+      "start": 80,
+      "end": 84,
+      "target": [
+        0,
+        3.5,
+        84
+      ],
+      "direction": [
+        0.4,
+        0.25,
+        1
+      ],
+      "span": 42,
+      "kind": "corridor"
+    },
+    {
+      "start": 84,
+      "end": 88,
+      "target": [
+        25,
+        9,
+        0
+      ],
+      "direction": [
+        0.65,
+        1,
+        0.8
+      ],
+      "span": 80,
+      "kind": "cinema"
+    },
+    {
+      "start": 88,
+      "end": 91,
+      "target": [
+        -33,
+        11,
+        -23
+      ],
+      "direction": [
+        0.2,
+        0.7,
+        1
+      ],
+      "span": 67,
+      "kind": "cinema"
+    },
+    {
+      "start": 91,
+      "end": 95,
+      "target": [
+        0,
+        4,
+        80
+      ],
+      "direction": [
+        0.6,
+        0.3,
+        1
+      ],
+      "span": 45,
+      "kind": "corridor"
+    },
+    {
+      "start": 95,
+      "end": 100,
+      "target": [
+        5,
+        3,
+        23
+      ],
+      "direction": [
+        0.5,
+        1.2,
+        1
+      ],
+      "span": 510,
+      "kind": "wide"
+    },
+    {
+      "start": 100,
+      "end": 108.8,
+      "target": [
+        0,
+        6,
+        25
+      ],
+      "direction": [
+        0.5,
+        1.0,
+        1
+      ],
+      "span": 510,
+      "kind": "wide"
+    },
+    {
+      "start": 108.8,
+      "end": 124.32,
+      "target": [
+        0,
+        7,
+        25
+      ],
+      "direction": [
+        0.4,
+        1.0,
+        1
+      ],
+      "span": 470,
+      "kind": "wide"
+    },
+    {
+      "start": 124.32,
+      "end": 127,
+      "target": [
+        0,
+        9,
+        118
+      ],
+      "direction": [
+        0.55,
+        0.45,
+        1
+      ],
+      "span": 100,
+      "kind": "entrance"
+    },
+    {
+      "start": 127,
+      "end": 130,
+      "target": [
+        0,
+        7,
+        25
+      ],
+      "direction": [
+        0.45,
+        1.1,
+        1
+      ],
+      "span": 470,
+      "kind": "wide"
+    },
+    {
+      "start": 130,
+      "end": 136,
+      "target": [
+        0,
+        7,
+        25
+      ],
+      "direction": [
+        0.5,
+        1,
+        1
+      ],
+      "span": 530,
+      "kind": "wide"
+    }
+  ],
+  "timings": {
+    "projects": [
+      6,
+      17
+    ],
+    "piles": [
+      27,
+      30
+    ],
+    "caps": [
+      33,
+      35
+    ],
+    "columns": [
+      36,
+      39.8
+    ],
+    "beams": [
+      37.8,
+      42
+    ],
+    "floors": [
+      42.4,
+      45
+    ],
+    "partitions": [
+      46,
+      49
+    ],
+    "facade": [
+      51,
+      59.5
+    ],
+    "roof": [
+      60.5,
+      65
+    ],
+    "services": [
+      66,
+      75
+    ],
+    "finishes": [
+      77,
+      94
+    ],
+    "parking": [
+      95,
+      101
+    ]
+  },
+  "costs": [
+    [
+      0,
+      0
+    ],
+    [
+      7.5,
+      0
+    ],
+    [
+      17,
+      6000000
+    ],
+    [
+      27,
+      6000000
+    ],
+    [
+      30,
+      23000000
+    ],
+    [
+      33,
+      23000000
+    ],
+    [
+      35,
+      32000000
+    ],
+    [
+      36,
+      32000000
+    ],
+    [
+      42,
+      68000000
+    ],
+    [
+      45,
+      86000000
+    ],
+    [
+      51,
+      86000000
+    ],
+    [
+      59.5,
+      116000000
+    ],
+    [
+      65,
+      132000000
+    ],
+    [
+      75,
+      192000000
+    ],
+    [
+      77,
+      192000000
+    ],
+    [
+      94,
+      228000000
+    ],
+    [
+      95,
+      228000000
+    ],
+    [
+      101,
+      240000000
+    ]
+  ],
+  "timeMap": [
+    {
+      "start": 0,
+      "duration": 18.3,
+      "source": 0,
+      "rate": 1
+    },
+    {
+      "start": 18.3,
+      "duration": 90.2,
+      "source": 22,
+      "rate": 1
+    },
+    {
+      "start": 108.5,
+      "duration": 5.68,
+      "source": 124.32,
+      "rate": 1
+    },
+    {
+      "start": 114.18,
+      "duration": 5.82,
+      "source": 130,
+      "rate": 0
+    }
+  ]
+}
