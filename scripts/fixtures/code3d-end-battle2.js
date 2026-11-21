@@ -295,11 +295,17 @@ function footTargets(g,tr,t,yaw,walk){
  }
  return info;
 }
+function climbSupportAt(g,t){
+ const tr=tracks[g.index].at(t),walk=smooth(.008,.10,tr.speed),yaw=actorYaw(g.index,t),heading=tr.speed>.02?Math.atan2(tr.v.x,tr.v.z):yaw,feet=footTargets(g,tr,t,yaw,walk),difference=Math.abs(feet[0].floor-feet[1].floor);
+ return (feet[0].floor+feet[1].floor)*.5+.025*(1-Math.cos(tr.d/1.3*Math.PI*4))*walk-Math.min(.27,difference*.55)-.10*(1-Math.cos(yaw-heading))*walk;
+}
 function poseActor(g,t){
  const tr=tracks[g.index].at(t),c=controls(g.index,t),walk=smooth(.008,.10,tr.speed),heading=tr.speed>.02?Math.atan2(tr.v.x,tr.v.z):actorYaw(g.index,t),yaw=actorYaw(g.index,t);
  const feet=footTargets(g,tr,t,yaw,walk),heightDifference=Math.abs(feet[0].floor-feet[1].floor),stairCrouch=Math.min(.27,heightDifference*.55),bob=.025*(1-Math.cos(tr.d/1.3*Math.PI*4))*walk;
  const floor=(feet[0].floor+feet[1].floor)*.5;
- const turnCrouch=.10*(1-Math.cos(yaw-heading))*walk;g.root.position.set(tr.p.x+Math.sin(yaw)*c.shift,floor+bob-c.crouch-stairCrouch-turnCrouch,tr.p.z+Math.cos(yaw)*c.shift);g.root.rotation.set(0,yaw,0);g.root.visible=true;
+ const turnCrouch=.10*(1-Math.cos(yaw-heading))*walk;let support=floor+bob-stairCrouch-turnCrouch;
+ if(g.index===3&&t>=37.5&&t<=58){support=0;for(let k=0;k<6;k++)support+=climbSupportAt(g,t-k*.06)/6;}
+ g.root.position.set(tr.p.x+Math.sin(yaw)*c.shift,support-c.crouch,tr.p.z+Math.cos(yaw)*c.shift);g.root.rotation.set(0,yaw,0);g.root.visible=true;
  g.body.position.y=1.4+.012*Math.sin(t*1.8+g.phase);g.body.rotation.set(.022*Math.sin(t*1.65+g.index)+walk*.045+c.lean,c.twist,.012*Math.sin(t*1.2+g.index)*(.4+walk)+c.sideLean);
  const pitch=-Math.atan2(c.look.y-(g.root.position.y+2.7),Math.max(.1,Math.hypot(c.look.x-tr.p.x,c.look.z-tr.p.z)));
  g.head.rotation.set(clamp(pitch*.8,-.36,.25)+c.crouch*.15+c.nod,clamp(angle(0,Math.atan2(c.look.x-tr.p.x,c.look.z-tr.p.z)-yaw-c.twist,1),-.7,.7),.018*Math.sin(t*.9+g.index)+c.tilt);
