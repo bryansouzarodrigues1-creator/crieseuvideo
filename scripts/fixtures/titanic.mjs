@@ -52,7 +52,10 @@ const rib = (() => { // one frame of the hull, as a tube from the port deck edge
 })();
 
 const HIDE = -150; // underground: hidden props wait here
-export function titanicProgram() {
+/** `cue(sentence, /word/)` returns the scene phase (0..1) at which that word is spoken, measured from the narration audio;
+ * without a narration the labels fall back to fixed phases. */
+export function titanicProgram({ cue } = {}) {
+  const at = (sentence, word, fallback) => { const v = cue?.(sentence, word); return Math.min(.93, Math.max(.02, v === undefined || v === null ? fallback : v)); };
   const nodes = [], tracks = [];
   const add = (id, kind, ctx, position, more = {}) => { nodes.push({ id, kind, contextSourceId: ctx, position, ...more }); return id; };
   const mesh = (id, ctx, position, geometry, color, more = {}) => add(id, 'mesh', ctx, position, { geometry, color, ...more });
@@ -112,6 +115,9 @@ export function titanicProgram() {
   track('casco', 'rotation', 'smooth', [['s4', 0, [0, 0, 0]], ['s8', .4, [0, 0, 0]], ['s8', .8, [0, 0, -.09]], ['s8', 1, [0, 0, -.03]]]);
 
   // ---------- People ----------
+  // a worker crosses the yard during sentences 1-2: nothing but a position curve, the engine supplies the gait
+  add('op4', 'actor', 's1', [-46, 0, 11], { color: '#7BC47F', rotation: [0, Math.PI / 2, 0] });
+  track('op4', 'position', 'smooth', [['s1', 0, [-46, 0, 11]], ['s2', 0, [-40, 0, 11]], ['s2', 1, [-31, 0, 11]]]);
   add('op2', 'actor', 's2', [-37, .8, 5], { color: '#5BA3E0', rotation: [0, .9, 0] });
   track('op2', 'headRotation', 'smooth', [['s1', 0, [-.35, 0, 0]], ['s2', .5, [-.45, .2, 0]], ['s3', 0, [-.45, .2, 0]]]);
   // sentence 3: eight hard hats, one by one
@@ -177,7 +183,7 @@ export function titanicProgram() {
   mesh('multidao2', 's8', [24, .67, -17], { shape: 'capsule', size: [.22, .9] }, '#5A4A44', { repeat: { count: 70, step: [0, 0, 0], jitter: [22, 0, 8], seed: 12 } });
 
   const shots = [
-    { sourceId: 's1', subjects: ['estrutura'], azimuth: 1.1, endAzimuth: .55, elevation: .32, distance: 1.25 },
+    { sourceId: 's1', subjects: ['estrutura', 'op4'], azimuth: 1.1, endAzimuth: .55, elevation: .32, distance: 1.25 },
     { sourceId: 's2', subjects: ['carro1', 'carro1_chapa'], azimuth: -.5, endAzimuth: -.2, elevation: -.15, distance: 1.1 },
     { sourceId: 's3', subjects: ['capacete1', 'capacete8', 'op3'], azimuth: -.2, endAzimuth: .15, elevation: .18, distance: 1.05 },
     { sourceId: 's4', subjects: ['painel', 'op1'], azimuth: .7, endAzimuth: .4, elevation: .12, distance: 1 },
@@ -186,6 +192,20 @@ export function titanicProgram() {
     { sourceId: 's7', subjects: ['cena_botes'], azimuth: -.45, endAzimuth: 0, elevation: .5, distance: 1.0 },
     { sourceId: 's8', subjects: ['casco'], azimuth: 1, endAzimuth: .55, elevation: .14, distance: 1.05 },
   ];
-  return { title: 'titanic', scenes: ID.map((sourceId) => ({ sourceId, visual: 'character', mood: 'neutral', palette: 'teal' })),
-    sceneProgram: { version: 1, background: '#9FB4C4', nodes, tracks, shots, contacts: [], motionChecks: [] } };
+  const label = (sourceId, node, text, begin, tone = 'info', length = .5) => ({ sourceId, node, text, begin, end: Math.min(.98, begin + length), tone });
+  const labels = [
+    label('s1', 'estrutura', 'BELFAST, 1909', at(1, /belfast/i, .25), 'info', .6),
+    label('s2', 'carro1_chapa', '15.000 OPERÁRIOS', at(2, /quinze/i, .5), 'number', .45),
+    label('s3', 'op3', '8 MORTES', at(3, /oito/i, .12), 'warn', .8),
+    label('s4', 'painel', '3 MILHÕES DE REBITES', at(4, /milh/i, .35), 'number', .5),
+    label('s5', 'chapa_b', 'FERRO FRÁGIL', at(5, /ferro/i, .15), 'warn', .35),
+    label('s5', 'rebite_cabeca', 'ÁGUA A -2 °C', at(5, /gelada/i, .6), 'info', .35),
+    label('s6', 'casco_corte', '16 COMPARTIMENTOS', at(6, /dezesseis/i, .08), 'number', .35),
+    label('s6', 'a4_m', 'ÁGUA PASSA POR CIMA', at(6, /passava/i, .6), 'warn', .35),
+    label('s7', 'botes_a', '20 BOTES', at(7, /vinte/i, .12), 'number', .35),
+    label('s7', 'sem_lugar', 'LUGAR PARA METADE', at(7, /metade/i, .6), 'warn', .35),
+    label('s8', 'casco', 'LANÇAMENTO: 31/05/1911', at(8, /maio/i, .2), 'good', .6),
+  ];
+  return { title: 'titanic', captionStyle: 'single_word', scenes: ID.map((sourceId) => ({ sourceId, visual: 'character', mood: 'neutral', palette: 'teal' })),
+    sceneProgram: { version: 1, background: '#9FB4C4', nodes, tracks, shots, contacts: [], motionChecks: [], labels } };
 }

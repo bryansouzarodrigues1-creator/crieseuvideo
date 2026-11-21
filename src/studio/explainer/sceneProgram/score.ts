@@ -2,6 +2,8 @@
  * This module is also the server validator. It never imports/evaluates model code. */
 import { approvedModel, type ApprovedModelId } from './modelRegistry';
 import { isKit, kitVertexCount } from './scenery';
+import { normalizeLabels, type ProgramLabel } from './labels';
+export type { ProgramLabel } from './labels';
 
 export type Vec3 = [number, number, number];
 export interface ProgramSource { sourceId: string; text: string; duration?: number }
@@ -33,7 +35,7 @@ export interface ProgramMotionCheck {
   endPhase: number;
   threshold: number;
 }
-export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
+export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[]; labels?: ProgramLabel[] }
 export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
 export class SceneProgramError extends Error {
   readonly code = 'invalid_scene_program';
@@ -50,7 +52,7 @@ const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): SceneProgram {
-  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks']);
+  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks', 'labels']);
   if (r.version !== 1 || !sources.length) fail('A versão ou as frases do programa são inválidas.');
   const sourceSignature = JSON.stringify(sources.map((s) => [s.sourceId, s.text]));
   if (r.sourceSignature !== undefined && r.sourceSignature !== sourceSignature) fail('O programa pertence a outro roteiro. Gere uma nova direção para este texto.');
@@ -233,8 +235,9 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       fail('A IA declarou uma ação sem animar a propriedade correspondente.');
     return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold };
   });
+  const labels = normalizeLabels(r.labels, new Set(nodeMap.keys()), new Set(sources.map((x) => x.sourceId)), fail);
   const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
-    ...(motionChecks ? { motionChecks } : {}) };
+    ...(motionChecks ? { motionChecks } : {}), ...(labels.length ? { labels } : {}) };
   validateMotionChecks(normalized, sources);
   return normalized;
 }

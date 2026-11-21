@@ -4,9 +4,11 @@ import { ProgramActor3D } from './actor3d';
 import { instantiateModel, type ModelInstance, type PreparedModel } from './modelAssets';
 import type { ApprovedModelId } from './modelRegistry';
 import { separate, type Body, type Solid } from './separation';
+import { Odometer, lifeAt, seedOf, type Life } from './life';
+import { labelProgress, type LabelPoint } from './labels';
 import { InkOutline, skyTexture, toonMaterial } from './look';
 import { isKit, kitMesh, terrainHeight, waterMesh, type KitParams, type KitShape, type MeshData } from './scenery';
-import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
+import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector, type Vec3 } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 /** Motion-specific safety gate, not a fixed library of animation actions. */
@@ -168,12 +170,31 @@ export class SceneProgram3D {
     for (const [id, [dx, dz]] of shifts) { const object = this.nodes.get(id)!; object.position.x += dx; object.position.z += dz; this.bodyShift.set(id, [dx, dz]); }
     return shifts.size > 0;
   }
+  private readonly lives = new Map<string, Life>();
+  private readonly odometers = new Map<string, Odometer>();
+  /** Ground speed and distance walked by an actor, read from its authored position curves (seek-safe). */
+  private lifeOf(id: string, _position: Vec3): Life {
+    let odo = this.odometers.get(id);
+    if (!odo) {
+      const step = .05, n = Math.ceil(this.score.duration / step) + 1, path: [number, number][] = [];
+      for (let i = 0; i < n; i++) { const p = this.score.sample(Math.min(this.score.duration, i * step)).get(id)?.position ?? [0, 0, 0]; path.push([p[0], p[2]]); }
+      odo = new Odometer(step, path); this.odometers.set(id, odo);
+    }
+    return lifeAt(seedOf(id), this.time, odo.distance(this.time), odo.speed(this.time));
+  }
+  /** Where a limb with no authored pose and no contact rests: planted/swinging feet, hanging/swinging hands. */
+  private restTarget(id: string, actor: ProgramActor3D, effector: Effector) {
+    const l = this.lives.get(id)!, side = effector.startsWith('left') ? -1 : 1, o = effector.endsWith('Foot') ? (side < 0 ? l.leftFoot : l.rightFoot) : (side < 0 ? l.leftHand : l.rightHand);
+    if (effector.endsWith('Foot')) return actor.root.localToWorld(V(side * .17 + o[0], .06 + o[1], .07 + o[2]));
+    return actor.hips.localToWorld(V(side * .43 + o[0], -.22 + o[1], o[2]));
+  }
   update(time: number) {
     this.time = Number.isFinite(time) ? Math.max(0, Math.min(this.score.duration, time)) : 0;
     this.states = this.score.sample(this.time); this.maxContactError = 0; this.maxIKError = 0; this.contactProblems = [];
     for (const [id, object] of this.nodes) {
       const state = this.states.get(id)!; object.position.set(...state.position); object.rotation.set(...state.rotation); object.scale.set(...state.scale);
-      this.actors.get(id)?.reset(state.pose, this.time);
+      const actor = this.actors.get(id);
+      if (actor) { actor.reset(state.pose, this.time); this.lives.set(id, this.lifeOf(id, state.position)); actor.live(this.lives.get(id)!); }
     }
     for (const { mesh, params } of this.waters.values()) {
       const data = waterMesh(params, this.time), position = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -188,7 +209,7 @@ export class SceneProgram3D {
         const contact = this.score.contacts.filter((c) => c.actor === id && c.effector === effector && this.time >= c.start && this.time <= c.finish).pop();
         const target = contact ? this.nodes.get(contact.target)!.localToWorld(new THREE.Vector3(...contact.offset))
           : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!).add(V(this.bodyShift.get(id)?.[0] ?? 0, 0, this.bodyShift.get(id)?.[1] ?? 0))
-          : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
+          : this.restTarget(id, actor, effector);
         if (target) {
           const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
           if (contact) this.maxContactError = Math.max(this.maxContactError, error);
@@ -317,8 +338,12 @@ export class SceneProgram3D {
     if (box.isEmpty()) throw new SceneProgramError('A câmera não encontrou geometria para enquadrar.');
     box.expandByScalar(.13);
     const look = box.getCenter(V()), u = THREE.MathUtils.clamp((this.time - span.start) / span.duration, 0, 1);
-    const angle = shot.azimuth + (shot.endAzimuth - shot.azimuth) * u;
-    const direction = V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
+    // A camera that never stops: every shot also pushes in (or pulls out, alternating) and breathes like a hand-held lens.
+    // The extra distance is always >= 1x the exact framing, so the subjects can never leave the frame.
+    const cut = this.score.spans.indexOf(span), settle = 1 - (1 - u) * (1 - u), zoom = 1 + .16 * (cut % 2 === 0 ? 1 - settle : settle);
+    const angle = shot.azimuth + (shot.endAzimuth - shot.azimuth) * u + Math.sin(this.time * .9) * .014 + Math.sin(this.time * 2.3) * .004;
+    const elevation = shot.elevation + Math.sin(this.time * .7 + 1) * .01;
+    const direction = V(Math.sin(angle) * Math.cos(elevation), Math.sin(elevation), Math.cos(angle) * Math.cos(elevation));
     const points: THREE.Vector3[] = [];
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) points.push(V(x, y, z));
     this.camera.aspect = aspect; this.camera.near = .05; this.camera.far = 1500; this.camera.updateProjectionMatrix(); // wide range while searching the distance
@@ -329,7 +354,7 @@ export class SceneProgram3D {
     let lo = .2, hi = 1400;
     if (!fit(hi)) throw new SceneProgramError('A cena excedeu os limites de enquadramento.');
     for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (fit(mid)) hi = mid; else lo = mid; }
-    fit(hi * shot.distance);
+    fit(hi * shot.distance * zoom);
     // Depth precision follows the shot: a fixed 0.05..1500 range makes overlapping surfaces shimmer.
     const view = this.camera.matrixWorldInverse, depth = Math.min(...points.map((p) => -p.clone().applyMatrix4(view).z)), dist = this.camera.position.distanceTo(look);
     this.camera.near = THREE.MathUtils.clamp(Math.min(dist * .04, depth * .5), .05, 6); this.camera.far = Math.max(400, dist * 30); this.camera.updateProjectionMatrix();
@@ -345,6 +370,20 @@ export class SceneProgram3D {
       for (const id of this.actors.keys()) this.rejectSolidAscentPenetration(span.sourceId, id);
     }
     this.frame(w / h); this.ink.resize(w, h); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.03; renderer.render(this.scene, this.camera);
+  }
+  /** Call-outs that are visible now, projected with the camera of the frame just rendered (NDC, y up). */
+  labelPoints(): LabelPoint[] {
+    const labels = this.program.labels; if (!labels?.length) return [];
+    const { span } = this.score.shot(this.time), phase = THREE.MathUtils.clamp((this.time - span.start) / span.duration, 0, 1), out: LabelPoint[] = [];
+    for (const label of labels) {
+      if (label.sourceId !== span.sourceId) continue;
+      const node = this.nodes.get(label.node), k = labelProgress(label, phase, span.duration); if (!node || k <= 0) continue;
+      const box = new THREE.Box3().setFromObject(node); if (box.isEmpty()) continue;
+      const p = V((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2).project(this.camera);
+      if (p.z < -1 || p.z > 1) continue;
+      out.push({ text: label.text, tone: label.tone, x: p.x, y: p.y, k });
+    }
+    return out;
   }
   diagnostics() {
     return { engine: 'scene-program3d', board: false, nodes: this.program.nodes.length, curves: this.program.tracks.length, contacts: this.program.contacts.length, verifiedMotionChecks: this.program.motionChecks?.length ?? 0, time: this.time, maxContactError: this.maxContactError, maxIKError: this.maxIKError,

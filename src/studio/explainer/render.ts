@@ -4,6 +4,7 @@ import { drawStory, drawStoryBackdrop } from './storyRender';
 import type { Shape } from './drawing';
 import { drawSetting } from './settings';
 import { LOOKS, pagesOf, pageAt, type CaptionStyle } from './captionStyles';
+import { LABEL_LOOK, layoutLabels, type LabelPoint } from './sceneProgram/labels';
 import { laidOut, foregroundExtent } from './layout';
 import { frameZones, fitScale, centerIn, padRect, scaleRect, MAX_CAPTION_LINES, type FrameZones, type Rect } from './safeZone';
 
@@ -282,9 +283,26 @@ function profile(c: CanvasRenderingContext2D, u: number, local: number, name?: s
 }
 
 /** Captions only, drawn over the 3D engine frame, in the same bottom band as the 2D engine. */
-export function drawOverlay(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
+export function drawOverlay(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number, labels: LabelPoint[] = []) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080, at = sceneAt(plan, t);
+  if (labels.length) drawLabels(c, labels, w, h, u);
   if (at) drawCaption(c, plan.captionStyle, at.scene, at.local, frameZones(w, h), u, plan.production ? 3 : 0);
+}
+
+/** Call-out pills that pop in on objects (see sceneProgram/labels.ts): rounded, thick dark edge, pointer to the object. */
+function drawLabels(c: CanvasRenderingContext2D, points: LabelPoint[], w: number, h: number, u: number) {
+  c.save(); c.font = `900 ${50 * u}px 'Plus Jakarta Sans', sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+  for (const l of layoutLabels(points, w, h, (text) => c.measureText(text.toUpperCase()).width, u)) {
+    const look = LABEL_LOOK[l.tone], s = Math.max(.01, l.k), bob = 0;
+    c.save(); c.translate(l.px, l.py + bob); c.scale(s, s); c.globalAlpha = Math.min(1, l.k * 1.4);
+    const tipY = (l.ay - l.py) / s, tipX = (l.ax - l.px) / s;
+    c.beginPath(); c.moveTo(-14 * u, l.h / 2 - 4 * u); c.lineTo(Math.max(-l.w / 2, Math.min(l.w / 2, tipX)), Math.min(tipY, l.h / 2 + 90 * u)); c.lineTo(14 * u, l.h / 2 - 4 * u); c.closePath();
+    c.fillStyle = look.fill; c.strokeStyle = look.edge; c.lineWidth = 6 * u; c.stroke(); c.fill();
+    rr(c, -l.w / 2, -l.h / 2, l.w, l.h, l.h / 2); c.fillStyle = look.fill; c.strokeStyle = look.edge; c.lineWidth = 6 * u; c.stroke(); c.fill();
+    c.fillStyle = look.text; c.fillText(l.text.toUpperCase(), 0, 2 * u);
+    c.restore();
+  }
+  c.restore();
 }
 
 /** Único ponto de entrada de legenda: escolhe o estilo do vídeo (padrão = legenda de duas linhas na base). */

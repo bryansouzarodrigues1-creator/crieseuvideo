@@ -401,6 +401,8 @@ export class Toon3D {
   performanceDiagnostics() { return this.storyStage?.performance?.diagnostics() ?? null; }
   narrativeDiagnostics() { return this.narrativeStage?.diagnostics() ?? null; }
   productionDiagnostics() { return this.productionStage?.diagnostics() ?? null; }
+  /** Call-outs of the 3D program for the frame just rendered; empty for every other engine. */
+  programLabels() { return this.programStage?.labelPoints() ?? []; }
   programDiagnostics() { return this.programStage?.diagnostics() ?? null; }
   validateProgram(plan: ExplainerPlan) {
     if (!plan.sceneProgram) return;

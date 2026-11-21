@@ -41,7 +41,7 @@ try {
     if (req.url() === origin + '/api/direct') requests.push(req.postDataJSON());
     return route.continue();
   });
-  await page.goto(origin, { waitUntil: 'domcontentloaded' });
+  await page.goto(origin + (process.env.QA_QUERY || ''), { waitUntil: 'domcontentloaded' });
 
 const render = async (at) => page.evaluate((time) => {
   const timeline = document.getElementById('timeline'); timeline.value = String(time); timeline.dispatchEvent(new Event('input', { bubbles: true }));
@@ -112,6 +112,48 @@ if (only === 'titanic') { // the explainer of how the Titanic was built: authore
   const { SCRIPT, SENTENCES, titanicProgram } = await import('./fixtures/titanic.mjs'), total = 48, words = SENTENCES.map((t) => t.split(/\s+/).length), sum = words.reduce((a, b) => a + b, 0);
   let cursor = 0; const marks = words.flatMap((w) => { const start = cursor; cursor += w; return [(start + w * .25) / sum, (start + w * .8) / sum]; });
   await scenario('titanic', SCRIPT, total, titanicProgram(), marks.map((m) => Math.min(.99, m)), process.env.QA_VIDEO === '1');
+}
+if (only === 'titanic-voz') { // same explainer, now with a narrator: audio, captions and call-outs share one clock; exported by the product's own exporter
+  const { SCRIPT, SENTENCES, titanicProgram } = await import('./fixtures/titanic.mjs');
+  const { alignWords } = await import('../src/studio/explainer/wordAlign.ts'), { SCENE_LEAD, VOICE_TAIL, TIMED_PROGRAM_BEAT_MIN, words } = await import('../src/studio/explainer/plan.ts');
+  const voiceDir = path.join(output, 'voice'), speed = process.env.QA_VOICE_SPEED || '150';
+  const clips = JSON.parse(execFileSync('python3', ['scripts/tts-espeak.py', voiceDir, speed], { input: JSON.stringify(SENTENCES), encoding: 'utf8' }));
+  const wavs = await Promise.all(clips.map((c) => fs.readFile(c.file)));
+  // What the studio will measure from the same audio: speech bounds and word times, so the labels can be placed on spoken words.
+  const measured = wavs.map((wav, i) => {
+    const pcm = new Int16Array(wav.buffer.slice(wav.byteOffset + 44, wav.byteOffset + wav.length)), x = Float32Array.from(pcm, (v) => v / 32768), sr = wav.readUInt32LE(24);
+    let a = 0, b = x.length - 1; while (a < x.length && Math.abs(x[a]) < .02) a++; while (b > a && Math.abs(x[b]) < .02) b--;
+    const timings = alignWords(x, sr, words(SENTENCES[i]), { bounds: { start: a / sr, end: (b + 1) / sr } }), duration = x.length / sr;
+    return { timings, duration, scene: Math.max(TIMED_PROGRAM_BEAT_MIN, SCENE_LEAD + duration + VOICE_TAIL) };
+  });
+  const cue = (sentence, re) => { const m = measured[sentence - 1], hit = m.timings.find((w) => re.test(w.word)); return hit ? (SCENE_LEAD + hit.start) / m.scene : undefined; };
+  fixture = titanicProgram({ cue }); backend = (await import('../dist/server/index.js?program=titanic-voz')).default;
+  await page.locator('#script').fill(SCRIPT);
+  await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill('5'); await page.locator('#duration-custom').dispatchEvent('change');
+  await page.locator('#generate').click();
+  await page.waitForFunction(() => !document.getElementById('generate').disabled);
+  await page.waitForFunction(() => document.getElementById('canvas').dataset.action === 'scene-program3d', undefined, { timeout: 30000 });
+  await page.evaluate(() => document.fonts.ready);
+  await page.locator('[data-aspect="9:16"]').click();
+  // The narration package is the product's own import format (scripts/local-narration.py makes the same): audio + measured word times per scene.
+  const bounds = (wav) => { const pcm = new Int16Array(wav.buffer.slice(wav.byteOffset + 44, wav.byteOffset + wav.length)), sr = wav.readUInt32LE(24); let a = 0, b = pcm.length - 1; while (a < pcm.length && Math.abs(pcm[a]) < .02 * 32768) a++; while (b > a && Math.abs(pcm[b]) < .02 * 32768) b--; return { start: a / sr, end: (b + 1) / sr }; };
+  const narration = { version: 1, script: SCRIPT, clips: SENTENCES.map((text, i) => ({ sourceId: `s${i + 1}`, text, duration: measured[i].duration, ...bounds(wavs[i]), timings: measured[i].timings, wavBase64: wavs[i].toString('base64') })) };
+  await page.locator('#narration-file').setInputFiles({ name: 'narration.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(narration)) });
+  await page.waitForFunction(() => /Narração do projeto importada|importar/i.test(document.getElementById('message').innerText), undefined, { timeout: 60000 });
+  console.log('message:', await page.locator('#message').innerText());
+  const total = Number(await page.locator('#timeline').getAttribute('max')), expected = measured.reduce((t, m) => t + m.scene, 0);
+  report.push({ total, expected, scenes: measured.map((m) => +m.scene.toFixed(2)) });
+  console.log(`timeline ${total.toFixed(2)} s, expected from the audio ${expected.toFixed(2)} s`);
+  assert.ok(Math.abs(total - expected) < .35, `the timeline (${total}) does not follow the narration (${expected})`);
+  let t0 = 0; // contact frames at the spoken word of every call-out
+  for (const [k, m] of measured.entries()) { for (const f of [.15, .6]) { const frame = await render(t0 + m.scene * f); await fs.writeFile(path.join(output, `voz-s${k + 1}-${Math.round(f * 100)}.png`), Buffer.from(frame.png, 'base64')); } t0 += m.scene; }
+  await fs.writeFile(path.join(output, 'voz-report.json'), JSON.stringify({ report, words: measured.map((m, i) => ({ sentence: SENTENCES[i], scene: m.scene, timings: m.timings })) }, null, 1));
+  if (process.env.QA_EXPORT === '1') {
+    const started = Date.now(), download = page.waitForEvent('download', { timeout: 55 * 60 * 1000 });
+    await page.locator('#download-video').click();
+    const file = await download; await file.saveAs(path.join(output, 'titanic-voz' + path.extname(file.suggestedFilename())));
+    console.log(`exported ${file.suggestedFilename()} in ${((Date.now() - started) / 1000).toFixed(0)} s:`, await page.locator('#canvas').getAttribute('data-last-export'));
+  }
 }
 assert.deepEqual(errors, []);
 console.log('Collision frames written to', output);

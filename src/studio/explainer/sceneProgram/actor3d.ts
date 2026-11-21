@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { toonMaterial } from './look';
 import type { Effector, ProgramChannel, Vec3 } from './score';
+import type { Life } from './life';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 export const ACTOR_LOOKS = [{ hair: 0x243549, skin: 0xe5ad83 }, { hair: 0x4b2e1e, skin: 0xc68642 }, { hair: 0x16161a, skin: 0x8d5524 }, { hair: 0xc9a24d, skin: 0xf1c27d }, { hair: 0x7a3b1d, skin: 0xffdbac }];
@@ -68,6 +69,11 @@ export class ProgramActor3D {
     this.brows.forEach((brow, i) => brow.rotation.z = Math.PI / 2 + (i ? 1 : -1) * face[0] * .13);
     this.mouth.scale.set(1.1 + Math.max(0, face[0]) * .4, .17 + Math.max(0, face[2]) * .8, .3);
     this.root.updateWorldMatrix(true, true);
+  }
+  /** Breathing, weight shift and gait sway on top of the authored pose (call right after `reset`). */
+  live(l: Life) {
+    this.hips.position.y += l.hipsY; this.hips.rotation.x += l.hipsPitch; this.hips.rotation.z += l.hipsRoll;
+    this.head.rotation.x += l.headPitch; this.head.rotation.y += l.headYaw; this.head.rotation.z += l.headRoll;
   }
   solve(effector: Effector, target: THREE.Vector3, pole?: THREE.Vector3) {
     const limb = this.limbs[effector], parent = limb.root.parent!;

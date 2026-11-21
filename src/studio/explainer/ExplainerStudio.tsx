@@ -5,7 +5,8 @@ import { ACTION_LABELS, normalizeStaging } from './staging';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
-import { ExplainerPlan, VISUALS, MOODS, PRESENTER_POSES, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, refreshProduction, type Visual, type Mood, type PresenterPose } from './plan';
+import { ExplainerPlan, VISUALS, MOODS, PRESENTER_POSES, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, refreshProduction, words as scriptWords, type Visual, type Mood, type PresenterPose } from './plan';
+import { alignWords } from './wordAlign';
 import { NARRATION_VOICES, getNarration, getCachedNarration, speechBounds } from './voice';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
@@ -112,7 +113,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         const buf = await getNarration(ac, s.text, voiceKey);
         buffers.current.set(`${voiceKey}|${s.text}`, buf);
         const b = speechBounds(buf);
-        out.scenes[i] = { ...s, voice: { duration: buf.duration, start: b.start, end: b.end } };
+        out.scenes[i] = { ...s, voice: { duration: buf.duration, start: b.start, end: b.end, timings: alignWords(buf.getChannelData(0), buf.sampleRate, scriptWords(s.text), { bounds: b }) } };
         setVoicing(Math.round(((i + 1) / out.scenes.length) * 100));
       }
       setPlan(out); seek(0);
@@ -143,7 +144,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       c.clearRect(0, 0, c.canvas.width, c.canvas.height);
       return; // Never render a silently incomplete or substituted model.
     }
-    if (engine === '3d' && toon && plan.scenes.length) { toon.render(plan, t, c.canvas.width, c.canvas.height); c.drawImage(toon.canvas, 0, 0); drawOverlay(c, plan, t); }
+    if (engine === '3d' && toon && plan.scenes.length) { toon.render(plan, t, c.canvas.width, c.canvas.height); c.drawImage(toon.canvas, 0, 0); drawOverlay(c, plan, t, toon.programLabels()); }
     else drawExplainerFrame(c, plan, t);
   };
   useEffect(() => { draw(timeRef.current); }, [plan, engine, toonReady]);

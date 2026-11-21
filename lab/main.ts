@@ -4,6 +4,7 @@ import { withTargetDuration, normalizeTargetDuration, durationNotice, DURATION_P
 import { ACTION_LABELS } from '../src/studio/explainer/staging';
 import { actingUnavailableMessage } from '../src/studio/explainer/actingAvailability';
 import { drawExplainerFrame, drawOverlay } from '../src/studio/explainer/render';
+import { normalizeCaptionStyle } from '../src/studio/explainer/captionStyles';
 import { scriptError, spokenText } from '../src/studio/explainer/script';
 import type { Toon3D } from '../src/studio/explainer/toon3d';
 import { ApiResponseError, readApiResponse, readDirectionResponse } from '../src/studio/utils/apiResponse';
@@ -23,6 +24,7 @@ let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
 let resumable: StoredLabProject | null = null, preserved = false;
 let planScript = '';
 let targetDuration: number | undefined;
+const captionOverride = (() => { const v = new URLSearchParams(location.search).get('captionStyle'); return v ? normalizeCaptionStyle(v) : undefined; })(); // lab only: pick the caption look from the address
 let audioContext: AudioContext | null = null, uploadedTrack: AudioBuffer | null = null, narrationScript = '', audioOrigin: number | null = null;
 const voiceBuffers = new Map<string, AudioBuffer>(), voiceMetadata = new Map<string, ExplainerPlan['scenes'][number]['voice']>();
 let currentNarration: unknown;
@@ -95,7 +97,7 @@ function draw() {
   }
   if (engine === '3d' && toon) {
     try {
-      toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time); canvas.dataset.renderEngine = '3d';
+      toon.render(plan, time, canvas.width, canvas.height); context.drawImage(toon.canvas, 0, 0, canvas.width, canvas.height); drawOverlay(context, plan, time, toon.programLabels()); canvas.dataset.renderEngine = '3d';
       const acting = toon.narrativeDiagnostics(), production = toon.productionDiagnostics(), program = toon.programDiagnostics(); canvas.dataset.action = program ? 'scene-program3d' : production ? 'production3d' : acting?.action || (sceneAt(plan, time)?.scene.story ? 'story' : 'illustration');
       canvas.dataset.contactError = String(program?.maxContactError ?? production?.maxContactError ?? acting?.maxContactError ?? 0);
       canvas.dataset.production = program ? JSON.stringify(program) : production ? JSON.stringify(production) : '';
@@ -155,7 +157,7 @@ function setPlan(next: ExplainerPlan, label: string) {
   const text = spokenText(next.scenes.map((s) => s.text).join(' '));
   if (text !== narrationScript) { voiceBuffers.clear(); voiceMetadata.clear(); uploadedTrack = null; narrationScript = ''; currentNarration = undefined; }
   const voiced = { ...next, track: uploadedTrack?.duration, scenes: next.scenes.map(({ voice: _v, ...s }) => ({ ...s, voice: voiceMetadata.get(s.text) })) };
-  plan = alignNarratedActing(withTargetDuration({ ...(uploadedTrack ? fitToTrack(voiced, uploadedTrack.duration) : voiced), engine, aspect }, targetDuration)); time = 0; selectedScene = -1; source = label;
+  plan = alignNarratedActing(withTargetDuration({ ...(uploadedTrack ? fitToTrack(voiced, uploadedTrack.duration) : voiced), engine, aspect, ...(captionOverride ? { captionStyle: captionOverride } : {}) }, targetDuration)); time = 0; selectedScene = -1; source = label;
   planScript = spokenText(next.scenes.map((s) => s.text).join(' ')); preserved = false; delete canvas.dataset.lastExport;
   timeline.max = String(totalDuration(plan)); $('source').textContent = source;
   $('scene-count').textContent = String(plan.scenes.length);
