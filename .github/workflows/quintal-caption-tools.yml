@@ -1,0 +1,29 @@
+name: Prepare portable local Portuguese caption tools
+on:
+  push:
+    branches: [build/quintal-local-caption-tools-20261121]
+    paths: [.github/workflows/quintal-caption-tools.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Build pinned open source speech recognizer
+        run: |
+          git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp.git caption-source
+          cmake -S caption-source -B caption-source/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_AVX512=OFF -DGGML_OPENMP=OFF -DGGML_CURL=OFF -DWHISPER_BUILD_TESTS=OFF
+          cmake --build caption-source/build --config Release --target whisper-cli -j 4
+          mkdir -p caption-runtime
+          cp caption-source/build/bin/whisper-cli caption-runtime/
+          cp caption-source/LICENSE caption-runtime/LICENSE-whisper.cpp
+          sh caption-source/models/download-ggml-model.sh base-q5_1 caption-runtime
+          caption-runtime/whisper-cli --help >caption-runtime/help.txt 2>&1
+          sha256sum caption-runtime/whisper-cli caption-runtime/ggml-base-q5_1.bin >caption-runtime/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: portable-caption-runtime
+          path: caption-runtime/
+          retention-days: 7
