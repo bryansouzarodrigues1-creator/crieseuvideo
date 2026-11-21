@@ -1,0 +1,57 @@
+name: Original garden through the actual Code 3D studio
+on:
+  pull_request:
+    branches: [feat/articulated-hands-20261121]
+    paths:
+      - scripts/fixtures/quintal.scene.js
+      - scripts/fixtures/quintal.render.json
+      - scripts/quintal-browser.mjs
+      - .github/workflows/quintal-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: quintal-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [2]
+    env:
+      CI: 'true'
+      QUINTAL_GROUP: ${{ matrix.group }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Syntax and compatibility
+        run: |
+          node --check scripts/fixtures/quintal.scene.js
+          node --check scripts/quintal-browser.mjs
+          bun run test
+          bunx tsc --noEmit
+      - name: Prepare actual studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/quintal-logs
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/quintal-logs/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Import original garden and render native frames
+        run: bun scripts/quintal-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quintal-engine-${{ matrix.group }}
+          path: |
+            tmp/quintal-preview/
+            tmp/quintal-full-*/
+            tmp/quintal-logs/
+          retention-days: 14
