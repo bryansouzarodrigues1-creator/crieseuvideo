@@ -28,7 +28,7 @@ is adapted from the MIT reference; no new Gemini response or external asset.
 */
 
 function createScene(THREE,canvas,width,height){
-const FILM={"title":"A Batalha do End — Parte 2","duration":120,"scenes":[{"id":0,"title":"A promessa","action":"Os seis golems observam o End. O líder se vira para os aliados, fecha o punho e encara o dragão que circula as torres.","captions":[[0,4,"PARTE 2 — A BATALHA DO END"],[4,10,"Seis golems. Uma promessa."]]},{"id":1,"title":"O primeiro avanço","action":"Dois golems correm. O dragão passa baixo e lança uma rajada. Eles se protegem, recuam e recuperam o equilíbrio.","captions":[[0,4,"O avanço começou."],[4,10,"O dragão respondeu primeiro."]]},{"id":2,"title":"O golpe e a cura","action":"O líder prepara um golpe, planta os pés e acerta o dragão. O dragão recua, mas um feixe do cristal restaura sua energia.","captions":[[0,4,"Um golpe certeiro..."],[4,10,"...mas o cristal restaurava sua força."]]},{"id":3,"title":"A mudança de estratégia","action":"O líder acompanha o feixe com o olhar e aponta a torre. Os aliados se dividem: dois distraem o dragão e outro segue para a escadaria.","captions":[[0,4,"O líder encontrou a fraqueza."],[4,10,"Eles precisavam agir juntos."]]},{"id":4,"title":"A distração","action":"Os combatentes atraem o dragão para a frente da arena. Ao fundo, o aliado sobe degraus, apoiando um pé de cada vez.","captions":[[0,4,"Dois ficariam com o dragão."],[4,10,"Um aliado subiria até o cristal."]]},{"id":5,"title":"O último cristal","action":"O golem alcança a plataforma, recua o braço e quebra o cristal. Fragmentos violetas se espalham e o feixe de cura desaparece.","captions":[[0,6.8,"Só faltava alcançar o topo."],[6.8,10,"O último cristal se despedaçou."]]},{"id":6,"title":"A fúria","action":"Sem o cristal, o dragão mergulha e lança outra rajada. Os golems usam a torre como cobertura e saem do alcance do ataque.","captions":[[0,4,"A fonte de cura desapareceu."],[4,10,"A fúria do dragão aumentou."]]},{"id":7,"title":"A aproximação","action":"O dragão baixa até a arena. Dois golems se aproximam de lados diferentes, mantêm apoio no chão e o atingem em conjunto.","captions":[[0,4,"Os golems fecharam as fileiras."],[4,10,"Cada um protegia o outro."]]},{"id":8,"title":"O aliado atingido","action":"Uma virada da cauda atinge um dos aliados. Ele perde o equilíbrio, cai de joelhos e apoia a mão no chão. O líder corre até ele.","captions":[[0,2.4,"O dragão preparou outro ataque."],[2.4,6,"A cauda atingiu um aliado."],[6,10,"O líder correu para ajudá-lo."]]},{"id":9,"title":"A mão estendida","action":"O líder abaixa o corpo e oferece a mão. O aliado segura e se ergue com apoio dos pés. Os dois voltam a encarar o dragão.","captions":[[0,4,"Uma mão se estendeu."],[4,10,"O exército voltou a se levantar."]]},{"id":10,"title":"O golpe final","action":"O líder sobe na pequena plataforma enquanto os aliados flanqueiam o dragão. Ele firma os pés, torce o tronco e acerta um último golpe; o dragão recua.","captions":[[0,4,"Era a chance que faltava."],[4,10,"Todo o peso em um único golpe."]]},{"id":11,"title":"O retorno","action":"O dragão sobe e se desfaz em partículas violetas. Um portal se abre, os seis golems se reúnem e seguem para reconstruir seu lar.","captions":[[0,5,"O dragão perdeu suas forças."],[5,10,"Eles voltariam para reconstruir."]]}]};
+const FILM={"title":"A Batalha do End — Parte 2","duration":120,"scenes":[{"id":0,"title":"A promessa","action":"O líder olha para os aliados antes de se virar para o dragão. Um companheiro responde com um aceno; o grupo avança.","captions":[[0,3.6,"PARTE 2 — A BATALHA DO END"],[3.6,7,"Líder: Pela nossa casa."],[7,10,"Aliado: Juntos até o fim."]],"shots":[{"start":0,"end":3.6,"subject":"point","offset":[15,10,29],"point":[0,4,-2],"label":"Situar o grupo e o End"},{"start":3.6,"end":7,"subject":"actor","offset":[3.7,1.4,7],"actor":0,"aim":2.0,"label":"Promessa do líder"},{"start":7,"end":10,"subject":"actor","offset":[-4,1.5,-6],"actor":5,"aim":2.0,"label":"Resposta do aliado"}]},{"id":1,"title":"O primeiro avanço","action":"Os golems avançam por dois lados. A rajada interrompe a aproximação; eles erguem os braços, recuam e recuperam o equilíbrio.","captions":[[0,3,"O grupo avançou por dois lados."],[3,6.5,"Líder: Cuidado com a rajada!"],[6.5,10,"Recuar também fazia parte da luta."]],"shots":[{"start":0,"end":3,"subject":"actor","offset":[8,3,10],"actor":0,"aim":1.7,"label":"Acompanhar o avanço"},{"start":3,"end":6.5,"subject":"point","offset":[10,6,15],"point":[0,3,-0.5],"label":"Mostrar a rajada e a esquiva"},{"start":6.5,"end":10,"subject":"actor","offset":[6,2,-5],"actor":0,"aim":2.0,"label":"Reação e recuperação"}]},{"id":2,"title":"O golpe e a cura","action":"O líder prepara o soco e acerta o focinho. O dragão recua; o feixe do cristal revela por que o golpe não foi suficiente. O líder acompanha o feixe com o olhar.","captions":[[0,3.4,"O líder encontrou uma abertura."],[3.4,5,"Um golpe certeiro."],[5,7.3,"Mas o cristal o curava."],[7.3,10,"Líder: É o cristal..."]],"shots":[{"start":0,"end":2.6,"subject":"actor","offset":[4,1.7,-6],"actor":0,"aim":2.0,"label":"Preparação do soco"},{"start":2.6,"end":4.8,"subject":"hitFirst","offset":[8,2.8,2.6],"label":"Contato em perfil"},{"start":4.8,"end":7.3,"subject":"point","offset":[12,5,18],"point":[-3.5,6,-6],"label":"Revelar o feixe de cura"},{"start":7.3,"end":10,"subject":"actor","offset":[4,1.6,-6],"actor":0,"aim":2.0,"label":"O líder percebe o cristal"}]},{"id":3,"title":"A mudança de estratégia","action":"O líder observa o cristal, aponta a torre e dá a tarefa a um aliado. O aliado olha para ele, confirma com a cabeça e parte para a escada.","captions":[[0,3.5,"Líder: É dali que vem a cura."],[3.5,7,"Líder: Eu distraio. Você sobe."],[7,10,"Aliado: Deixa comigo."]],"shots":[{"start":0,"end":3.5,"subject":"actor","offset":[-4,1.5,-6],"actor":0,"aim":2.0,"label":"A descoberta"},{"start":3.5,"end":7,"subject":"actor","offset":[-3,1.5,7],"actor":0,"aim":2.0,"label":"O líder aponta e delega"},{"start":7,"end":10,"subject":"actor","offset":[8,2.3,4],"actor":3,"aim":2.0,"label":"O aliado aceita a tarefa"}]},{"id":4,"title":"A distração","action":"Um golem provoca o dragão e atrai a rajada para longe da torre. O aliado sobe com apoios alternados dos pés.","captions":[[0,3.3,"Aliado: Ei, dragão! Por aqui!"],[3.3,6.5,"A distração abriu uma passagem."],[6.5,10,"O outro golem aproveitou a chance."]],"shots":[{"start":0,"end":3.3,"subject":"actor","offset":[5,2,-6],"actor":1,"aim":2.0,"label":"O chamariz provoca o dragão"},{"start":3.3,"end":6.5,"subject":"point","offset":[12,7,17],"point":[0,3,-1],"label":"A distração funciona"},{"start":6.5,"end":10,"subject":"actor","offset":[6,2,7],"actor":3,"aim":1.7,"label":"Pés e subida pela escada"}]},{"id":5,"title":"O último cristal","action":"O aliado respira, olha o cristal, firma os pés e recua o braço. O soco quebra o cristal e interrompe a cura.","captions":[[0,3.6,"Aliado: Só mais um pouco..."],[3.6,6.8,"Ele firmou os pés e preparou o golpe."],[6.8,10,"O cristal se despedaçou."]],"shots":[{"start":0,"end":3.6,"subject":"actor","offset":[5,1.6,-7],"actor":3,"aim":2.0,"label":"Esforço no topo"},{"start":3.6,"end":7.7,"subject":"crystal","offset":[7,1.8,1.2],"label":"Preparação, contato e quebra"},{"start":7.7,"end":10,"subject":"crystal","offset":[9,5,9],"label":"Consequência e fragmentos"}]},{"id":6,"title":"A fúria","action":"O dragão reage à perda do cristal. O líder contorna a torre baixa e se abaixa atrás dela enquanto a rajada passa.","captions":[[0,3,"Sem cura, o dragão rugiu."],[3,6.7,"Líder: Abaixem-se!"],[6.7,10,"Eles esperaram a rajada passar."]],"shots":[{"start":0,"end":3,"subject":"dragon","offset":[12,3,14],"label":"Reação do dragão"},{"start":3,"end":6.7,"subject":"actor","offset":[7,2.7,5],"actor":0,"aim":1.7,"label":"O líder procura cobertura"},{"start":6.7,"end":10,"subject":"point","offset":[13,7,19],"point":[-0.3,3,-2],"label":"A rajada passa e o grupo retoma a luta"}]},{"id":7,"title":"A aproximação","action":"O líder chama os dois flancos. Um golem golpeia, o outro responde e os dois atacam juntos. O dragão recua a cada contato e prepara a cauda.","captions":[[0,3.6,"Líder: Pelos lados!"],[3.6,7.8,"Aliado: Não deixa ele levantar!"],[7.8,10,"Líder: Juntos, agora!"]],"shots":[{"start":0,"end":1.6,"subject":"actor","offset":[6,1.8,-5],"actor":0,"aim":2.0,"label":"O líder ordena o ataque"},{"start":1.6,"end":4.8,"subject":"team","offset":[6,7.5,11],"label":"Flancos e primeiro golpe"},{"start":4.8,"end":7.7,"subject":"actor","offset":[7,2.5,2],"actor":2,"aim":2.0,"label":"Resposta do outro flanco"},{"start":7.7,"end":10,"subject":"team","offset":[6,7.5,11],"label":"Golpe conjunto e reação"}]},{"id":8,"title":"O aliado atingido","action":"A cauda atinge um aliado. Cabeça e tronco reagem em tempos diferentes; ele perde o equilíbrio, ajoelha e tenta se apoiar. O líder o vê e corre até ele.","captions":[[0,2.4,"O dragão girou para se soltar."],[2.4,4.2,"A cauda acertou um dos golems."],[4.2,6.5,"Aliado: Não consigo levantar."],[6.5,10,"Líder: Aguenta! Estou chegando."]],"shots":[{"start":0,"end":4.2,"subject":"hurt","offset":[10,4,12],"label":"Cauda e queda visíveis"},{"start":4.2,"end":6.5,"subject":"actor","offset":[4,1.3,7],"actor":5,"aim":1.9,"label":"O aliado tenta levantar"},{"start":6.5,"end":10,"subject":"actor","offset":[7,2,-6],"actor":0,"aim":1.8,"label":"O líder responde e corre"}]},{"id":9,"title":"A mão estendida","action":"O líder se abaixa e estende a mão. O aliado admite o medo, segura a mão e se levanta com apoio dos pés. O líder responde antes de retomar a luta.","captions":[[0,2.3,"Líder: Segura minha mão."],[2.3,6,"Aliado: Achei que não ia conseguir."],[6,10,"Líder: Ninguém fica para trás."]],"shots":[{"start":0,"end":2.3,"subject":"actor","offset":[-4,1.6,6.7],"actor":0,"aim":1.9,"label":"O líder oferece ajuda"},{"start":2.3,"end":6,"subject":"rescue","offset":[3,1.7,8],"label":"Mãos e rostos dos dois"},{"start":6,"end":10,"subject":"actor","offset":[-4,1.7,6.7],"actor":0,"aim":2.0,"label":"Resposta do líder e recuperação"}]},{"id":10,"title":"O golpe final","action":"Os aliados deixam livre a aproximação. O líder sobe na plataforma, prepara o corpo e acerta o golpe final; o dragão recua.","captions":[[0,3.8,"Os aliados abriram espaço para o líder."],[3.8,6.5,"Líder: Agora!"],[6.5,10,"O último golpe encontrou o alvo."]],"shots":[{"start":0,"end":3.8,"subject":"actor","offset":[5,2,-7],"actor":0,"aim":2.0,"label":"Subida e preparação"},{"start":3.8,"end":7.5,"subject":"hitFinal","offset":[8,2.5,2],"label":"Soco final com a silhueta livre"},{"start":7.5,"end":10,"subject":"dragon","offset":[10,3,12],"label":"O dragão recua"}]},{"id":11,"title":"O retorno","action":"O dragão se desfaz em partículas. O grupo chega ao portal; o líder segue à frente e promete reconstruir a casa.","captions":[[0,4.9,"O dragão finalmente perdeu a luta."],[4.9,7.5,"Os seis sobreviveram."],[7.5,10,"Líder: Vamos reconstruir nossa casa."]],"shots":[{"start":0,"end":4.9,"subject":"dragon","offset":[12,4,22],"label":"Derrota e partículas"},{"start":4.9,"end":7.5,"subject":"point","offset":[12,7.2,22],"point":[0,1.8,8.5],"label":"Reunir os seis no portal"},{"start":7.5,"end":10,"subject":"actor","offset":[2,1.4,7.2],"actor":0,"aim":2.0,"label":"Desfecho com o líder à frente"}]}],"revision":2,"direction":"Cortes motivados por falas, olhares e contatos; pausas de decisão, preparação e recuperação; troca de golpes coordenada."};
 const SCENE=typeof BATTLE_SCENE==='number'?BATTLE_SCENE:0;
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});renderer.setSize(width,height,false);renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -51,6 +51,8 @@ const pick=a=>a[Math.floor(rnd()*a.length)];
 const mul=(c,k)=>c.map(v=>clamp(Math.round(v*k),0,255));
 function makeTex(draw){const cv=document.createElement('canvas');cv.width=cv.height=16;const ctx=cv.getContext('2d'),im=ctx.createImageData(16,16);for(let y=0;y<16;y++)for(let x=0;x<16;x++){const c=draw(x,y),k=(y*16+x)*4;im.data.set([c[0],c[1],c[2],c[3]??255],k);}ctx.putImageData(im,0,0);const tx=new THREE.CanvasTexture(cv);tx.colorSpace=THREE.SRGBColorSpace;tx.magFilter=THREE.NearestFilter;tx.minFilter=THREE.LinearMipmapLinearFilter;return tx;}
 const angle=(a,b,u)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*u;
+const windowAt=(a,b,c,d,t)=>smooth(a,b,t)*(1-smooth(c,d,t));
+const nodAt=(t,start)=>{const q=clamp((t-start)/1.05,0,1);return .12*Math.sin(q*Math.PI*2)*Math.sin(q*Math.PI);};
 
 const ironTex=makeTex(()=>{const c=pick(['#e0dfd5','#d7d8cd','#ecebe2','#cfd1c4'].map(C));return rnd()<.025?mul(c,.72):c;});
 const ironMat=new THREE.MeshLambertMaterial({map:ironTex}),jointMat=LM(0x7d8178),vineMat=LM(0x477343),vineLight=LM(0x6c874a),eyeRed=BM(0x952c2e),darkFace=LM(0x41443c);
@@ -130,6 +132,7 @@ for(const g of golems){
  g.body=body;g.feet=[];
  for(const a of g.arms){a.L2=1.135;a.tip=G(a.elbow);a.tip.position.set(0,-a.L2,.04);}
  g.phase=g.index*.173;
+ g.lids=[-1,1].map(side=>cub(g.head,ironMat,side*.205,.16,.447,.135,.10,.022));
 }
 cub(golems[0].body,BM(0xc24a42),.51,.8,.465,.11,.11,.035);
 for(const m of [dragonSkin,dragonBone,dragonWing])m.transparent=true;
@@ -140,13 +143,13 @@ const darkTex=makeTex(()=>pick(['#171322','#211b30','#251f34','#1d1829'].map(C))
 const rock=new THREE.MeshLambertMaterial({map:rockTex}),obsidian=new THREE.MeshLambertMaterial({map:darkTex});
 function inst(material,list){const mesh=new THREE.InstancedMesh(boxGeo,material,list.length),dummy=new THREE.Object3D();list.forEach((p,i)=>{dummy.position.set(p[0],p[1],p[2]);dummy.scale.set(p[3]??1,p[4]??1,p[5]??1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);return mesh;}
 const ground=[];for(let x=-26;x<=26;x++)for(let z=-26;z<=24;z++)if(Math.hypot(x/1.1,z)<26){ground.push([x,-.5,z]);if(Math.hypot(x/1.1,z)>24)for(let y=-1;y>=-3;y--)ground.push([x,y-.5,z]);}inst(rock,ground);
-const columns=[];for(const [x,z,h] of [[-18,-16,23],[-8,-22,26],[7,-22,25],[18,-13,21],[-23,1,18],[23,2,20]])for(let y=0;y<h;y++)for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)columns.push([x+dx,y+.5,z+dz]);inst(obsidian,columns);
+const columns=[];for(const [x,z,h] of [[-18,-16,23],[-8,-22,26],[7,-22,25],[18,-13,21],[-23,1,18],[23,2,20]])for(let y=0;y<h;y++)for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)columns.push([x+dx,y+.5,z+dz]);const solidObstacles=[inst(obsidian,columns)];
 const stairStart=V3(-11.5,0,6.5),stairEnd=V3(-6.5,0,-.8),stairDir=stairEnd.clone().sub(stairStart),stairLength=stairDir.length();stairDir.normalize();const stairRight=V3(-stairDir.z,0,stairDir.x);
-for(let i=0;i<12;i++){const p=stairStart.clone().addScaledVector(stairDir,(i+.5)*stairLength/12),b=cub(scene,rock,p.x,(i+1)*.25,p.z,3.6,(i+1)*.5,stairLength/12+.02);b.rotation.y=Math.atan2(stairDir.x,stairDir.z);}
-cub(scene,obsidian,-6.5,2.9,-3.5,3.1,5.8,3.1);cub(scene,rock,-6.5,5.85,-3.5,5,.3,7.6);
-for(let i=0;i<4;i++)cub(scene,rock,7.1,-.01+(i+1)*.175,4.6-i*.85,3.2,(i+1)*.35,.86);
-cub(scene,rock,7.1,.7,1.3,3.7,1.4,2.4);
-const cover=cub(scene,obsidian,-3,2,4,2,4,2);
+for(let i=0;i<12;i++){const p=stairStart.clone().addScaledVector(stairDir,(i+.5)*stairLength/12),b=cub(scene,rock,p.x,(i+1)*.25,p.z,3.6,(i+1)*.5,stairLength/12+.02);b.rotation.y=Math.atan2(stairDir.x,stairDir.z);solidObstacles.push(b);}
+solidObstacles.push(cub(scene,obsidian,-6.5,2.9,-3.5,3.1,5.8,3.1),cub(scene,rock,-6.5,5.85,-3.5,5,.3,7.6));
+for(let i=0;i<4;i++)solidObstacles.push(cub(scene,rock,7.1,-.01+(i+1)*.175,4.6-i*.85,3.2,(i+1)*.35,.86));
+solidObstacles.push(cub(scene,rock,7.1,.7,1.3,3.7,1.4,2.4));
+const cover=cub(scene,obsidian,-3,2,4,2,4,2);solidObstacles.push(cover);
 function floorAt(x,z){
  let h=0;if(x>=-9&&x<=-4&&z>=-7.3&&z<=.3)h=6;
  const delta=V3(x-stairStart.x,0,z-stairStart.z),along=delta.dot(stairDir),side=Math.abs(delta.dot(stairRight));
@@ -198,11 +201,12 @@ function poseDragon(t){
  dragon.root.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(up3,groundYaw),groundWeight);
  const firstRecoil=smooth(23.4,23.7,t)*(1-smooth(24.3,25.4,t));p.z-=firstRecoil*.55;p.y+=firstRecoil*.25;
  const finalRecoil=smooth(106.5,107.0,t);if(t<110){p.z-=finalRecoil*.8;p.y+=finalRecoil*.35;}
+ let teamRecoil=0;for(const hit of [72.8,75.4,78.2])teamRecoil+=windowAt(hit,hit+.14,hit+.35,hit+.85,t);p.z-=teamRecoil*.22;p.y+=teamRecoil*.07;
  dragon.root.position.copy(p);dragon.root.visible=t<113.8;
  const flap=1-.73*groundWeight,frequencyPhase=t*3.5+.14*Math.sin(t*.6);
  for(const w of dragon.wings){w.joint.rotation.z=w.side*(.12+Math.sin(frequencyPhase)*.52*flap);w.outer.rotation.z=w.side*(.04+Math.sin(frequencyPhase-.65)*.23*flap);}
  dragon.tail.forEach((j,i)=>{j.rotation.y=Math.sin(t*2.1-i*.58)*.115;j.rotation.x=Math.sin(t*1.5-i*.6)*.035;});
- dragon.neck.rotation.set(.035*Math.sin(t*1.4),.04*Math.sin(t*.9),0);dragon.head.rotation.set(.015*Math.sin(t*2.2),0,0);
+ dragon.neck.rotation.set(.035*Math.sin(t*1.4)+teamRecoil*.09,.04*Math.sin(t*.9),0);dragon.head.rotation.set(.015*Math.sin(t*2.2)-teamRecoil*.05,0,0);
  dragon.jaw.rotation.x=.04+.34*(smooth(12.6,13.1,t)*(1-smooth(15,15.4,t))+smooth(43.2,43.8,t)*(1-smooth(46,46.5,t))+smooth(62.6,63.1,t)*(1-smooth(66,66.5,t)));
  for(const m of [dragonSkin,dragonBone,dragonWing])m.opacity=1-smooth(111,113.8,t);
  dragon.root.updateMatrixWorld(true);
@@ -210,11 +214,11 @@ function poseDragon(t){
 poseDragon(23.4);const hitFirst=dragon.mouth.getWorldPosition(V3());poseDragon(106.5);const hitFinal=dragon.mouth.getWorldPosition(V3());poseDragon(82.4);const tailHit=dragon.tail[4].getWorldPosition(V3());
 const hurt=V3(tailHit.x-.5,0,tailHit.z+.55),helper=V3(hurt.x+1.75,0,hurt.z+.15);
 const actorKeys=[
- [[0,0,7],[10,0,5.5],[15,0,-.3],[17,1,1],[20,0,1.2],[24,0,1.2],[30,2.5,4],[40,1,3],[45,0,-.5],[50,4,1.2],[55,4,2],[60,2,3],[65,-.8,1.5],[70,1,2],[78,1,2],[84,1,2],[90,helper.x,helper.z],[96,helper.x,helper.z],[99,7.1,6],[103,6.4,1.2],[108,6.4,1.2],[112,7.1,2.7],[116,0,6],[120,0,9]],
+ [[0,0,7],[3.4,0,7],[9,0,7],[10,0,5.5],[15,0,-.3],[17,1,1],[20,0,1.2],[24,0,1.2],[30,2.5,4],[40,1,3],[45,0,-.5],[50,4,1.2],[55,4,2],[60,2,3],[63,-.8,5.5],[65,-2.9,6.1],[67,-2.9,6.1],[68,-.8,6],[70,1,2],[78,1,2],[84,1,2],[90,helper.x,helper.z],[96,helper.x,helper.z],[99,7.1,6],[103,6.4,1.2],[108,6.4,1.2],[112,7.1,2.7],[116,0,7.2],[119,0,11.8],[120,0,12.8]],
  [[0,-3,8],[10,-3,6],[12,-6.5,5],[15,-4.6,1.6],[20,-2,.1],[28,-2,1],[35,-1.8,1.5],[40,-1,2],[46,6,-1],[50,10,-1],[55,10,6.2],[60,3,6.2],[68,-1.85,-3.8],[77,-1.85,-3.8],[84,-3,-2.8],[94,-3,0],[102,4.15,-3.2],[108,4.15,-3.2],[112,1,5.5],[116,-2.7,7],[120,-2.7,8]],
  [[0,3,8],[10,3,6],[16,3.5,1],[25,3.8,-4],[35,4,-4],[45,3.5,0],[55,3.5,-2],[65,3.5,-2],[70,1.85,-3.8],[77,1.85,-3.8],[86,4,-1],[98,4,1],[104,7.85,-3.2],[108,7.85,-3.2],[112,10.5,-.5],[116,10.5,6],[120,2.7,8]],
- [[0,-5.5,10],[20,-5.5,7],[30,-8,8],[40,-11.5,6.5],[46,-9.4,3],[51,-7.3,.1],[54,-5.5,-1.2],[58,-5.5,-1.2],[61,-7.7,.8],[65,-10,4.6],[70,-11.5,8.5],[84,-6,8.5],[98,-6,6.5],[110,-5.4,7],[120,-5.4,9]],
- [[0,0,10.5],[20,0,7],[35,0,5.5],[50,2,6],[65,1,5],[80,2,3.5],[88,0,5],[100,0,6],[110,-1,7],[120,0,11.5]],
+ [[0,-5.5,10],[20,-5.5,7],[30,-8,8],[40,-11.5,6.5],[46,-9.4,3],[51,-7.3,.1],[54,-6,-1.2],[58,-6,-1.2],[61,-7.7,.8],[65,-10,4.6],[70,-11.5,8.5],[84,-6,8.5],[98,-6,6.5],[110,-5.4,7],[120,-5.4,9]],
+ [[0,0,10.5],[20,0,7],[35,0,5.5],[50,2,6],[65,1,5],[80,2,3.5],[88,0,5],[100,0,6],[110,-1,7],[120,0,8.5]],
  [[0,5.5,10],[20,5.5,6],[35,3,3],[42,3,-2.2],[50,7,-2.5],[65,5,-3],[75,6,-7],[80,tailHit.x-.8,tailHit.z-.8],[82.4,tailHit.x-.5,tailHit.z+.1],[84.3,hurt.x,hurt.z],[96,hurt.x,hurt.z],[101,2,7],[110,4,6],[120,5.4,9]]
 ];
 const tracks=actorKeys.map(makeTrack);
@@ -234,15 +238,29 @@ function blendReach(g,arm,targetWorld,amount){
 function punchAmount(t,hit){return smooth(hit-.2,hit,t)*(1-smooth(hit+.12,hit+.85,t));}
 function punchWind(t,hit){return smooth(hit-.85,hit-.35,t)*(1-smooth(hit-.2,hit,t));}
 function controls(i,t){
- const c={crouch:0,lean:0,twist:0,guard:0,raise:0,shift:0,look:dragon.root.position.clone(),face:null};
- if(i===0){for(const hit of [23.4,106.5]){const w=punchWind(t,hit),p=punchAmount(t,hit);c.crouch+=w*.09;c.twist+=w*.28-p*.22;c.lean+=p*.12;c.shift+=-w*.12+p*.08;}if(t>30&&t<40){c.raise=smooth(31.2,32,t)*(1-smooth(37.3,38,t));c.look=V3(-6.5,8,-3.5);}if(t>89&&t<97){c.face=Math.atan2(hurt.x-helper.x,hurt.z-helper.z);c.look=V3(hurt.x,2,hurt.z);c.crouch=.22*(1-smooth(94,96,t));c.lean=.14;}}
- if(i===3&&t>41&&t<60){c.look=crystal.position.clone();c.face=Math.PI;const w=punchWind(t,56.8),p=punchAmount(t,56.8);c.twist=w*.23-p*.18;c.lean=p*.1;c.crouch=w*.07+.18*smooth(56.8,57.0,t)*(1-smooth(58,59,t));}
+ const c={crouch:0,lean:0,twist:0,guard:0,raise:0,shift:0,nod:0,tilt:0,sideLean:0,look:dragonPoint(Math.max(0,t-.16)),face:null},position=tracks[i].at(t).p;
+ const aim=(point,weight)=>{if(weight<=0)return;const original=c.face??Math.atan2(c.look.x-position.x,c.look.z-position.z),desired=Math.atan2(point.x-position.x,point.z-position.z),heading=angle(original,desired,weight),distance=Math.max(2,point.distanceTo(position));c.face=heading;c.look=V3(position.x+Math.sin(heading)*distance,lerp(c.look.y,point.y,weight),position.z+Math.cos(heading)*distance);};
+ if(i===0){
+  for(const hit of [23.4,106.5]){const w=punchWind(t,hit),p=punchAmount(t,hit);c.crouch+=w*.09;c.twist+=w*.28-p*.22;c.lean+=p*.12;c.shift+=-w*.12+p*.08;}
+  aim(V3(0,2.6,9.4),windowAt(3.4,4.1,8.8,9.6,t));c.nod+=nodAt(t,5.8);
+  aim(crystal.position,windowAt(25.2,26.1,33,34,t));c.tilt+=.10*windowAt(26.5,27,30,31,t);
+  aim(tracks[3].at(t).p.clone().add(V3(0,2.6,0)),windowAt(33.5,34.2,37,37.6,t));c.nod+=nodAt(t,36);
+  aim(V3(hurt.x,2,hurt.z),windowAt(84,84.6,96.8,97.8,t));
+  const rescue=windowAt(89.2,90,95,97,t);c.crouch+=.22*rescue;c.lean+=.14*rescue;c.nod+=nodAt(t,96.1);
+  c.crouch+=.14*windowAt(63,63.6,66.2,67,t);
+ }
+ if(i>0){aim(tracks[0].at(t).p.clone().add(V3(0,2.65,0)),windowAt(3.9+i*.07,4.4+i*.07,8.8,9.6,t));if(i===5)c.nod+=nodAt(t,7.5);}
+ if(i===3){
+  aim(tracks[0].at(t).p.clone().add(V3(0,2.65,0)),windowAt(36.8,37.4,39.2,40.1,t));c.nod+=nodAt(t,37.6);
+  if(t>41&&t<60){aim(crystal.position,windowAt(41,41.5,59.5,60,t));const w=punchWind(t,56.8),p=punchAmount(t,56.8);c.twist=w*.23-p*.18;c.lean=p*.1;c.crouch=w*.07+.18*smooth(56.8,57.0,t)*(1-smooth(58,59,t));c.nod+=nodAt(t,51.2)*.45;}
+ }
+ if(i===1&&t>40&&t<43.5){c.twist=.13*Math.sin((t-40)*2.6)*windowAt(40,40.4,42.7,43.5,t);c.nod+=nodAt(t,41);}
  if((i===0||i===1)&&t>13&&t<18)c.guard=smooth(13,13.4,t)*(1-smooth(17,18,t));
  if(t>63&&t<67)c.guard=smooth(63,63.5,t)*(1-smooth(66.4,67,t));
- if((i===1||i===2)&&t>70&&t<79){c.crouch=.1;c.lean=.09;c.guard=.17;}
- if(i===5){c.crouch=.65*smooth(82.4,83.4,t)*(1-smooth(93,96,t));c.lean=.22*smooth(82.4,83.4,t)*(1-smooth(93,96,t));if(t>84&&t<97){c.face=Math.atan2(helper.x-hurt.x,helper.z-hurt.z);c.look=V3(helper.x,2.4,helper.z);}}
- if(i>0&&i<5&&t>84&&t<97)c.look=V3(hurt.x,2,hurt.z);
- if(t>115)c.look=V3(0,2.5,15);
+ if((i===1||i===2)&&t>70&&t<80){const hold=windowAt(70,70.5,79.2,80,t);c.crouch=.07*hold;c.lean=.05*hold;c.guard=.23*hold;for(const hit of (i===1?[72.8,78.2]:[75.4,78.2])){const w=punchWind(t,hit),p=punchAmount(t,hit),sign=i===1?1:-1;c.crouch+=w*.06;c.twist+=sign*(w*.22-p*.18);c.lean+=p*.10;}}
+ if(i===5){const fall=smooth(82.4,83.4,t)*(1-smooth(93,96,t));c.crouch=.65*fall;c.lean=.22*fall;c.sideLean=.23*windowAt(82.4,82.7,83.5,85,t);c.tilt=-.16*windowAt(82.55,82.9,83.9,85,t);aim(V3(helper.x,2.4,helper.z),windowAt(83.8,84.7,96.7,97.7,t));c.nod+=nodAt(t,94.5);}
+ if(i>0&&i<5)aim(V3(hurt.x,2,hurt.z),windowAt(84.5+i*.08,85.1+i*.08,96.5,97.5,t));
+ aim(V3(0,2.5,17),smooth(114.5,115.5,t));
  return c;
 }
 function footTargets(g,tr,t,yaw,walk){
@@ -262,8 +280,10 @@ function poseActor(g,t){
  const feet=footTargets(g,tr,t,yaw,walk),heightDifference=Math.abs(feet[0].floor-feet[1].floor),stairCrouch=Math.min(.27,heightDifference*.55),bob=.025*(1-Math.cos(tr.d/1.3*Math.PI*4))*walk;
  const floor=(feet[0].floor+feet[1].floor)*.5;
  g.root.position.set(tr.p.x+Math.sin(yaw)*c.shift,floor+bob-c.crouch-stairCrouch,tr.p.z+Math.cos(yaw)*c.shift);g.root.rotation.set(0,yaw,0);g.root.visible=true;
- g.body.rotation.set(.022*Math.sin(t*1.65+g.index)+walk*.045+c.lean,c.twist,.012*Math.sin(t*1.2+g.index)*(.4+walk));
- g.head.rotation.set(c.crouch*.15,clamp(angle(0,Math.atan2(c.look.x-tr.p.x,c.look.z-tr.p.z)-yaw-c.twist,1),-.7,.7),.018*Math.sin(t*.9+g.index));
+ g.body.position.y=1.4+.012*Math.sin(t*1.8+g.phase);g.body.rotation.set(.022*Math.sin(t*1.65+g.index)+walk*.045+c.lean,c.twist,.012*Math.sin(t*1.2+g.index)*(.4+walk)+c.sideLean);
+ const pitch=-Math.atan2(c.look.y-(g.root.position.y+2.7),Math.max(.1,Math.hypot(c.look.x-tr.p.x,c.look.z-tr.p.z)));
+ g.head.rotation.set(clamp(pitch*.8,-.36,.25)+c.crouch*.15+c.nod,clamp(angle(0,Math.atan2(c.look.x-tr.p.x,c.look.z-tr.p.z)-yaw-c.twist,1),-.7,.7),.018*Math.sin(t*.9+g.index)+c.tilt);
+ const blinkPhase=(t+g.index*.73)%(4.3+g.index*.13),blink=windowAt(0,.085,.11,.22,blinkPhase);g.lids.forEach(l=>{l.scale.y=.10*blink;l.position.y=.21-.05*blink;});
  for(const arm of g.arms){arm.pivot.rotation.set(.23*Math.sin(tr.d/1.3*Math.PI*2+arm.side*Math.PI+g.phase)*walk-2.30*c.guard-1.55*c.raise,0,arm.side*(.055+.08*c.guard));arm.elbow.rotation.set(-.1-.32*c.guard-.3*c.raise,0,0);}
  g.root.updateMatrixWorld(true);
  for(const f of feet){const local=g.root.worldToLocal(f.target.clone());twoBone(f.leg.hip,f.leg.knee,local,.63,.63,V3(0,0,1));f.leg.foot.quaternion.copy(f.leg.hip.quaternion.clone().multiply(f.leg.knee.quaternion).invert()).multiply(new THREE.Quaternion().setFromAxisAngle(up3,angle(yaw,f.yaw,walk)-yaw));}
@@ -274,14 +294,13 @@ function strike(g,t,hit,target,armIndex=1){
  g.root.updateMatrixWorld(true);const arm=g.arms[armIndex],guard=g.root.localToWorld(V3(arm.side*.75,2.15,.48)),draw=g.root.localToWorld(V3(arm.side*.8,2.25,-.35));
  const wind=punchWind(t,hit),p=punchAmount(t,hit);const point=guard.clone().lerp(draw,wind).lerp(target,p);point.y+=.16*Math.sin(p*Math.PI);blendReach(g,arm,point,smooth(hit-.9,hit-.7,t)*(1-smooth(hit+.85,hit+1,t)));
 }
-function contactAt(time,which='mouth'){poseDragon(time);return which==='mouth'?dragon.mouth.getWorldPosition(V3()):dragon.root.localToWorld(which.clone());}
-const grappleA=contactAt(74,V3(-.85,-1.0,1.35)),grappleB=contactAt(74,V3(.85,-1.0,1.35));
+function teamTarget(index){return dragon.root.localToWorld(V3(index===1?-.85:.85,-1.0,1.35));}
+function pointGesture(g,armIndex,worldPoint,amount){g.root.updateMatrixWorld(true);const arm=g.arms[armIndex],shoulder=arm.pivot.getWorldPosition(V3()),target=worldPoint.clone().sub(shoulder).normalize().multiplyScalar(1.92).add(shoulder);blendReach(g,arm,target,amount);}
 function stageContacts(t){
- strike(golems[0],t,23.4,hitFirst,0);strike(golems[3],t,56.8,V3(-6.5,8,-2.72));strike(golems[0],t,106.5,hitFinal,0);
- if(t>70&&t<79){
-  const blend=smooth(70,71,t)*(1-smooth(78,79,t));
-  for(const [g,point,arm] of [[golems[1],grappleA,0],[golems[2],grappleB,1]])blendReach(g,g.arms[arm],point,blend);
- }
+ strike(golems[0],t,23.4,hitFirst,0);strike(golems[3],t,56.8,V3(-6.5,8,-2.72),0);strike(golems[0],t,106.5,hitFinal,0);
+ for(const [i,hits] of [[1,[72.8,78.2]],[2,[75.4,78.2]]])for(const hit of hits)strike(golems[i],t,hit,teamTarget(i),0);
+ if(t>30.8&&t<36.4)pointGesture(golems[0],0,crystal.position,windowAt(30.8,31.5,35.6,36.4,t));
+ if(t>40&&t<43.4){const g=golems[1],target=g.root.localToWorld(V3(-.8,2.8,.8+.3*Math.sin((t-40)*5)));blendReach(g,g.arms[0],target,windowAt(40,40.4,42.9,43.4,t));}
  if(t>84&&t<91.8){const g=golems[5],p=V3(hurt.x+.45,.14,hurt.z+.65);blendReach(g,g.arms[1],p,smooth(84,84.3,t)*(1-smooth(91,91.8,t)));}
  if(t>90.5&&t<97){
   const grip=V3((helper.x+hurt.x)*.5,lerp(1.7,2.5,smooth(93,96,t)),(helper.z+hurt.z)*.5);
@@ -307,7 +326,7 @@ function effects(t){
  if(active){const origin=dragon.mouth.getWorldPosition(V3()),target=t<20?V3(0,1.3,2):t<50?golems[1].root.position.clone().add(V3(0,1.25,0)):V3(-3,1.7,3);placeBeam(breath,origin,target);breathBits.forEach((m,i)=>{const p=((t*1.45+i*.093)%1),v=origin.clone().lerp(target,p);v.x+=Math.sin(t*9+i)*.28*p;v.y+=Math.cos(t*7+i)*.23*p;m.position.copy(v);m.scale.setScalar(.13+p*.3);});}
  shards.forEach((m,i)=>{const a=t-56.8;m.visible=a>=0&&a<2.2;if(m.visible){const theta=i*2.4,v=1.6+hashS(i,34)*2.4;m.position.set(-6.5+Math.cos(theta)*v*a,8+(1+hashS(i,35)*3)*a-2.8*a*a,-3.5+Math.sin(theta)*v*a);m.rotation.set(i+a*3,i*.3+a*2,0);m.scale.setScalar(.16*(1-a/2.2));m.material.opacity=1-smooth(1.2,2.2,a);}});
  defeat.forEach((m,i)=>{const a=t-111.5;m.visible=a>=0&&a<5.0;if(m.visible){const theta=i*2.399,el=hashS(i,37)*1.6-.5,r=(.5+hashS(i,36)*2)*a;m.position.set(deathOrigin.x+Math.cos(theta)*r,deathOrigin.y+Math.sin(el)*r+a*.5,deathOrigin.z+Math.sin(theta)*r);m.rotation.set(a+i,a*.7,0);m.scale.setScalar((.12+hashS(i,38)*.2)*(1-smooth(3.5,5,a)));m.material.opacity=1-smooth(2.5,5,a);}});
- let event=null;for(const [hit,p] of [[23.4,hitFirst],[56.8,crystal.position],[82.4,tailHit],[106.5,hitFinal]])if(t>=hit&&t<hit+.45)event={hit,p};
+ let event=null;for(const [hit,p] of [[23.4,hitFirst],[56.8,crystal.position],[72.8,teamTarget(1)],[75.4,teamTarget(2)],[78.2,teamTarget(1)],[82.4,tailHit],[106.5,hitFinal]])if(t>=hit&&t<hit+.45)event={hit,p};
  impact.forEach((m,i)=>{m.visible=!!event;if(event){const a=t-event.hit,ang=i*2.4;m.position.copy(event.p).add(V3(Math.sin(ang)*a*4,(hashS(i,39)-.3)*a*4,Math.cos(ang)*a*4));m.scale.setScalar(.08*(1-a/.45));m.material.opacity=(1-a/.45)*.7;}});
  let index=0;for(const g of golems)for(const f of g.feet)for(let k=0;k<5;k++){
   const age=f.phase,visible=age<.13&&tracks[g.index].at(t).speed>.5;
@@ -326,22 +345,20 @@ for(const [start,end,text] of FILM.scenes[SCENE].captions){
  const lines=[];let line='';for(const word of text.split(' ')){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>800&&line){lines.push(line);line=word;}else line=candidate;}if(line)lines.push(line);lines.forEach((s,i)=>{const y=88+(i-(lines.length-1)/2)*48;ctx.strokeText(s,432,y);ctx.fillText(s,432,y);});
  const tx=new THREE.CanvasTexture(cv);tx.colorSpace=THREE.SRGBColorSpace;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.78,.314),new THREE.MeshBasicMaterial({map:tx,transparent:true,depthTest:false,depthWrite:false,fog:false,toneMapped:false}));mesh.position.set(0,-1.06,-4);mesh.renderOrder=2000;mesh.frustumCulled=false;camera.add(mesh);cards.push({start,end,mesh});
 }
-const cameraPlans=[
- [[14,11,28],[0,3,0],[8,8,22],[0,3,-2]],
- [[12,7,18],[0,2,-1],[-9,7,14],[0,3,-2]],
- [[10,6,3],[0,3,-1],[8,5.2,1.4],[0,3,-1.2]],
- [[8,6,17],[0,2.5,1],[-3,9,18],[-4,4,-1]],
- [[14,7,12],[2,3,0],[-14,10,12],[-7,5,-1]],
- [[-13,11,7],[-6.5,7,-3],[-11,10,4],[-6.5,8,-3.5]],
- [[11,8,17],[0,3,-1],[-9,7,14],[-1,3,-2]],
- [[12,7,13],[0,2.8,-3],[8,5,10],[0,3,-4]],
- [[hurt.x+10,6,hurt.z+12],[hurt.x,2,hurt.z],[hurt.x+9,5.5,hurt.z+11],[hurt.x,1.6,hurt.z]],
- [[helper.x+8,5,helper.z+9],[(helper.x+hurt.x)/2,1.8,hurt.z],[helper.x+7,4.8,helper.z+8],[(helper.x+hurt.x)/2,2,hurt.z]],
- [[16,7,5],[6.7,3.8,-.7],[14,6,4],[6.5,3.8,-.8]],
- [[12,10,23],[4,7,-5],[12,9,26],[0,2.5,8]]
-];
+let shotState=null;
+function directorFocus(shot){
+ if(shot.subject==='actor')return golems[shot.actor].root.position.clone().add(V3(0,shot.aim,0));
+ if(shot.subject==='point')return V3(...shot.point);
+ if(shot.subject==='hitFirst'||shot.subject==='hitFinal')return golems[0].root.localToWorld(V3(0,1.8,0)).lerp(dragon.mouth.getWorldPosition(V3()),.5);
+ if(shot.subject==='crystal')return golems[3].root.localToWorld(V3(0,1.9,0)).lerp(crystal.position,.5);
+ if(shot.subject==='dragon')return dragon.root.localToWorld(V3(0,0,1.5));
+ if(shot.subject==='team')return golems[1].root.position.clone().lerp(golems[2].root.position,.5).add(V3(0,2.2,0));
+ if(shot.subject==='hurt')return golems[5].root.position.clone().add(V3(0,1.7,0));
+ return golems[0].root.position.clone().lerp(golems[5].root.position,.5).add(V3(0,1.9,0));
+}
 function cameraAt(t){
- const local=t-SCENE*10,p=cameraPlans[SCENE],q=smooth(0,10,local);camera.position.set(lerp(p[0][0],p[2][0],q),lerp(p[0][1],p[2][1],q),lerp(p[0][2],p[2][2],q));camera.lookAt(lerp(p[1][0],p[3][0],q),lerp(p[1][1],p[3][1],q),lerp(p[1][2],p[3][2],q));camera.updateMatrixWorld();
+ const local=t-SCENE*10,shots=FILM.scenes[SCENE].shots,index=Math.max(0,shots.findIndex(s=>local>=s.start&&local<s.end)),shot=shots[index],target=directorFocus(shot),q=smooth(shot.start,shot.end,local),offset=V3(...shot.offset).multiplyScalar(lerp(1.035,1,q));
+ camera.position.copy(target).add(offset);camera.lookAt(target);camera.updateMatrixWorld(true);shotState={shot,index,target};
 }
 function renderAt(seconds){
  const local=clamp(Number(seconds)||0,0,9.999),t=SCENE*10+local;
