@@ -83,7 +83,8 @@ for i in range(24):
     q=tt(.75);freq=880+173*(i%7);s=(np.sin(2*np.pi*freq*q)+.25*np.sin(2*np.pi*freq*1.414*q))*np.exp(-q*(5+i%4))*(1-np.exp(-q*600))
     add(56.8+i*.035,s,.014,(i%5-2)*.2)
 roar(60.1,1.9,.075)
-for tm in [72.8,75.4,78.2]:thunk(tm,80,.08,True)
+for tm in [72.8,75.4,78.2]:
+    whoosh(tm-.22,.22,.043);impact(tm,.16 if tm<78 else .21)
 whoosh(81.85,.55,.10,.35);impact(82.4,.24);thunk(83.4,87,.13,True,.4)
 for tm in [90.8,92.6,94.4,95.8]:thunk(tm,180,.022,True,.2)
 roar(109.8,2.3,.057);whoosh(111.1,1.7,.10)
