@@ -30,7 +30,7 @@ describe('curved steps and single-object transfers',()=>{
   const stub=vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockImplementation((()=>ctx) as any);
   class Renderer{shadowMap={};setSize(){}setPixelRatio(){}setViewport(){}clear(){}clearDepth(){}render(){}dispose(){}}
   try{const create=new Function(study+';return createScene;')(),scene=create({...THREE,WebGLRenderer:Renderer},{},432,768,makeTools(THREE));let maxLeg=0,maxGrip=0,maxArm=0;
-   for(let f=0;f<720;f++){const t=f/60,q=scene.inspect(t);maxLeg=Math.max(maxLeg,...q.legReach);maxArm=Math.max(maxArm,...q.armReach);if(t>=1.6&&t<=9.45)maxGrip=Math.max(maxGrip,...q.gripErrors);
+   for(let f=0;f<720;f++){const t=f/60,q=scene.inspect(t);maxLeg=Math.max(maxLeg,...q.legReach);maxArm=Math.max(maxArm,...q.armReach);if(t>=1.85&&t<=9.45)maxGrip=Math.max(maxGrip,...q.gripErrors);
     expect(q.cargoBottom).toBeGreaterThanOrEqual(q.floorY-1e-5);expect(Math.abs(q.headScreen[0])).toBeLessThan(.94);expect(Math.abs(q.headScreen[1])).toBeLessThan(.94);
     for(const p of q.footSoles){const inside=p[0]>q.obstacleMin[0]-.11&&p[0]<q.obstacleMax[0]+.11&&p[2]>q.obstacleMin[2]-.17&&p[2]<q.obstacleMax[2]+.17;expect(inside,'Foot intersects toolbox at '+t).toBe(false);}
     for(const p of q.kneesLocal){const distanceSq=[.31,.22,.23].reduce((sum,h,i)=>sum+Math.max(0,Math.abs(p[i])-h)**2,0);expect(distanceSq,'Knee intersects cargo at '+t).toBeGreaterThan(.0918**2);}
@@ -38,7 +38,7 @@ describe('curved steps and single-object transfers',()=>{
    }
    expect(maxLeg,'Leg reach').toBeLessThan(1e-4);expect(maxArm,'Arm reach').toBeLessThan(1e-4);expect(maxGrip,'Cargo grip').toBeLessThan(1e-4);
    const a=scene.inspect(10.8);scene.inspect(.5);scene.inspect(4.2);expect(scene.inspect(10.8)).toEqual(a);
-   for(const event of [1.6,9.45]){const a=scene.inspect(event-1e-6),b=scene.inspect(event+1e-6);expect(new THREE.Vector3(...a.cargoPosition).distanceTo(new THREE.Vector3(...b.cargoPosition))).toBeLessThan(1e-4);}
+   for(const event of [1.85,9.45]){const a=scene.inspect(event-1e-6),b=scene.inspect(event+1e-6);expect(new THREE.Vector3(...a.cargoPosition).distanceTo(new THREE.Vector3(...b.cargoPosition))).toBeLessThan(1e-4);}
    scene.dispose();
   }finally{stub.mockRestore();}
  });

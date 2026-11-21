@@ -218,18 +218,18 @@ export default function Code3DStudio() {
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
-  const loadRecipe = async (kind: 'construction' | 'movement' | 'carry') => {
+  const loadRecipe = async (kind: 'construction' | 'movement' | 'carry' | 'hands') => {
     if (phase === 'generating' || phase === 'importing' || phase === 'loading' || exportingRef.current) return;
     setError(''); setPlaying(false); setPhase('importing');
     try {
       const [{ checkGeneratedCode }, recipe] = await Promise.all([
-        import('../code3d/validation'), kind === 'carry' ? import('../code3d/recipes/carryReview') : kind === 'movement' ? import('../code3d/recipes/walkwayReview') : import('../code3d/recipes/construction'),
+        import('../code3d/validation'), kind === 'hands' ? import('../code3d/recipes/handReview') : kind === 'carry' ? import('../code3d/recipes/carryReview') : kind === 'movement' ? import('../code3d/recipes/walkwayReview') : import('../code3d/recipes/construction'),
       ]);
-      const code = 'buildCarryReviewCode' in recipe ? recipe.buildCarryReviewCode() : 'buildWalkwayReviewCode' in recipe ? recipe.buildWalkwayReviewCode() : recipe.buildConstructionCode();
+      const code = 'buildHandReviewCode' in recipe ? recipe.buildHandReviewCode() : 'buildCarryReviewCode' in recipe ? recipe.buildCarryReviewCode() : 'buildWalkwayReviewCode' in recipe ? recipe.buildWalkwayReviewCode() : recipe.buildConstructionCode();
       const checked = checkGeneratedCode(code);
       if (!checked.ok) throw new Error(checked.detail);
       setLastModel('');
-      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe', label: kind === 'carry' ? 'Entrega na oficina' : kind === 'movement' ? 'Caminhada e encaixes' : 'Modelo de construção' });
+      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe', label: kind === 'hands' ? 'Revisão das mãos' : kind === 'carry' ? 'Entrega na oficina' : kind === 'movement' ? 'Caminhada e encaixes' : 'Modelo de construção' });
     } catch (e) {
       setPhase('error'); setError('Não foi possível abrir a cena: ' + (e instanceof Error ? e.message : String(e)));
     }
@@ -303,6 +303,7 @@ export default function Code3DStudio() {
           <button type="button" disabled={busy} onClick={() => void loadRecipe('construction')}>Carregar construção por etapas</button>
           <button type="button" disabled={busy} onClick={() => void loadRecipe('movement')}>Testar caminhada e escada</button>
           <button type="button" disabled={busy} onClick={() => void loadRecipe('carry')}>Testar entrega na oficina</button>
+          <button type="button" disabled={busy} onClick={() => void loadRecipe('hands')}>Revisar mãos de perto</button>
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE3D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}

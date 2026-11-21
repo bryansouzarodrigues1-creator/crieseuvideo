@@ -1,0 +1,53 @@
+name: Articulated hands through the actual studio
+on:
+  pull_request:
+    branches: [feat/carry-paths-20261121]
+    paths:
+      - src/studio/code3d/**
+      - src/studio/components/Code3DStudio.tsx
+      - scripts/hands-browser.mjs
+      - scripts/fixtures/hands.render.json
+      - .github/workflows/hands-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: hands-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-and-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Hand geometry and compatibility tests
+        run: bun run test
+      - name: Build and typecheck
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Prepare browser and studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/hands-logs
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/hands-logs/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Render hands and check previous contracts
+        run: bun scripts/hands-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hands-real-engine
+          path: |
+            tmp/hands-preview/
+            tmp/hands-full/
+            tmp/hands-logs/
+          retention-days: 14
