@@ -1,7 +1,7 @@
 {
   "title": "A Batalha do End — Parte 2",
   "revision": 2,
-  "source_sha256": "8f28524562c29708446cbd24486f9d526045ad0ab9454b6a67d9d4f27bbc92f2",
+  "source_sha256": "e3136d26f06ebdb2be5fe83a2c7351d4bc487fc3249301f9f3c0060dbfa616fb",
   "duration": 120,
   "scenes": 12,
   "shots": 38,
@@ -54,7 +54,9 @@
     "A camera angle showing both actors during the rescue",
     "Alternating and simultaneous blows with dragon reactions",
     "Leader reaches the protected side of the cover",
-    "Leader steps to the front for the final line"
+    "Leader steps to the front for the final line",
+    "Continuous lateral foot landing heights",
+    "Bounded actor turns and continuous dragon take-off angles"
   ],
   "limits": "A programmed test story, not autonomous Gemini generation or a production deployment. Dialogue is subtitled, with no recorded character voices."
 }

@@ -91,8 +91,8 @@ roar(109.8,2.3,.057);whoosh(111.1,1.7,.10)
 for i in range(30):
     q=tt(1.7);freq=440*2**((i%12)/12);s=np.sin(2*np.pi*freq*q)*np.exp(-q*3.7)*(1-np.exp(-q*50))
     add(111.5+i*.045,s,.010,(i%7-3)*.15)
-q=tt(5);e=np.clip(q/.8,0,1)*np.clip((5-q)/.9,0,1)
-add(115,(np.sin(2*np.pi*164.81*q)+.3*np.sin(2*np.pi*329.63*q))*e,.025)
+q=tt(5.1);e=np.clip(q/.8,0,1)*np.clip((5.1-q)/.9,0,1)
+add(114.9,(np.sin(2*np.pi*164.81*q)+.3*np.sin(2*np.pi*329.63*q))*e,.025)
 fade=np.clip(t/.3,0,1)*np.clip((120-t)/1.2,0,1);out*=fade[:,None]
 peak=float(np.abs(out).max());out*=.80/max(.80,peak)
 with wave.open(str(ROOT/'batalha-end-sound.wav'),'wb') as f:
