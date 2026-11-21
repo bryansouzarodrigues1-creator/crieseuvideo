@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [0]
+        group: [2]
     env:
       CI: 'true'
       QUINTAL_GROUP: ${{ matrix.group }}
