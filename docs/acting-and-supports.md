@@ -12,7 +12,7 @@ The construction study exposed two gaps: people moved as rigid objects, and inte
 - `createPerson`: a mesh rig with knees, elbows, feet, hands, head and facial details; explicit foot and hand targets use world coordinates.
 - `solveTwoBone`: handles coincident targets, unreachable targets and a collinear bend pole; reports residual reach error.
 - `cue` and `stagger`: evaluate from absolute time without storing a previous pose.
-- `aimCamera`: chooses among directions by a ray test toward the specified target. Framing and occlusion of the rest of the body still need image review.
+- `aimCamera`: chooses among directions by a ray test toward the specified target. Optional world-space head/foot/hand points are checked separately, after a native preview exposed a sign covering the head. Framing still needs image review.
 
 The construction recipe uses measured slab tops, proper finished-floor heights, articulated visitors and furniture with legs, seats and backs. Cafe sets enter in a staggered movement rather than all appearing at one threshold. Major footprint changes still require reviewing the model's fixed interior layout.
 

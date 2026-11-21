@@ -38,12 +38,17 @@ describe('fixed scene supports, articulated acting and camera helpers',()=>{
   const s=makeTools(THREE),camera=new THREE.PerspectiveCamera(40,9/16,.1,100),wall=new THREE.Mesh(new THREE.BoxGeometry(10,10,.2),new THREE.MeshBasicMaterial());wall.position.set(0,1,2);
   expect(s.aimCamera(camera,v(0,1,0),[[0,0,1],[1,0,0]],4,[wall])).toBe(1);
  });
+ it('checks the head separately when only the body center is unobstructed',()=>{
+  const s=makeTools(THREE),camera=new THREE.PerspectiveCamera(40,9/16,.1,100),sign=new THREE.Mesh(new THREE.BoxGeometry(4,.5,.2),new THREE.MeshBasicMaterial());sign.position.set(0,1.95,2);
+  expect(s.aimCamera(camera,v(0,1,0),[[0,0,1],[1,0,0]],4,[sign],[v(0,2.5,0)])).toBe(1);
+ });
  it('keeps the new scene self-contained and its arrival/contact repeatable after seeking',()=>{
   expect(checkGeneratedCode(study)).toEqual({ok:true,warnings:[]});
   const ctx=new Proxy({createImageData:(w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)}),measureText:(s:string)=>({width:s.length*10})},{get:(o:any,k)=>k in o?o[k]:()=>{},set:(o:any,k,val)=>{o[k]=val;return true;}});
   const stub=vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockImplementation((()=>ctx) as any);
   class Renderer{shadowMap={};setSize(){}setPixelRatio(){}setViewport(){}setScissor(){}setScissorTest(){}clear(){}clearDepth(){}render(){}dispose(){}}
   try{const create=new Function(study+';return createScene;')();const scene=create({...THREE,WebGLRenderer:Renderer},{},432,768,makeTools(THREE));
+   for(const t of [.1,1.3,2.5,3.6,4.8,5.5,6.5,8.3,10.5,11.7]){const q=scene.inspect(t);expect(q.camera.clear,'Obstructed at '+t).toBe(true);expect(Math.abs(q.headScreen[0])).toBeLessThan(.92);expect(Math.abs(q.headScreen[1])).toBeLessThan(.92);}
    const a=scene.inspect(6.5);scene.inspect(1.5);scene.inspect(10.5);expect(scene.inspect(6.5)).toEqual(a);expect(Math.max(...a.feet)).toBeLessThan(1e-5);expect(a.hand).toBeLessThan(1e-5);close(new THREE.Vector3(...a.rightHand).distanceTo(new THREE.Vector3(...a.grip)),0);scene.dispose();
   }finally{stub.mockRestore();}
  });

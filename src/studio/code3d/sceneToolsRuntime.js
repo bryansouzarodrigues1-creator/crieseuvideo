@@ -74,10 +74,16 @@ function createSceneTools(THREE) {
     }
     pose();return {root,pose,head,feet,hands,diagnostics};
   }
-  function aimCamera(camera,target,directions,span,occluders=[]){
-    target=vec(target);const candidates=Array.isArray(directions[0])?directions:[directions],distance=span/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov)*.5));let chosen=0;
-    for(let i=0;i<candidates.length;i++){const p=target.clone().addScaledVector(vec(candidates[i]).normalize(),distance),direction=target.clone().sub(p),len=direction.length();ray.set(p,direction.normalize());ray.near=.01;ray.far=Math.max(.01,len-.06);occluders.forEach(m=>m.updateWorldMatrix(true,true));if(ray.intersectObjects(occluders.filter(m=>m.visible),true).length===0){chosen=i;break;}if(i===candidates.length-1)chosen=0;}
-    camera.position.copy(target).addScaledVector(vec(candidates[chosen]).normalize(),distance);camera.lookAt(target);camera.updateMatrixWorld(true);return chosen;
+  function aimCamera(camera,target,directions,span,occluders=[],visibilityTargets=[]){
+    target=vec(target);const candidates=Array.isArray(directions[0])?directions:[directions],points=[target,...visibilityTargets.map(vec)];
+    if(!(span>0)||!candidates.length)throw new Error('Enquadramento inválido.');
+    const distance=span/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov)*.5));let chosen=0,best=Infinity;
+    occluders.forEach(m=>m.updateWorldMatrix(true,true));const solids=occluders.filter(m=>m.visible);
+    for(let i=0;i<candidates.length;i++){const direction=vec(candidates[i]);if(direction.lengthSq()<1e-10)throw new Error('Direção de câmera inválida.');const p=target.clone().addScaledVector(direction.normalize(),distance);let blocked=0;
+      for(const point of points){const delta=point.clone().sub(p),len=delta.length();ray.set(p,delta.normalize());ray.near=.01;ray.far=Math.max(.01,len-.06);if(ray.intersectObjects(solids,true).length)blocked++;}
+      if(blocked<best){best=blocked;chosen=i;}if(blocked===0)break;
+    }
+    camera.position.copy(target).addScaledVector(vec(candidates[chosen]).normalize(),distance);camera.lookAt(target);camera.updateMatrixWorld(true);camera.userData.targetVisibility={clear:best===0,blocked:best,selected:chosen};return chosen;
   }
   return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createPerson,aimCamera});
 }
