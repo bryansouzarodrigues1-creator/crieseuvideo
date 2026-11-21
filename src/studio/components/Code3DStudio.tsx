@@ -218,20 +218,20 @@ export default function Code3DStudio() {
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
-  const loadConstruction = async (movement = false) => {
+  const loadRecipe = async (kind: 'construction' | 'movement' | 'carry') => {
     if (phase === 'generating' || phase === 'importing' || phase === 'loading' || exportingRef.current) return;
     setError(''); setPlaying(false); setPhase('importing');
     try {
       const [{ checkGeneratedCode }, recipe] = await Promise.all([
-        import('../code3d/validation'), movement ? import('../code3d/recipes/walkwayReview') : import('../code3d/recipes/construction'),
+        import('../code3d/validation'), kind === 'carry' ? import('../code3d/recipes/carryReview') : kind === 'movement' ? import('../code3d/recipes/walkwayReview') : import('../code3d/recipes/construction'),
       ]);
-      const code = 'buildWalkwayReviewCode' in recipe ? recipe.buildWalkwayReviewCode() : recipe.buildConstructionCode();
+      const code = 'buildCarryReviewCode' in recipe ? recipe.buildCarryReviewCode() : 'buildWalkwayReviewCode' in recipe ? recipe.buildWalkwayReviewCode() : recipe.buildConstructionCode();
       const checked = checkGeneratedCode(code);
       if (!checked.ok) throw new Error(checked.detail);
       setLastModel('');
-      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe', label: movement ? 'Caminhada e encaixes' : 'Modelo de construção' });
+      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe', label: kind === 'carry' ? 'Entrega na oficina' : kind === 'movement' ? 'Caminhada e encaixes' : 'Modelo de construção' });
     } catch (e) {
-      setPhase('error'); setError('Não foi possível abrir a construção: ' + (e instanceof Error ? e.message : String(e)));
+      setPhase('error'); setError('Não foi possível abrir a cena: ' + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -300,8 +300,9 @@ export default function Code3DStudio() {
           <label className="native-3d-small" htmlFor="code3d-import">Reabrir uma cena salva (.js), sem nova geração</label>
           <input id="code3d-import" type="file" accept=".js,.txt,text/javascript,text/plain" disabled={busy}
             onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importCode(file); }} />
-          <button type="button" disabled={busy} onClick={() => void loadConstruction()}>Carregar construção por etapas</button>
-          <button type="button" disabled={busy} onClick={() => void loadConstruction(true)}>Testar caminhada e escada</button>
+          <button type="button" disabled={busy} onClick={() => void loadRecipe('construction')}>Carregar construção por etapas</button>
+          <button type="button" disabled={busy} onClick={() => void loadRecipe('movement')}>Testar caminhada e escada</button>
+          <button type="button" disabled={busy} onClick={() => void loadRecipe('carry')}>Testar entrega na oficina</button>
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE3D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
