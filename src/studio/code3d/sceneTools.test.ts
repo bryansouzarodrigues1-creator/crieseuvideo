@@ -48,7 +48,7 @@ describe('fixed scene supports, articulated acting and camera helpers',()=>{
   const stub=vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockImplementation((()=>ctx) as any);
   class Renderer{shadowMap={};setSize(){}setPixelRatio(){}setViewport(){}setScissor(){}setScissorTest(){}clear(){}clearDepth(){}render(){}dispose(){}}
   try{const create=new Function(study+';return createScene;')();const scene=create({...THREE,WebGLRenderer:Renderer},{},432,768,makeTools(THREE));
-   for(let frame=0;frame<360;frame++){const t=frame/30,q=scene.inspect(t);expect(q.camera.selected).toBe(0);expect(q.camera.clear,'Obstructed at '+t).toBe(true);expect(Math.abs(q.headScreen[0])).toBeLessThan(.92);expect(Math.abs(q.headScreen[1])).toBeLessThan(.92);}
+   for(let frame=0;frame<360;frame++){const t=frame/30,q=scene.inspect(t);expect(q.camera.selected).toBe(0);expect(q.camera.clear,'Obstructed at '+t).toBe(true);expect(Math.abs(q.headScreen[0])).toBeLessThan(.92);expect(Math.abs(q.headScreen[1])).toBeLessThan(.92);if(t<4.9)expect(q.cameraPosition[0],'Walking camera must clear the moving stair mechanism').toBeLessThan(-1.2);}
    const a=scene.inspect(6.5);scene.inspect(1.5);scene.inspect(10.5);expect(scene.inspect(6.5)).toEqual(a);expect(Math.max(...a.feet)).toBeLessThan(1e-5);expect(a.hand).toBeLessThan(1e-5);close(new THREE.Vector3(...a.rightHand).distanceTo(new THREE.Vector3(...a.grip)),0);scene.dispose();
   }finally{stub.mockRestore();}
  });
