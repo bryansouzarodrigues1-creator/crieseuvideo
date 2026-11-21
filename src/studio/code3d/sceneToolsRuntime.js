@@ -91,7 +91,7 @@ function createSceneTools(THREE) {
     function limb(material,radius){const upper=mesh(root,new THREE.CylinderGeometry(radius,radius*.94,1,10),material,0,0,0),lower=mesh(root,new THREE.CylinderGeometry(radius*.89,radius*.8,1,10),material,0,0,0),joint=mesh(root,new THREE.SphereGeometry(radius*1.08,10,8),material,0,0,0);return {upper,lower,joint};}
     const legs=[limb(trousers,.085),limb(trousers,.085)],arms=[limb(shirt,.065),limb(shirt,.065)],feet=[],hands=[];
     for(let i=0;i<2;i++){const foot=new THREE.Group();mesh(foot,new THREE.BoxGeometry(.205,.12,.33),shoes,0,-.055,.065);const sole=new THREE.Object3D();sole.position.set(0,-.115,0);foot.add(sole);root.add(foot);feet.push({group:foot,sole});hands.push(mesh(root,new THREE.SphereGeometry(.064,12,10),skin,0,0,0));}
-    const diagnostics={feet:[0,0],hands:[0,0],legReach:[0,0],armReach:[0,0]};
+    const diagnostics={feet:[0,0],hands:[0,0],legReach:[0,0],armReach:[0,0],knees:[]};
     function segment(m,a,b){const delta=b.clone().sub(a),length=delta.length();m.position.copy(a).add(b).multiplyScalar(.5);m.scale.y=Math.max(1e-6,length);m.quaternion.setFromUnitVectors(up,delta.lengthSq()>1e-12?delta.normalize():down);}
     function updateLimb(limb,start,target,pole,a,b){const solved=solveTwoBone(start,target,pole,a,b);segment(limb.upper,start,solved.joint);segment(limb.lower,solved.joint,solved.end);limb.joint.position.copy(solved.joint);return solved;}
     function pose(o={}){
@@ -108,7 +108,7 @@ function createSceneTools(THREE) {
         const handData=i===0?o.leftHand:o.rightHand,handTarget=handData?root.worldToLocal(vec(handData)):new THREE.Vector3((i===0?-1:1)*.40,.94,swing+.08);
         const arm=updateLimb(arms[i],shoulder,handTarget,new THREE.Vector3((i===0?-1:1)*.7,1.05,.35),.34,.33);hands[i].position.copy(arm.end);diagnostics.armReach[i]=arm.error;diagnostics.hands[i]=arm.end.distanceTo(handTarget)*(options.scale||1);
       }
-      root.updateWorldMatrix(true,true);return diagnostics;
+      root.updateWorldMatrix(true,true);diagnostics.knees=legs.map(l=>l.joint.getWorldPosition(new THREE.Vector3()).toArray());return diagnostics;
     }
     pose();return {root,pose,head,feet,hands,diagnostics};
   }
