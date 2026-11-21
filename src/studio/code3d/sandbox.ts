@@ -107,7 +107,7 @@ for(const k of ['fetch','XMLHttpRequest','WebSocket','EventSource','RTCPeerConne
 }
 try{Object.defineProperty(navigator,'sendBeacon',{value:undefined});}catch(_){}
 const canvas=document.getElementById('c');
-let scene=null,failed=false,initializing=false,duration=DEF,THREE=null;
+let scene=null,failed=false,initializing=false,duration=DEF,THREE=null,sceneTools=null;
 const urls=[];
 const dispose=()=>{failed=true;try{scene?.dispose?.();}catch(_){}scene=null;for(const u of urls)URL.revokeObjectURL(u);urls.length=0;};
 addEventListener('pagehide',dispose,{once:true});
@@ -127,19 +127,21 @@ addEventListener('message',async ev=>{
   if(d.type==='init'){
     if(initializing||THREE||failed)return;
     initializing=true;
-    if(typeof d.code!=='string'||typeof d.core!=='string'||typeof d.module!=='string')return fail('load','init inválido');
+    if(typeof d.code!=='string'||typeof d.core!=='string'||typeof d.module!=='string'||typeof d.tools!=='string'||d.tools.length>60000)return fail('load','init inválido');
     const w=d.width|0,h=d.height|0;
     if(w<64||h<64||w>1920||h>1920)return fail('load','tamanho inválido');
     canvas.width=w;canvas.height=h;
     try{
       const core=url(d.core);
       THREE=await import(url(bindCore(d.module,core)));
+      const toolkit=await import(url(d.tools+'\\n;export default createSceneTools;'));
+      sceneTools=toolkit.default(THREE);
     }catch(e){return fail('library',e);}
     let createScene;
     try{createScene=(await import(url(d.code+'\\n;export default (typeof createScene==="function"?createScene:null);'))).default;}
     catch(e){return fail('syntax',e);}
     if(typeof createScene!=='function')return fail('contract','createScene(THREE, canvas, width, height) não foi definida.');
-    try{scene=await createScene(THREE,canvas,w,h);}catch(e){return fail('runtime',e);}
+    try{scene=await createScene(THREE,canvas,w,h,sceneTools);}catch(e){return fail('runtime',e);}
     if(!scene||typeof scene.renderAt!=='function'||typeof scene.dispose!=='function')return fail('contract','createScene deve retornar { renderAt(t), dispose() }.');
     const dur=scene.duration===undefined?DEF:scene.duration;
     if(typeof dur!=='number'||!Number.isFinite(dur)||dur<MIN||dur>MAX)return fail('contract','duration deve ficar entre '+MIN+' e '+MAX+' s.');
