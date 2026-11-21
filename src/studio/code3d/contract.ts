@@ -69,7 +69,7 @@ RECURSOS FIXOS OPCIONAIS (tools, versão 1)
 - tools.solveTwoBone(inicio,alvo,polo,comprimento1,comprimento2): resolve junta e ponta com limites de alcance; confira error antes de afirmar contato.
 - tools.aimCamera(camera,alvo,[[dir1],[dir2]],alturaVisivel,[malhasQuePodemObstruir],[pontosMundiaisDaCabecaPesEMaos]): escolhe a primeira direção sem obstrução até o alvo e os pontos adicionais. Inclua placas, paredes e plantas sólidas na lista de obstáculos. Avalie a trajetória inteira e fixe uma direção por plano. Evite alternar ângulos a cada quadro por causa de um poste fino; isso cria saltos de câmera. Faça ainda revisão dos quadros e do enquadramento.
 - Personagem, peças, apoios e câmera continuam sob direção do roteiro. Estas funções não substituem escolher ações, compor a cena e conferir contatos e alcance.
-- pose também aceita crouch (abaixamento do quadril), effort (0 a 1 para sobrancelhas/boca), e pitch/yaw nos dados dos pés. A orientação do sapato preserva o alvo da sola.
+- pose também aceita crouch (abaixamento do quadril), kneeSpread (0 a 1.2 para abrir os joelhos na pega baixa), effort (0 a 1 para sobrancelhas/boca), e pitch/yaw nos dados dos pés. A orientação do sapato preserva o alvo da sola.
 
 QUALIDADE ESPERADA
 - Cenário completo e coerente com o roteiro, com várias peças complexas montadas em hierarquias (THREE.Group): estruturas, veículos, máquinas, pessoas estilizadas, objetos de fundo.

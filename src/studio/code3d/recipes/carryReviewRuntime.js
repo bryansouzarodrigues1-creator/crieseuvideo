@@ -15,7 +15,16 @@ function createScene(THREE,canvas,width,height,tools){
  // Fine floor seams, with a clear central transport lane.
  for(let x=-4;x<=4;x+=1)box(scene,mat(0xb9bba9),x,floorY+.001,0,.012,.002,9.1,false);
  for(let z=-4;z<=4;z+=1)box(scene,mat(0xb9bba9),0,floorY+.001,z,8.3,.002,.012,false);
- box(scene,cream,0,2.05,4.5,8.4,4.1,.18);box(scene,blue,-4.15,1.2,1,.16,2.4,6.8);
+ box(scene,cream,0,2.05,4.5,8.4,4.1,.18);box(scene,blue,-4.15,1.7,1,.16,3.4,6.8);
+ // The open right-hand camera sees the side work area behind the actor.
+ box(scene,cream,-4.045,2.20,-1.20,.035,.98,1.65);box(scene,mat(0x9bc8c5),-4.02,2.20,-1.20,.025,.82,1.48);
+ for(const z of [-1.92,-1.20,-.48])box(scene,cream,-3.99,2.20,z,.055,.88,.045);
+ box(scene,cream,-3.99,2.20,-1.20,.055,.045,1.48);
+ const sideBoard=box(scene,dark,-4.02,1.92,1.2,.06,1.24,1.8);
+ for(let i=0;i<4;i++){const z=.55+i*.43;tube(scene,[-3.94,1.61,z],[-3.94,2.16,z],.024,metal);const ring=new THREE.Mesh(new THREE.TorusGeometry(.075,.022,6,16),metal);ring.rotation.y=Math.PI/2;ring.position.set(-3.94,2.2,z);scene.add(ring);}
+ box(scene,wood,-3.49,floorY+.96,1.2,.94,.12,2.05);for(const z of [.37,2.03])for(const x of [-3.85,-3.14])box(scene,dark,x,floorY+.44,z,.07,.88,.07);
+ box(scene,blue,-3.50,floorY+.55,1.4,.72,.7,.7);for(const y of [.43,.68])box(scene,metal,-3.125,floorY+y,1.4,.018,.035,.26,false);
+ box(scene,red,-3.48,floorY+1.18,1.7,.4,.3,.36);box(scene,metal,-3.48,floorY+1.38,1.7,.18,.1,.12);
  for(const x of [-3.4,0,3.4])box(scene,blue,x,2.05,4.37,.12,4.1,.08);
  const sign=label('OFICINA  /  ENTREGA',3.5,.6);sign.position.set(-.6,3.34,4.38);scene.add(sign);
  // Workbench with real legs, apron, top and a measured placement surface.
@@ -38,7 +47,7 @@ function createScene(THREE,canvas,width,height,tools){
  for(const x of [-.31,.31]){box(cargo,edge,x,.08,0,.028,.10,.18,false);tube(cargo,[x*1.1,.08,-.06],[x*1.1,.08,.06],.018,dark);}
  const cargoLabel=label('CUIDADO',.25,.085,'#f7e8ba','#624b35');cargoLabel.position.set(.12,.025,.238);cargo.add(cargoLabel);
  const actor=tools.createPerson({shirt:0xeeb94d,trousers:0x345f70,helmet:0xf4c34e});scene.add(actor.root);
- const route=tools.createWalkPath([[-1.4,floorY,-2.7],[-1.4,floorY,-2.35],[.10,floorY,-1.45],[.22,floorY,-.35],[.05,floorY,.45],[-1.25,floorY,.70],[-1.25,floorY,1.10]]);
+ const route=tools.createWalkPath([[-1.4,floorY,-1.9],[-1.4,floorY,-1.65],[-.20,floorY,-1.15],[-.10,floorY,-.30],[-.30,floorY,.45],[-1.25,floorY,.70],[-1.25,floorY,1.10]]);
  const pickup=1.6,release=9.45,grips=[[-.345,.08,0],[.345,.08,0]],qUp=V([0,1,0]);
  function bodyAt(t){const d=route.length*C(t,3.05,7.85),s=route.at(d),walk=t>3.05&&t<7.85?Math.sin(Math.PI*tools.progress(t,3.05,7.85)):0;return {distance:d,position:s.point,yaw:s.yaw,walk};}
  const initialBody=bodyAt(0),initialQ=new THREE.Quaternion().setFromAxisAngle(qUp,initialBody.yaw),initialPosition=initialBody.position.clone().add(V([0,.22,.55]).applyQuaternion(initialQ));
@@ -55,17 +64,17 @@ function createScene(THREE,canvas,width,height,tools){
  function renderAt(t){
   t=tools.clamp(Number(t)||0,0,11.999);const b=bodyAt(t),gait=tools.walkOnPath({path:route,distance:b.distance,stride:.82,width:.28,lift:.11,surface:'workshop',settle:C(t,7.85,8.28)});
   actor.root.position.copy(b.position);actor.root.rotation.y=b.yaw;actor.root.updateWorldMatrix(true,true);transfer.apply(t);const contacts=tools.objectGrips(cargo,grips);
-  const reach=C(t,.7,pickup),detach=C(t,9.55,10.25),crouch=.54*C(t,.7,1.5)*(1-C(t,2.18,3.02))+.075*b.walk;
+  const reach=C(t,.7,pickup),detach=C(t,9.55,10.25),crouch=.54*C(t,.7,1.5)*(1-C(t,2.18,3.02))+.13*b.walk;
   const lean=.32*C(t,.7,1.5)*(1-C(t,2.18,3.02))+.055*b.walk+.22*C(t,8.0,8.8)*(1-C(t,9.6,10.3));
   const rests=[[-.40,.94,.08],[.40,.94,.08]].map(p=>actor.root.localToWorld(V(p)));
   let hands=rests.map((r,i)=>r.clone().lerp(contacts[i],reach*(1-detach)));
   const wipe=C(t,10.45,10.95)*(1-C(t,11.2,11.8));hands[1].lerp(actor.root.localToWorld(V([.22,1.65,.23])),wipe);
-  const diagnostics=actor.pose({time:t,leftFoot:gait.left,rightFoot:gait.right,leftHand:hands[0],rightHand:hands[1],phase:gait.phase,swing:0,crouch,lean,effort:C(t,1.0,1.4)*(1-C(t,9.5,10.2)),lookPitch:.38*C(t,.65,1.45)*(1-C(t,2.2,3.0))+.10*C(t,8.2,9)*(1-C(t,9.5,10.1)),lookYaw:.25*wipe,bob:Math.sin(gait.phase*2)*.009*b.walk});
+  const diagnostics=actor.pose({time:t,leftFoot:gait.left,rightFoot:gait.right,leftHand:hands[0],rightHand:hands[1],phase:gait.phase,swing:0,crouch,lean,kneeSpread:1.15*C(t,.7,1.5)*(1-C(t,2.18,3.02)),effort:C(t,1.0,1.4)*(1-C(t,9.5,10.2)),lookPitch:.38*C(t,.65,1.45)*(1-C(t,2.2,3.0))+.10*C(t,8.2,9)*(1-C(t,9.5,10.1)),lookYaw:.25*wipe,bob:Math.sin(gait.phase*2)*.009*b.walk});
   let target,dir,span,shot;if(t<.7){shot=0;target=V([-.45,1.0,-.65]);dir=[1,.62,.65];span=5.3;}else if(t<3.05){shot=1;target=b.position.clone().add(V([0,.75,.22]));dir=[1,.45,.65];span=3.25;}else if(t<8.1){shot=2;target=b.position.clone().add(V([0,.90,.15]));dir=[1,.48,.32];span=3.8;}else if(t<10.35){shot=3;target=b.position.clone().add(V([0,1.0,.34]));dir=[1,.44,.22];span=3.45;}else{shot=4;target=b.position.clone().add(V([0,1.14,.05]));dir=[1,.33,.55];span=3.0;}
   const head=actor.head.getWorldPosition(new THREE.Vector3());tools.aimCamera(camera,target,[dir],span,solids,[head,cargo.getWorldPosition(new THREE.Vector3())]);
   renderer.setViewport(0,0,width,height);renderer.clear();renderer.render(scene,camera);
-  ctx.clearRect(0,0,width,height);ctx.fillStyle='#234651';ctx.beginPath();ctx.roundRect(width*.12,height*.05,width*.76,height*.065,12);ctx.fill();text('PARECIA LEVE...',width/2,height*.083,.048);text('TESTE DE ATUAÇÃO  /  OFICINA',width/2,height*.133,.022,'#29434b');
-  const caption=t<.9?'Só levar até a mesa.':t<2.25?'Opa... pesa!':t<3.3?'Duas mãos. Agora vai.':t<5.6?'Devagar...':t<7.9?'Tem coisa no caminho.':t<9.5?'Apoiar primeiro.':t<10.35?'Soltar depois.':'Pronto. Ufa!';text(caption,width/2,height*.805,.043,'#ffffff');texture.needsUpdate=true;renderer.clearDepth();renderer.render(hudScene,hudCam);
+  ctx.clearRect(0,0,width,height);ctx.fillStyle='#234651';ctx.beginPath();ctx.roundRect(width*.12,height*.05,width*.76,height*.065,12);ctx.fill();text('PARECIA LEVE...',width/2,height*.083,.048);ctx.font='800 '+Math.round(width*.025)+'px sans-serif';ctx.fillStyle='#29434b';ctx.fillText('TESTE DE ATUAÇÃO  /  OFICINA',width/2,height*.135);
+  const caption=t<.9?'Só levar até a mesa.':t<2.25?'Opa... pesa!':t<3.3?'Duas mãos. Agora vai.':t<4.6?'Devagar...':t<7.9?'Tem coisa no caminho.':t<9.5?'Apoiar primeiro.':t<10.35?'Soltar depois.':'Pronto. Ufa!';text(caption,width/2,height*.805,.043,'#ffffff');texture.needsUpdate=true;renderer.clearDepth();renderer.render(hudScene,hudCam);
   const cargoBounds=new THREE.Box3().setFromObject(cargo),obstacleBounds=new THREE.Box3().setFromObject(obstacle);
   lastDiagnostic={time:t,shot,phase:transfer.phase(t),position:b.position.toArray(),yaw:b.yaw,distance:b.distance,pathLength:route.length,feet:diagnostics.feet.slice(),legReach:diagnostics.legReach.slice(),armReach:diagnostics.armReach.slice(),gripErrors:actor.hands.map((h,i)=>h.getWorldPosition(new THREE.Vector3()).distanceTo(contacts[i])),footSoles:actor.feet.map(f=>f.sole.getWorldPosition(new THREE.Vector3()).toArray()),planted:[gait.left.planted,gait.right.planted],cargoPosition:cargo.position.toArray(),cargoBottom:cargoBounds.min.y,obstacleMin:obstacleBounds.min.toArray(),obstacleMax:obstacleBounds.max.toArray(),floorY,tableY,headScreen:head.project(camera).toArray(),camera:camera.userData.targetVisibility};
  }

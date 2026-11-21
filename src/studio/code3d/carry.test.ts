@@ -30,7 +30,7 @@ describe('curved steps and single-object transfers',()=>{
   const stub=vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockImplementation((()=>ctx) as any);
   class Renderer{shadowMap={};setSize(){}setPixelRatio(){}setViewport(){}clear(){}clearDepth(){}render(){}dispose(){}}
   try{const create=new Function(study+';return createScene;')(),scene=create({...THREE,WebGLRenderer:Renderer},{},432,768,makeTools(THREE));let maxLeg=0,maxGrip=0,maxArm=0;
-   for(let f=0;f<360;f++){const t=f/30,q=scene.inspect(t);maxLeg=Math.max(maxLeg,...q.legReach);maxArm=Math.max(maxArm,...q.armReach);if(t>=1.6&&t<=9.45)maxGrip=Math.max(maxGrip,...q.gripErrors);
+   for(let f=0;f<720;f++){const t=f/60,q=scene.inspect(t);maxLeg=Math.max(maxLeg,...q.legReach);maxArm=Math.max(maxArm,...q.armReach);if(t>=1.6&&t<=9.45)maxGrip=Math.max(maxGrip,...q.gripErrors);
     expect(q.cargoBottom).toBeGreaterThanOrEqual(q.floorY-1e-5);expect(Math.abs(q.headScreen[0])).toBeLessThan(.94);expect(Math.abs(q.headScreen[1])).toBeLessThan(.94);
     for(const p of q.footSoles){const inside=p[0]>q.obstacleMin[0]-.11&&p[0]<q.obstacleMax[0]+.11&&p[2]>q.obstacleMin[2]-.17&&p[2]<q.obstacleMax[2]+.17;expect(inside,'Foot intersects toolbox at '+t).toBe(false);}
     if(t>=9.45)expect(Math.abs(q.cargoBottom-q.tableY)).toBeLessThan(1e-5);

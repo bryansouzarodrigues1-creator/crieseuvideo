@@ -102,7 +102,7 @@ function createSceneTools(THREE) {
         const footData=i===0?o.leftFoot:o.rightFoot,desired=vec(footData&&footData.point?footData.point:footData||root.localToWorld(new THREE.Vector3((i===0?-1:1)*.14,0,0)));
         const pitch=footData&&footData.pitch||0;if(footData&&Number.isFinite(footData.yaw)){const worldQ=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch,footData.yaw,0,'YXZ'));feet[i].group.quaternion.copy(root.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(worldQ));}else feet[i].group.rotation.set(pitch,0,0,'YXZ');
         const local=root.worldToLocal(desired.clone()),soleOffset=new THREE.Vector3(0,-.115,0).applyQuaternion(feet[i].group.quaternion),target=local.clone().sub(soleOffset),hip=root.worldToLocal(hipMarkers[i].getWorldPosition(new THREE.Vector3()));
-        const solved=updateLimb(legs[i],hip,target,new THREE.Vector3(hip.x,.35,hip.z+.7),.46,.45);feet[i].group.position.copy(solved.end);root.updateWorldMatrix(true,true);
+        const spread=clamp(o.kneeSpread||0,0,1.2),solved=updateLimb(legs[i],hip,target,new THREE.Vector3(hip.x+(i===0?-1:1)*spread,.35,hip.z+.7-spread*.2),.46,.45);feet[i].group.position.copy(solved.end);root.updateWorldMatrix(true,true);
         diagnostics.legReach[i]=solved.error;diagnostics.feet[i]=feet[i].sole.getWorldPosition(new THREE.Vector3()).distanceTo(desired);
         const shoulder=root.worldToLocal(shoulderMarkers[i].getWorldPosition(new THREE.Vector3())),swing=Math.sin(o.phase||0)*(i===0?1:-1)*(o.swing===undefined?.22:o.swing);
         const handData=i===0?o.leftHand:o.rightHand,handTarget=handData?root.worldToLocal(vec(handData)):new THREE.Vector3((i===0?-1:1)*.40,.94,swing+.08);
