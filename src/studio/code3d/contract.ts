@@ -51,12 +51,22 @@ export function code3dPrompt(script: string, aspect: Code3DAspect): string {
 Escreva UM programa JavaScript que anime a cena descrita no roteiro abaixo.
 
 CONTRATO OBRIGATÓRIO
-- Defina no nível superior: function createScene(THREE, canvas, width, height) { ... }
+- Defina no nível superior: function createScene(THREE, canvas, width, height, tools) { ... }. O quinto argumento é uma biblioteca fixa de movimento e apoios; cenas antigas com quatro argumentos continuam válidas.
 - THREE é o módulo three.js já carregado. Não use import, export, require, addons (OrbitControls, GLTFLoader, etc.), fetch, XMLHttpRequest, WebSocket, eval, texturas/fontes/arquivos externos ou rede. Nada fora do canvas recebido (pode criar canvas temporários só para CanvasTexture procedural).
 - Crie o renderer assim: new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); renderer.setSize(width, height, false). Tamanho base: ${width}x${height} (${aspect}). O player também pode pedir HD: use sempre os parâmetros width e height, sem fixar a resolução no código.
 - Retorne { duration, renderAt(t), dispose() } com duration entre ${CODE3D_MIN_DURATION} e ${CODE3D_MAX_DURATION} segundos.
 - renderAt(t) recebe o tempo ABSOLUTO em segundos e deve: posicionar todos os objetos, câmera e luzes calculando tudo a partir de t, e então chamar renderer.render(scene, camera). Precisa ser determinística: chamar renderAt(5) depois de renderAt(9) dá exatamente a mesma imagem. Proibido: Date, performance.now, requestAnimationFrame, setTimeout, Math.random dentro de renderAt, acumular estado entre quadros. Se precisar de aleatoriedade, use um PRNG com semente fixa só dentro de createScene.
 - dispose() libera geometrias, materiais, texturas e o renderer.
+
+RECURSOS FIXOS OPCIONAIS (tools, versão 1)
+- tools.cue(t,inicio,fim) e tools.stagger(t,inicio,fim,indice,total): transições puras por tempo absoluto. Não suavize a câmera acumulando camera.position.lerp(alvo, 0.16) por quadro.
+- tools.registerSurface(id,mesh), tools.surfaceTop(mesh), tools.supportAt(id,x,z): registram o apoio real e consultam sua altura; supportAt retorna Vector3 ou null dentro de um vão.
+- tools.placeOnSurface(objeto,id,x,z): apoia o limite inferior real de um objeto na superfície registrada. Usa coordenadas mundiais.
+- tools.walkFeet({distance,origin:[x,y,z],direction:[x,0,z],stride:1.12,width:.28,lift:.115,limit, surface:id}): retorna {left,right,phase}; cada pé tem point (Vector3), planted e pitch. A distância é percorrida ao longo da direção, não o relógio. Na fase planted, a âncora do pé fica fixa no piso.
+- tools.createPerson({shirt:0xf4c34e,trousers:0x31586c,helmet:0xf1c13d,scale:1}): retorna {root,pose,head,feet,hands,diagnostics}. Adicione root à cena. Depois de posicionar root, chame pose({time:t,leftFoot:gait.left,rightFoot:gait.right,phase:gait.phase,swing:.2,lean:.04,rightHand:Vector3 opcional,leftHand:Vector3 opcional,lookYaw:0,lookPitch:0}). Pés e mãos explícitos são alvos mundiais. Sem alvos de mão, os braços acompanham phase.
+- tools.solveTwoBone(inicio,alvo,polo,comprimento1,comprimento2): resolve junta e ponta com limites de alcance; confira error antes de afirmar contato.
+- tools.aimCamera(camera,alvo,[[dir1],[dir2]],alturaVisivel,[malhasQuePodemObstruir],[pontosMundiaisDaCabecaPesEMaos]): escolhe a primeira direção sem obstrução até o alvo e os pontos adicionais. Inclua placas, paredes e plantas sólidas na lista de obstáculos. Avalie a trajetória inteira e fixe uma direção por plano. Evite alternar ângulos a cada quadro por causa de um poste fino; isso cria saltos de câmera. Faça ainda revisão dos quadros e do enquadramento.
+- Personagem, peças, apoios e câmera continuam sob direção do roteiro. Estas funções não substituem escolher ações, compor a cena e conferir contatos e alcance.
 
 QUALIDADE ESPERADA
 - Cenário completo e coerente com o roteiro, com várias peças complexas montadas em hierarquias (THREE.Group): estruturas, veículos, máquinas, pessoas estilizadas, objetos de fundo.

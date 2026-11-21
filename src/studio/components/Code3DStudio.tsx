@@ -18,7 +18,7 @@ const STAGE_TEXT: Record<string, string> = {
   runtime: 'erro durante a execução do código gerado',
 };
 type Phase = 'idle' | 'generating' | 'importing' | 'loading' | 'ready' | 'error';
-type Generated = { code: string; model: string; warnings: string[]; source: 'gemini' | 'imported' | 'recipe' };
+type Generated = { code: string; model: string; warnings: string[]; label?: string; source: 'gemini' | 'imported' | 'recipe' };
 
 export default function Code3DStudio() {
   const [script, setScript] = useState(SAMPLE);
@@ -106,7 +106,7 @@ export default function Code3DStudio() {
           const { threeSources } = await import('../code3d/threeSources');
           if (!active) return;
           // Bind init to this exact load; an old async import cannot initialize a new iframe.
-          frameWindow?.postMessage({ type: 'init', token: sandbox.token, core: threeSources.core, module: threeSources.module, code: result.code, width: size.width, height: size.height }, '*');
+          frameWindow?.postMessage({ type: 'init', token: sandbox.token, core: threeSources.core, module: threeSources.module, tools: threeSources.tools, code: result.code, width: size.width, height: size.height }, '*');
         } catch {
           if (!active) return;
           ready = true; window.clearTimeout(watchdog);
@@ -218,18 +218,18 @@ export default function Code3DStudio() {
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
-  const loadConstruction = async () => {
+  const loadConstruction = async (movement = false) => {
     if (phase === 'generating' || phase === 'importing' || phase === 'loading' || exportingRef.current) return;
     setError(''); setPlaying(false); setPhase('importing');
     try {
-      const [{ buildConstructionCode }, { checkGeneratedCode }] = await Promise.all([
-        import('../code3d/recipes/construction'), import('../code3d/validation'),
+      const [{ checkGeneratedCode }, recipe] = await Promise.all([
+        import('../code3d/validation'), movement ? import('../code3d/recipes/walkwayReview') : import('../code3d/recipes/construction'),
       ]);
-      const code = buildConstructionCode();
+      const code = 'buildWalkwayReviewCode' in recipe ? recipe.buildWalkwayReviewCode() : recipe.buildConstructionCode();
       const checked = checkGeneratedCode(code);
       if (!checked.ok) throw new Error(checked.detail);
       setLastModel('');
-      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe' });
+      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe', label: movement ? 'Caminhada e encaixes' : 'Modelo de construção' });
     } catch (e) {
       setPhase('error'); setError('Não foi possível abrir a construção: ' + (e instanceof Error ? e.message : String(e)));
     }
@@ -287,8 +287,8 @@ export default function Code3DStudio() {
           </button>
           <label htmlFor="code3d-quality">Qualidade do vídeo</label>
           <select id="code3d-quality" value={quality} disabled={busy} onChange={e => setQuality(e.target.value as Code3DQuality)}>
-            <option value="preview">Rápido · 432 × 768 · 24 fps</option>
-            <option value="hd">HD · 720 × 1280 · 30 fps</option>
+            <option value="preview">Rápido · {aspect === '9:16' ? '432 × 768' : '768 × 432'} · 24 fps</option>
+            <option value="hd">HD · {aspect === '9:16' ? '720 × 1280' : '1280 × 720'} · 30 fps</option>
           </select>
           <label htmlFor="code3d-model">Modelo Gemini</label>
           <select id="code3d-model" value={modelChoice} disabled={busy} onChange={e => setModelChoice(e.target.value as Code3DModelChoice)}>
@@ -301,6 +301,7 @@ export default function Code3DStudio() {
           <input id="code3d-import" type="file" accept=".js,.txt,text/javascript,text/plain" disabled={busy}
             onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importCode(file); }} />
           <button type="button" disabled={busy} onClick={() => void loadConstruction()}>Carregar construção por etapas</button>
+          <button type="button" disabled={busy} onClick={() => void loadConstruction(true)}>Testar caminhada e escada</button>
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE3D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
@@ -315,7 +316,7 @@ export default function Code3DStudio() {
           )}
           {error && <p className="native-3d-error" role="alert">{error}</p>}
           <p className="native-3d-small" aria-live="polite">
-            {result?.source === 'imported' ? 'Código importado · nenhuma chamada à IA' : result?.source === 'recipe' ? 'Modelo de construção · nenhuma chamada à IA' : `Provedor: Gemini direto${lastModel ? ` · modelo ${lastModel}` : ''}`} · estado: {{
+            {result?.source === 'imported' ? 'Código importado · nenhuma chamada à IA' : result?.source === 'recipe' ? `${result.label || 'Modelo de construção'} · nenhuma chamada à IA` : `Provedor: Gemini direto${lastModel ? ` · modelo ${lastModel}` : ''}`} · estado: {{
               idle: 'aguardando', generating: 'gerando código', importing: 'abrindo código salvo', loading: 'executando na caixa isolada', ready: 'pronto', error: 'falhou',
             }[phase]}
           </p>
