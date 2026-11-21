@@ -43,7 +43,8 @@ try{
   let previous=-1;for(const t of samples){const base=Math.floor(t/10)*10;if(base!==previous){await load(base,10);previous=base;}await capture('scene-'+String(t).padStart(3,'0'),t-base,t);}
   await load(28,8);await exportNative('Quintal_Teste_Agua_8s',8,28);
  }else{
-  for(let i=0;i<24;i++){if(i%groups!==group)continue;const offset=i*10,duration=i===23?8:10;await load(offset,duration);await capture('clip-'+String(i).padStart(2,'0'),Math.min(4,duration-.5),offset+4);await exportNative('Quintal_Cena_'+String(i).padStart(2,'0'),duration,offset);}
+  const extra=[42,76,95,101,107,114,122,129,135,140,148,166,170,173,185,192,202,229,231];
+  for(let i=0;i<24;i++){if(i%groups!==group)continue;const offset=i*10,duration=i===23?8:10;await load(offset,duration);await capture('clip-'+String(i).padStart(2,'0'),Math.min(4,duration-.5),offset+4);for(const t of extra)if(t>=offset&&t<offset+duration)await capture('review-'+t,t-offset,t);await exportNative('Quintal_Cena_'+String(i).padStart(2,'0'),duration,offset);}
  }
  assert.deepEqual(errors,[]);assert.equal(provider,0);assert.equal(generations,0);
  const sha=createHash('sha256').update(source).digest('hex');

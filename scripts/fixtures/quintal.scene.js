@@ -108,7 +108,7 @@ function createScene(THREE,canvas,width,height){
  const trees=[],fruits=[];
  function tree(x,z,s=1){const tr=group(scene,x,.12,z);cyl(tr,0,1,0,.12,2,M.wood);rod(tr,[0,1.25,0],[.55,2.2,.1],.085,M.wood);rod(tr,[0,1.35,0],[-.45,2.1,-.2],.075,M.wood);
   const canopy=group(tr,0,2.35,0);for(let k=0;k<4;k++){const geo=new THREE.IcosahedronGeometry(.72,1);geometries.add(geo);mesh(geo,k%2?M.green:M.leaf,canopy,Math.cos(k*2.4)*.45,.1+Math.sin(k*2)*.23,Math.sin(k*2.4)*.4,1,1,1);}
-  for(let k=0;k<9;k++){const a=k*2.4;fruits.push(ball(canopy,Math.sin(a)*.77,-.35+(k%3)*.21,Math.cos(a)*.73,.1,.1,.1,k%2?M.orange:M.yellow));}tr.scale.setScalar(s);trees.push({tr,canopy,s});return tr;
+  for(let k=0;k<9;k++){const a=k*2.4;fruits.push(ball(canopy,Math.sin(a)*1.06,-.30+(k%3)*.25,Math.cos(a)*.96,.11,.11,.11,k%2?M.orange:M.yellow));}tr.scale.setScalar(s);trees.push({tr,canopy,s});return tr;
  }
  tree(-4.2,3.7,.9);tree(-4.15,1.7,.76);tree(4.22,-4.0,.72);
  const flowers=group();const flowerCenters=[];
@@ -147,9 +147,9 @@ function createScene(THREE,canvas,width,height){
  function chicken(parent,i){const g=group(parent);ball(g,0,.35,0,.24,.23,.32,i%2?M.cream:mat('#c69255'));const neck=group(g,0,.45,.2);ball(neck,0,.13,.03,.12,.17,.12,M.cream);ball(neck,0,.31,.07,.055,.07,.05,M.red);const beak=cone(neck,0,.12,.19,.055,.14,M.yellow);beak.rotation.x=Math.PI/2;for(let s of [-1,1])ball(neck,s*.105,.18,.08,.018,.018,.018,M.navy);const tail=cone(g,0,.49,-.3,.16,.34,M.cream);tail.rotation.x=-.7;const legs=[];for(let s of [-1,1]){const l=group(g,s*.09,.18,0);rod(l,[0,0,0],[0,-.16,.03],.018,M.yellow);rod(l,[0,-.16,.03],[0,-.16,.12],.015,M.yellow);legs.push(l);}return {g,neck,legs,i};}
  for(let i=0;i<3;i++)chickens.push(chicken(coop,i));
  const annex=group(scene,-17,.1,4);box(annex,0,-.08,0,7,.16,6,M.grass);for(let side of [-1,1]){box(annex,side*3.4,.55,0,.07,.08,6,M.woodLight);box(annex,0,.55,side*2.9,6.8,.08,.07,M.woodLight);}box(annex,0,1.1,-2.1,3.4,2.1,1.5,M.cream);box(annex,0,2.18,-2.1,4,.17,2.0,M.roof);
- function goat(x,z){const g=group(annex,x,.12,z);ball(g,0,.77,0,.33,.37,.62,M.cream);for(let a of [-1,1])for(let b of [-1,1]){rod(g,[a*.22,.74,b*.4],[a*.22,.05,b*.4],.055,M.darkWood);}const head=group(g,0,1.1,.48);ball(head,0,.08,.1,.19,.24,.27,M.cream);for(let s of [-1,1]){rod(head,[s*.1,.27,.04],[s*.12,.46,-.08],.03,M.wood);ball(head,s*.22,.1,.02,.13,.045,.07,M.woodLight);}return g;}
+ function goat(x,z){const g=group(annex,x,-.05,z);ball(g,0,.77,0,.33,.37,.62,M.cream);for(let a of [-1,1])for(let b of [-1,1]){rod(g,[a*.22,.74,b*.4],[a*.22,.05,b*.4],.055,M.darkWood);}const head=group(g,0,1.1,.48);ball(head,0,.08,.1,.19,.24,.27,M.cream);for(let s of [-1,1]){rod(head,[s*.1,.27,.04],[s*.12,.46,-.08],.03,M.wood);ball(head,s*.22,.1,.02,.13,.045,.07,M.woodLight);}return g;}
  goat(-1.5,.0);goat(-.5,1.0);
- for(let i=0;i<2;i++){const g=group(annex,1.2+i*.7,.16,.5-i*.8);ball(g,0,.5,0,.38,.35,.58,mat('#dbab96'));ball(g,0,.48,.55,.24,.22,.25,mat('#e7baa5'));for(let s of [-1,1]){cone(g,s*.17,.78,.5,.1,.2,mat('#dbab96'));for(let z of [-.32,.32])cyl(g,s*.25,.19,z,.07,.37,mat('#dbab96'));}}
+ for(let i=0;i<2;i++){const g=group(annex,1.2+i*.7,-.005,.5-i*.8);ball(g,0,.5,0,.38,.35,.58,mat('#dbab96'));ball(g,0,.48,.55,.24,.22,.25,mat('#e7baa5'));for(let s of [-1,1]){cone(g,s*.17,.78,.5,.1,.2,mat('#dbab96'));for(let z of [-.32,.32])cyl(g,s*.25,.19,z,.07,.37,mat('#dbab96'));}}
  const electric=group(scene,-1.8,.15,-5.26);box(electric,0,.75,0,1.12,1.5,.35,M.cream);box(electric,0,1.12,.2,.86,.48,.07,M.navy);box(electric,0,1.18,.25,.48,.21,.02,M.glow);
  const batteryBars=[];for(let i=0;i<3;i++){box(electric,-.3+i*.3,.48,.22,.23,.58,.04,M.navy);batteryBars.push(box(electric,-.3+i*.3,.48,.25,.16,.47,.025,M.glow));}
  const powerRoute=[[1.5,4.0,-7.6],[2.95,3.25,-7.6],[2.95,2.5,-5.46],[-1.8,2.5,-5.46],[-1.8,1.3,-5.26]];
@@ -223,7 +223,7 @@ function createScene(THREE,canvas,width,height){
   const night=phase(t,187.8,190.3)*(1-phase(t,198.4,201));hemi.intensity=2.35-night*1.68;sun.intensity=3.1-night*2.48;fill.intensity=.75+night*.2;scene.background.set('#bce0ed').lerp(new THREE.Color('#244451'),night*.86);gridLamp.visible=night<.4;porchLight.scale.set(.12*(1+night*.2),.08*(1+night*.2),.08*(1+night*.2));backupLight.intensity=night*1.5;renderer.toneMappingExposure=1.14-night*.18;
   revealGroups.forEach((g,i)=>{const k=phase(t,3+i*.32,4.2+i*.32);g.visible=k>.001;g.scale.setScalar(k);});
   // Root scales are rebuilt from absolute t, including backwards seeks.
-  trees.forEach(({tr,canopy,s},i)=>{const k=phase(t,4.2+i*.38,5.3+i*.38);tr.visible=k>.001;tr.scale.setScalar(s*k);canopy.rotation.z=Math.sin(t*.65+i)*.012;});
+  trees.forEach(({tr,canopy,s},i)=>{const k=phase(t,4.2+i*.38,5.3+i*.38);tr.visible=k>.001&&!(i<2&&t>=132.1&&t<142.15);tr.scale.setScalar(s*k);canopy.rotation.z=Math.sin(t*.65+i)*.012;});
   plants.forEach((p,i)=>{let k=1;if(t<9)k=phase(t,4+(i%10)*.14,5.7+(i%10)*.14);if(t>=70&&t<78)k=.25+.75*phase(t,70+(i%5)*.14,73.3+(i%5)*.14);if(t>=84.2&&t<91.45)k=.35+((i%3)/3)*.65;const s=p.userData.s*k;p.scale.set(s,s,s);p.rotation.z=Math.sin(t*.9+p.userData.phase)*.022;});
   const tankOpen=t>=40.6&&t<45;shell.visible=!tankOpen;cutShell.visible=tankOpen;lid.position.y=2.42+(tankOpen?.6:0);
   const level=tankOpen?.65+.75*phase(t,40.7,43.9):1.45;tankWater.scale.y=level;tankWater.position.y=.18+level/2;surface.position.y=.18+level;
@@ -235,7 +235,7 @@ function createScene(THREE,canvas,width,height){
   bees.forEach(({b,wings,i})=>{const a=t*.65+i*.87,buzz=Math.sin(t*8+i)*.06;b.position.set(2.9+Math.sin(a)*1.3,1.9+Math.sin(a*1.4)*.55+buzz,-5.9+Math.cos(a)*1.1);b.rotation.y=a+Math.PI/2;wings.forEach((w,k)=>{w.rotation.z=(k?1:-1)*Math.sin(t*40+i)*.7;});b.visible=t>6;});
   fish.forEach(({f,tail,i})=>{const a=t*(.35+i*.025)+i*1.3;f.position.set(Math.cos(a)*.65,.7+Math.sin(a*1.8+i)*.18,Math.sin(a)*.65);f.rotation.y=-a-Math.PI/2;tail.rotation.y=Math.sin(t*6+i)*.28;});
   bubbles.forEach((b,i)=>{const a=(t*.55+i/14)%1;b.position.set(Math.sin(i*2.3)*.12,.2+a*1.12,Math.cos(i*2.3)*.13);b.scale.setScalar(.015+.028*a);});
-  chickens.forEach(({g,neck,legs,i})=>{const a=t*.3+i*2.1,walk=(Math.sin(t*.37+i)>.1),dist=walk?t*.4:Math.floor(t*.2)*2;g.position.set(-.63+Math.sin(a)*.48,.12,1.1+Math.cos(a)*.5);g.rotation.y=-a+.6;neck.rotation.x=walk?Math.sin(t*3+i)*.08:.35+.38*Math.sin(t*4+i);legs.forEach((l,k)=>{l.rotation.x=walk?Math.sin(dist*9+k*Math.PI)*.35:0;});});
+  chickens.forEach(({g,neck,legs,i})=>{const clock=t+i*.85,cycle=clock%8,walk=cycle<4,a=i*2.1+Math.floor(clock/8)+smooth(cycle/4),gait=a*10.2;g.position.set(-.63+Math.sin(a)*.48,-.05+(walk?Math.abs(Math.sin(gait))*.006:0),1.1+Math.cos(a)*.5);g.rotation.y=a+Math.PI/2;neck.rotation.x=walk?Math.sin(gait)*.08:.35+.38*Math.sin(t*4+i);legs.forEach((l,k)=>{l.rotation.x=walk?Math.sin(gait+k*Math.PI)*.32:0;});});
   coopRoof.position.y=2.25+((t>=169&&t<172.2)?1.1:0);coopBody.visible=!(t>=169&&t<172.2);
   drippers.forEach((d,i)=>{const a=(t*1.4+i*.13)%1;d.position.y=.49-a*.14;d.visible=t>=58&&t<91.45;});
   for(let i=0;i<120;i++){const x=-2.85+((i*1.873)%5.7),z=-9.6+((i*2.347)%4.1),y=3+((1-(t*1.2+i*.213)%1)*4.2);dummy.position.set(x,y,z);dummy.rotation.set(0,0,-.14);dummy.scale.set(1,1,1);dummy.updateMatrix();rain.setMatrixAt(i,dummy.matrix);}rain.instanceMatrix.needsUpdate=true;rain.visible=t>=27.56&&t<40.6;
