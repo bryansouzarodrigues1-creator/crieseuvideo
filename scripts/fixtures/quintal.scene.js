@@ -225,7 +225,7 @@ function createScene(THREE,canvas,width,height){
   // Root scales are rebuilt from absolute t, including backwards seeks.
   trees.forEach(({tr,canopy,s},i)=>{const k=phase(t,4.2+i*.38,5.3+i*.38);tr.visible=k>.001&&!(i<2&&t>=132.1&&t<142.15);tr.scale.setScalar(s*k);canopy.rotation.z=Math.sin(t*.65+i)*.012;});
   plants.forEach((p,i)=>{let k=1;if(t<9)k=phase(t,4+(i%10)*.14,5.7+(i%10)*.14);if(t>=70&&t<78)k=.25+.75*phase(t,70+(i%5)*.14,73.3+(i%5)*.14);if(t>=84.2&&t<91.45)k=.35+((i%3)/3)*.65;const s=p.userData.s*k;p.scale.set(s,s,s);p.rotation.z=Math.sin(t*.9+p.userData.phase)*.022;});
-  const tankOpen=t>=40.6&&t<45;shell.visible=!tankOpen;cutShell.visible=tankOpen;lid.position.y=2.42+(tankOpen?.6:0);
+  const tankOpen=t>=40.6&&t<45;shell.visible=!tankOpen;cutShell.visible=tankOpen;lid.position.y=2.42;
   const level=tankOpen?.65+.75*phase(t,40.7,43.9):1.45;tankWater.scale.y=level;tankWater.position.y=.18+level/2;surface.position.y=.18+level;
   const aquaOpen=t>=126.49&&t<156.67;tankWhole.visible=!aquaOpen;tankCut.visible=aquaOpen;fishWater.material.opacity=aquaOpen?.34:.73;
   filterCaps.forEach((o,i)=>{const opened=t>=132.1&&t<142.15;o.position.y=1.12+(opened?.7:0);filterBodies[i].visible=!opened;filterCuts[i].visible=opened;});

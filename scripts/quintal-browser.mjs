@@ -30,8 +30,10 @@ async function capture(name,t,absolute){
 }
 async function exportNative(name,duration,offset){
  stage='export '+name;console.log('EXPORT_START '+name);
- const pending=page.waitForEvent('download',{timeout:900000});await page.getByRole('button',{name:'Exportar vídeo (experimental)',exact:true}).click();
- const d=await pending;assert.ok(d.suggestedFilename().endsWith('.mp4'));await d.saveAs(path.join(out,name+'.mp4'));
+ const pending=page.waitForEvent('download',{timeout:900000});
+ const failed=page.waitForFunction(()=>Array.from(document.querySelectorAll('[role=alert]')).some(x=>/Exportação falhou|Falha na exportação/.test(x.textContent||'')),undefined,{timeout:900000}).then(()=>{throw new Error('Native export reported a visible failure');});
+ await page.getByRole('button',{name:'Exportar vídeo (experimental)',exact:true}).click();
+ const d=await Promise.race([pending,failed]);assert.ok(d.suggestedFilename().endsWith('.mp4'));await d.saveAs(path.join(out,name+'.mp4'));
  await page.getByRole('button',{name:'Exportar vídeo (experimental)',exact:true}).waitFor({timeout:20000});
  exports.push({name,duration,offset,frames:duration*(preview?24:30)});console.log('EXPORT_DONE '+name);
 }
@@ -44,7 +46,7 @@ try{
   await load(28,8);await exportNative('Quintal_Teste_Agua_8s',8,28);
  }else{
   const extra=[42,76,95,101,107,114,122,129,135,140,148,166,170,173,185,192,202,229,231];
-  for(let i=0;i<24;i++){if(i%groups!==group)continue;const offset=i*10,duration=i===23?8:10;await load(offset,duration);await capture('clip-'+String(i).padStart(2,'0'),Math.min(4,duration-.5),offset+4);for(const t of extra)if(t>=offset&&t<offset+duration)await capture('review-'+t,t-offset,t);await exportNative('Quintal_Cena_'+String(i).padStart(2,'0'),duration,offset);}
+  for(let i=0;i<24;i++){if(i%groups!==group||(cfg.clips&&!cfg.clips.includes(i)))continue;const offset=i*10,duration=i===23?8:10;await load(offset,duration);await capture('clip-'+String(i).padStart(2,'0'),Math.min(4,duration-.5),offset+4);for(const t of extra)if(t>=offset&&t<offset+duration)await capture('review-'+t,t-offset,t);await exportNative('Quintal_Cena_'+String(i).padStart(2,'0'),duration,offset);}
  }
  assert.deepEqual(errors,[]);assert.equal(provider,0);assert.equal(generations,0);
  const sha=createHash('sha256').update(source).digest('hex');
