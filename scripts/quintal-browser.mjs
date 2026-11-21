@@ -39,7 +39,7 @@ try{
  await page.goto('http://127.0.0.1:4198/motor-3d/codigo',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('#code3d-import').waitFor({timeout:60000});if(!preview)await page.locator('#code3d-quality').selectOption('hd');
  if(preview){
-  const samples=[1,7,17,24,30,35,42,49,55,62,68,76,83,89,95,101,107,114,122,129,135,140,148,154,160,166,173,179,185,192,202,216,229];
+  const samples=cfg.samples||[1,7,17,24,30,35,42,49,55,62,68,76,83,89,95,101,107,114,122,129,135,140,148,154,160,166,173,179,185,192,202,216,229];
   let previous=-1;for(const t of samples){const base=Math.floor(t/10)*10;if(base!==previous){await load(base,10);previous=base;}await capture('scene-'+String(t).padStart(3,'0'),t-base,t);}
   await load(28,8);await exportNative('Quintal_Teste_Agua_8s',8,28);
  }else{

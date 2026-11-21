@@ -40,6 +40,7 @@ function createScene(THREE,canvas,width,height){
  }
  function placeFlow(f,t){f.drops.forEach((o,i)=>{o.visible=f.active;if(!f.active)return;let d=((t*f.speed+i/f.drops.length)%1)*f.total,k=1;while(k<f.lengths.length-1&&f.lengths[k]<d)k++;o.position.copy(f.pts[k-1]).lerp(f.pts[k],(d-f.lengths[k-1])/(f.lengths[k]-f.lengths[k-1]));});}
  function outlinePanel(p,x,y,z,w,h,d){box(p,x,y,z,w,h,d,M.wood);box(p,x,y+h*.52,z,w*.94,.04,d*.94,M.soil);}
+ const utilities=group();
  const slab=group();box(slab,0,-.47,0,10.7,.92,20.7,M.soil2);box(slab,0,-.14,0,10.72,.13,20.72,M.soil);box(slab,0,.015,0,10.65,.19,20.65,M.grass);
  box(scene,0,-1.04,0,250,.12,250,mat('#afd0cc'));
  const grassGeo=new THREE.BufferGeometry();grassGeo.setAttribute('position',new THREE.Float32BufferAttribute([-.035,0,0,.035,0,0,0,.18,0],3));grassGeo.computeVertexNormals();geometries.add(grassGeo);
@@ -69,13 +70,13 @@ function createScene(THREE,canvas,width,height){
  const lid=cyl(cistern,0,2.42,0,1.06,.13,M.navy);cyl(cistern,0,2.52,0,.28,.08,M.steel);
  for(let y of [.36,.89,1.42,1.96]){const g=new THREE.TorusGeometry(1.026,.018,4,32);geometries.add(g);const ring=mesh(g,M.cream,cistern,0,y,0);ring.rotation.x=Math.PI/2;}
  const roofRoute=[[-3.06,2.98,-9.9],[-3.06,2.98,-5.2],[-3.42,2.98,-5.2],[-3.42,1.88,-5.2],[-3.75,1.88,-5.2]];
- pipe(scene,roofRoute,.095,M.navy);const roofFlow=flow(scene,roofRoute,15,'#65d8ff',.3,.052);
+ pipe(utilities,roofRoute,.095,M.navy);const roofFlow=flow(utilities,roofRoute,15,'#65d8ff',.3,.052);
  const leafFilter=group(scene,-3.42,2.4,-5.2);cyl(leafFilter,0,0,0,.22,.4,M.cream);cyl(leafFilter,0,.22,0,.24,.06,M.navy);
- pipe(scene,[[-3.42,2.21,-5.2],[-3.13,2.21,-5.2],[-3.13,.38,-5.2]],.075,M.pipe);
+ pipe(utilities,[[-3.42,2.21,-5.2],[-3.13,2.21,-5.2],[-3.13,.38,-5.2]],.075,M.pipe);
  const leafs=[];for(let i=0;i<5;i++){const b=ball(leafFilter,0,0,0,.11,.025,.055,M.woodLight);leafs.push(b);}
  const manifold=group(scene,-2.6,.14,-4.05);box(manifold,0,.17,0,.55,.34,.38,M.navy);cyl(manifold,.32,.24,0,.15,.35,M.steel);box(manifold,-.1,.45,0,.22,.04,.07,M.red);
  const irrigation=[[-3.05,.25,-5.05],[-2.58,.25,-5.05],[-2.58,.25,-4.05],[1.72,.25,-4.05],[1.72,.25,4.3]];
- pipe(scene,irrigation,.055,M.navy);const irrigationFlow=flow(scene,irrigation,18,'#6cdeff',.22,.04);
+ pipe(utilities,irrigation,.055,M.navy);const irrigationFlow=flow(utilities,irrigation,18,'#6cdeff',.22,.04);
  const potable=group(scene,-1.45,.16,-5.2);for(let x of [-.23,.23]){box(potable,x,.36,0,.37,.65,.32,M.cream);box(potable,x,.73,0,.16,.1,.13,M.blue);box(potable,x,.5,.17,.18,.21,.02,M.blue);}
  const beds=group(),plants=[],bedBoards=[],bedSoil=[],drippers=[];
  const plantGeos={leaf:new THREE.SphereGeometry(1,7,5)};geometries.add(plantGeos.leaf);
@@ -122,17 +123,18 @@ function createScene(THREE,canvas,width,height){
  const fish=[];for(let i=0;i<5;i++){const f=group(aqua);ball(f,0,0,0,.17,.11,.085,i%2?M.orange:mat('#c77954'));const tail=cone(f,-.21,0,0,.12,.18,M.orange);tail.rotation.z=Math.PI/2;ball(f,.12,.025,.075,.018,.018,.012,M.navy);fish.push({f,tail,i});}
  const bubbles=[];for(let i=0;i<14;i++)bubbles.push(ball(aqua,0,0,0,.025,.025,.025,mat('#cff4f8',{transparent:true,opacity:.8})));
  pipe(aqua,[[0,.14,0],[0,1.65,0],[-.5,1.65,0]],.04,M.navy);
- const filters=group(scene,-3.6,.15,1.05),filterCaps=[];
- for(let j=0;j<2;j++){const x=-.56+j*1.12;cyl(filters,x,.55,0,.44,1.05,j===0?M.cream:M.blue);filterCaps.push(cyl(filters,x,1.12,0,.46,.08,M.navy));for(let k=0;k<10;k++)ball(filters,x+Math.sin(k*2.4)*.25,.62+Math.cos(k*1.4)*.32,Math.cos(k*2.4)*.25,.09,.09,.09,j===0?M.soil:M.orange);}
+ const filters=group(scene,-3.6,.15,1.05),filterCaps=[],filterBodies=[],filterCuts=[];
+ const fg=new THREE.CylinderGeometry(.44,.44,1.05,20,1,true,Math.PI/2,Math.PI);geometries.add(fg);
+ for(let j=0;j<2;j++){const x=-.56+j*1.12;filterBodies.push(cyl(filters,x,.55,0,.44,1.05,j===0?M.cream:M.blue));filterCuts.push(mesh(fg,mat(j===0?'#f2e9d4':'#3d86aa',{side:THREE.DoubleSide}),filters,x,.55,0));cyl(filters,x,.07,0,.44,.1,j===0?M.cream:M.blue);filterCaps.push(cyl(filters,x,1.12,0,.46,.08,M.navy));for(let k=0;k<10;k++)ball(filters,x+Math.sin(k*2.4)*.25,.62+Math.cos(k*1.4)*.32,Math.cos(k*2.4)*.25,.09,.09,.09,j===0?M.soil:M.orange);}
  const hydro=group(scene,-2.45,.15,3.35);for(let x of [-.95,.95])for(let z of [-.62,.62])box(hydro,x,.61,z,.09,1.18,.09,M.woodLight);box(hydro,0,1.17,0,2.25,.28,1.6,M.cream);box(hydro,0,1.34,0,2.08,.06,1.42,mat('#93b5b2'));
  for(let x of [-.73,0,.73])for(let z of [-.39,.39]){cyl(hydro,x,1.39,z,.15,.08,M.navy);const p=vegetable(hydro,x,z,0,.9);p.position.y=1.32;}
  const aquaRoute=[[-3.25,.95,-.12],[-3.25,.95,.5],[-4.15,.95,.5],[-4.15,.95,1.05],[-3.04,.95,1.05],[-3.04,1.48,1.65],[-2.45,1.48,2.65],[-2.45,1.48,4.2],[-1.1,1.48,4.2],[-1.1,.3,-1.2],[-2.1,.3,-1.2]];
- pipe(scene,aquaRoute,.065,M.pipe);const aquaFlow=flow(scene,aquaRoute,21,'#8ce2ef',.23,.055);
+ pipe(utilities,aquaRoute,.065,M.pipe);const aquaFlow=flow(utilities,aquaRoute,21,'#8ce2ef',.23,.055);
  const foodJar=group(scene,-1.55,.18,-1.1);cyl(foodJar,0,.34,0,.22,.65,M.yellow);cyl(foodJar,0,.7,0,.24,.08,M.navy);
  const meter=group(scene,-1.6,.2,.0);box(meter,0,.42,0,.38,.65,.2,M.navy);box(meter,0,.53,.12,.27,.23,.015,M.glow);rod(meter,[.08,.15,0],[.16,.02,0],.016,M.steel);
  const coop=group(scene,3.0,.15,7.15);const coopRoof=group(coop,.4,2.25,-.75);
  for(let x of [-.45,1.25])for(let z of [-1.6,.1])box(coop,x,.55,z,.12,1.1,.12,M.wood);
- box(coop,.4,1.25,-.75,1.9,1.55,1.95,M.red);box(coop,.4,.53,-.75,2,.12,2.05,M.woodLight);
+ const coopBody=box(coop,.4,1.25,-.75,1.9,1.55,1.95,M.red);box(coop,.4,.53,-.75,2,.12,2.05,M.woodLight);
  for(let side of [-1,1]){const p=box(coopRoof,side*.55,.12,0,1.22,.12,2.45,M.roof);p.rotation.z=-side*.32;}
  box(coop,.4,1.05,.24,.65,.98,.03,M.darkWood);const ramp=box(coop,.4,.38,1.03,.68,.09,1.75,M.woodLight);ramp.rotation.x=.32;
  for(let k=0;k<6;k++){const r=box(coop,.4,.13+k*.075,1.79-k*.25,.7,.04,.05,M.wood);r.rotation.x=.32;}
@@ -151,11 +153,12 @@ function createScene(THREE,canvas,width,height){
  const electric=group(scene,-1.8,.15,-5.26);box(electric,0,.75,0,1.12,1.5,.35,M.cream);box(electric,0,1.12,.2,.86,.48,.07,M.navy);box(electric,0,1.18,.25,.48,.21,.02,M.glow);
  const batteryBars=[];for(let i=0;i<3;i++){box(electric,-.3+i*.3,.48,.22,.23,.58,.04,M.navy);batteryBars.push(box(electric,-.3+i*.3,.48,.25,.16,.47,.025,M.glow));}
  const powerRoute=[[1.5,4.0,-7.6],[2.95,3.25,-7.6],[2.95,2.5,-5.46],[-1.8,2.5,-5.46],[-1.8,1.3,-5.26]];
- pipe(scene,powerRoute,.025,M.navy);const powerFlow=flow(scene,powerRoute,13,'#f6d876',.28,.04);
+ pipe(utilities,powerRoute,.025,M.navy);const powerFlow=flow(utilities,powerRoute,13,'#f6d876',.28,.04);
  const backupRoute=[[-1.8,.3,-5.26],[-1.2,.3,-5.26],[-1.2,.3,-1.2],[-3.25,.3,-1.2],[-3.25,1.8,-1.2]];
- pipe(scene,backupRoute,.028,M.navy);const backupFlow=flow(scene,backupRoute,14,'#f6d876',.3,.04);
+ pipe(utilities,backupRoute,.028,M.navy);const backupFlow=flow(utilities,backupRoute,14,'#f6d876',.3,.04);
  const porchLight=ball(house,0,2.25,2.13,.12,.08,.08,mat('#fbe7b0',{emissive:'#ffb65f',emissiveIntensity:1.4}));
- const grid=group(scene,6.7,.13,-6.0);cyl(grid,0,2.1,0,.09,4.2,M.wood);box(grid,0,4.12,0,1.2,.1,.1,M.wood);pipe(scene,[[6.1,4.15,-6],[6.1,4.15,-8],[3.0,3.1,-8]],.014,M.navy);
+ const backupLight=new THREE.PointLight('#ffce80',0,6);backupLight.position.set(-.2,2.5,-4.7);scene.add(backupLight);
+ const grid=group(scene,6.7,.13,-6.0);cyl(grid,0,2.1,0,.09,4.2,M.wood);box(grid,0,4.12,0,1.2,.1,.1,M.wood);pipe(utilities,[[6.1,4.15,-6],[6.1,4.15,-8],[3.0,3.1,-8]],.014,M.navy);
  const gridLamp=ball(grid,0,3.55,.15,.12,.12,.12,M.glow);
  const rainGeo=new THREE.CylinderGeometry(.012,.025,.22,4);geometries.add(rainGeo);const rain=new THREE.InstancedMesh(rainGeo,mat('#74c2df',{transparent:true,opacity:.72}),120);scene.add(rain);
  const hud=new THREE.Scene(),hudCamera=new THREE.OrthographicCamera(0,width,height,0,-10,10);hudCamera.position.z=2;
@@ -182,15 +185,15 @@ function createScene(THREE,canvas,width,height){
   ['O ESSENCIAL NO APAGÃO','Armazenamento e consumo têm limites','08  •  ENERGIA'],
   ['OS SISTEMAS SE CONECTAM','Autonomia cresce com manutenção','QUINTAL VIVO'],
   ['COMECE PELO BÁSICO','Água • canteiros • compostagem','UMA ETAPA DE CADA VEZ'],
-  ['QUER VER CADA ETAPA?','COMENTE  QUINTAL','CONTINUE ESSA CONSTRUÇÃO']
+  ['COMENTE  QUINTAL','Vamos montar cada etapa','QUER VER ESSE QUINTAL GANHAR VIDA?']
  ];
  for(const [title,sub,kicker] of chapters){const top=textSprite(title,{w:640,h:112,font:32,small:kicker});top.sp.position.set(width/2,height-height*.105,0);top.sp.scale.set(width*.87,width*.87*112/640,1);hud.add(top.sp);
   const bot=textSprite(sub,{w:640,h:78,font:29,bg:'#fff3d9',color:'#254c45'});bot.sp.position.set(width/2,height*.214,0);bot.sp.scale.set(width*.84,width*.84*78/640,1);hud.add(bot.sp);screens.push([top.sp,bot.sp]);}
  const worldTags=[];
- function tag(text,p,pos,w=2.7,color='#254c45'){const q=textSprite(text,{w:480,h:92,font:29,bg:color});q.sp.scale.set(w,w*92/480,1);q.sp.position.set(...pos);p.add(q.sp);worldTags.push(q.sp);return q.sp;}
+ function tag(text,p,pos,w=2.7,color='#254c45'){const q=textSprite(text,{w:480,h:92,font:29,bg:color});q.sp.scale.set(w,w*92/480,1);q.sp.position.set(...pos);q.sp.userData={anchor:pos,baseWidth:w};p.add(q.sp);worldTags.push(q.sp);return q.sp;}
  const tags={cistern:tag('ÁGUA DE CHUVA',scene,[-3.75,2.95,-5.05],2.9),potable:tag('ÁGUA POTÁVEL',scene,[-1.45,1.45,-5.2],2.1),nonpotable:tag('NÃO POTÁVEL',scene,[-3.75,2.98,-5.05],2.5),filter:tag('FILTRO DE FOLHAS',scene,[-3.42,3.33,-5.2],2.8),drip:tag('GOTEJAMENTO',scene,[2.7,1.3,1.9],2.5),mature:tag('COMPOSTO MADURO',scene,[-2.5,2.12,7.65],3.0),bee:tag('ABELHAS NATIVAS',scene,[4.3,2.5,-7.0],2.5),solids:tag('RETÉM OS SÓLIDOS',scene,[-4.16,1.9,1.05],2.7),bio:tag('BIOFILTRO',scene,[-3.04,1.9,1.05],2.2),hydro:tag('NUTRIENTES PARA AS PLANTAS',scene,[-2.45,2.4,3.35],3.6),aero:tag('AERAÇÃO CONTÍNUA',scene,[-3.25,2.0,-1.2],3.0),solar:tag('ENERGIA SOLAR',scene,[1.4,5.3,-7.6],3.0),backup:tag('BACKUP DIMENSIONADO',scene,[-1.8,2.5,-5.0],3.7)};
  const footprints=[];for(const [x,z,sx,sz] of [[-3.65,-5.05,2.5,2.8],[2.9,0,3.6,7.8],[-3.15,7.65,3.0,2.2]]){const p=box(scene,x,.14,z,sx,.025,sz,mat('#f3d178',{transparent:true,opacity:.3}));footprints.push(p);}
- function cam(target,direction,viewHeight){const t=V(...target);camera.position.copy(t).add(V(...direction));camera.lookAt(t);const hh=viewHeight/2,hw=hh*width/height;camera.left=-hw;camera.right=hw;camera.top=hh;camera.bottom=-hh;camera.updateProjectionMatrix();}
+ function cam(target,direction,viewHeight){const t=V(...target);camera.position.copy(t).add(V(...direction));camera.lookAt(t);const hh=viewHeight/2,hw=hh*width/height;camera.left=-hw;camera.right=hw;camera.top=hh;camera.bottom=-hh;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);}
  const shots=[
   [0,[0,1,-.8],[3,24,28],28],[5,[0,1.2,-.5],[2,26,28],26],
   [11,[0,.4,0],[0,35,12],25.5],[21,[0,.4,0],[3,34,13],25.0],
@@ -202,7 +205,7 @@ function createScene(THREE,canvas,width,height){
   [91.45,[-3.15,.85,7.65],[-4,4.8,7],6.5],[100.7,[-2.55,.85,7.65],[3,4.5,6],5.7],
   [106.3,[2.1,.5,1.9],[3,6,7],6.0],[110.37,[-4.12,1.7,3.6],[5,4.8,7],6.6],
   [118.1,[4.3,1.4,-6.8],[4,3.1,6],4.8],[126.49,[-2.95,.8,.8],[4,10,11],10.4],
-  [132.1,[-4.16,.85,1.05],[3,4,5],4.6],[136.2,[-3.04,.85,1.05],[4,4.1,6],4.5],
+  [132.1,[-4.16,.85,1.05],[-5,6,4],4.8],[136.2,[-3.04,.85,1.05],[-5,6,4],4.8],
   [142.15,[-2.45,1.45,3.35],[4,5,7],5.9],[145.0,[-3.0,.83,-1.15],[3.5,3.7,6],5.7],
   [152.8,[-2.8,.9,-.7],[4,4.5,7],6.9],[156.67,[3.0,.9,7.15],[5.5,6.8,10],8.1],
   [163.0,[2.3,.65,7.5],[3,3.5,6],4.8],[169.0,[3.85,1.18,6.65],[2.5,3.2,5],3.7],
@@ -211,13 +214,13 @@ function createScene(THREE,canvas,width,height){
   [193.0,[-3.05,1.0,-1.2],[4,4.7,7],6.0],[198.4,[0,.7,.4],[2,25,25],26],
   [213.0,[0,.4,.2],[1,33,17],25.5],[226.8,[0,.6,.2],[3,24,25],27]
  ];
- const revealGroups=[cistern,beds,composter,hydro,aqua,filters,coop,beeStand,panels,potable,electric,flowers];
+ const revealGroups=[cistern,beds,composter,hydro,aqua,filters,coop,beeStand,panels,potable,electric,flowers,utilities,leafFilter,manifold,meter,foodJar,compostBag];
  function chapter(t){if(t<11)return 0;if(t<27.56)return 1;if(t<45)return 2;if(t<64.91)return 3;if(t<91.45)return 4;if(t<110.37)return 5;if(t<126.49)return 6;if(t<145)return 7;if(t<156.67)return 8;if(t<172.2)return 9;if(t<176.29)return 10;if(t<188)return 11;if(t<198.4)return 12;if(t<213)return 13;if(t<226.8)return 14;return 15;}
  function renderAt(local){
-  const t=Math.min(231.8,OFFSET+local),ch=chapter(t);screens.forEach((pair,i)=>pair.forEach(o=>{o.visible=i===ch;}));worldTags.forEach(o=>{o.visible=false;});
+  const t=Math.min(231.8,OFFSET+local),ch=chapter(t);screens.forEach((pair,i)=>{pair[0].visible=i===ch;pair[1].visible=false;});worldTags.forEach(o=>{o.visible=false;o.position.set(...o.userData.anchor);o.scale.set(o.userData.baseWidth,o.userData.baseWidth*92/480,1);});
   const nth=shots.findLastIndex(s=>s[0]<=t),s=shots[Math.max(0,nth)],next=shots[Math.min(shots.length-1,nth+1)];const u=clamp((t-s[0])/Math.max(1,next[0]-s[0]));
   const drift=Math.sin(u*Math.PI)*.18;const target=[s[1][0]+drift*.5,s[1][1],s[1][2]-drift*.35];cam(target,[s[2][0]+u*.32,s[2][1],s[2][2]-u*.23],s[3]*(1-u*.025));
-  const night=phase(t,187.8,190.3)*(1-phase(t,198.4,201));hemi.intensity=2.35-night*1.68;sun.intensity=3.1-night*2.48;fill.intensity=.75+night*.2;scene.background.set('#bce0ed').lerp(new THREE.Color('#244451'),night*.86);gridLamp.visible=night<.4;porchLight.scale.setScalar(1+night*.2);
+  const night=phase(t,187.8,190.3)*(1-phase(t,198.4,201));hemi.intensity=2.35-night*1.68;sun.intensity=3.1-night*2.48;fill.intensity=.75+night*.2;scene.background.set('#bce0ed').lerp(new THREE.Color('#244451'),night*.86);gridLamp.visible=night<.4;porchLight.scale.set(.12*(1+night*.2),.08*(1+night*.2),.08*(1+night*.2));backupLight.intensity=night*1.5;renderer.toneMappingExposure=1.14-night*.18;
   revealGroups.forEach((g,i)=>{const k=phase(t,3+i*.32,4.2+i*.32);g.visible=k>.001;g.scale.setScalar(k);});
   // Root scales are rebuilt from absolute t, including backwards seeks.
   trees.forEach(({tr,canopy,s},i)=>{const k=phase(t,4.2+i*.38,5.3+i*.38);tr.visible=k>.001;tr.scale.setScalar(s*k);canopy.rotation.z=Math.sin(t*.65+i)*.012;});
@@ -225,7 +228,7 @@ function createScene(THREE,canvas,width,height){
   const tankOpen=t>=40.6&&t<45;shell.visible=!tankOpen;cutShell.visible=tankOpen;lid.position.y=2.42+(tankOpen?.6:0);
   const level=tankOpen?.65+.75*phase(t,40.7,43.9):1.45;tankWater.scale.y=level;tankWater.position.y=.18+level/2;surface.position.y=.18+level;
   const aquaOpen=t>=126.49&&t<156.67;tankWhole.visible=!aquaOpen;tankCut.visible=aquaOpen;fishWater.material.opacity=aquaOpen?.34:.73;
-  filterCaps.forEach((o,i)=>{o.position.y=1.12+(t>=132.1&&t<142.15?.7:0);});
+  filterCaps.forEach((o,i)=>{const opened=t>=132.1&&t<142.15;o.position.y=1.12+(opened?.7:0);filterBodies[i].visible=!opened;filterCuts[i].visible=opened;});
   compostLids.forEach((o,i)=>{o.rotation.x=(t>=91.45&&t<106.3)?-1.7:0;});
   fallingLeaves.forEach((o,i)=>{const active=t>=94&&t<100.7;o.visible=active;const a=((t*.47+i*.117)%1);o.position.set(-.65+Math.sin(i*2.4)*.35,1.03+(1-a)*1.5,Math.cos(i*2.4)*.5);o.rotation.set(a*4,i+a*3,a*2);});
   if(t>=104.5&&t<110.37){const a=phase(t,104.5,109.1);compostBag.position.set(-2.5+4.6*a,.2+Math.sin(a*Math.PI)*1.2,7.6-5.7*a);}else compostBag.position.set(-2.5,.2,7.6);
@@ -233,7 +236,7 @@ function createScene(THREE,canvas,width,height){
   fish.forEach(({f,tail,i})=>{const a=t*(.35+i*.025)+i*1.3;f.position.set(Math.cos(a)*.65,.7+Math.sin(a*1.8+i)*.18,Math.sin(a)*.65);f.rotation.y=-a-Math.PI/2;tail.rotation.y=Math.sin(t*6+i)*.28;});
   bubbles.forEach((b,i)=>{const a=(t*.55+i/14)%1;b.position.set(Math.sin(i*2.3)*.12,.2+a*1.12,Math.cos(i*2.3)*.13);b.scale.setScalar(.015+.028*a);});
   chickens.forEach(({g,neck,legs,i})=>{const a=t*.3+i*2.1,walk=(Math.sin(t*.37+i)>.1),dist=walk?t*.4:Math.floor(t*.2)*2;g.position.set(-.63+Math.sin(a)*.48,.12,1.1+Math.cos(a)*.5);g.rotation.y=-a+.6;neck.rotation.x=walk?Math.sin(t*3+i)*.08:.35+.38*Math.sin(t*4+i);legs.forEach((l,k)=>{l.rotation.x=walk?Math.sin(dist*9+k*Math.PI)*.35:0;});});
-  coopRoof.position.y=2.25+((t>=169&&t<172.2)?1.1:0);
+  coopRoof.position.y=2.25+((t>=169&&t<172.2)?1.1:0);coopBody.visible=!(t>=169&&t<172.2);
   drippers.forEach((d,i)=>{const a=(t*1.4+i*.13)%1;d.position.y=.49-a*.14;d.visible=t>=58&&t<91.45;});
   for(let i=0;i<120;i++){const x=-2.85+((i*1.873)%5.7),z=-9.6+((i*2.347)%4.1),y=3+((1-(t*1.2+i*.213)%1)*4.2);dummy.position.set(x,y,z);dummy.rotation.set(0,0,-.14);dummy.scale.set(1,1,1);dummy.updateMatrix();rain.setMatrixAt(i,dummy.matrix);}rain.instanceMatrix.needsUpdate=true;rain.visible=t>=27.56&&t<40.6;
   leafs.forEach((l,i)=>{l.position.set(Math.sin(i*2)*.12,.22+((1-(t*.65+i*.16)%1)*.35),Math.cos(i*2)*.11);l.visible=t>=34.2&&t<40.6;});
@@ -241,6 +244,7 @@ function createScene(THREE,canvas,width,height){
   allFlows.forEach(f=>placeFlow(f,t));
   batteryBars.forEach((b,i)=>{const charge=1-night*(.19+i*.06);b.scale.y=.47*charge;b.position.y=.245+.235*charge;});
   Object.assign(tags.cistern,{visible:t>=40.6&&t<51});tags.filter.visible=t>=34.2&&t<40.6;tags.potable.visible=t>=51&&t<58;tags.nonpotable.visible=t>=51&&t<58;tags.drip.visible=t>=78.3&&t<84.2;tags.mature.visible=t>=100.7&&t<106.3;tags.bee.visible=t>=118.1&&t<126.49;tags.solids.visible=t>=132.1&&t<136.2;tags.bio.visible=t>=136.2&&t<142.15;tags.hydro.visible=t>=142.15&&t<145;tags.aero.visible=t>=145&&t<152.8;tags.solar.visible=t>=176.29&&t<182.5;tags.backup.visible=t>=182.5&&t<188;
+  for(const o of worldTags){if(!o.visible)continue;const fw=camera.right-camera.left,w=Math.min(o.userData.baseWidth,fw*.81);o.scale.set(w,w*92/480,1);const q=V(...o.userData.anchor).project(camera);const edge=.93-w/fw;q.x=clamp(q.x,-edge,edge);q.y=clamp(q.y,-.28,.55);o.position.copy(q.unproject(camera));}
   footprints.forEach((p,i)=>{p.visible=t>=213&&t<226.8&&Math.floor((t-213)/4.5)===i;});
   renderer.autoClear=true;renderer.render(scene,camera);renderer.autoClear=false;renderer.clearDepth();renderer.render(hud,hudCamera);
  }
