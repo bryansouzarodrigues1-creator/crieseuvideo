@@ -7,6 +7,18 @@ function createSceneTools(THREE) {
   const ease=p=>{p=clamp(p);return p*p*(3-2*p);};
   const cue=(t,start,end)=>ease(progress(t,start,end));
   const stagger=(t,start,end,index,count)=>cue(t,start+(end-start)*.68*index/Math.max(1,count-1),start+(end-start)*.68*index/Math.max(1,count-1)+(end-start)*.32);
+  // Snapshot the final LOCAL pose once. Seeking never captures a previous frame.
+  function createAssemblyPart(object,options){
+    if(!object?.isObject3D||!options||![options.start,options.end].every(Number.isFinite)||options.end<=options.start)throw new Error('Etapa de montagem inválida.');
+    const toPosition=object.position.clone(),toQuaternion=object.quaternion.clone(),scale=object.scale.clone();
+    if(options.fromPosition!==undefined&&(!Array.isArray(options.fromPosition)||options.fromPosition.length!==3||!options.fromPosition.every(Number.isFinite)))throw new Error('Posição de montagem inválida.');
+    const fromPosition=options.fromPosition===undefined?toPosition.clone().add(new THREE.Vector3(0,.75,0)):vec(options.fromPosition);
+    if(![...fromPosition,...toPosition,...scale].every(Number.isFinite))throw new Error('Pose de montagem inválida.');
+    const fromQuaternion=toQuaternion.clone();
+    if(options.fromRotation!==undefined){if(!Array.isArray(options.fromRotation)||options.fromRotation.length!==3||!options.fromRotation.every(Number.isFinite))throw new Error('Rotação de montagem inválida.');fromQuaternion.setFromEuler(new THREE.Euler(...options.fromRotation));}
+    function apply(t){if(!Number.isFinite(t))throw new Error('Tempo de montagem inválido.');const p=cue(t,options.start,options.end);object.visible=t>=options.start;object.position.lerpVectors(fromPosition,toPosition,p);object.quaternion.slerpQuaternions(fromQuaternion,toQuaternion,p);object.scale.copy(scale);object.updateMatrix();return p;}
+    return Object.freeze({apply});
+  }
   function solveTwoBone(start,target,pole,a,b){
     if(!(a>0&&b>0))throw new Error('Comprimentos de membros inválidos.');
     start=vec(start);target=vec(target);pole=vec(pole);const delta=target.clone().sub(start),requested=delta.length();
@@ -147,5 +159,5 @@ function createSceneTools(THREE) {
     }
     camera.position.copy(target).addScaledVector(vec(candidates[chosen]).normalize(),distance);camera.lookAt(target);camera.updateMatrixWorld(true);camera.userData.targetVisibility={clear:best===0,blocked:best,selected:chosen};return chosen;
   }
-  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,graspFrames,createPropTransfer,createPerson,aimCamera});
+  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,createAssemblyPart,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,graspFrames,createPropTransfer,createPerson,aimCamera});
 }

@@ -1,0 +1,59 @@
+name: Gemini learned direction proof
+on:
+  pull_request:
+    branches: [feat/quintal-summary-20s-20261121]
+    paths:
+      - src/studio/code3d/**
+      - src/studio/server/code3dGemini*
+      - src/studio/server/directedProgram.ts
+      - src/studio/code3d.functions.ts
+      - src/studio/components/Code3DStudio.tsx
+      - scripts/gemini-direction-*
+      - scripts/fixtures/gemini-direction-timing.json
+      - .github/workflows/gemini-direction-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: gemini-direction-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: bun run build
+      - name: Prepare browser
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start actual studio
+        run: |
+          mkdir -p tmp/gemini-direction
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/gemini-direction/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Exactly one authorized real Gemini request
+        # Existing continuous user authorization; one dedicated event only.
+        if: github.event.pull_request.head.ref == 'feat/gemini-directed-lessons-20261121' && github.event.action == 'opened'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
+          GEMINI_CODE3D_MODEL: gemini-3.6-flash
+          DIRECTION_ONE_CALL: ONE_DIRECTED_REQUEST_20261121
+        run: bun scripts/gemini-direction-proof.ts
+      - name: Render untouched actual Gemini source
+        if: github.event.pull_request.head.ref == 'feat/gemini-directed-lessons-20261121' && github.event.action == 'opened'
+        run: bun scripts/gemini-direction-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-direction-proof
+          path: tmp/gemini-direction/
+          retention-days: 14
