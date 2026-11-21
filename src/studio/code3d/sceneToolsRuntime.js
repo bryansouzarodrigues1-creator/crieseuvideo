@@ -66,6 +66,10 @@ function createSceneTools(THREE) {
     quaternion.normalize();if(object.parent){object.parent.updateWorldMatrix(true,false);object.position.copy(object.parent.worldToLocal(position));const parentQ=object.parent.getWorldQuaternion(new THREE.Quaternion());object.quaternion.copy(parentQ.invert().multiply(quaternion));}else{object.position.copy(position);object.quaternion.copy(quaternion);}object.updateWorldMatrix(true,true);
   }
   function objectGrips(object,points){object.updateWorldMatrix(true,true);return points.map(p=>object.localToWorld(vec(p)));}
+  function graspFrames(object,grips){
+    object.updateWorldMatrix(true,true);const normalMatrix=new THREE.Matrix3().getNormalMatrix(object.matrixWorld);
+    return grips.map(g=>{const z=vec(g.normal).applyMatrix3(normalMatrix),y=vec(g.fingers).transformDirection(object.matrixWorld);if(z.lengthSq()<1e-10||y.lengthSq()<1e-10)throw new Error('Orientação da pega inválida.');z.normalize();y.addScaledVector(z,-y.dot(z));if(y.lengthSq()<1e-10)throw new Error('Dedos e normal da palma precisam de direções distintas.');y.normalize();const x=new THREE.Vector3().crossVectors(y,z).normalize();return {point:object.localToWorld(vec(g.point)),quaternion:new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z))};});
+  }
   function createPropTransfer(object,o){
     if(!(o.release>o.pickup)||typeof o.heldAt!=='function')throw new Error('Transferência do objeto inválida.');
     const copy=p=>({position:vec(p.position),quaternion:p.quaternion?p.quaternion.clone():new THREE.Quaternion()});
@@ -89,9 +93,25 @@ function createSceneTools(THREE) {
     const shoulderMarkers=[-1,1].map(side=>{const o=new THREE.Object3D();o.position.set(side*.30,.48,0);torso.add(o);return o;});
     const hipMarkers=[-1,1].map(side=>{const o=new THREE.Object3D();o.position.set(side*.14,0,0);pelvis.add(o);return o;});
     function limb(material,radius){const upper=mesh(root,new THREE.CylinderGeometry(radius,radius*.94,1,10),material,0,0,0),lower=mesh(root,new THREE.CylinderGeometry(radius*.89,radius*.8,1,10),material,0,0,0),joint=mesh(root,new THREE.SphereGeometry(radius*1.08,10,8),material,0,0,0);return {upper,lower,joint};}
-    const legs=[limb(trousers,.085),limb(trousers,.085)],arms=[limb(shirt,.065),limb(shirt,.065)],feet=[],hands=[];
-    for(let i=0;i<2;i++){const foot=new THREE.Group();mesh(foot,new THREE.BoxGeometry(.205,.12,.33),shoes,0,-.055,.065);const sole=new THREE.Object3D();sole.position.set(0,-.115,0);foot.add(sole);root.add(foot);feet.push({group:foot,sole});hands.push(mesh(root,new THREE.SphereGeometry(.064,12,10),skin,0,0,0));}
-    const diagnostics={feet:[0,0],hands:[0,0],legReach:[0,0],armReach:[0,0],knees:[]};
+    const legs=[limb(trousers,.085),limb(trousers,.085)],arms=[limb(shirt,.065),limb(shirt,.065)],feet=[],hands=[],handRigs=[];
+    function makeHand(index){
+      const group=new THREE.Group();root.add(group);const contact=new THREE.Object3D();group.add(contact);const thumbSide=index===0?1:-1;
+      mesh(group,new THREE.SphereGeometry(.028,10,8),skin,0,0,0);const palm=mesh(group,new THREE.BoxGeometry(.09,.082,.03),skin,0,.043,0);
+      const round=mesh(group,new THREE.SphereGeometry(1,10,8),skin,0,.073,0);round.scale.set(.046,.022,.016);
+      const fingers=[-.033,-.011,.011,.033].map(x=>({x,segments:[0,1,2].map(()=>mesh(group,new THREE.CylinderGeometry(.0105,.0095,1,8),skin,0,0,0)),joints:[0,1,2,3].map(()=>mesh(group,new THREE.SphereGeometry(.0105,8,6),skin,0,0,0))}));
+      const thumb={segments:[0,1].map(()=>mesh(group,new THREE.CylinderGeometry(.012,.0105,1,8),skin,0,0,0)),joints:[0,1,2].map(()=>mesh(group,new THREE.SphereGeometry(.012,8,6),skin,0,0,0))};let capsules=[];
+      function set(curl){
+        curl=clamp(curl);capsules=[];
+        for(const f of fingers){let p=new THREE.Vector3(f.x,.084,0),angle=0;f.joints[0].position.copy(p);for(let j=0;j<3;j++){angle+=(j===0?Math.PI/6:Math.PI/3)*curl;const q=p.clone().add(new THREE.Vector3(0,Math.cos(angle)*.034,Math.sin(angle)*.034));segment(f.segments[j],p,q);f.joints[j+1].position.copy(q);capsules.push({name:'finger',from:p.clone(),to:q.clone(),radius:.0105});p=q;}}
+        const a=new THREE.Vector3(thumbSide*.045,.022,.002),angle=-2.097-1.162*curl,target=new THREE.Vector3(thumbSide*(.10-.054*curl),.084+.035*Math.cos(angle),.034+.035*Math.sin(angle));
+        const solved=solveTwoBone(a,target,new THREE.Vector3(thumbSide*.12,.025,.07),.041,.037),points=[a,solved.joint,solved.end];
+        for(let j=0;j<2;j++){segment(thumb.segments[j],points[j],points[j+1]);capsules.push({name:'thumb',from:points[j].clone(),to:points[j+1].clone(),radius:.012});}thumb.joints.forEach((m,j)=>m.position.copy(points[j]));
+      }
+      function samples(){group.updateWorldMatrix(true,true);const scale=group.getWorldScale(new THREE.Vector3()).x;return [{name:'palm',from:group.localToWorld(new THREE.Vector3(0,.043,0)),to:group.localToWorld(new THREE.Vector3(0,.043,0)),radius:.065*scale},{name:'wrist',from:group.getWorldPosition(new THREE.Vector3()),to:group.getWorldPosition(new THREE.Vector3()),radius:.028*scale},...capsules.map(c=>({...c,from:group.localToWorld(c.from.clone()),to:group.localToWorld(c.to.clone()),radius:c.radius*scale}))];}
+      set(0);return {group,contact,set,samples,offset:new THREE.Vector3(0,.084,.034)};
+    }
+    for(let i=0;i<2;i++){const foot=new THREE.Group();mesh(foot,new THREE.BoxGeometry(.205,.12,.33),shoes,0,-.055,.065);const sole=new THREE.Object3D();sole.position.set(0,-.115,0);foot.add(sole);root.add(foot);feet.push({group:foot,sole});if(options.hands==='articulated'){const rig=makeHand(i);handRigs.push(rig);hands.push(rig.contact);}else{handRigs.push(null);hands.push(mesh(root,new THREE.SphereGeometry(.064,12,10),skin,0,0,0));}}
+    const diagnostics={feet:[0,0],hands:[0,0],legReach:[0,0],armReach:[0,0],knees:[],wrists:[],elbows:[],handSamples:[]};
     function segment(m,a,b){const delta=b.clone().sub(a),length=delta.length();m.position.copy(a).add(b).multiplyScalar(.5);m.scale.y=Math.max(1e-6,length);m.quaternion.setFromUnitVectors(up,delta.lengthSq()>1e-12?delta.normalize():down);}
     function updateLimb(limb,start,target,pole,a,b){const solved=solveTwoBone(start,target,pole,a,b);segment(limb.upper,start,solved.joint);segment(limb.lower,solved.joint,solved.end);limb.joint.position.copy(solved.joint);return solved;}
     function pose(o={}){
@@ -105,10 +125,14 @@ function createSceneTools(THREE) {
         const spread=clamp(o.kneeSpread||0,0,1.2),solved=updateLimb(legs[i],hip,target,new THREE.Vector3(hip.x+(i===0?-1:1)*spread,.35,hip.z+.7-spread*.2),.46,.45);feet[i].group.position.copy(solved.end);root.updateWorldMatrix(true,true);
         diagnostics.legReach[i]=solved.error;diagnostics.feet[i]=feet[i].sole.getWorldPosition(new THREE.Vector3()).distanceTo(desired);
         const shoulder=root.worldToLocal(shoulderMarkers[i].getWorldPosition(new THREE.Vector3())),swing=Math.sin(o.phase||0)*(i===0?1:-1)*(o.swing===undefined?.22:o.swing);
-        const handData=i===0?o.leftHand:o.rightHand,handTarget=handData?root.worldToLocal(vec(handData)):new THREE.Vector3((i===0?-1:1)*.40,.94,swing+.08);
-        const arm=updateLimb(arms[i],shoulder,handTarget,new THREE.Vector3((i===0?-1:1)*.7,1.05,.35),.34,.33);hands[i].position.copy(arm.end);diagnostics.armReach[i]=arm.error;diagnostics.hands[i]=arm.end.distanceTo(handTarget)*(options.scale||1);
+        const handData=i===0?o.leftHand:o.rightHand,framed=handData&&!handData.isVector3&&handData.point,handPoint=handData?vec(framed?handData.point:handData):root.localToWorld(new THREE.Vector3((i===0?-1:1)*.40,.94,swing+.08));
+        const handTarget=root.worldToLocal(handPoint.clone()),rig=handRigs[i];
+        if(rig&&framed){const q=handData.quaternion;if(!q||!q.isQuaternion||q.lengthSq()<1e-10||!q.toArray().every(Number.isFinite))throw new Error('Quaternion da mão inválido.');rig.group.quaternion.copy(root.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q.clone().normalize()));rig.contact.position.copy(rig.offset);handTarget.sub(rig.offset.clone().applyQuaternion(rig.group.quaternion));}
+        const arm=updateLimb(arms[i],shoulder,handTarget,new THREE.Vector3((i===0?-1:1)*(rig?.45:.7),rig?.98:1.05,rig?.12:.35),.34,.33);
+        if(rig){rig.group.position.copy(arm.end);if(!framed){const y=arm.end.clone().sub(arm.joint).normalize(),z=new THREE.Vector3(0,0,1);z.addScaledVector(y,-z.dot(y));if(z.lengthSq()<1e-10)z.set(1,0,0);z.normalize();const x=new THREE.Vector3().crossVectors(y,z);rig.group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z));rig.contact.position.set(0,0,0);}rig.set(framed?handData.grip||0:0);root.updateWorldMatrix(true,true);diagnostics.hands[i]=hands[i].getWorldPosition(new THREE.Vector3()).distanceTo(handPoint);}else{hands[i].position.copy(arm.end);diagnostics.hands[i]=arm.end.distanceTo(handTarget)*(options.scale||1);}
+        diagnostics.armReach[i]=arm.error;diagnostics.wrists[i]=root.localToWorld(arm.end.clone()).toArray();diagnostics.elbows[i]=root.localToWorld(arm.joint.clone()).toArray();
       }
-      root.updateWorldMatrix(true,true);diagnostics.knees=legs.map(l=>l.joint.getWorldPosition(new THREE.Vector3()).toArray());return diagnostics;
+      root.updateWorldMatrix(true,true);diagnostics.knees=legs.map(l=>l.joint.getWorldPosition(new THREE.Vector3()).toArray());diagnostics.handSamples=handRigs.map(r=>r?r.samples().map(c=>({...c,from:c.from.toArray(),to:c.to.toArray()})):[]);return diagnostics;
     }
     pose();return {root,pose,head,feet,hands,diagnostics};
   }
@@ -123,5 +147,5 @@ function createSceneTools(THREE) {
     }
     camera.position.copy(target).addScaledVector(vec(candidates[chosen]).normalize(),distance);camera.lookAt(target);camera.updateMatrixWorld(true);camera.userData.targetVisibility={clear:best===0,blocked:best,selected:chosen};return chosen;
   }
-  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,createPropTransfer,createPerson,aimCamera});
+  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,graspFrames,createPropTransfer,createPerson,aimCamera});
 }
