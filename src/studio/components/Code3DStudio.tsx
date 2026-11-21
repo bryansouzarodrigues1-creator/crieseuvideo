@@ -6,7 +6,7 @@ import { lovable } from '@/integrations/lovable';
 import { generateCode3D } from '../code3d.functions';
 import {
   CODE3D_DEFAULT_DURATION, CODE3D_MAX_CODE_CHARS, CODE3D_MAX_DURATION, CODE3D_MAX_SCRIPT_CHARS,
-  CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, type Code3DAspect, type Code3DModelChoice,
+  CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, code3dFrameRate, type Code3DAspect, type Code3DModelChoice, type Code3DQuality,
 } from '../code3d/contract';
 import { SANDBOX_ATTRIBUTE, buildSandboxSrcdoc, randomHex, readSandboxMessage } from '../code3d/sandbox';
 import { FrameRequests } from '../code3d/frameRequests';
@@ -18,11 +18,12 @@ const STAGE_TEXT: Record<string, string> = {
   runtime: 'erro durante a execução do código gerado',
 };
 type Phase = 'idle' | 'generating' | 'importing' | 'loading' | 'ready' | 'error';
-type Generated = { code: string; model: string; warnings: string[]; source: 'gemini' | 'imported' };
+type Generated = { code: string; model: string; warnings: string[]; source: 'gemini' | 'imported' | 'recipe' };
 
 export default function Code3DStudio() {
   const [script, setScript] = useState(SAMPLE);
   const [aspect, setAspect] = useState<Code3DAspect>('9:16');
+  const [quality, setQuality] = useState<Code3DQuality>('preview');
   const [modelChoice, setModelChoice] = useState<Code3DModelChoice>('gemini-3.6-flash');
   const [userId, setUserId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -42,7 +43,7 @@ export default function Code3DStudio() {
   const playingRef = useRef(false);
   const exportingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  const size = code3dSize(aspect);
+  const size = code3dSize(aspect, quality);
 
   // New token + nonce for every program load; srcdoc never contains the code or any key.
   const sandbox = useMemo(() => {
@@ -56,7 +57,7 @@ export default function Code3DStudio() {
         minDuration: CODE3D_MIN_DURATION, maxDuration: CODE3D_MAX_DURATION, defaultDuration: CODE3D_DEFAULT_DURATION,
       }),
     };
-  }, [result, aspect]);
+  }, [result, aspect, quality]);
 
   useEffect(() => {
     let alive = true;
@@ -217,6 +218,23 @@ export default function Code3DStudio() {
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
+  const loadConstruction = async () => {
+    if (phase === 'generating' || phase === 'importing' || phase === 'loading' || exportingRef.current) return;
+    setError(''); setPlaying(false); setPhase('importing');
+    try {
+      const [{ buildConstructionCode }, { checkGeneratedCode }] = await Promise.all([
+        import('../code3d/recipes/construction'), import('../code3d/validation'),
+      ]);
+      const code = buildConstructionCode();
+      const checked = checkGeneratedCode(code);
+      if (!checked.ok) throw new Error(checked.detail);
+      setLastModel('');
+      setResult({ code, model: '', warnings: checked.warnings, source: 'recipe' });
+    } catch (e) {
+      setPhase('error'); setError('Não foi possível abrir a construção: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
   const exportVideo = async () => {
     if (phase !== 'ready' || !replay?.deterministic || exportingRef.current) return;
     const canvas = document.createElement('canvas');
@@ -228,7 +246,7 @@ export default function Code3DStudio() {
     try {
       const { encodeFixedFrame3DClip } = await import('../utils/deterministic3dExport');
       const video = await encodeFixedFrame3DClip({
-        canvas, durationSeconds: duration, fps: 24, signal: ctrl.signal, onProgress: setExportProgress,
+        canvas, durationSeconds: duration, fps: code3dFrameRate(quality), signal: ctrl.signal, onProgress: setExportProgress,
         renderFrame: async (t) => {
           const b = await frames.request(t, ctrl.signal);
           try { ctx.drawImage(b, 0, 0, canvas.width, canvas.height); } finally { b.close(); }
@@ -267,6 +285,11 @@ export default function Code3DStudio() {
           <button type="button" disabled={busy} onClick={() => setAspect((a) => (a === '9:16' ? '16:9' : '9:16'))}>
             Formato: {aspect === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}
           </button>
+          <label htmlFor="code3d-quality">Qualidade do vídeo</label>
+          <select id="code3d-quality" value={quality} disabled={busy} onChange={e => setQuality(e.target.value as Code3DQuality)}>
+            <option value="preview">Rápido · 432 × 768 · 24 fps</option>
+            <option value="hd">HD · 720 × 1280 · 30 fps</option>
+          </select>
           <label htmlFor="code3d-model">Modelo Gemini</label>
           <select id="code3d-model" value={modelChoice} disabled={busy} onChange={e => setModelChoice(e.target.value as Code3DModelChoice)}>
             <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
@@ -277,6 +300,7 @@ export default function Code3DStudio() {
           <label className="native-3d-small" htmlFor="code3d-import">Reabrir uma cena salva (.js), sem nova geração</label>
           <input id="code3d-import" type="file" accept=".js,.txt,text/javascript,text/plain" disabled={busy}
             onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importCode(file); }} />
+          <button type="button" disabled={busy} onClick={() => void loadConstruction()}>Carregar construção por etapas</button>
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE3D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
@@ -291,7 +315,7 @@ export default function Code3DStudio() {
           )}
           {error && <p className="native-3d-error" role="alert">{error}</p>}
           <p className="native-3d-small" aria-live="polite">
-            {result?.source === 'imported' ? 'Código importado · nenhuma chamada à IA' : `Provedor: Gemini direto${lastModel ? ` · modelo ${lastModel}` : ''}`} · estado: {{
+            {result?.source === 'imported' ? 'Código importado · nenhuma chamada à IA' : result?.source === 'recipe' ? 'Modelo de construção · nenhuma chamada à IA' : `Provedor: Gemini direto${lastModel ? ` · modelo ${lastModel}` : ''}`} · estado: {{
               idle: 'aguardando', generating: 'gerando código', importing: 'abrindo código salvo', loading: 'executando na caixa isolada', ready: 'pronto', error: 'falhou',
             }[phase]}
           </p>
@@ -302,7 +326,7 @@ export default function Code3DStudio() {
               <iframe
                 key={sandbox.token}
                 ref={frameRef}
-                title="Cena 3D gerada pelo Gemini (caixa isolada)"
+                title="Cena 3D por código (caixa isolada)"
                 sandbox={SANDBOX_ATTRIBUTE}
                 referrerPolicy="no-referrer"
                 srcDoc={sandbox.srcdoc}
@@ -340,7 +364,7 @@ export default function Code3DStudio() {
             )}
             {result && <button disabled={busy} onClick={downloadCode}><Download size={17} /> Salvar código da cena (.js)</button>}
           </div>
-          <p className="native-3d-small">A exportação grava quadro a quadro em tempos fixos: MP4 quando o navegador tem codificador H.264, senão WebM. Sem narração nem legendas.</p>
+          <p className="native-3d-small">A exportação grava as imagens da cena quadro a quadro: MP4 quando o navegador tem codificador H.264, senão WebM. O áudio pode ser adicionado na montagem.</p>
           {result && (
             <details className="native-3d-small">
               <summary>Ver código gerado</summary>

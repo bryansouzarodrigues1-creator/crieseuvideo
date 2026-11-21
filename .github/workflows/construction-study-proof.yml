@@ -1,0 +1,100 @@
+name: Construction reference through the actual Code 3D studio
+on:
+  pull_request:
+    branches: [test/end-battle-part2-20261120]
+    paths:
+      - src/studio/code3d/**
+      - src/studio/components/Code3DStudio.tsx
+      - scripts/construction-study-browser.mjs
+      - scripts/build-construction-study.ts
+      - scripts/fixtures/construction-study*
+      - .github/workflows/construction-study-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: construction-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  settings:
+    runs-on: ubuntu-24.04
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: mode
+        run: echo "mode=$(node -p 'JSON.parse(require("fs").readFileSync("scripts/fixtures/construction-study.render.json","utf8")).mode')" >> "$GITHUB_OUTPUT"
+  preview:
+    needs: settings
+    if: needs.settings.outputs.mode == 'preview'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      CONSTRUCTION_MODE: preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Offline tests
+        run: bun run test
+      - name: Build and typecheck actual app
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Prepare browser and start studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/construction-preview
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/construction-preview/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Preview all scenes and export a short action test
+        run: bun scripts/construction-study-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: construction-preview
+          path: tmp/construction-preview/
+          retention-days: 14
+  render:
+    needs: settings
+    if: needs.settings.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1, 2, 3, 4]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      CONSTRUCTION_MODE: video
+      CONSTRUCTION_GROUP: ${{ matrix.group }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Build actual studio
+        run: bun run build
+      - name: Prepare browser and start studio
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/construction-group-${CONSTRUCTION_GROUP}
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/construction-group-${CONSTRUCTION_GROUP}/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Export two native movie scenes
+        run: bun scripts/construction-study-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: construction-engine-${{ matrix.group }}
+          path: tmp/construction-group-${{ matrix.group }}/
+          retention-days: 14
