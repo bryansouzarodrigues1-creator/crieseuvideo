@@ -18,7 +18,7 @@ The reference lasts about 134.29 seconds at 1080×1920, 30 fps. It starts with t
 
 The fixture is rebuilt with `node --import tsx scripts/build-construction-study.ts` locally or `bun scripts/build-construction-study.ts`. Browser proof uses the actual `/motor-3d/codigo` recipe button, imports the original program, checks replay and exports with the real studio button. First review a reduced-resolution trial before running all ten 12-second HD segments.
 
-The complete study uses a 120-second edit map. It removes sponsor segments and keeps the construction explanation and estimate qualification. Audio and caption finishing happen privately using the user-provided source; no new narrator is implied. Source caption timing is observed from the video and has approximately one-sixth-second granularity.
+The native study renders 120 seconds in ten clips; the final edit keeps 114.2 seconds, ending after the estimate qualification. It removes sponsor segments and keeps the construction explanation and estimate qualification. Audio and caption finishing happen privately using the user-provided source; no new narrator is implied. Source caption timing is observed from the video and has approximately one-sixth-second granularity.
 
 ## Limits
 

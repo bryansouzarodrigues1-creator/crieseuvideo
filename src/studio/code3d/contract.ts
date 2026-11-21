@@ -77,6 +77,7 @@ EXPLICADORES DE PROCESSOS E CONSTRUÇÃO
 - Defina cada etapa por início, fim e transformação de suas peças. Escalone a entrada das peças por fileira; não substitua a montagem por um zoom ou por trocar um objeto inteiro por outro.
 - Use um plano geral para orientar, aproximação da peça ativa para explicar e retorno ao conjunto para mostrar a consequência. Um corte do solo ou um corte da cobertura deve revelar as peças que já pertencem ao mesmo modelo.
 - Se houver custo ou quantidade, use somente valores fornecidos pelo usuário, identificados como ilustrativos quando apropriado. O contador deve acompanhar as etapas visíveis. Para muitas peças repetidas, use InstancedMesh com cores e posições determinísticas.
+- Oculte peças com visible=false ou escala zero em todos os eixos. Achatar só um eixo ainda desenha faces e sombras. Em planos de detalhe, abra vãos e corte as partes que encobrem a peça ativa; confira o caminho entre a câmera e o alvo.
 - Dimensione legendas e etiquetas no espaço da tela e preserve margens. Não esconda a peça que está sendo explicada com uma etiqueta ou com partes do próprio cenário.
 
 RESPOSTA: apenas um bloco \`\`\`javascript com o programa completo. Sem explicações.
