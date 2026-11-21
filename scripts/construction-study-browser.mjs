@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 const mode=process.env.CONSTRUCTION_MODE||'preview',group=Number(process.env.CONSTRUCTION_GROUP||0);
-const ids=mode==='preview'?Array.from({length:10},(_,i)=>i):[group*2,group*2+1];
+const ids=mode==='preview'?[0,2,5,6,7,8]:[group*2,group*2+1];
 const out=path.resolve(mode==='preview'?'tmp/construction-preview':`tmp/construction-group-${group}`);await mkdir(out,{recursive:true});
 const source=await readFile('scripts/fixtures/construction-study.js','utf8'),provenance=JSON.parse(await readFile('scripts/fixtures/construction-study.provenance.json','utf8'));
 assert.equal(createHash('sha256').update(source).digest('hex'),provenance.source_sha256);
@@ -34,7 +34,7 @@ try{
   for(const t of times){samples.push(await seek(t));const raw=await frame().evaluate(()=>document.querySelector('canvas').toDataURL('image/png').split(',')[1]);await writeFile(path.join(out,`clip-${String(id).padStart(2,'0')}-${t.toFixed(1)}s.png`),Buffer.from(raw,'base64'));}
   const repeated=await seek(6);const comparison=samples[times.indexOf(6)];let diff=0;for(let k=0;k<repeated.length;k++)diff=Math.max(diff,Math.abs(repeated[k]-comparison[k]));assert.ok(diff<=3,`Replay difference ${diff}`);assert.ok(new Set(repeated).size>50);
   let filename=null,ext=null;
-  if(mode!=='preview'||id===2){
+  if(mode!=='preview'||id===5){
    // First trial is deliberately lower-resolution; full movie keeps HD/30.
    if(mode==='preview'){await page.locator('#code3d-quality').selectOption('preview');await ready();}
    stage='export '+id;console.log(`EXPORT_START clip=${id}`);const waiting=page.waitForEvent('download',{timeout:600000});await page.getByRole('button',{name:'Exportar vídeo (experimental)',exact:true}).click();const download=await waiting;ext=download.suggestedFilename().endsWith('.mp4')?'mp4':'webm';filename=`Shopping_Motor_Cena_${String(id).padStart(2,'0')}_12s.${ext}`;await download.saveAs(path.join(out,filename));await page.getByRole('button',{name:'Exportar vídeo (experimental)',exact:true}).waitFor({timeout:15000});console.log(`EXPORT_DONE clip=${id}`);

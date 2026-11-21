@@ -1,6 +1,6 @@
 {
   "origin": "Manually directed procedural reconstruction of a user-provided construction explainer; not a Gemini response.",
-  "source_sha256": "a57b6a0469905f3f084a9260ecb7c702aba5d32d3545964803497ffc4718f0b0",
+  "source_sha256": "fdaa3774188adba25532d99f1d88dbb2f0dd1f6d37609a211dd443fc75b05391",
   "renderer": "Existing Code3DStudio, explicit import, opaque sandbox and native fixed-frame exporter",
   "duration": 120,
   "clipDuration": 12,
