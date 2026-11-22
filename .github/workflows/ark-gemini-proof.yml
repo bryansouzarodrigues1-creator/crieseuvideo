@@ -6,6 +6,7 @@ on:
       - src/studio/code3d/**
       - src/studio/components/Code3DStudio.tsx
       - scripts/ark-gemini-*
+      - scripts/fixtures/ark-gemini.*
       - .github/workflows/ark-gemini-proof.yml
 permissions:
   contents: read
@@ -14,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   generate-and-render:
-    if: github.event.pull_request.head.ref == 'feat/ark-tsunami-gemini-20261122' && github.event.action == 'opened'
+    if: github.event.pull_request.head.ref == 'feat/ark-tsunami-gemini-20261122'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -36,11 +37,15 @@ jobs:
           done
           exit 1
       - name: One actual Gemini request for scene and original choir
+        if: github.event.action == 'opened'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
           GEMINI_CODE3D_MODEL: gemini-3.6-flash
           ARK_ONE_CALL: ARK_TSUNAMI_20261122
         run: bun scripts/ark-gemini-generate.ts
+      - name: Reuse the original response without another model request
+        if: github.event.action != 'opened'
+        run: bun scripts/ark-gemini-replay.ts
       - name: Render untouched program and export its PCM in the sandbox
         run: bun scripts/ark-gemini-render.mjs
       - uses: actions/upload-artifact@v4

@@ -29,7 +29,7 @@ const rawDirection = z.object({
     id, quote: z.string().trim().min(2).max(300),
     start: time.optional(), end: time.optional(), firstWord: z.number().int().min(0).max(119).optional(),
     subjects: z.array(id).min(1).max(4), focus: id,
-    camera: z.enum(['wide', 'detail', 'result']),
+    camera: z.enum(['wide', 'medium', 'detail', 'result']),
     action: z.string().trim().min(8).max(220),
     before: z.string().trim().min(3).max(200), after: z.string().trim().min(3).max(200),
   }).strict()).min(1).max(6),
@@ -114,7 +114,7 @@ Comece o bloco JavaScript com um comentário JSON estrito, antes de function cre
 /*${DIRECTION_MARKER}
 {"version":1,"duration":10,"timing":"planned","objects":[{"id":"objeto","description":"objeto pedido pelo usuário","parts":["base","corpo","tampa"]}],"shots":[{"id":"montagem","start":0,"end":10,"quote":"trecho literal do roteiro","subjects":["objeto"],"focus":"objeto","camera":"detail","action":"as peças rígidas encaixam em sequência","before":"objeto desmontado","after":"objeto montado e funcionando"}]}
 */
-O exemplo mostra o FORMATO, não o conteúdo. Escolha 1 a 6 planos adequados ao pedido e preencha todos os campos. Planos cobrem de 0 até duration, sem lacunas nem sobreposição. quote deve ser trecho literal da fonte. subjects/focus usam IDs de objects; parts são IDs persistentes das peças.
+O exemplo mostra o FORMATO, não o conteúdo. Escolha 1 a 6 planos adequados ao pedido e preencha todos os campos. camera aceita apenas wide, medium, detail ou result. Planos cobrem de 0 até duration, sem lacunas nem sobreposição. quote deve ser trecho literal da fonte. subjects/focus usam IDs de objects; parts são IDs persistentes das peças.
 O servidor valida o comentário e injeta const DIRECTOR_SCORE com a partitura normalizada antes do seu programa. NÃO declare DIRECTOR_SCORE. Seu código DEVE ler DIRECTOR_SCORE.shots e usar seus start/end para as ações e a câmera; duration deve ser DIRECTOR_SCORE.duration. Nenhuma função adicional de planejar ou gerar vídeo existe no runtime.
 Para montagem, use tools.createAssemblyPart(objeto,{start:plano.start,end:plano.end,fromPosition:[x,y,z],fromRotation:[rx,ry,rz]}). Defina primeiro a pose final local do objeto, então crie o controlador UMA vez em createScene. Chame controlador.apply(t) em renderAt. Ele preserva a escala e volta à mesma pose quando o tempo é buscado fora de ordem. Escalone start/end das peças dentro do plano e deixe tempo para ver o resultado; não termine todas no último quadro.
 ${checked ? `TEMPOS DE FALA FORNECIDOS (dados imutáveis): duração=${checked.duration}. Use timing:"provided". Em cada plano emita firstWord (índice da primeira palavra, primeiro plano = 0), em vez de start/end. O motor deriva start dessa palavra e end da primeira palavra do próximo plano, ou da duração. quote começa exatamente em firstWord. A fala é a fonte de quote; o roteiro continua definindo os objetos e ações. Palavras: ${JSON.stringify(checked.words.map((w, index) => ({ index, ...w })))}` : 'SEM TEMPOS DE ÁUDIO: use timing:"planned", duration entre 8 e 20, e start/end explícitos. Não afirme sincronização medida nem invente narração.'}

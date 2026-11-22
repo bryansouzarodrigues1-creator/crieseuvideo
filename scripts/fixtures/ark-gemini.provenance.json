@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "attempts": 1,
+  "model": "gemini-3.6-flash",
+  "script": "Fábula animada 3D: a Arca de Noé enfrenta um tsunami. Duração EXATA de 20 segundos, vertical. De 0 a 7 s, uma enorme onda curva de crista branca se ergue e atinge a arca de madeira: casco e cabine detalhados, chuva, balanço com peso, sem afundar. De 7 a 11 s, a tempestade se dissipa, as nuvens abrem e o sol ilumina o mar que fica calmo. De 11 a 14 s, a porta abre e animais de pelo menos três espécies reconhecíveis caminham da cabine para o convés externo, sem se atravessar. De 14 a 20 s, os animais do lado de fora cantam juntos um coro alegre ORIGINAL de vogais, abrem e fecham mandíbulas nas notas e balançam o corpo. Inclua getSoundtrack com PCM REAL de 20 s: vento/ondas no início e vozes sintetizadas com formantes/harmônicos e melodia no coro; compartilhe os eventos das notas com as bocas, não use apenas apitos. Câmera legível acompanha onda, transição ao sol e coro inteiro, usando fitCameraToObjects, sem cortar animais nem arca. Cores vivas e luz de preenchimento. Não use apresentador nem imagens externas. Placa discreta COMENTE ARCA no último segundo, sem cobrir os animais.",
+  "manualAnimationChanges": false,
+  "manualAudioChanges": false,
+  "originalSHA256": "275f0b5c165a3208b07cf347671e36f078ffea685ddb4def6fe113f418da1606",
+  "commit": "08c3ec17f3361489f1762eb3826b60381ee6e1f3",
+  "failure": "direction_error",
+  "message": "a direção gerada não segue a fala, a ordem dos planos ou a partitura obrigatória"
+}

@@ -16,6 +16,10 @@ describe('direction data before any generated program execution',()=>{
     expect(direction.shots.every(s=>s.subjects[0]==='box')).toBe(true);
     expect(direction.lessonVersion).toBe('spoken-actions-v1');
   });
+  it('accepts a medium shot as a camera label without changing the authored plan',()=>{
+    const value=plan();value.shots[0].camera='medium';
+    expect(normalizeDirection(value,script).shots[0].camera).toBe('medium');
+  });
   it('rejects a script told backwards even when the numerical shot intervals are ordered',()=>{
     const value=plan();value.shots[0].quote='Feche a tampa.';value.shots[1].quote='Monte a caixa.';
     expect(()=>normalizeDirection(value,script)).toThrow(/inverteram/);

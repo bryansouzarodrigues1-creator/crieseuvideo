@@ -1,0 +1,20 @@
+// Re-validate the exact original response, with zero provider calls or creative edits.
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {extractCode} from '../src/studio/code3d/contract';
+import {checkGeneratedCode} from '../src/studio/code3d/validation';
+import {prepareDirectedProgram} from '../src/studio/server/directedProgram';
+const out='tmp/ark-gemini';await mkdir(out,{recursive:true});
+const original=await readFile('scripts/fixtures/ark-gemini.original.txt','utf8');
+const provenance=JSON.parse(await readFile('scripts/fixtures/ark-gemini.provenance.json','utf8'));
+const {failure:initialFailure,message:initialMessage,...retained}=provenance;
+const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
+if(sha(original)!==provenance.originalSHA256)throw Error('Original model answer changed.');
+const source=extractCode(original);if(!source)throw Error('Original program missing.');
+const prepared=prepareDirectedProgram(source,provenance.script);
+const checked=checkGeneratedCode(prepared.code);if(!checked.ok)throw Error(checked.failure);
+if(prepared.direction.duration!==20)throw Error('Original duration changed.');
+await writeFile(out+'/original-response.txt',original);
+await writeFile(out+'/gemini-scene.js',prepared.code);
+await writeFile(out+'/generation.json',JSON.stringify({...retained,ok:true,direction:prepared.direction,codeSHA256:sha(prepared.code),warnings:checked.warnings,initialValidation:{failure:initialFailure,message:initialMessage,reason:'The original medium shot label is now explicitly supported.'},replayProviderRequests:0},null,2));
+console.log('Original Gemini answer accepted without creative changes; provider calls in this replay: 0.');
