@@ -55,15 +55,26 @@ export async function askFreeTextProvider(
     model:config.model,
     temperature:expected==='json'?.2:.35,
     messages:[{role:'user',content:prompt}],
-    max_tokens:expected==='json'?2300:14000,
+    // Separate visible code from hidden reasoning. OpenRouter documents that
+    // reasoning consumes max_tokens; Particle-1 previously spent all 12k
+    // completion tokens thinking and returned empty code (finish_reason=length).
+    max_tokens:expected==='json'?3000:14000,
+    ...(provider==='openrouter'?{
+      reasoning:{max_tokens:expected==='javascript'?1800:650},
+    }:{}),
+    ...(provider==='groq'?{reasoning_effort:'low'}:{}),
     ...(provider==='groq'&&expected==='json'?{response_format:{type:'json_object'}}:{}),
    }),
   });
   if(!res.ok)return fail(classify(res.status));
   const data=await res.json();
-  if(data?.choices?.[0]?.finish_reason==='length')return fail('saida_truncada');
   const result=textFrom(data);
-  if(!result||!result.trim())return fail('resposta_vazia');
+  const reasonTokens=Number(data?.usage?.completion_tokens_details?.reasoning_tokens||0);
+  const allTokens=Number(data?.usage?.completion_tokens||0);
+  if(data?.choices?.[0]?.finish_reason==='length')
+    return fail(allTokens>0&&reasonTokens>=allTokens-1?'raciocinio_consumiu_saida':'saida_truncada');
+  if(!result||!result.trim())
+    return fail(reasonTokens>0?'sem_texto_apos_raciocinio':'resposta_vazia');
   return {ok:true,text:result,model:config.model};
  }catch(e){
   return fail(e instanceof Error&&e.name==='AbortError'?'timeout':'rede');
