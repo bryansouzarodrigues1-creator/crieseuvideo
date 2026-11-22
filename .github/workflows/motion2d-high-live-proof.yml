@@ -1,4 +1,4 @@
-name: Gemini HIGH creates original Motion 2D forty-second story
+name: Gemini HIGH creates 2D story with original motion keyframes
 on:
   push:
     branches:
@@ -25,8 +25,10 @@ jobs:
         run: |
           bunx vitest run src/studio/server/geminiHigh.test.ts
           bunx tsc --noEmit
-      - name: Install Chromium for original Motion 2D rendering
+      - name: Install Chromium and native video diagnostics
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           bun add --no-save playwright@1.57.0
           bunx playwright install chromium
           mkdir -p tmp/motion2d-high-live
