@@ -69,7 +69,7 @@ export async function generateMultiAgentCode2D(
  const callGemini=async(prompt:string,key:GeminiKey)=>{
   if(!keyExists(key)||!available())return {
    text:null,model:process.env.GEMINI_AI_MODEL||'gemini-3.8-flash',
-   problem:(!keyExists(key)?'not_configured':'quota') as const,
+   problem:(!keyExists(key)?'not_configured':'quota') as 'not_configured'|'quota',
   };
   used++;
   return await askGeminiForExplainer(prompt,key);
