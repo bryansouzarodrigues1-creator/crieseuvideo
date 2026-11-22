@@ -30,7 +30,7 @@ function createScene(THREE, canvas, width, height) {
   box(.045,.71,.04,'#f3e7d1',-.52,1.35,1.05,house);box(.80,.045,.04,'#f3e7d1',-.52,1.35,1.05,house);
   const warmLight=new THREE.PointLight('#ffcb70',0,3.6);warmLight.position.set(-.52,1.35,1.35);house.add(warmLight);
   const panel=new THREE.Group();panel.position.set(-1.13,0,.42);panel.rotation.y=.10;scene.add(panel);
-  box(.12,.8,.14,'#91a9af',-.80,.4,.16,panel,.55);box(.12,.8,.14,'#91a9af',.80,.4,.16,panel,.55);
+  box(.12,.8,.14,'#91a9af',-.80,.4,-.25,panel,.55);box(.12,.8,.14,'#91a9af',.80,.4,-.25,panel,.55);
   const plate=new THREE.Group();plate.position.y=.95;plate.rotation.x=-.32;panel.add(plate);
   box(2.18,1.48,.12,'#c4d4df',0,0,0,plate,.65);
   const cells=[];
@@ -54,16 +54,19 @@ function createScene(THREE, canvas, width, height) {
   // Mesh character with elbow groups; no pretend gripping of the moving panel.
   const worker=new THREE.Group();worker.position.set(-2.72,0,-.45);scene.add(worker);
   box(.46,.68,.30,'#df8e47',0,1.10,0,worker);ball(.25,'#bc8668',0,1.72,0,worker);ball(.254,'#49352d',0,1.83,-.05,worker);
-  for(const side of [-1,1]){box(.15,.55,.19,'#293e55',side*.13,.48,0,worker);box(.19,.10,.29,'#f1e9d6',side*.13,.16,.05,worker);ball(.023,'#182633',side*.082,1.75,.23,worker);}
+  for(const side of [-1,1]){box(.15,.60,.19,'#293e55',side*.13,.42,0,worker);box(.19,.10,.29,'#f1e9d6',side*.13,.075,.05,worker);ball(.023,'#182633',side*.082,1.75,.23,worker);}
   const arm=new THREE.Group();arm.position.set(.28,1.34,0);worker.add(arm);box(.13,.33,.15,'#df8e47',0,-.16,0,arm);
   const elbow=new THREE.Group();elbow.position.y=-.32;arm.add(elbow);box(.11,.30,.13,'#bc8668',0,-.14,0,elbow);ball(.075,'#bc8668',0,-.30,0,elbow);
   box(.13,.5,.15,'#df8e47',-.30,1.03,0,worker);ball(.075,'#bc8668',-.30,.75,0,worker);
   const trees=[];for(const [x,z,s] of [[-4,-5,1],[4,-6,1.2],[-6,-8,1.5],[6,-9,1.5]]){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);scene.add(g);box(.20,1.4,.20,'#8c7354',0,.7,0,g);ball(.73,'#629a76',0,1.8,0,g);ball(.5,'#7bad80',.4,2,0,g);trees.push(g);}
   const clamp=x=>Math.max(0,Math.min(1,x)),ease=x=>{x=clamp(x);return x*x*(3-2*x);};
   const wide=new THREE.Vector3(5.8,5.1,17.0),wideLook=new THREE.Vector3(-.1,1.4,-.5);
-  const close=new THREE.Vector3(-.35,2.9,6.0),closeLook=new THREE.Vector3(-1.13,1.95,.42);
+  const closeStart=new THREE.Vector3(-.35,3.45,8.2),closeEnd=new THREE.Vector3(-.70,2.5,5.7);
+  const closeLookStart=new THREE.Vector3(-1.13,2.15,.42),closeLookEnd=new THREE.Vector3(-1.13,1.10,.42);
   return {duration:12,renderAt(t){
-    const blend=ease((t-3.75)/.55)*(1-ease((t-7.7)/.6));camera.position.copy(wide).lerp(close,blend);camera.lookAt(wideLook.clone().lerp(closeLook,blend));
+    const blend=ease((t-3.75)/.55)*(1-ease((t-7.7)/.6)),assemblyFit=ease((t-6.65)/.95);
+    const close=closeStart.clone().lerp(closeEnd,assemblyFit),closeLook=closeLookStart.clone().lerp(closeLookEnd,assemblyFit);
+    camera.position.copy(wide).lerp(close,blend);camera.lookAt(wideLook.clone().lerp(closeLook,blend));
     for(const c of cells){const p=ease((t-4.3-c.index*.33)/.62);c.g.position.set(c.x+(1-p)*(.35*(c.index%2?1:-1)),c.y+(1-p)*2.5,.085+(1-p)*.18);c.g.rotation.z=(1-p)*.12*(c.index%2?1:-1);}
     const gp=ease((t-6.65)/.92);glass.position.set(0,(1-gp)*3.6,.12+(1-gp)*.22);sheen.visible=gp>.98;
     const connect=ease((t-8.15)/.70);plug.position.set(-.8+connect*1.10,.90,1.18);

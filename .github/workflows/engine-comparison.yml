@@ -26,8 +26,9 @@ jobs:
         run: |
           mkdir -p tmp/engine-comparison
           bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/engine-comparison/vite.log 2>&1 &
+          bunx vite --config scripts/engine-comparison-vite.config.mjs >tmp/engine-comparison/fixture-vite.log 2>&1 &
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null && curl -fsS http://127.0.0.1:4201/scripts/fixtures/engine-comparison/index.html >/dev/null; then exit 0; fi
             sleep 1
           done
           exit 1

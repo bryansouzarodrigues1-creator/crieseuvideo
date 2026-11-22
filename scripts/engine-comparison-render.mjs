@@ -23,7 +23,8 @@ try{
     const frame=page.frames().find(f=>f.url()==='about:srcdoc');assert.ok(frame);
     frameAt=async t=>{await page.getByRole('slider',{name:'Linha do tempo'}).fill(String(t));await page.waitForTimeout(80);return Buffer.from(await frame.evaluate(()=>document.querySelector('canvas').toDataURL('image/png').split(',')[1]),'base64');};
    }else{
-    await page.goto('http://127.0.0.1:4198/scripts/fixtures/engine-comparison/index.html?engine='+engine,{waitUntil:'domcontentloaded',timeout:60000});
+    const response=await page.goto('http://127.0.0.1:4201/scripts/fixtures/engine-comparison/index.html?engine='+engine,{waitUntil:'domcontentloaded',timeout:60000});
+    assert.equal(response?.status(),200,'Read-only fixture HTML did not load');
     await page.waitForFunction(()=>document.body.dataset.ready==='true',undefined,{timeout:60000});
     frameAt=async t=>Buffer.from(await page.evaluate(t=>window.comparison.frame(t),t),'base64');
    }

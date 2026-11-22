@@ -51,8 +51,8 @@ mesh('window-lit','box',[.73,.65,.025],'#ffe29b',[-.53,1.35,1.025],{parent:'hous
 mesh('window-cross-v','box',[.045,.70,.04],'#efe5cc',[-.53,1.35,1.05],{parent:'house'});
 mesh('window-cross-h','box',[.78,.045,.04],'#efe5cc',[-.53,1.35,1.05],{parent:'house'});
 group('panel',[-1.2,0,.25],{rotation:[0,.08,0]});
-mesh('leg-a','box',[.12,.8,.14],'#a5b6bd',[-.8,.4,.18],{parent:'panel'});
-mesh('leg-b','box',[.12,.8,.14],'#a5b6bd',[.8,.4,.18],{parent:'panel'});
+mesh('leg-a','box',[.12,.8,.14],'#a5b6bd',[-.8,.4,-.25],{parent:'panel'});
+mesh('leg-b','box',[.12,.8,.14],'#a5b6bd',[.8,.4,-.25],{parent:'panel'});
 group('assembly',[0,.92,0],{parent:'panel',rotation:[-.32,0,0]});
 mesh('support','box',[2.15,1.45,.12],'#d6e1e7',[0,0,0],{parent:'assembly'});
 for(let row=0;row<2;row++)for(let col=0;col<3;col++){
