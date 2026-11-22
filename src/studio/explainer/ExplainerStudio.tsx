@@ -466,7 +466,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setGenId(null); setRated(null); setReason('');
       fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: data.script || text, plan: data.plan, engine, keywords: detectCues(data.script || text).map((c) => c.tag) }) })
         .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
-      setNote(`Gemini ${data.model || ''} · High: roteiro e direção de ${data.plan.scenes.length} cenas. A duração final depende da narração.`);
+      const directed = data.motionAudit?.directedScenes ?? 0;
+      const all = data.motionAudit?.totalScenes ?? data.plan.scenes.length;
+      setNote(`Gemini ${data.model || ''} · High: ${all} cenas, ${directed} com trajetórias programadas. ${directed===0?'O modelo não criou movimentos novos; foram preservados apenas os efeitos clássicos.':'A duração final depende da narração.'}`);
       if (voiceOn && !track) await narrate(data.plan);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
