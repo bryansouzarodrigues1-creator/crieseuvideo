@@ -49,7 +49,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
   const [voiceOn, setVoiceOn] = useState(true);
   const [voicing, setVoicing] = useState<number | null>(null);
-  const [engine, setEngine] = useState<'2d' | '3d'>('2d');
+  const [engine, setEngine] = useState<'2d' | '3d'>('3d');
   const [geminiCreatesScript, setGeminiCreatesScript] = useState(true);
   const [requestedDuration, setRequestedDuration] = useState(40);
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
