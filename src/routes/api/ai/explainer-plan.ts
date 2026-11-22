@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { askGeminiForExplainer, parseJson } from "@/studio/server/ai";
 import { DRAWING_GUIDE } from "@/studio/explainer/drawing";
 import { MOTION_GUIDE } from "@/studio/explainer/shapeMotion";
+import { motionAudit } from "@/studio/explainer/motionAudit";
 import { SETTING_GUIDE } from "@/studio/explainer/settings";
 import { normalizePlan, keepScriptWords, VISUALS, MOODS, PALETTES } from "@/studio/explainer/plan";
 
@@ -68,8 +69,9 @@ Responda SOMENTE com JSON: {"title":"título","script":"narração integral","sc
             const hit = sc && gallery.find(g => g.id === sc.gallery);
             if (hit) { sc.visual = "custom"; sc.drawing = hit.drawing; }
           }
+          const directed = normalizePlan(parsed, authoredScript, aspect);
           return Response.json({
-            plan: normalizePlan(parsed, authoredScript, aspect), script: authoredScript,
+            plan: directed, script: authoredScript, motionAudit: motionAudit(directed),
             source: "gemini", model: answer.model, thinkingLevel: answer.thinkingLevel
           });
         }
@@ -121,7 +123,8 @@ Formato JSON: {"title": string, "scenes": [{"text","visual","mood","palette","la
           const hit = sc && gallery.find((g) => g.id === sc.gallery);
           if (hit) { sc.visual = "custom"; sc.drawing = hit.drawing; }
         }
-        return Response.json({ plan: normalizePlan(raw, script, aspect), script, source: "gemini",
+        const directed = normalizePlan(raw, script, aspect);
+        return Response.json({ plan: directed, script, motionAudit: motionAudit(directed), source: "gemini",
           model: process.env.GEMINI_AI_MODEL || "gemini-3.8-flash", thinkingLevel: "HIGH" });
       },
     },
