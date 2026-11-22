@@ -49,7 +49,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
   const [voiceOn, setVoiceOn] = useState(true);
   const [voicing, setVoicing] = useState<number | null>(null);
-  const [engine, setEngine] = useState<'2d' | '3d'>('3d');
+  const [engine, setEngine] = useState<'2d' | '3d'>('2d');
+  const [geminiCreatesScript, setGeminiCreatesScript] = useState(true);
+  const [requestedDuration, setRequestedDuration] = useState(40);
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
   const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('gemini');
   const [ai3dCooldownUntil,setAi3dCooldownUntil] = useState(0);
@@ -449,17 +451,22 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     }
     unlockAudio(); setBusy(true); setNote(''); setPlaying(false);
     try {
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: text, aspect, mode, gallery: [...gallery, ...vaultFor(text)] }) });
+      const autoScript = engine === '2d' && geminiCreatesScript && !trackRef.current;
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        script: text, aspect, mode, generateScript: autoScript,
+        durationSeconds: requestedDuration, gallery: [...gallery, ...vaultFor(text)]
+      }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
+      if (typeof data.script === 'string' && autoScript) setScript(data.script);
       setPlan(track ? fitToTrack(data.plan, track.duration) : data.plan); seek(0);
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
       setGenId(null); setRated(null); setReason('');
-      fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: text, plan: data.plan, engine, keywords: detectCues(text).map((c) => c.tag) }) })
+      fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: data.script || text, plan: data.plan, engine, keywords: detectCues(data.script || text).map((c) => c.tag) }) })
         .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
-      setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
+      setNote(`Gemini ${data.model || ''} · High: roteiro e direção de ${data.plan.scenes.length} cenas. A duração final depende da narração.`);
       if (voiceOn && !track) await narrate(data.plan);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
@@ -578,8 +585,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <p className="explainer-kicker">CRIESEUVIDEO — ESTÚDIO DE ANIMAÇÃO 2D/3D</p>
           <h1>Do roteiro à animação.</h1>
           <p className="explainer-sub">Escolha o 3D avançado com Gemini/Lovable, o Toon clássico ou o Motion 2D. Os custos dependem do provedor e da narração; clicar em Criar no modo avançado inicia a tentativa e pode consumir créditos.</p>
-          <label className="explainer-label" htmlFor="ex-script">Roteiro / narração</label>
-          <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => {setScript(e.target.value);setAi3dClip(null);}} rows={9} placeholder="Escreva, dite pelo microfone ou envie seu áudio." />
+          <label className="explainer-label" htmlFor="ex-script">{engine === '2d' && geminiCreatesScript ? 'Tema para o Gemini escrever e animar' : 'Roteiro / narração'}</label>
+          <textarea id="ex-script" className="explainer-textarea" value={script} onChange={(e) => {setScript(e.target.value);setAi3dClip(null);}} rows={9} placeholder={engine === '2d' && geminiCreatesScript ? 'Ex.: gastos do governo brasileiro: explique de forma clara em 40 segundos' : 'Escreva, dite pelo microfone ou envie seu áudio.'} />
           <div className="explainer-row">
             <Button size="sm" variant={listening === 'rec' ? 'destructive' : 'secondary'} onClick={toggleDictation} disabled={listening === 'busy'}>{listening === 'busy' ? <Loader2 className="animate-spin" /> : listening === 'rec' ? <MicOff /> : <Mic />}{listening === 'rec' ? 'Parar e transcrever' : listening === 'busy' ? 'Transcrevendo…' : 'Ditar roteiro'}</Button>
             <label className="explainer-file-btn"><Upload />{trackName ? 'Trocar áudio' : 'Usar meu áudio'}<input type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void useOwnAudio(f); }} /></label>
@@ -663,9 +670,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 </>}
             </div>
           ) : (<>
+            {engine === '2d' && <div className="explainer-advanced-settings" role="group" aria-label="Direção do Gemini no Motion 2D">
+              <p className="explainer-sub"><strong>Gemini direto · raciocínio High.</strong> O Gemini cria o roteiro e planeja cada desenho e movimento, enquanto o motor Motion 2D renderiza os quadros. Sem troca silenciosa para Lovable ou exemplos prontos.</p>
+              <label className="explainer-row">
+                <input type="checkbox" checked={geminiCreatesScript} onChange={e => setGeminiCreatesScript(e.target.checked)} />
+                Gemini cria também o roteiro a partir do tema
+              </label>
+              {geminiCreatesScript && <label className="explainer-label" htmlFor="ex-2d-duration">Duração aproximada (segundos)</label>}
+              {geminiCreatesScript && <input id="ex-2d-duration" className="explainer-badge-input" type="number" min={15} max={180}
+                value={requestedDuration} onChange={e => setRequestedDuration(Math.max(15, Math.min(180, Number(e.target.value) || 40)))}
+                aria-label="Duração desejada da animação" />}
+              <p className="explainer-sub">A API gratuita depende da cota e do modelo liberado no seu projeto. O pensamento High pode demorar mais e consumir mais tokens; falhas são exibidas sem redução automática de qualidade.</p>
+            </div>}
             <p className="explainer-label">Modo de criação</p>
             <div className="explainer-row">
-              {([['creative', 'Criativo', '~0,06'], ['gallery', 'Minha galeria', '~0,01']] as const).map(([m, l, c]) => (
+              {([['creative', 'Criativo', 'HIGH'], ['gallery', 'Minha galeria', 'HIGH']] as const).map(([m, l, c]) => (
                 <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l} <small>{c}</small></Button>
               ))}
             </div>
