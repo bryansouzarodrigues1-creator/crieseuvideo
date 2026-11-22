@@ -2,7 +2,7 @@ import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {generateMultiAgentCode2D} from '../server/code2dMultiAgent';
 import {validateStoryboard} from './multiAgentContract';
 
-const KEYS=['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY',
+const KEYS=['GEMINI_API_KEY','GEMINI_API_KEY_ALT','GROQ_API_KEY','OPENROUTER_API_KEY',
  'CODE2D_SKIP_GEMINI_DIRECTION','CODE2D_OPENROUTER_MODEL','CODE2D_GROQ_MODEL',
  'LOVABLE_API_KEY','LOVABLE_AI_MODEL'] as const;
 const original=Object.fromEntries(KEYS.map(k=>[k,process.env[k]])) as Record<string,string|undefined>;
@@ -30,6 +30,7 @@ beforeEach(()=>{
  process.env.GROQ_API_KEY='test-groq';
  process.env.OPENROUTER_API_KEY='test-openrouter';
  delete process.env.GEMINI_API_KEY;
+ delete process.env.GEMINI_API_KEY_ALT;
  delete process.env.LOVABLE_API_KEY;
  delete process.env.LOVABLE_AI_MODEL;
  process.env.CODE2D_SKIP_GEMINI_DIRECTION='true';
@@ -45,8 +46,9 @@ afterEach(()=>{
 });
 
 describe('free multi-agent Code2D orchestra',()=>{
- it('rejects missing keys before consuming even one free request',async()=>{
+ it('rejects absent provider keys before consuming even one free request',async()=>{
   delete process.env.GROQ_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
   const f=vi.fn();vi.stubGlobal('fetch',f);
   const r=await generateMultiAgentCode2D('Uma história com movimento','9:16',40);
   expect(r).toMatchObject({ok:false,failure:'not_configured'});
@@ -109,8 +111,9 @@ describe('free multi-agent Code2D orchestra',()=>{
   const r=await generateMultiAgentCode2D('Uma história em uma oficina real','9:16',40);
   expect(r.ok).toBe(true);
   if(!r.ok)throw Error(r.message);
-  expect(r.steps[1]).toMatchObject({stage:'direction',status:'skipped',provider:'gemini'});
-  expect(calls).toHaveLength(3);
+  expect(r.steps[1]).toMatchObject({stage:'direction',status:'failed',provider:'gemini'});
+  expect(r.steps.some(x=>x.stage==='direction'&&x.status==='skipped')).toBe(true);
+  expect(calls).toHaveLength(5);
   expect(calls.every(x=>!x.includes('lovable'))).toBe(true);
  });
  it('does not spend Lovable credits when checkbox is off, even if gateway key exists',async()=>{
@@ -164,7 +167,7 @@ describe('free multi-agent Code2D orchestra',()=>{
   }));
   const r=await generateMultiAgentCode2D('Uma história completa sobre oficinas','9:16',40);
   expect(r).toMatchObject({ok:false,failure:'story_failed'});
-  expect(calls).toHaveLength(1);
+  expect(calls).toHaveLength(2); // Groq quota -> allowed OpenRouter story fallback.
  });
  it('rejects a paid OpenRouter model and does not send any request',async()=>{
   process.env.CODE2D_OPENROUTER_MODEL='anthropic/claude-sonnet-4';
@@ -173,11 +176,63 @@ describe('free multi-agent Code2D orchestra',()=>{
   expect(r).toMatchObject({ok:false,failure:'unsafe_model'});
   expect(f).not.toHaveBeenCalled();
  });
+ it('allows free OpenRouter to write storyboard when Groq quota is exhausted',async()=>{
+  const calls:{url:string;body:any}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
+   const u=String(url),body=JSON.parse(String(init?.body));calls.push({url:u,body});
+   if(u.includes('groq'))return new Response('',{status:429});
+   return body.messages[0].content.includes('ROTEIRISTA')?answer(board):codeAnswer();
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina trabalhando com materiais','9:16',40);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(r.steps.find(x=>x.stage==='story'&&x.provider==='groq')?.status).toBe('failed');
+  expect(r.steps.find(x=>x.stage==='story'&&x.provider==='openrouter')?.status).toBe('ok');
+  expect(r.storyboard.scenes).toHaveLength(5);
+  expect(calls.every(x=>!x.url.includes('lovable'))).toBe(true);
+ });
+ it('moves animation coding to Groq when OpenRouter free returns HTTP 503',async()=>{
+  const calls:{url:string;body:any}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
+   const u=String(url),body=JSON.parse(String(init?.body));calls.push({url:u,body});
+   if(u.includes('openrouter'))return new Response('',{status:503});
+   if(body.messages[0].content.includes('ROTEIRISTA'))return answer(board);
+   if(body.messages[0].content.includes('DIRETOR VISUAL'))
+    return new Response('',{status:503});
+   return codeAnswer();
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina com personagens articulados','9:16',40);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(r.steps.find(x=>x.stage==='animation'&&x.provider==='openrouter')?.status).toBe('failed');
+  expect(r.steps.find(x=>x.stage==='animation'&&x.provider==='groq')?.status).toBe('ok');
+  expect(r.model).toBe('openai/gpt-oss-120b');
+ });
+ it('uses the Gemini alternative key only after a primary quota/auth failure',async()=>{
+  process.env.GEMINI_API_KEY='dummy-primary';
+  process.env.GEMINI_API_KEY_ALT='dummy-alternate';
+  delete process.env.CODE2D_SKIP_GEMINI_DIRECTION;
+  const names:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
+   const u=String(url);
+   if(u.includes('groq'))return answer(board);
+   if(u.includes('generativelanguage')){
+    names.push(String((init?.headers as any)?.['x-goog-api-key']));
+    return names.at(-1)==='dummy-primary'?new Response('',{status:429}):geminiAnswer();
+   }
+   return codeAnswer();
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina com cenários novos e coerentes','9:16',40);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(names).toEqual(['dummy-primary','dummy-alternate']);
+  expect(r.steps.some(x=>x.stage==='direction'&&x.provider==='gemini'&&x.status==='ok')).toBe(true);
+ });
  it('rejects a broken Groq storyboard before calling the programmer',async()=>{
   const f=vi.fn(async()=>answer({...board,scenes:board.scenes.slice(0,1)}));
   vi.stubGlobal('fetch',f);
   const r=await generateMultiAgentCode2D('O tempo precisa bater exatamente','9:16',40);
-  expect(r).toMatchObject({ok:false,failure:'invalid_storyboard'});
-  expect(f).toHaveBeenCalledTimes(1);
+  expect(r).toMatchObject({ok:false,failure:'story_failed'});
+  expect(f).toHaveBeenCalledTimes(2); // Invalid Groq draft -> alternate storyboard also invalid.
  });
 });
