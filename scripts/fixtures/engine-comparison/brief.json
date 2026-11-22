@@ -1,0 +1,22 @@
+{
+  "title": "Uma casa volta a ter energia",
+  "duration": 12,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "authorship": "Controlled, manually authored renderer comparison. No new Gemini or TTS calls. Not an autonomous AI generation benchmark.",
+  "beats": [
+    {"start": 0, "end": 4, "caption": "A casa está sem energia.", "action": "Establish a small house, an unlit window and the solar-panel parts."},
+    {"start": 4, "end": 8, "caption": "As peças do painel se encaixam.", "action": "Assemble the support, blue cell plates and protective cover in order."},
+    {"start": 8, "end": 12, "caption": "A bateria conecta. A luz acende!", "action": "Show a connection to the battery, energy flow and a lit house window."}
+  ],
+  "limits": [
+    "Motion 2D and classic Toon use their existing drawing primitives and fixed poses, not a replacement renderer.",
+    "Their scene clock is mapped to three four-second beats; word captions are disabled because there is no spoken narration.",
+    "Toon retains its presenter/board composition.",
+    "The same action labels and sound effects are added to the five exported clips in mastering.",
+    "Motion 2D, Toon and SVG use the shared fixed-frame encoder in a read-only test harness, rather than the old MediaRecorder UI.",
+    "Code 3D is explicitly imported into the existing isolated app player; it must pass the native replay gate.",
+    "All fixtures are experimental; this study changes no production renderer or published default."
+  ]
+}
