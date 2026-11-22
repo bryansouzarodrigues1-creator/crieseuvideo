@@ -1,0 +1,623 @@
+```javascript
+/*CRIESEUVIDEO_DIRECTION_V1
+{
+  "version": 1,
+  "duration": 20,
+  "timing": "planned",
+  "objects": [
+    {
+      "id": "arca",
+      "description": "Arca de Noé em madeira com casco e cabine detalhados",
+      "parts": ["casco", "cabine", "porta", "conves"]
+    },
+    {
+      "id": "mar_e_onda",
+      "description": "Mar tempestuoso com grande onda curva de crista branca",
+      "parts": ["mar", "onda"]
+    },
+    {
+      "id": "animais",
+      "description": "Três espécies de animais: Girafa, Leão e Elefante",
+      "parts": ["girafa", "leao", "elefante"]
+    }
+  ],
+  "shots": [
+    {
+      "id": "tsunami",
+      "start": 0,
+      "end": 7,
+      "quote": "uma enorme onda curva de crista branca se ergue e atinge a arca de madeira: casco e cabine detalhados, chuva, balanço com peso, sem afundar.",
+      "subjects": ["arca", "mar_e_onda"],
+      "focus": "arca",
+      "camera": "medium",
+      "action": "A grande onda com crista branca atinge o casco da arca em meio à chuva violenta",
+      "before": "Tempestade com arca enfrentando mar revolto",
+      "after": "Arca resiste ao impacto do tsunami"
+    },
+    {
+      "id": "bonanca",
+      "start": 7,
+      "end": 11,
+      "quote": "a tempestade se dissipa, as nuvens abrem e o sol ilumina o mar que fica calmo.",
+      "subjects": ["arca", "mar_e_onda"],
+      "focus": "arca",
+      "camera": "wide",
+      "action": "As nuvens se abrem, o sol brilha radiante e o mar se acalma completamente",
+      "before": "Tempestade se afastando",
+      "after": "Céu limpo e mar dourado e calmo"
+    },
+    {
+      "id": "saida_animais",
+      "start": 11,
+      "end": 14,
+      "quote": "a porta abre e animais de pelo menos três espécies reconhecíveis caminham da cabine para o convés externo, sem se atravessar.",
+      "subjects": ["arca", "animais"],
+      "focus": "animais",
+      "camera": "medium",
+      "action": "A porta da cabine abre e a Girafa, o Leão e o Elefante saem para o convés frontal aberto",
+      "before": "Porta da cabine fechada",
+      "after": "Três animais posicionados no convés aberto frontal"
+    },
+    {
+      "id": "coro_alegre",
+      "start": 14,
+      "end": 20,
+      "quote": "os animais do lado de fora cantam juntos um coro alegre ORIGINAL de vogais, abrem e fecham mandíbulas nas notas e balançam o corpo.",
+      "subjects": ["animais"],
+      "focus": "animais",
+      "camera": "detail",
+      "action": "Os três animais cantam alegremente em coro de vogais abrindo as mandíbulas em close cristalino",
+      "before": "Animais a postos no convés",
+      "after": "Coro finalizado com a placa COMENTE ARCA visível"
+    }
+  ]
+}
+*/
+
+function createScene(THREE, canvas, width, height, tools) {
+  const duration = 20;
+
+  // 1. RENDERER & SCENE
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(width, height, false);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a2836);
+  scene.fog = new THREE.FogExp2(0x1a2836, 0.003); // Névoa super discreta para manter tudo visível
+
+  const camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 600);
+
+  // 2. LUZES RICAS E DE PREENCHIMENTO
+  const ambientLight = new THREE.AmbientLight(0xddeeff, 0.75);
+  scene.add(ambientLight);
+
+  const sunLight = new THREE.DirectionalLight(0xfffaed, 1.8);
+  sunLight.position.set(30, 50, 40);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
+  scene.add(sunLight);
+
+  const fillLight = new THREE.DirectionalLight(0x7090ff, 0.85);
+  fillLight.position.set(-30, 20, -30);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.DirectionalLight(0xffaa44, 0.6);
+  rimLight.position.set(0, -10, -40);
+  scene.add(rimLight);
+
+  // 3. MATERIAIS RÍGIDOS E VIVOSS
+  const matWoodHull = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.6 });
+  const matWoodCabin = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.5 });
+  const matWoodDeck = new THREE.MeshStandardMaterial({ color: 0xb58855, roughness: 0.4 });
+  const matRoof = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.7 });
+  const matWater = new THREE.MeshStandardMaterial({ color: 0x006688, roughness: 0.1, metalness: 0.5, transparent: true, opacity: 0.9 });
+  const matFoam = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+  // Materiais de Animais (Cores vivas e bem distintas)
+  const matGiraffe = new THREE.MeshStandardMaterial({ color: 0xf5a623, roughness: 0.4 });
+  const matGiraffeSpot = new THREE.MeshStandardMaterial({ color: 0x793d0e, roughness: 0.5 });
+  const matLion = new THREE.MeshStandardMaterial({ color: 0xe09b3d, roughness: 0.4 });
+  const matMane = new THREE.MeshStandardMaterial({ color: 0x8b2500, roughness: 0.7 });
+  const matElephant = new THREE.MeshStandardMaterial({ color: 0x90a0b0, roughness: 0.5 });
+  const matPink = new THREE.MeshStandardMaterial({ color: 0xff88a0, roughness: 0.3 });
+  const matEye = new THREE.MeshBasicMaterial({ color: 0x111111 });
+
+  // 4. ARCA DE NOÉ (Estrutura Aberta à Frente)
+  const arcaGroup = new THREE.Group();
+  scene.add(arcaGroup);
+
+  // Casco robusto
+  const hullGeo = new THREE.BoxGeometry(8, 4.5, 22);
+  const hullMesh = new THREE.Mesh(hullGeo, matWoodHull);
+  hullMesh.position.y = 2.25;
+  hullMesh.castShadow = true;
+  hullMesh.receiveShadow = true;
+  arcaGroup.add(hullMesh);
+
+  // Proa (Frente) em ponta
+  const bowGeo = new THREE.ConeGeometry(4.5, 7, 4);
+  const bowMesh = new THREE.Mesh(bowGeo, matWoodHull);
+  bowMesh.rotation.x = Math.PI / 2;
+  bowMesh.rotation.z = Math.PI / 4;
+  bowMesh.position.set(0, 2.25, 14.5);
+  bowMesh.castShadow = true;
+  arcaGroup.add(bowMesh);
+
+  // Convés
+  const deckGeo = new THREE.BoxGeometry(7.8, 0.4, 28);
+  const deckMesh = new THREE.Mesh(deckGeo, matWoodDeck);
+  deckMesh.position.set(0, 4.6, 2);
+  deckMesh.receiveShadow = true;
+  arcaGroup.add(deckMesh);
+
+  // Cabine recuada (deixa convés frontal totalmente amplo e sem telhado cobrindo!)
+  const cabinGroup = new THREE.Group();
+  cabinGroup.position.set(0, 4.8, -4); // Recuada para trás
+
+  const cabinWallGeo = new THREE.BoxGeometry(6, 4, 10);
+  const cabinWall = new THREE.Mesh(cabinWallGeo, matWoodCabin);
+  cabinWall.position.y = 2;
+  cabinWall.castShadow = true;
+  cabinWall.receiveShadow = true;
+  cabinGroup.add(cabinWall);
+
+  // Telhado recuado
+  const roofGeo = new THREE.ConeGeometry(4.8, 2.5, 4);
+  const roofMesh = new THREE.Mesh(roofGeo, matRoof);
+  roofMesh.rotation.y = Math.PI / 4;
+  roofMesh.scale.set(1.1, 1, 2.8);
+  roofMesh.position.y = 5.25;
+  roofMesh.castShadow = true;
+  cabinGroup.add(roofMesh);
+
+  // Moldura da Porta na Cabine (virada para a frente)
+  const doorFrameGeo = new THREE.BoxGeometry(2.4, 3.2, 0.2);
+  const doorFrame = new THREE.Mesh(doorFrameGeo, matWoodHull);
+  doorFrame.position.set(0, 1.6, 5.01);
+  cabinGroup.add(doorFrame);
+
+  // Folhas da Porta (Abrem para fora)
+  const doorLeftGroup = new THREE.Group();
+  doorLeftGroup.position.set(-1.1, 1.6, 5.1);
+  const doorMeshL = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.0, 0.1), matWoodHull);
+  doorMeshL.position.x = 0.55;
+  doorLeftGroup.add(doorMeshL);
+  cabinGroup.add(doorLeftGroup);
+
+  const doorRightGroup = new THREE.Group();
+  doorRightGroup.position.set(1.1, 1.6, 5.1);
+  const doorMeshR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.0, 0.1), matWoodHull);
+  doorMeshR.position.x = -0.55;
+  doorRightGroup.add(doorMeshR);
+  cabinGroup.add(doorRightGroup);
+
+  arcaGroup.add(cabinGroup);
+
+  // 5. CRIAÇÃO DOS ANIMAIS DETALHADOS E RECONHECÍVEIS
+  // GIRAFA
+  function createGiraffe() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 2.0), matGiraffe);
+    body.position.y = 1.4;
+    body.castShadow = true;
+    g.add(body);
+
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.45, 2.8, 0.45), matGiraffe);
+    neck.position.set(0, 3.2, 0.7);
+    neck.castShadow = true;
+    g.add(neck);
+
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 4.6, 0.7);
+
+    const headUpper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 0.8), matGiraffe);
+    headUpper.position.set(0, 0.2, 0.2);
+    headGroup.add(headUpper);
+
+    // Olhos
+    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), matEye);
+    eyeR.position.set(0.26, 0.25, 0.3);
+    const eyeL = eyeR.clone();
+    eyeL.position.x = -0.26;
+    headGroup.add(eyeR, eyeL);
+
+    // Orelhas & Chifres
+    const hornR = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.4), matGiraffeSpot);
+    hornR.position.set(0.15, 0.55, 0.1);
+    const hornL = hornR.clone();
+    hornL.position.x = -0.15;
+    headGroup.add(hornR, hornL);
+
+    // Mandíbula móvel da Girafa
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.2, 0.7), matGiraffe);
+    jaw.position.set(0, -0.1, 0.25);
+    headGroup.add(jaw);
+
+    g.add(headGroup);
+
+    // Manchas
+    for (let i = 0; i < 6; i++) {
+      const spot = new THREE.Mesh(new THREE.BoxGeometry(0.47, 0.3, 0.3), matGiraffeSpot);
+      spot.position.set(0, 2.2 + i * 0.4, 0.71);
+      g.add(spot);
+    }
+
+    g.scale.set(0.85, 0.85, 0.85);
+    return { root: g, jaw, headGroup };
+  }
+
+  // LEÃO
+  function createLion() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 2.0), matLion);
+    body.position.y = 1.1;
+    body.castShadow = true;
+    g.add(body);
+
+    // Juba volumosa
+    const mane = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 12), matMane);
+    mane.position.set(0, 1.8, 0.6);
+    mane.scale.set(0.9, 1.1, 0.8);
+    g.add(mane);
+
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 1.8, 0.7);
+
+    const headUpper = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.6), matLion);
+    headUpper.position.set(0, 0.25, 0.2);
+    headGroup.add(headUpper);
+
+    // Focinho e Olhos
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.25, 0.35), matLion);
+    snout.position.set(0, 0.15, 0.5);
+    headGroup.add(snout);
+
+    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), matEye);
+    eyeR.position.set(0.22, 0.3, 0.4);
+    const eyeL = eyeR.clone();
+    eyeL.position.x = -0.22;
+    headGroup.add(eyeR, eyeL);
+
+    // Mandíbula móvel do Leão
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.55), matLion);
+    jaw.position.set(0, -0.05, 0.3);
+    headGroup.add(jaw);
+
+    g.add(headGroup);
+    g.scale.set(0.95, 0.95, 0.95);
+    return { root: g, jaw, headGroup };
+  }
+
+  // ELEFANTE
+  function createElephant() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.5, 2.4), matElephant);
+    body.position.y = 1.35;
+    body.castShadow = true;
+    g.add(body);
+
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 2.0, 1.0);
+
+    const headUpper = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 1.0), matElephant);
+    headUpper.position.set(0, 0.3, 0);
+    headGroup.add(headUpper);
+
+    // Orelhas Grandes
+    const earR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 0.08), matElephant);
+    earR.position.set(1.0, 0.3, -0.1);
+    earR.rotation.y = -0.3;
+    const earL = earR.clone();
+    earL.position.x = -1.0;
+    earL.rotation.y = 0.3;
+    headGroup.add(earR, earL);
+
+    // Tromba
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.1, 1.6, 8), matElephant);
+    trunk.position.set(0, -0.3, 0.6);
+    trunk.rotation.x = 0.4;
+    headGroup.add(trunk);
+
+    // Olhos
+    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), matEye);
+    eyeR.position.set(0.55, 0.4, 0.45);
+    const eyeL = eyeR.clone();
+    eyeL.position.x = -0.55;
+    headGroup.add(eyeR, eyeL);
+
+    // Mandíbula móvel do Elefante
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.25, 0.6), matElephant);
+    jaw.position.set(0, -0.25, 0.35);
+    headGroup.add(jaw);
+
+    g.add(headGroup);
+    g.scale.set(0.9, 0.9, 0.9);
+    return { root: g, jaw, headGroup, trunk };
+  }
+
+  const girafa = createGiraffe();
+  const leao = createLion();
+  const elefante = createElephant();
+
+  arcaGroup.add(girafa.root);
+  arcaGroup.add(leao.root);
+  arcaGroup.add(elefante.root);
+
+  // 6. MONSTRUOSO TSUNAMI E MAR DE ONDAS PROCEDURAIS
+  const seaGeo = new THREE.PlaneGeometry(350, 350, 40, 40);
+  const seaMesh = new THREE.Mesh(seaGeo, matWater);
+  seaMesh.rotation.x = -Math.PI / 2;
+  scene.add(seaMesh);
+
+  // Grande Onda Curva atrás/ao lado da arca
+  const waveGroup = new THREE.Group();
+  const waveMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(30, 30, 120, 32, 1, true, -Math.PI * 0.2, Math.PI * 0.8),
+    matWater
+  );
+  waveMesh.rotation.z = Math.PI / 2;
+  waveGroup.add(waveMesh);
+
+  // Crista Branca Curvada de Espuma
+  const foamMesh = new THREE.Mesh(
+    new THREE.TorusGeometry(30.2, 1.8, 8, 32, Math.PI * 0.7),
+    matFoam
+  );
+  foamMesh.rotation.y = Math.PI / 2;
+  foamMesh.position.set(0, 0, 0);
+  waveGroup.add(foamMesh);
+
+  waveGroup.position.set(0, 10, -35);
+  scene.add(waveGroup);
+
+  // Sistema de Chuva com Posições Invariáveis Derivadas do Tempo
+  const rainCount = 800;
+  const rainGeo = new THREE.BufferGeometry();
+  const rainBasePos = new Float32Array(rainCount * 3);
+  for (let i = 0; i < rainCount; i++) {
+    rainBasePos[i * 3] = (Math.sin(i * 1.7) * 0.5 + 0.5) * 80 - 40;
+    rainBasePos[i * 3 + 1] = (Math.cos(i * 3.1) * 0.5 + 0.5) * 50;
+    rainBasePos[i * 3 + 2] = (Math.sin(i * 2.3) * 0.5 + 0.5) * 80 - 40;
+  }
+  const rainMat = new THREE.PointsMaterial({ color: 0x99ccff, size: 0.35, transparent: true, opacity: 0.7 });
+  const rainParticles = new THREE.Points(rainGeo, rainMat);
+  scene.add(rainParticles);
+
+  // Sol Brilhante (Transição de Bonança)
+  const sunMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(8, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffea77 })
+  );
+  sunMesh.position.set(0, -30, -100);
+  scene.add(sunMesh);
+
+  // Placa Discreta "COMENTE ARCA"
+  const canvasSign = document.createElement('canvas');
+  canvasSign.width = 512;
+  canvasSign.height = 128;
+  const ctxSign = canvasSign.getContext('2d');
+  ctxSign.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctxSign.fillRect(0, 0, 512, 128);
+  ctxSign.strokeStyle = '#f5a623';
+  ctxSign.lineWidth = 10;
+  ctxSign.strokeRect(5, 5, 502, 118);
+  ctxSign.fillStyle = '#ffffff';
+  ctxSign.font = '900 46px sans-serif';
+  ctxSign.textAlign = 'center';
+  ctxSign.textBaseline = 'middle';
+  ctxSign.fillText('COMENTE ARCA', 256, 64);
+
+  const signTex = new THREE.CanvasTexture(canvasSign);
+  const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.25), new THREE.MeshBasicMaterial({ map: signTex, transparent: true }));
+  signMesh.position.set(0, 2.2, 15);
+  signMesh.visible = false;
+  arcaGroup.add(signMesh);
+
+  // Registros de Apoio
+  tools.registerSurface('conves_frontal', deckMesh);
+
+  // Funções Auxiliares de Easing
+  function smooth(x) { return x * x * (3 - 2 * x); }
+
+  // 7. RENDERAT DETERMINÍSTICO E SEM ACUMULAÇÃO DE ESTADO
+  function renderAt(t) {
+    // RESTAURAÇÃO DE POSES GLOBAIS
+    girafa.jaw.position.set(0, -0.1, 0.25);
+    leao.jaw.position.set(0, -0.05, 0.3);
+    elefante.jaw.position.set(0, -0.25, 0.35);
+    girafa.headGroup.rotation.set(0, 0, 0);
+    leao.headGroup.rotation.set(0, 0, 0);
+    elefante.headGroup.rotation.set(0, 0, 0);
+
+    // ESTÁGIOS DO TEMPO
+    const stormCue = tools.cue(t, 0, 7);
+    const calmCue = tools.cue(t, 7, 11);
+
+    // Chuva determinística
+    rainParticles.visible = t < 8.5;
+    if (rainParticles.visible) {
+      const posArray = new Float32Array(rainCount * 3);
+      for (let i = 0; i < rainCount; i++) {
+        posArray[i * 3] = rainBasePos[i * 3];
+        posArray[i * 3 + 1] = ((rainBasePos[i * 3 + 1] - t * 35) % 50 + 50) % 50;
+        posArray[i * 3 + 2] = rainBasePos[i * 3 + 2];
+      }
+      rainGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    }
+
+    // Comportamento do Tsunami & Mar
+    const waveRise = smooth(tools.cue(t, 0, 4));
+    const waveHit = smooth(tools.cue(t, 4, 7));
+    const waveY = THREE.MathUtils.lerp(-20, 18, waveRise) - calmCue * 45;
+    const waveZ = THREE.MathUtils.lerp(-40, 10, waveHit);
+    waveGroup.position.set(0, waveY, waveZ);
+    waveGroup.rotation.x = Math.sin(t * 2) * 0.1;
+
+    // Movimento Balançado da Arca
+    const pitch = Math.sin(t * 2.5) * (1 - calmCue * 0.95) * 0.18;
+    const roll = Math.cos(t * 2.0) * (1 - calmCue * 0.95) * 0.22;
+    arcaGroup.position.y = 4.6 + Math.sin(t * 1.8) * (1 - calmCue * 0.9) * 1.2;
+    arcaGroup.rotation.x = pitch;
+    arcaGroup.rotation.z = roll;
+
+    // Céu & Transição Solar
+    const skyColor = new THREE.Color(0x1a2836).lerp(new THREE.Color(0x5599dd), calmCue);
+    scene.background = skyColor;
+    scene.fog.color = skyColor;
+    sunLight.intensity = THREE.MathUtils.lerp(0.5, 2.2, calmCue);
+    sunMesh.position.y = THREE.MathUtils.lerp(-30, 35, calmCue);
+
+    // ABERTURA DA PORTA (11s a 14s)
+    const doorOpen = smooth(tools.cue(t, 11, 12.8));
+    doorLeftGroup.rotation.y = -doorOpen * (Math.PI * 0.6);
+    doorRightGroup.rotation.y = doorOpen * (Math.PI * 0.6);
+
+    // CAMINHADA PARA O CONVÉS FRONTAL ABERTO (11s a 14s)
+    const walkGiraffe = smooth(tools.cue(t, 11.2, 13.5));
+    const walkLion = smooth(tools.cue(t, 11.6, 13.8));
+    const walkElephant = smooth(tools.cue(t, 12.0, 14.0));
+
+    // Visibilidade dos Animais
+    girafa.root.visible = t >= 11;
+    leao.root.visible = t >= 11;
+    elefante.root.visible = t >= 11;
+
+    // Posições Finais no Convés Frontal Aberto (Totalmente Sem Telhado na Frente!)
+    girafa.root.position.set(-1.8, 4.8, THREE.MathUtils.lerp(0, 10, walkGiraffe));
+    girafa.root.rotation.y = 0.2;
+
+    leao.root.position.set(1.8, 4.8, THREE.MathUtils.lerp(0, 9.5, walkLion));
+    leao.root.rotation.y = -0.25;
+
+    elefante.root.position.set(0, 4.8, THREE.MathUtils.lerp(-2, 5.5, walkElephant));
+
+    // CORO ALEGRE DE VOGAIS (14s a 20s)
+    if (t >= 14) {
+      const singTime = t - 14;
+      // Ritmo do Coro compartilhando as notas
+      const noteStep = Math.floor(singTime * 3) % 4;
+      const jawOpening = (Math.sin(singTime * 14) * 0.5 + 0.5) * 0.35;
+
+      // Movimentos síncronos da mandíbula
+      girafa.jaw.position.y = -0.1 - jawOpening;
+      leao.jaw.position.y = -0.05 - jawOpening * 0.8;
+      elefante.jaw.position.y = -0.25 - jawOpening * 1.1;
+
+      // Balanço de corpo animado e alegre
+      girafa.root.rotation.z = Math.sin(singTime * 7) * 0.12;
+      girafa.headGroup.rotation.x = Math.cos(singTime * 7) * 0.15;
+
+      leao.root.rotation.z = -Math.sin(singTime * 7) * 0.12;
+      leao.headGroup.rotation.y = Math.sin(singTime * 5) * 0.2;
+
+      elefante.root.rotation.x = Math.sin(singTime * 6) * 0.08;
+      elefante.headGroup.rotation.z = Math.cos(singTime * 6) * 0.1;
+    }
+
+    // Placa no último segundo
+    signMesh.visible = t >= 19;
+
+    // ENQUADRAMENTO DA CÂMERA POR PLANO ESTÁVEL
+    if (t < 7) {
+      // Plano 1: Tsunami vs Arca
+      camera.position.set(22, 14, 34);
+      camera.lookAt(0, 5, 0);
+    } else if (t < 11) {
+      // Plano 2: Sol & Bonança
+      camera.position.set(-28, 18, 38);
+      camera.lookAt(0, 4, 0);
+    } else if (t < 14) {
+      // Plano 3: Saída da Cabine para o Convés
+      camera.position.set(10, 12, 24);
+      camera.lookAt(0, 6, 6);
+    } else {
+      // Plano 4: Coro Alegre em Close Claro dos Animais
+      tools.fitCameraToObjects(camera, [girafa.root, leao.root, elefante.root], {
+        direction: [0, 0.35, 1],
+        margin: 0.18,
+        captionReserve: 0.2
+      });
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  // 8. SINTETIZADOR DE CORO DE VOGAIS COM FORMANTES REALISTAS
+  function getSoundtrack() {
+    const sampleRate = 22050;
+    const totalSamples = Math.round(duration * sampleRate);
+    const left = new Float32Array(totalSamples);
+    const right = new Float32Array(totalSamples);
+
+    // Melodia Alegre Original (Fá Maior: F4, A4, C5, F5, C5, A4)
+    const notes = [349.23, 440.00, 523.25, 698.46, 523.25, 440.00];
+
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      let val = 0;
+
+      // 0s a 8s: Tempestade, Vento e Rugido de Onda
+      if (t < 8) {
+        const stormNoise = (Math.sin(i * 0.012) * Math.cos(i * 0.0041) * Math.sin(i * 0.0007));
+        const env = t < 7 ? 0.5 : (8 - t) * 0.5;
+        val += stormNoise * env;
+      }
+
+      // 14s a 20s: Coro de Vogais Sintetizado
+      if (t >= 14 && t < 20) {
+        const singTime = t - 14;
+        const noteIdx = Math.floor(singTime * 3) % notes.length;
+        const freq = notes[noteIdx];
+
+        // Envelope por nota (Ataque e Soltura)
+        const noteTime = (singTime * 3) % 1;
+        const attack = Math.min(noteTime * 10, 1);
+        const release = Math.max(0, 1 - (noteTime - 0.7) * 3.3);
+        const noteEnv = attack * release;
+
+        // Harmônicos com Formantes de Vogal 'AH / OH'
+        const f0 = Math.sin(2 * Math.PI * freq * t);
+        const h2 = 0.6 * Math.sin(2 * Math.PI * freq * 2 * t);
+        const h3 = 0.35 * Math.sin(2 * Math.PI * freq * 3 * t);
+        const h4 = 0.15 * Math.sin(2 * Math.PI * freq * 4 * t);
+
+        // Vibrato expressivo
+        const vibrato = 1 + 0.02 * Math.sin(2 * Math.PI * 6 * t);
+
+        const choirVoice = (f0 + h2 + h3 + h4) * vibrato * noteEnv * 0.45;
+        val += choirVoice;
+      }
+
+      // Limitação e Atribuição Estéreo
+      val = Math.max(-0.95, Math.min(0.95, val));
+      left[i] = val;
+      right[i] = val;
+    }
+
+    return { sampleRate, channels: [left, right] };
+  }
+
+  // 9. DISPOSE
+  function dispose() {
+    scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+        else obj.material.dispose();
+      }
+    });
+    renderer.dispose();
+  }
+
+  return {
+    duration,
+    renderAt,
+    getSoundtrack,
+    dispose
+  };
+}
+```
