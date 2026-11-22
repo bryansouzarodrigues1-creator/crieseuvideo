@@ -3,6 +3,7 @@
 // and are never logged; provider response bodies are never logged or returned.
 import { parse } from 'acorn';
 import { CODE3D_MAX_CODE_CHARS, code3dPrompt, extractCode, type Code3DAspect } from '../code3d/contract';
+import { GEMINI_THINKING_LEVEL } from './ai';
 
 export type Code3DFailure =
   | 'not_configured' | 'unauthorized' | 'forbidden' | 'quota' | 'model_unavailable'
@@ -88,7 +89,7 @@ export async function generateCode3DWithGemini(script: string, aspect: Code3DAsp
       headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: code3dPrompt(script, aspect) }] }],
-        generationConfig: { responseMimeType: 'text/plain', maxOutputTokens: 32768 },
+        generationConfig: { responseMimeType: 'text/plain', maxOutputTokens: 65536, thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL } },
       }),
     });
     if (!res.ok) {
