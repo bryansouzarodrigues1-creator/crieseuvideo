@@ -1,0 +1,80 @@
+{
+  "level": "high",
+  "model": "gemini-3.6-flash",
+  "attempts": 1,
+  "elapsedMs": 109427,
+  "usage": {
+    "promptTokenCount": 4710,
+    "candidatesTokenCount": 8482,
+    "totalTokenCount": 30891,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 4710
+      }
+    ],
+    "thoughtsTokenCount": 17699,
+    "serviceTier": "standard"
+  },
+  "finishReason": "STOP",
+  "requestHash": "6ca3dc75bacba4e1aa80a3aaaf8cacad846a906a280eea7b1723e01c4bef1658",
+  "commonRequestHash": "c4b0a29a8820463c4b09e20a644ec0ac59ee152f82e84fe1a7a25f9104f38a4b",
+  "scriptSHA256": "1dcb1387480f039d02d43815639067eb1a5ca9a65f8d3a8c8d273c41fc82984d",
+  "originalSHA256": "5e304808b9a55a765a63705aaac9f442609d25b6bcd6d4a463dbed07167f7e12",
+  "providerAccepted": false,
+  "manualCreativeEdits": false,
+  "codeReady": true,
+  "providerFailure": "direction_error",
+  "direction": {
+    "version": 1,
+    "duration": 8,
+    "timing": "planned",
+    "objects": [
+      {
+        "id": "elefante",
+        "description": "Elefante cinza cartoon de corpo inteiro articulado",
+        "parts": [
+          "corpo",
+          "cabeca",
+          "tromba",
+          "orelhas",
+          "presas",
+          "patas"
+        ]
+      },
+      {
+        "id": "arca",
+        "description": "Cabine de madeira da arca com porta larga e convés",
+        "parts": [
+          "conves",
+          "parede_cabine",
+          "porta_aberta"
+        ]
+      }
+    ],
+    "shots": [
+      {
+        "id": "plano_unico",
+        "quote": "Um elefante cinza de corpo INTEIRO sai da cabine de madeira da arca para o convés aberto, em dia claro.",
+        "start": 0,
+        "end": 8,
+        "subjects": [
+          "elefante",
+          "arca"
+        ],
+        "focus": "elefante",
+        "camera": "medium",
+        "action": "O elefante sai da cabine caminhando 3 passos até o convés, para e olha para a câmera",
+        "before": "Elefante na porta da cabine",
+        "after": "Elefante totalmente fora da cabine em destaque no convés"
+      }
+    ],
+    "lessonVersion": "spoken-actions-v1"
+  },
+  "codeSHA256": "e3558d329db504d55db8004e70e9a58450c0284f49e7e7465b194b77afe9f26e",
+  "originalBodySHA256": "441ed43d27839df3723265862b3718459202d9268e60208c781b312675ee3969",
+  "sourceCharacters": 21593,
+  "scoreInjectedAsData": false,
+  "warnings": [],
+  "executionMode": "explicit_import_of_model_response"
+}

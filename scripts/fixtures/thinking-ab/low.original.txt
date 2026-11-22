@@ -1,0 +1,375 @@
+```javascript
+/*CRIESEUVIDEO_DIRECTION_V1
+{
+  "version": 1,
+  "duration": 8,
+  "timing": "planned",
+  "objects": [
+    {
+      "id": "elefante",
+      "description": "Elefante cinza cartoon de corpo inteiro com patas articuladas, orelhas, tromba e presas",
+      "parts": ["corpo", "cabeca", "tromba", "orelha_esq", "orelha_dir", "presa_esq", "presa_dir", "pata_di", "pata_dd", "pata_ti", "pata_td"]
+    },
+    {
+      "id": "arca",
+      "description": "Convés de madeira da arca com cabine e porta aberta",
+      "parts": ["conves", "parede_cabine", "porta_aberta"]
+    }
+  ],
+  "shots": [
+    {
+      "id": "caminhada_elefante",
+      "start": 0,
+      "end": 8,
+      "quote": "Um elefante cinza de corpo INTEIRO sai da cabine de madeira da arca para o convés aberto, em dia claro.",
+      "subjects": ["elefante", "arca"],
+      "focus": "elefante",
+      "camera": "wide",
+      "action": "O elefante sai de dentro da cabine, caminha três passos no convés de madeira, para e olha para a câmera",
+      "before": "Elefante posicionado na abertura da porta da cabine",
+      "after": "Elefante parado no convés em vista completa, olhando para a câmera"
+    }
+  ]
+}
+*/
+
+function createScene(THREE, canvas, width, height, tools) {
+  const duration = DIRECTOR_SCORE.duration || 8;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(width, height, false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb); // Dia claro
+  scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+
+  // Câmera vertical fixada em três quartos
+  const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+  camera.position.set(4.2, 3.2, 6.8);
+  camera.lookAt(0, 1.2, 0.5);
+
+  // Iluminação
+  const ambientLight = new THREE.AmbientLight(0xddeeff, 0.7);
+  scene.add(ambientLight);
+
+  const sunLight = new THREE.DirectionalLight(0xfff5ea, 1.4);
+  sunLight.position.set(8, 12, 6);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 2048;
+  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.camera.near = 0.5;
+  sunLight.shadow.camera.far = 25;
+  sunLight.shadow.camera.left = -6;
+  sunLight.shadow.camera.right = 6;
+  sunLight.shadow.camera.top = 6;
+  sunLight.shadow.camera.bottom = -6;
+  scene.add(sunLight);
+
+  const fillLight = new THREE.DirectionalLight(0x90b0e0, 0.5);
+  fillLight.position.set(-6, 4, -4);
+  scene.add(fillLight);
+
+  // Materiais
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.7 });
+  const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.8 });
+  const elephantMat = new THREE.MeshStandardMaterial({ color: 0x808a96, roughness: 0.6 });
+  const innerEarMat = new THREE.MeshStandardMaterial({ color: 0xa89098, roughness: 0.6 });
+  const tuskMat = new THREE.MeshStandardMaterial({ color: 0xfffff0, roughness: 0.3 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 });
+
+  // Cenário: Convés da Arca e Cabine
+  const deckGroup = new THREE.Group();
+  scene.add(deckGroup);
+
+  // Piso do convés
+  const deckGeo = new THREE.BoxGeometry(10, 0.4, 12);
+  const deckMesh = new THREE.Mesh(deckGeo, woodMat);
+  deckMesh.position.set(0, -0.2, 0);
+  deckMesh.receiveShadow = true;
+  deckGroup.add(deckMesh);
+
+  // Regra de apoio para os pés
+  if (tools && tools.registerSurface) {
+    tools.registerSurface('deck', deckMesh);
+  }
+
+  // Parede da cabine (fundo)
+  const wallGroup = new THREE.Group();
+  deckGroup.add(wallGroup);
+
+  // Lado esquerdo da porta
+  const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4, 0.3), darkWoodMat);
+  wallLeft.position.set(-2.75, 2, -2);
+  wallLeft.castShadow = true;
+  wallLeft.receiveShadow = true;
+  wallGroup.add(wallLeft);
+
+  // Lado direito da porta
+  const wallRight = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4, 0.3), darkWoodMat);
+  wallRight.position.set(2.75, 2, -2);
+  wallRight.castShadow = true;
+  wallRight.receiveShadow = true;
+  wallGroup.add(wallRight);
+
+  // Topo da porta
+  const wallTop = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 0.3), darkWoodMat);
+  wallTop.position.set(0, 3.5, -2);
+  wallTop.castShadow = true;
+  wallGroup.add(wallTop);
+
+  // ELEFANTE CARTOON
+  const elephant = new THREE.Group();
+  scene.add(elephant);
+
+  // Corpo principal
+  const bodyGeo = new THREE.SphereGeometry(1.1, 16, 16);
+  bodyGeo.scale(1, 0.95, 1.3);
+  const bodyMesh = new THREE.Mesh(bodyGeo, elephantMat);
+  bodyMesh.position.set(0, 1.4, 0);
+  bodyMesh.castShadow = true;
+  bodyMesh.receiveShadow = true;
+  elephant.add(bodyMesh);
+
+  // Cabeça
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 1.7, 1.1);
+  elephant.add(headGroup);
+
+  const headGeo = new THREE.SphereGeometry(0.75, 16, 16);
+  const headMesh = new THREE.Mesh(headGeo, elephantMat);
+  headMesh.castShadow = true;
+  headGroup.add(headMesh);
+
+  // Olhos
+  const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+  eyeL.position.set(-0.35, 0.2, 0.6);
+  const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+  eyeR.position.set(0.35, 0.2, 0.6);
+  headGroup.add(eyeL);
+  headGroup.add(eyeR);
+
+  // Orelhas grandes
+  const earGeo = new THREE.CylinderGeometry(0.6, 0.5, 0.05, 12);
+  earGeo.rotateX(Math.PI / 2);
+  earGeo.scale(1.2, 0.1, 1.5);
+
+  const earL = new THREE.Group();
+  earL.position.set(-0.75, 0.1, -0.1);
+  earL.rotation.y = -Math.PI / 6;
+  const earLMesh = new THREE.Mesh(earGeo, elephantMat);
+  earLMesh.castShadow = true;
+  earL.add(earLMesh);
+  headGroup.add(earL);
+
+  const earR = new THREE.Group();
+  earR.position.set(0.75, 0.1, -0.1);
+  earR.rotation.y = Math.PI / 6;
+  const earRMesh = new THREE.Mesh(earGeo, elephantMat);
+  earRMesh.castShadow = true;
+  earR.add(earRMesh);
+  headGroup.add(earR);
+
+  // Presas
+  const tuskGeo = new THREE.ConeGeometry(0.08, 0.6, 8);
+  tuskGeo.rotateX(Math.PI / 3);
+
+  const tuskL = new THREE.Mesh(tuskGeo, tuskMat);
+  tuskL.position.set(-0.3, -0.3, 0.65);
+  tuskL.castShadow = true;
+  headGroup.add(tuskL);
+
+  const tuskR = new THREE.Mesh(tuskGeo, tuskMat);
+  tuskR.position.set(0.3, -0.3, 0.65);
+  tuskR.castShadow = true;
+  headGroup.add(tuskR);
+
+  // Tromba articulada
+  const trunkGroup = new THREE.Group();
+  trunkGroup.position.set(0, -0.1, 0.7);
+  headGroup.add(trunkGroup);
+
+  const trunkSegs = [];
+  let prevSeg = trunkGroup;
+  for (let i = 0; i < 4; i++) {
+    const segGroup = new THREE.Group();
+    if (i > 0) segGroup.position.set(0, -0.18, 0.05);
+    const r = 0.16 - i * 0.03;
+    const segMesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, 0.22, 10), elephantMat);
+    segMesh.position.set(0, -0.1, 0);
+    segMesh.castShadow = true;
+    segGroup.add(segMesh);
+    prevSeg.add(segGroup);
+    trunkSegs.push(segGroup);
+    prevSeg = segGroup;
+  }
+
+  // Criar 4 Patas Articuladas
+  function createLeg(x, z) {
+    const legRoot = new THREE.Group();
+    legRoot.position.set(x, 1.1, z);
+
+    // Coxa / Perna superior
+    const upper = new THREE.Group();
+    legRoot.add(upper);
+
+    const upperMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.6, 12), elephantMat);
+    upperMesh.position.set(0, -0.3, 0);
+    upperMesh.castShadow = true;
+    upper.add(upperMesh);
+
+    // Canela / Perna inferior (joelho)
+    const lower = new THREE.Group();
+    lower.position.set(0, -0.6, 0);
+    upper.add(lower);
+
+    const lowerMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.5, 12), elephantMat);
+    lowerMesh.position.set(0, -0.25, 0);
+    lowerMesh.castShadow = true;
+    lower.add(lowerMesh);
+
+    // Pé
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.3, 0.12, 12), elephantMat);
+    foot.position.set(0, -0.06, 0.02);
+    foot.castShadow = true;
+    lower.add(foot);
+
+    return { root: legRoot, upper, lower };
+  }
+
+  const legFL = createLeg(-0.65, 0.7);  // Front Left
+  const legFR = createLeg(0.65, 0.7);   // Front Right
+  const legBL = createLeg(-0.65, -0.6); // Back Left
+  const legBR = createLeg(0.65, -0.6);  // Back Right
+
+  elephant.add(legFL.root);
+  elephant.add(legFR.root);
+  elephant.add(legBL.root);
+  elephant.add(legBR.root);
+
+  // Easing helper
+  function smoothstep(min, max, value) {
+    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    return x * x * (3 - 2 * x);
+  }
+
+  function renderAt(t) {
+    // 0.0s a 0.5s: Aparece dentro da porta aberta (Z = -1.8)
+    // 0.5s a 3.8s: Camina 3 passos até ficar fora (Z = 0.8)
+    // 3.8s a 5.0s: Para e olha para a câmera
+    // 5.0s a 8.0s: Mantém pose final
+
+    let zPos = -1.8;
+    let walkProgress = 0;
+
+    if (t < 0.5) {
+      zPos = -1.8;
+      walkProgress = 0;
+    } else if (t <= 3.8) {
+      const normT = (t - 0.5) / (3.8 - 0.5); // 0 a 1
+      zPos = -1.8 + normT * 2.6;             // de -1.8 até +0.8
+      walkProgress = normT * 3;              // 3 ciclos de passos
+    } else {
+      zPos = 0.8;
+      walkProgress = 3;
+    }
+
+    elephant.position.set(0, 0, zPos);
+
+    // Animação de Caminhada (alternância de patas)
+    const isWalking = t >= 0.5 && t < 3.8;
+    const cycle = walkProgress * Math.PI * 2;
+
+    if (isWalking) {
+      // Oscilação do corpo (peso do elefante)
+      bodyMesh.position.y = 1.4 + Math.sin(cycle * 2) * 0.04;
+      headGroup.position.y = 1.7 + Math.sin(cycle * 2) * 0.03;
+
+      // Articulação das Patas (marcha diagonal)
+      const swingFL = Math.sin(cycle);
+      const swingFR = Math.sin(cycle + Math.PI);
+      const swingBL = Math.sin(cycle + Math.PI);
+      const swingBR = Math.sin(cycle);
+
+      legFL.upper.rotation.x = swingFL * 0.4;
+      legFL.lower.rotation.x = Math.max(0, -swingFL * 0.5);
+
+      legFR.upper.rotation.x = swingFR * 0.4;
+      legFR.lower.rotation.x = Math.max(0, -swingFR * 0.5);
+
+      legBL.upper.rotation.x = swingBL * 0.35;
+      legBL.lower.rotation.x = Math.max(0, -swingBL * 0.4);
+
+      legBR.upper.rotation.x = swingBR * 0.35;
+      legBR.lower.rotation.x = Math.max(0, -swingBR * 0.4);
+
+      // Orelhas balançam com a caminhada
+      earL.rotation.y = -Math.PI / 6 + Math.sin(cycle) * 0.1;
+      earR.rotation.y = Math.PI / 6 - Math.sin(cycle) * 0.1;
+
+      // Tromba balança
+      trunkSegs.forEach((seg, i) => {
+        seg.rotation.x = 0.15 + Math.sin(cycle - i * 0.4) * 0.12;
+      });
+
+      // Olhar frontal durante a caminhada
+      headGroup.rotation.y = 0;
+      headGroup.rotation.x = 0;
+    } else {
+      // Posição de repouso / Parado
+      bodyMesh.position.y = 1.4;
+      headGroup.position.y = 1.7;
+
+      legFL.upper.rotation.x = 0;
+      legFL.lower.rotation.x = 0;
+      legFR.upper.rotation.x = 0;
+      legFR.lower.rotation.x = 0;
+      legBL.upper.rotation.x = 0;
+      legBL.lower.rotation.x = 0;
+      legBR.upper.rotation.x = 0;
+      legBR.lower.rotation.x = 0;
+
+      // De 3.8s a 5.0s (e mantido até 8s): olha para a câmera (virando a cabeça levemente para a direita/frente)
+      const lookT = smoothstep(3.8, 4.8, t);
+      headGroup.rotation.y = lookT * 0.35; // Gira em direção à câmera
+      headGroup.rotation.x = lookT * 0.05;
+
+      // Suave ondulação da tromba parada
+      const idleWave = Math.sin(t * 2);
+      trunkSegs.forEach((seg, i) => {
+        seg.rotation.x = 0.1 + Math.sin(t * 2.5 - i * 0.3) * 0.05;
+        seg.rotation.z = Math.cos(t * 2 - i * 0.3) * 0.03;
+      });
+
+      earL.rotation.y = -Math.PI / 6 + idleWave * 0.03;
+      earR.rotation.y = Math.PI / 6 - idleWave * 0.03;
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  function dispose() {
+    renderer.dispose();
+    scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+  }
+
+  return {
+    duration,
+    renderAt,
+    dispose
+  };
+}
+```

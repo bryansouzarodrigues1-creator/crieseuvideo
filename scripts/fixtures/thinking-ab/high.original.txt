@@ -1,0 +1,700 @@
+```javascript
+/*CRIESEUVIDEO_DIRECTION_V1
+{
+  "version": 1,
+  "duration": 8,
+  "timing": "planned",
+  "objects": [
+    {
+      "id": "elefante",
+      "description": "Elefante cinza cartoon de corpo inteiro articulado",
+      "parts": ["corpo", "cabeca", "tromba", "orelhas", "presas", "patas"]
+    },
+    {
+      "id": "arca",
+      "description": "Cabine de madeira da arca com porta larga e convés",
+      "parts": ["conves", "parede_cabine", "porta_aberta"]
+    }
+  ],
+  "shots": [
+    {
+      "id": "plano_unico",
+      "start": 0,
+      "end": 8,
+      "quote": "Um elefante cinza de corpo INTEIRO sai da cabine de madeira da arca para o convés aberto, em dia claro.",
+      "subjects": ["elefante", "arca"],
+      "focus": "elefante",
+      "camera": "medium",
+      "action": "O elefante sai da cabine caminhando 3 passos até o convés, para e olha para a câmera",
+      "before": "Elefante na porta da cabine",
+      "after": "Elefante totalmente fora da cabine em destaque no convés"
+    }
+  ]
+}
+*/
+
+function createScene(THREE, canvas, width, height, tools) {
+  // Renderer Setup
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    preserveDrawingBuffer: true
+  });
+  renderer.setSize(width, height, false);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  // Scene & Camera
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+
+  const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+  // Fixed 3/4 Camera view showing doorway, wooden floor, and full elephant
+  camera.position.set(4.2, 3.2, 4.8);
+  camera.lookAt(0.0, 1.4, -0.5);
+
+  // Lighting (Bright daylight with rich fill light)
+  const ambientLight = new THREE.HemisphereLight(0xdceeff, 0x8a5a36, 0.85);
+  scene.add(ambientLight);
+
+  const sunLight = new THREE.DirectionalLight(0xfffaed, 2.2);
+  sunLight.position.set(6, 12, 8);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
+  sunLight.shadow.camera.near = 1;
+  sunLight.shadow.camera.far = 25;
+  sunLight.shadow.camera.left = -6;
+  sunLight.shadow.camera.right = 6;
+  sunLight.shadow.camera.top = 6;
+  sunLight.shadow.camera.bottom = -6;
+  sunLight.shadow.bias = -0.0003;
+  scene.add(sunLight);
+
+  const fillLight = new THREE.DirectionalLight(0x90b8f0, 0.9);
+  fillLight.position.set(-8, 6, 4);
+  scene.add(fillLight);
+
+  // Procedural Textures
+  function createWoodTexture() {
+    const cv = document.createElement('canvas');
+    cv.width = 512;
+    cv.height = 512;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#7a4b21';
+    ctx.fillRect(0, 0, 512, 512);
+
+    for (let i = 0; i < 120; i++) {
+      ctx.strokeStyle = (i % 2 === 0) ? '#8d5727' : '#633b18';
+      ctx.lineWidth = 1 + Math.sin(i) * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, i * 4.3);
+      ctx.bezierCurveTo(170, i * 4.3 + Math.sin(i) * 15, 340, i * 4.3 - Math.sin(i) * 15, 512, i * 4.3);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#3d230d';
+    ctx.lineWidth = 4;
+    for (let y = 0; y <= 512; y += 64) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(512, y);
+      ctx.stroke();
+    }
+
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  function createSkyTexture() {
+    const cv = document.createElement('canvas');
+    cv.width = 256;
+    cv.height = 512;
+    const ctx = cv.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#4a90e2');
+    grad.addColorStop(0.5, '#87ceeb');
+    grad.addColorStop(1, '#e0f7fa');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 512);
+
+    const sunGrad = ctx.createRadialGradient(200, 80, 5, 200, 80, 100);
+    sunGrad.addColorStop(0, 'rgba(255, 255, 220, 0.8)');
+    sunGrad.addColorStop(1, 'rgba(255, 255, 220, 0)');
+    ctx.fillStyle = sunGrad;
+    ctx.fillRect(0, 0, 256, 512);
+
+    return new THREE.CanvasTexture(cv);
+  }
+
+  const woodTex = createWoodTexture();
+  const skyTex = createSkyTexture();
+
+  // Environment Materials
+  const woodMat = new THREE.MeshStandardMaterial({
+    map: woodTex,
+    roughness: 0.6,
+    metalness: 0.1
+  });
+
+  const darkWoodMat = new THREE.MeshStandardMaterial({
+    color: 0x4a2c11,
+    roughness: 0.7
+  });
+
+  const brassMat = new THREE.MeshStandardMaterial({
+    color: 0xd4af37,
+    roughness: 0.3,
+    metalness: 0.8
+  });
+
+  // Background Sky & Sea
+  const skyMat = new THREE.MeshBasicMaterial({ map: skyTex });
+  const skyPlane = new THREE.Mesh(new THREE.PlaneGeometry(32, 20), skyMat);
+  skyPlane.position.set(0, 6, -14);
+  scene.add(skyPlane);
+
+  const seaMat = new THREE.MeshStandardMaterial({
+    color: 0x2b6e99,
+    roughness: 0.2,
+    metalness: 0.3
+  });
+  const seaPlane = new THREE.Mesh(new THREE.PlaneGeometry(32, 16), seaMat);
+  seaPlane.rotation.x = -Math.PI / 2;
+  seaPlane.position.set(0, -0.6, -8);
+  scene.add(seaPlane);
+
+  // Ark Deck Floor
+  const deckGeo = new THREE.BoxGeometry(12, 0.4, 12);
+  woodTex.repeat.set(4, 4);
+  const deckMesh = new THREE.Mesh(deckGeo, woodMat);
+  deckMesh.position.set(0, -0.2, 0);
+  deckMesh.receiveShadow = true;
+  scene.add(deckMesh);
+
+  // Deck Railings
+  function createRailing(xPos) {
+    const railGroup = new THREE.Group();
+    for (let z = -2; z <= 5; z += 1.8) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 12), darkWoodMat);
+      post.position.set(xPos, 0.5, z);
+      post.castShadow = true;
+      railGroup.add(post);
+    }
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7.2, 12), darkWoodMat);
+    bar.rotation.x = Math.PI / 2;
+    bar.position.set(xPos, 0.95, 1.5);
+    bar.castShadow = true;
+    railGroup.add(bar);
+    return railGroup;
+  }
+  scene.add(createRailing(-5.2));
+  scene.add(createRailing(5.2));
+
+  // Ark Cabin Wall & Open Doorway
+  const cabinWallGroup = new THREE.Group();
+  cabinWallGroup.position.set(0, 0, -3.0);
+
+  const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(4.2, 4.5, 0.3), woodMat);
+  wallLeft.position.set(-3.8, 2.25, 0);
+  wallLeft.castShadow = true;
+  wallLeft.receiveShadow = true;
+  cabinWallGroup.add(wallLeft);
+
+  const wallRight = new THREE.Mesh(new THREE.BoxGeometry(4.2, 4.5, 0.3), woodMat);
+  wallRight.position.set(3.8, 2.25, 0);
+  wallRight.castShadow = true;
+  wallRight.receiveShadow = true;
+  cabinWallGroup.add(wallRight);
+
+  const wallArch = new THREE.Mesh(new THREE.BoxGeometry(10, 1.2, 0.4), woodMat);
+  wallArch.position.set(0, 4.2, 0);
+  wallArch.castShadow = true;
+  cabinWallGroup.add(wallArch);
+
+  // Door Frame & Open Door Flaps
+  const frameL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.8, 0.4), darkWoodMat);
+  frameL.position.set(-1.8, 1.9, 0.05);
+  cabinWallGroup.add(frameL);
+
+  const frameR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.8, 0.4), darkWoodMat);
+  frameR.position.set(1.8, 1.9, 0.05);
+  cabinWallGroup.add(frameR);
+
+  // Wide Open Doors
+  const doorLeafL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.5, 0.12), woodMat);
+  doorLeafL.position.set(-2.5, 1.75, 0.2);
+  doorLeafL.rotation.y = -2.1;
+  doorLeafL.castShadow = true;
+  cabinWallGroup.add(doorLeafL);
+
+  const doorLeafR = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.5, 0.12), woodMat);
+  doorLeafR.position.set(2.5, 1.75, 0.2);
+  doorLeafR.rotation.y = 2.1;
+  doorLeafR.castShadow = true;
+  cabinWallGroup.add(doorLeafR);
+
+  // Wall Brass Lanterns
+  function createLantern(x) {
+    const g = new THREE.Group();
+    g.position.set(x, 2.6, 0.25);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.35, 8), brassMat);
+    body.castShadow = true;
+    g.add(body);
+    const light = new THREE.PointLight(0xffaa44, 0.8, 3);
+    light.position.set(0, 0, 0.1);
+    g.add(light);
+    return g;
+  }
+  cabinWallGroup.add(createLantern(-2.2));
+  cabinWallGroup.add(createLantern(2.2));
+
+  scene.add(cabinWallGroup);
+
+  // Elephant Materials
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: 0x7b828e,
+    roughness: 0.55,
+    metalness: 0.05
+  });
+
+  const bellyMat = new THREE.MeshStandardMaterial({
+    color: 0x8a919e,
+    roughness: 0.6
+  });
+
+  const innerEarMat = new THREE.MeshStandardMaterial({
+    color: 0xc9949d,
+    roughness: 0.7
+  });
+
+  const tuskMat = new THREE.MeshStandardMaterial({
+    color: 0xfcf6e8,
+    roughness: 0.25,
+    metalness: 0.1
+  });
+
+  const nailMat = new THREE.MeshStandardMaterial({
+    color: 0xd8d2c5,
+    roughness: 0.5
+  });
+
+  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.2 });
+  const eyeIrisMat = new THREE.MeshStandardMaterial({ color: 0x224488, roughness: 0.2 });
+  const eyePupilMat = new THREE.MeshBasicMaterial({ color: 0x0a0a10 });
+  const eyeShineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+  // 3D Stylized Elephant Rig
+  const elephantRoot = new THREE.Group();
+  scene.add(elephantRoot);
+
+  const bodyGroup = new THREE.Group();
+  bodyGroup.position.set(0, 1.75, 0);
+  elephantRoot.add(bodyGroup);
+
+  // Torso
+  const torsoGeo = new THREE.SphereGeometry(1.0, 32, 24);
+  const torsoMesh = new THREE.Mesh(torsoGeo, skinMat);
+  torsoMesh.scale.set(1.05, 0.95, 1.3);
+  torsoMesh.castShadow = true;
+  torsoMesh.receiveShadow = true;
+  bodyGroup.add(torsoMesh);
+
+  // Belly
+  const bellyGeo = new THREE.SphereGeometry(0.92, 24, 16, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.65);
+  const bellyMesh = new THREE.Mesh(bellyGeo, bellyMat);
+  bellyMesh.scale.set(1.02, 0.92, 1.25);
+  bellyMesh.position.set(0, -0.05, 0);
+  bodyGroup.add(bellyMesh);
+
+  // Tail
+  const tailGroup = new THREE.Group();
+  tailGroup.position.set(0, 0.3, -1.3);
+  bodyGroup.add(tailGroup);
+
+  const tailMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 0.8, 8), skinMat);
+  tailMesh.position.set(0, -0.4, -0.1);
+  tailMesh.rotation.x = -0.3;
+  tailMesh.castShadow = true;
+  tailGroup.add(tailMesh);
+
+  const tuftMesh = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 8), skinMat);
+  tuftMesh.position.set(0, -0.8, -0.22);
+  tuftMesh.rotation.x = 2.8;
+  tailGroup.add(tuftMesh);
+
+  // Head Group
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 0.55, 1.15);
+  bodyGroup.add(headGroup);
+
+  const headGeo = new THREE.SphereGeometry(0.82, 32, 24);
+  const headMesh = new THREE.Mesh(headGeo, skinMat);
+  headMesh.scale.set(1.0, 1.05, 1.0);
+  headMesh.castShadow = true;
+  headGroup.add(headMesh);
+
+  const snoutBaseGeo = new THREE.SphereGeometry(0.48, 24, 18);
+  const snoutBaseMesh = new THREE.Mesh(snoutBaseGeo, skinMat);
+  snoutBaseMesh.position.set(0, -0.25, 0.55);
+  snoutBaseMesh.scale.set(1.1, 0.9, 1.1);
+  snoutBaseMesh.castShadow = true;
+  headGroup.add(snoutBaseMesh);
+
+  // Ears
+  const earGroupL = new THREE.Group();
+  earGroupL.position.set(-0.75, 0.2, -0.1);
+  headGroup.add(earGroupL);
+
+  const earGroupR = new THREE.Group();
+  earGroupR.position.set(0.75, 0.2, -0.1);
+  headGroup.add(earGroupR);
+
+  function buildEar(isLeft) {
+    const g = new THREE.Group();
+    const dir = isLeft ? -1 : 1;
+
+    const earOuterGeo = new THREE.CylinderGeometry(0.65, 0.4, 0.06, 24);
+    const earOuter = new THREE.Mesh(earOuterGeo, skinMat);
+    earOuter.scale.set(1.1, 1.0, 1.4);
+    earOuter.rotation.x = Math.PI / 2;
+    earOuter.rotation.z = dir * 0.3;
+    earOuter.castShadow = true;
+    g.add(earOuter);
+
+    const earInnerGeo = new THREE.CylinderGeometry(0.52, 0.3, 0.07, 24);
+    const earInner = new THREE.Mesh(earInnerGeo, innerEarMat);
+    earInner.scale.set(1.0, 1.0, 1.3);
+    earInner.rotation.x = Math.PI / 2;
+    earInner.rotation.z = dir * 0.3;
+    earInner.position.set(0, 0, dir * 0.01);
+    g.add(earInner);
+
+    return g;
+  }
+  earGroupL.add(buildEar(true));
+  earGroupR.add(buildEar(false));
+
+  // Cartoon Eyes
+  function buildEye(isLeft) {
+    const eyeG = new THREE.Group();
+    const dir = isLeft ? -1 : 1;
+    eyeG.position.set(dir * 0.42, 0.32, 0.62);
+
+    const sclera = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16), eyeWhiteMat);
+    sclera.scale.set(0.7, 1.0, 0.9);
+    eyeG.add(sclera);
+
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), eyeIrisMat);
+    iris.position.set(dir * 0.02, 0, 0.08);
+    iris.scale.set(0.8, 1.0, 0.4);
+    eyeG.add(iris);
+
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), eyePupilMat);
+    pupil.position.set(dir * 0.02, 0, 0.12);
+    pupil.scale.set(0.8, 1.0, 0.3);
+    eyeG.add(pupil);
+
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), eyeShineMat);
+    shine.position.set(dir * 0.01 + 0.02, 0.03, 0.14);
+    eyeG.add(shine);
+
+    const lid = new THREE.Mesh(
+      new THREE.SphereGeometry(0.17, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+      skinMat
+    );
+    lid.rotation.x = -0.2;
+    eyeG.add(lid);
+
+    return eyeG;
+  }
+  headGroup.add(buildEye(true));
+  headGroup.add(buildEye(false));
+
+  // Ivory Tusks
+  function buildTusk(isLeft) {
+    const dir = isLeft ? -1 : 1;
+    const tuskGroup = new THREE.Group();
+    tuskGroup.position.set(dir * 0.32, -0.35, 0.68);
+
+    const segs = 6;
+    let prev = tuskGroup;
+    for (let i = 0; i < segs; i++) {
+      const rTop = 0.07 * (1 - i / segs * 0.7);
+      const rBot = 0.07 * (1 - (i + 1) / segs * 0.7);
+      const h = 0.12;
+      const segMesh = new THREE.Mesh(new THREE.CylinderGeometry(rBot, rTop, h, 12), tuskMat);
+      segMesh.position.set(0, 0, h * 0.5);
+      segMesh.rotation.x = Math.PI / 2 + 0.12;
+      segMesh.rotation.y = dir * 0.08;
+      segMesh.castShadow = true;
+
+      const node = new THREE.Group();
+      node.add(segMesh);
+      if (i > 0) node.position.set(0, 0, h * 0.85);
+      prev.add(node);
+      prev = node;
+    }
+    return tuskGroup;
+  }
+  headGroup.add(buildTusk(true));
+  headGroup.add(buildTusk(false));
+
+  // Articulated Trunk
+  const trunkSegments = [];
+  let parentTrunk = headGroup;
+  const trunkBasePos = new THREE.Vector3(0, -0.22, 0.78);
+
+  for (let i = 0; i < 5; i++) {
+    const segGroup = new THREE.Group();
+    if (i === 0) {
+      segGroup.position.copy(trunkBasePos);
+    } else {
+      segGroup.position.set(0, -0.22, 0.08);
+    }
+
+    const rTop = 0.22 * (1 - i * 0.14);
+    const rBot = 0.22 * (1 - (i + 1) * 0.14);
+    const h = 0.26;
+    const segMesh = new THREE.Mesh(new THREE.CylinderGeometry(rBot, rTop, h, 16), skinMat);
+    segMesh.position.set(0, -h * 0.5, 0);
+    segMesh.castShadow = true;
+    segGroup.add(segMesh);
+
+    const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(rTop * 1.02, 0.018, 8, 16), skinMat);
+    ringMesh.rotation.x = Math.PI / 2;
+    ringMesh.position.set(0, -0.02, 0);
+    segGroup.add(ringMesh);
+
+    parentTrunk.add(segGroup);
+    parentTrunk = segGroup;
+    trunkSegments.push(segGroup);
+  }
+
+  // Articulated 4 Legs with Knees & Feet
+  function createLeg(isFront, isLeft) {
+    const legRoot = new THREE.Group();
+    const xDir = isLeft ? -1 : 1;
+    const zPos = isFront ? 0.7 : -0.7;
+    legRoot.position.set(xDir * 0.78, -0.3, zPos);
+
+    const upperGroup = new THREE.Group();
+    legRoot.add(upperGroup);
+
+    const rUpperTop = isFront ? 0.28 : 0.30;
+    const rUpperBot = 0.22;
+    const lenUpper = 0.65;
+
+    const upperMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(rUpperBot, rUpperTop, lenUpper, 16),
+      skinMat
+    );
+    upperMesh.position.set(0, -lenUpper * 0.5, 0);
+    upperMesh.castShadow = true;
+    upperGroup.add(upperMesh);
+
+    const kneeGroup = new THREE.Group();
+    kneeGroup.position.set(0, -lenUpper, 0);
+    upperGroup.add(kneeGroup);
+
+    const kneeCap = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), skinMat);
+    kneeCap.castShadow = true;
+    kneeGroup.add(kneeCap);
+
+    const lowerGroup = new THREE.Group();
+    kneeGroup.add(lowerGroup);
+
+    const lenLower = 0.65;
+    const lowerMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.26, 0.22, lenLower, 16),
+      skinMat
+    );
+    lowerMesh.position.set(0, -lenLower * 0.5, 0);
+    lowerMesh.castShadow = true;
+    lowerGroup.add(lowerMesh);
+
+    const footGroup = new THREE.Group();
+    footGroup.position.set(0, -lenLower, 0);
+    lowerGroup.add(footGroup);
+
+    const footMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.30, 0.33, 0.15, 20),
+      skinMat
+    );
+    footMesh.position.set(0, -0.075, 0.04);
+    footMesh.castShadow = true;
+    footGroup.add(footMesh);
+
+    // Toenails
+    for (let n = -1; n <= 1; n++) {
+      const nailMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), nailMat);
+      nailMesh.scale.set(1.0, 1.2, 0.8);
+      nailMesh.position.set(n * 0.11, -0.1, 0.31);
+      footGroup.add(nailMesh);
+    }
+
+    return {
+      root: legRoot,
+      upper: upperGroup,
+      knee: kneeGroup,
+      lower: lowerGroup,
+      foot: footGroup
+    };
+  }
+
+  const legFL = createLeg(true, true);
+  const legFR = createLeg(true, false);
+  const legBL = createLeg(false, true);
+  const legBR = createLeg(false, false);
+
+  bodyGroup.add(legFL.root);
+  bodyGroup.add(legFR.root);
+  bodyGroup.add(legBL.root);
+  bodyGroup.add(legBR.root);
+
+  // Smoothstep Helper
+  function smoothstep(min, max, value) {
+    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    return x * x * (3 - 2 * x);
+  }
+
+  // Animation Deterministic Evaluator
+  function renderAt(t) {
+    const currentTime = Math.max(0, Math.min(8, t));
+
+    // 1. Position of Elephant (Walks from doorway Z = -2.2 to open deck Z = 1.0)
+    let zPos = -2.2;
+    if (currentTime > 0.5 && currentTime <= 3.8) {
+      const walkProgress = (currentTime - 0.5) / 3.3;
+      zPos = -2.2 + walkProgress * 3.2;
+    } else if (currentTime > 3.8) {
+      zPos = 1.0;
+    }
+    elephantRoot.position.set(0, 0, zPos);
+
+    // 2. Gait & Body Swaying Math
+    let phaseGlobal = 0.0;
+    if (currentTime > 0.5 && currentTime <= 3.8) {
+      phaseGlobal = ((currentTime - 0.5) / 3.3) * 3.0; // 3 full gait strides
+    } else if (currentTime > 3.8) {
+      phaseGlobal = 3.0;
+    }
+
+    const walkFactor = (currentTime > 0.5 && currentTime <= 3.8) ? 1.0 : 0.0;
+    const easeStop = smoothstep(3.8, 4.6, currentTime);
+
+    const yBob = Math.sin(phaseGlobal * Math.PI * 4) * 0.05 * walkFactor;
+    const rollSway = Math.cos(phaseGlobal * Math.PI * 2) * 0.02 * walkFactor;
+    const pitchSway = Math.sin(phaseGlobal * Math.PI * 4) * 0.015 * walkFactor;
+
+    // Idle breathing when standing
+    const breath = Math.sin(currentTime * 2.5) * 0.012;
+
+    bodyGroup.position.set(0, 1.75 + yBob + breath, 0);
+    bodyGroup.rotation.z = rollSway;
+    bodyGroup.rotation.x = pitchSway;
+
+    // 3. Articulated Legs Control (4 legs alternating, knees flexing, zero sliding)
+    const legs = [
+      { leg: legFL, offset: 0.00 },
+      { leg: legBR, offset: 0.25 },
+      { leg: legFR, offset: 0.50 },
+      { leg: legBL, offset: 0.75 }
+    ];
+
+    legs.forEach(({ leg, offset }) => {
+      if (currentTime <= 0.5 || currentTime >= 3.8) {
+        // Planted standing posture
+        leg.root.position.y = -0.3;
+        leg.upper.rotation.x = 0;
+        leg.knee.rotation.x = 0;
+        leg.foot.rotation.x = 0;
+      } else {
+        const p = (phaseGlobal + offset) % 1.0;
+        if (p < 0.5) {
+          // Swing phase (lifting foot off deck floor and flexing knee)
+          const s = p / 0.5;
+          const lift = Math.sin(s * Math.PI) * 0.16;
+          leg.root.position.y = -0.3 + lift;
+
+          const upperAngle = -Math.sin(s * Math.PI) * 0.35;
+          const kneeAngle = Math.sin(s * Math.PI) * 0.45;
+
+          leg.upper.rotation.x = upperAngle;
+          leg.knee.rotation.x = kneeAngle;
+          leg.foot.rotation.x = -upperAngle - kneeAngle;
+        } else {
+          // Stance phase (planted firmly on wooden deck)
+          const s = (p - 0.5) / 0.5;
+          leg.root.position.y = -0.3;
+
+          const upperAngle = -0.35 + s * 0.70;
+          const kneeAngle = Math.sin(s * Math.PI) * 0.05;
+
+          leg.upper.rotation.x = upperAngle;
+          leg.knee.rotation.x = kneeAngle;
+          leg.foot.rotation.x = -upperAngle - kneeAngle;
+        }
+      }
+    });
+
+    // 4. Ears Sway & Fan Out
+    const earSway = Math.sin(phaseGlobal * Math.PI * 2) * 0.08 * walkFactor;
+    const earFan = easeStop * 0.15;
+    earGroupL.rotation.y = -earSway - earFan;
+    earGroupR.rotation.y = earSway + earFan;
+
+    // 5. Head Turn towards Camera (3.8s - 5.0s)
+    const headTurn = easeStop * 0.42;
+    const headTilt = -easeStop * 0.06;
+    headGroup.rotation.y = headTurn;
+    headGroup.rotation.x = headTilt;
+
+    // 6. Trunk Curling & Greeting Wave
+    const trunkBaseSway = Math.sin(phaseGlobal * Math.PI * 2) * 0.1 * walkFactor;
+    trunkSegments.forEach((seg, idx) => {
+      if (idx === 0) {
+        seg.rotation.x = -0.1 + easeStop * 0.35;
+        seg.rotation.y = trunkBaseSway + easeStop * 0.15;
+      } else {
+        const curlFactor = easeStop * 0.32;
+        seg.rotation.x = 0.05 + curlFactor;
+        seg.rotation.y = Math.sin(currentTime * 2 + idx) * 0.03;
+      }
+    });
+
+    // 7. Tail Wiggle
+    tailGroup.rotation.z = Math.sin(currentTime * 3) * 0.12;
+    tailGroup.rotation.x = Math.cos(currentTime * 2) * 0.08;
+
+    // Render Scene
+    renderer.render(scene, camera);
+  }
+
+  // Cleanup Function
+  function dispose() {
+    scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+    woodTex.dispose();
+    skyTex.dispose();
+    renderer.dispose();
+  }
+
+  return {
+    duration: 8,
+    renderAt,
+    dispose
+  };
+}
+```
