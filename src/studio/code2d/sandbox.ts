@@ -1,7 +1,37 @@
 import {
-  randomHex,maxPixelDiff,replayCheck,SANDBOX_CSP,SANDBOX_ATTRIBUTE,readSandboxMessage,
+  randomHex,maxPixelDiff,replayCheck,SANDBOX_CSP,SANDBOX_ATTRIBUTE,
 } from '../code3d/sandbox';
-export {randomHex,SANDBOX_ATTRIBUTE,readSandboxMessage};
+export {randomHex,SANDBOX_ATTRIBUTE};
+
+type Code2DMessage=
+  | {type:'boot'}
+  | {type:'ready';duration:number;deterministic:boolean;maxDiff:number}
+  | {type:'error';stage:'load'|'syntax'|'contract'|'runtime';message:string}
+  | {type:'frame';seq:number;bitmap:ImageBitmap};
+
+/** Code3D limits ready messages to 30s; Code2D intentionally supports 30–60s. */
+export function readSandboxMessage(
+  ev:{source:unknown;origin:string;data:unknown},frameWindow:unknown,token:string,
+):Code2DMessage|null{
+  if(!frameWindow||ev.source!==frameWindow||ev.origin!=='null')return null;
+  const d=ev.data as Record<string,unknown>|null;
+  if(!d||typeof d!=='object'||d.token!==token||typeof d.type!=='string')return null;
+  if(d.type==='boot')return {type:'boot'};
+  if(d.type==='ready'){
+    const duration=Number(d.duration);
+    if(!Number.isFinite(duration)||duration<30||duration>60)return null;
+    return {type:'ready',duration,deterministic:d.deterministic===true,maxDiff:Math.max(0,Math.min(255,Number(d.maxDiff)||0))};
+  }
+  if(d.type==='error'){
+    if(!['load','syntax','contract','runtime'].includes(String(d.stage)))return null;
+    return {type:'error',stage:d.stage as 'runtime',message:String(d.message||'').slice(0,500)};
+  }
+  if(d.type==='frame'){
+    if(typeof ImageBitmap==='undefined'||!(d.bitmap instanceof ImageBitmap))return null;
+    return {type:'frame',seq:Number(d.seq)|0,bitmap:d.bitmap};
+  }
+  return null;
+}
 const safeJSON=(v:unknown)=>JSON.stringify(v).replace(/</g,'\\u003c');
 
 export function buildCode2DSandboxSrcdoc(opts:{
