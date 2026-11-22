@@ -4,6 +4,7 @@ import { ArrowLeft, Code2, Download, Loader2, Pause, Play, ShieldCheck } from 'l
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable';
 import { generateCode3D } from '../code3d.functions';
+import { narrationTimingSchema, type NarrationTiming, type DirectionScore } from '../code3d/direction';
 import {
   CODE3D_DEFAULT_DURATION, CODE3D_MAX_CODE_CHARS, CODE3D_MAX_DURATION, CODE3D_MAX_SCRIPT_CHARS,
   CODE3D_MIN_DURATION, CODE3D_MIN_SCRIPT_CHARS, code3dSize, code3dFrameRate, type Code3DAspect, type Code3DModelChoice, type Code3DQuality,
@@ -18,10 +19,11 @@ const STAGE_TEXT: Record<string, string> = {
   runtime: 'erro durante a execução do código gerado',
 };
 type Phase = 'idle' | 'generating' | 'importing' | 'loading' | 'ready' | 'error';
-type Generated = { code: string; model: string; warnings: string[]; label?: string; source: 'gemini' | 'imported' | 'recipe' };
+type Generated = { code: string; model: string; warnings: string[]; label?: string; source: 'gemini' | 'imported' | 'recipe'; direction?: DirectionScore };
 
 export default function Code3DStudio() {
   const [script, setScript] = useState(SAMPLE);
+  const [narration, setNarration] = useState<NarrationTiming | undefined>();
   const [aspect, setAspect] = useState<Code3DAspect>('9:16');
   const [quality, setQuality] = useState<Code3DQuality>('preview');
   const [modelChoice, setModelChoice] = useState<Code3DModelChoice>('gemini-3.6-flash');
@@ -179,10 +181,10 @@ export default function Code3DStudio() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
-      const r = await send({ data: { script, aspect, model: modelChoice }, headers: { Authorization: `Bearer ${session.access_token}` } });
+      const r = await send({ data: { script, aspect, model: modelChoice, ...(narration ? { narration } : {}) }, headers: { Authorization: `Bearer ${session.access_token}` } });
       if (r.model) setLastModel(r.model);
       if (!r.ok) { setPhase('error'); setError(r.message); return; }
-      setResult({ code: r.code, model: r.model, warnings: r.warnings, source: 'gemini' });
+      setResult({ code: r.code, model: r.model, warnings: r.warnings, source: 'gemini', direction: r.direction });
     } catch (e) {
       setPhase('error');
       setError('Falha ao pedir o código: ' + (e instanceof Error ? e.message : String(e)));
@@ -282,6 +284,20 @@ export default function Code3DStudio() {
           <label htmlFor="code3d-script">Roteiro da cena</label>
           <textarea id="code3d-script" rows={6} maxLength={CODE3D_MAX_SCRIPT_CHARS} value={script} disabled={busy} onChange={(e) => setScript(e.target.value)} />
           <p className="native-3d-small">{script.trim().length}/{CODE3D_MAX_SCRIPT_CHARS} caracteres · gera uma cena de {CODE3D_MIN_DURATION}–{CODE3D_MAX_DURATION} s.</p>
+          <details>
+            <summary>Usar falas com tempos do áudio</summary>
+            <label htmlFor="code3d-narration">Importar alinhamento de um trecho de 8–12 s (.json)</label>
+            <input id="code3d-narration" type="file" accept=".json,application/json" disabled={busy} onChange={async e => {
+              const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
+              try {
+                if (file.size > 40_000) throw new Error('O alinhamento é grande demais.');
+                const timing = narrationTimingSchema.parse(JSON.parse(await file.text()));
+                setNarration(timing); setError('');
+              } catch { setNarration(undefined); setError('Use um alinhamento válido com duration e words: [{text,start,end}], em segundos.'); }
+            }} />
+            <p className="native-3d-small">A câmera e as ações usam os tempos fornecidos. O áudio é montado separadamente; esta opção não gera voz.</p>
+            {narration && <p className="native-3d-small">{narration.words.length} palavras · {narration.duration.toFixed(2)} s <button type="button" disabled={busy} onClick={() => setNarration(undefined)}>Remover falas</button></p>}
+          </details>
           <button type="button" disabled={busy} onClick={() => setAspect((a) => (a === '9:16' ? '16:9' : '9:16'))}>
             Formato: {aspect === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}
           </button>
@@ -357,6 +373,13 @@ export default function Code3DStudio() {
               {result.warnings.map((w) => <span key={w}>Aviso: {w}</span>)}
             </div>
           )}
+          {result?.direction && <details className="native-3d-numbers" open>
+              <summary>Plano da cena · {result.direction.timing === 'provided' ? 'tempos de fala fornecidos' : 'tempos planejados'}</summary>
+              <ol>{result.direction.shots.map(shot => <li key={shot.id}>
+                {shot.start.toFixed(2)}–{shot.end.toFixed(2)} s: {shot.action}
+              </li>)}</ol>
+              <span>Partitura validada. Clareza, encaixes e enquadramento precisam de revisão no vídeo.</span>
+          </details>}
           <div className="native-3d-actions">
             {exportProgress !== null ? (
               <button onClick={() => abortRef.current?.abort()}>Cancelar exportação ({exportProgress}%)</button>

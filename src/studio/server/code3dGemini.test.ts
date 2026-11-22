@@ -4,7 +4,9 @@ import { checkGeneratedCode } from '../code3d/validation';
 import { CODE3D_MAX_CODE_CHARS, CODE3D_REQUEST_TIMEOUT_MS, validDuration } from '../code3d/contract';
 import { readSandboxMessage } from '../code3d/sandbox';
 
-const code = 'function createScene(){return {duration:8,renderAt(t){},dispose(){}}}';
+const body = 'function createScene(){const shots=DIRECTOR_SCORE.shots;return {duration:DIRECTOR_SCORE.duration,renderAt(t){},dispose(){}}}';
+const direction = {version:1,duration:8,timing:'planned',objects:[{id:'crane',description:'guindaste amarelo',parts:['mast','hook']}],shots:[{id:'lift',start:0,end:8,quote:'guindaste',subjects:['crane'],focus:'crane',camera:'detail',action:'o gancho levanta a carga',before:'carga apoiada no piso',after:'carga levantada pelo cabo'}]};
+const code = '/*CRIESEUVIDEO_DIRECTION_V1\n'+JSON.stringify(direction)+'\n*/\n'+body;
 const reply = (parts: unknown, finishReason = 'STOP') => Response.json({ candidates: [{ finishReason, content: { parts } }] });
 beforeEach(() => { vi.stubEnv('GEMINI_API_KEY', 'test-key-never-real'); vi.stubEnv('GEMINI_CODE3D_MODEL', 'test-model'); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -20,7 +22,9 @@ describe('Code 3D provider boundary (no paid calls)', () => {
   it('makes one request, ignores thought text and validates the complete segmented code', async () => {
     const fetch = vi.fn(async () => reply([{ text: 'private thought', thought: true }, { text: code.slice(0, 31) }, { text: code.slice(31) }]));
     vi.stubGlobal('fetch', fetch);
-    expect(await generateCode3DWithGemini('Uma cena de guindaste', '9:16')).toMatchObject({ ok: true, code, model: 'test-model' });
+    const result = await generateCode3DWithGemini('Uma cena de guindaste', '9:16');
+    expect(result).toMatchObject({ ok: true, direction, model: 'test-model' });
+    if (result.ok) expect(result.code).toContain('const DIRECTOR_SCORE = ');
     expect(fetch).toHaveBeenCalledOnce();
   });
 
@@ -78,6 +82,33 @@ describe('Code 3D provider boundary (no paid calls)', () => {
     const fetch = vi.fn(async () => reply([{ text: code }], 'MAX_TOKENS'));
     vi.stubGlobal('fetch', fetch);
     expect(await generateCode3DWithGemini('Uma cena de guindaste', '9:16')).toMatchObject({ ok: false, failure: 'truncated_response' });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('rejects code that omits the direction instead of silently approving an unplanned animation', async () => {
+    const fetch = vi.fn(async () => reply([{text:body}])); vi.stubGlobal('fetch',fetch);
+    expect(await generateCode3DWithGemini('Uma cena de guindaste','9:16')).toMatchObject({ok:false,failure:'direction_error'});
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('rejects invalid narration before spending quota', async () => {
+    const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
+    expect(await generateCode3DWithGemini('Uma cena de guindaste','9:16','configured',{duration:8,words:[{text:'guindaste',start:5,end:3}]})).toMatchObject({ok:false,failure:'invalid_request'});
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('uses supplied word times in the actual provider request and normalized returned score', async () => {
+    const narration={duration:8,words:[{text:'O',start:0,end:.2},{text:'guindaste',start:.3,end:.8},{text:'levanta.',start:1,end:2},{text:'Apoia',start:4.4,end:4.9},{text:'a',start:5,end:5.1},{text:'carga.',start:5.2,end:6}]};
+    const plan={...direction,timing:'provided',shots:[
+      {...direction.shots[0],quote:'O guindaste',firstWord:0,start:undefined,end:undefined},
+      {...direction.shots[0],id:'rest',quote:'Apoia a carga.',firstWord:3,start:undefined,end:undefined},
+    ]};
+    let requestBody:any;
+    const fetch=vi.fn(async (_url:unknown,init:RequestInit)=>{requestBody=JSON.parse(String(init.body));return reply([{text:'/*CRIESEUVIDEO_DIRECTION_V1\n'+JSON.stringify(plan)+'\n*/\n'+body}]);});vi.stubGlobal('fetch',fetch);
+    const result=await generateCode3DWithGemini('Um guindaste levanta e apoia uma carga.','9:16','configured',narration);
+    expect(result).toMatchObject({ok:true,direction:{timing:'provided',shots:[{start:0,end:4.4},{start:4.4,end:8}]}});
+    expect(requestBody.contents[0].parts[0].text).toContain('4.4');
+    expect(requestBody.contents[0].parts[0].text).toContain('spoken-actions-v1');
     expect(fetch).toHaveBeenCalledOnce();
   });
 
