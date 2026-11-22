@@ -22,8 +22,10 @@ jobs:
         run: |
           bun run build
           bunx tsc --noEmit
-      - name: Install browser runner
+      - name: Install browser runner and FFprobe video validator
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           bun add --no-save playwright@1.57.0
           bunx playwright install chromium
       - name: Bundle original Motion 2D only
