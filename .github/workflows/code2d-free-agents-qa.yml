@@ -22,7 +22,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - name: Unit tests — no actual free-tier tokens consumed
-        run: bunx vitest run src/studio/code2d/code2d.test.ts src/studio/code2d/multiAgent.test.ts src/studio/server/geminiHigh.test.ts
+        run: bunx vitest run src/studio/code2d/code2d.test.ts src/studio/code2d/multiAgent.test.ts src/studio/code2d/reasoningBudget.test.ts src/studio/server/geminiHigh.test.ts
       - name: Build route and validate TypeScript
         run: |
           bun run build
