@@ -1,0 +1,30 @@
+# Controlled renderer comparison
+
+The user requested one animation from each existing path to decide what to keep,
+retire or improve. The shared brief is a 12-second portrait solar-panel assembly
+and a house receiving power, in three four-second beats.
+
+This is a manually authored, controlled demonstration of renderers, **not** five
+autonomous Gemini generations and not a model-quality benchmark. No new model
+or TTS requests are made. No production renderer, validator or default changes.
+
+The read-only harness imports the real Motion 2D, Toon3D and SceneProgram3D
+implementations. The 2D/Toon plan has no speech text because the comparison has
+no spoken audio; its native scene clock is mapped to the shared 12-second score.
+Toon retains its presenter and board. The 2D sequence is limited to the current
+primitive/layout/animation vocabulary; it is not replaced by custom SVG.
+
+Code 3D imports its hand-authored createScene program into the actual opaque
+sandbox via the existing app UI, including replay validation and native export.
+The final path is a separately authored SVG with an actual paused GSAP 3.12.5
+timeline sampled at absolute time, corresponding to the other chat's approach.
+
+For comparable files, the harness uses the existing fixed-frame encoder for
+Motion 2D, Toon, JSON and SVG. This does not certify their original export UIs.
+Common action captions and sound effects are applied after export to all arms.
+These captions are scheduled action labels, not measured speech alignment.
+
+The browser report records source identity, errors, model-request count and
+sample replay equality. Export success is not visual-quality approval. Inspect
+the actual frames and MP4s for part visibility, framing, actor anatomy, continuity
+and whether the connection and final light are understandable without text.

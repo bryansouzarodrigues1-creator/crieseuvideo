@@ -1,0 +1,41 @@
+name: Five actual renderer comparison
+on:
+  pull_request:
+    branches: [feat/gemini-thinking-ab-20261122]
+    paths:
+      - scripts/engine-comparison-*
+      - scripts/fixtures/engine-comparison/**
+      - .github/workflows/engine-comparison.yml
+permissions:
+  contents: read
+concurrency:
+  group: engine-comparison-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  render:
+    if: github.event.pull_request.head.ref == 'feat/engine-comparison-20261122'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun add --no-save playwright@1.57.0 gsap@3.12.5
+      - run: bunx playwright install chromium
+      - name: Start original application and read-only renderer harness
+        run: |
+          mkdir -p tmp/engine-comparison
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/engine-comparison/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Render the five actual implementations without AI calls
+        run: bun scripts/engine-comparison-render.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: five-renderer-comparison
+          path: tmp/engine-comparison/
+          retention-days: 14
