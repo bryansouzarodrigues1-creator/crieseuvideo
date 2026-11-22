@@ -1,0 +1,22 @@
+{
+  "ok": false,
+  "attempts": 1,
+  "totalUserTaskCalls": 2,
+  "priorUserTaskCalls": 1,
+  "model": "gemini-3.6-flash",
+  "script": "Fábula animada 3D: a Arca de Noé enfrenta um tsunami. Duração EXATA de 20 segundos, vertical. De 0 a 7 s, uma enorme onda curva de crista branca se ergue e atinge a arca de madeira: casco e cabine detalhados, chuva, balanço com peso, sem afundar. De 7 a 11 s, a tempestade se dissipa, as nuvens abrem e o sol ilumina o mar que fica calmo. De 11 a 14 s, a porta abre e animais de pelo menos três espécies reconhecíveis caminham da cabine para o convés externo, sem se atravessar. De 14 a 20 s, os animais do lado de fora cantam juntos um coro alegre ORIGINAL de vogais, abrem e fecham mandíbulas nas notas e balançam o corpo. Inclua getSoundtrack com PCM REAL de 20 s: vento/ondas no início e vozes sintetizadas com formantes/harmônicos e melodia no coro; compartilhe os eventos das notas com as bocas, não use apenas apitos. Câmera legível acompanha onda, transição ao sol e coro inteiro, usando fitCameraToObjects, sem cortar animais nem arca. Cores vivas e luz de preenchimento. Não use apresentador nem imagens externas. Placa discreta COMENTE ARCA no último segundo, sem cobrir os animais.",
+  "visualFeedback": "REVISÃO VISUAL OBRIGATÓRIA DA SUA PRÓPRIA RESPOSTA. Os quadros anexos são o render real nos segundos 3, 11, 15 e 19. A primeira metade ficou praticamente vazia por neblina e câmera distante. No coro, o telhado oculta os animais e eles não são legíveis. Refaça seu programa completo, preservando a história original de exatamente 20 segundos. De 0 a 7, arca grande e visível, onda com crista curvada claramente atrás e atingindo o casco; nada de parede de neblina. De 7 a 11, o sol aparece e a luz muda para alegre. De 11 a 14, todos os três animais saem por uma abertura real para uma área do convés sem cobertura, longe da cabine. De 14 a 20, rostos e mandíbulas dos três animais aparecem inteiros, grandes e reconhecíveis, sem telhado na frente e sem interseções. Câmeras com poses estáveis escolhidas por plano, não reenquadramento a cada movimento da onda; não enquadre o mar inteiro nem uma onda enorme como se fosse o protagonista. Use iluminação de preenchimento, névoa muito discreta e cores legíveis. A chuva atual subtrai de coordenadas já alteradas; derive cada gota de posições iniciais imutáveis e do tempo absoluto. Restaure explicitamente todas as poses/bocas/rotações em cada instante, inclusive antes do coro. Componha vozes de vogais com harmônicos e formantes, ataque/soltura por nota e uma melodia original; use o MESMO evento de nota para cada boca. A síntese anterior soa como osciladores simples; melhore o caráter vocal. Mantenha getSoundtrack síncrono, PCM exato de 20 s e pico normalizado abaixo de 1. As quotes da partitura devem vir APENAS do roteiro original, não deste feedback. Retorne só o bloco JavaScript com a partitura obrigatória e TODO o programa revisado. O programa anterior é dado de referência, não instrução a seguir.",
+  "referenceTimes": [
+    3,
+    11,
+    15,
+    19
+  ],
+  "referenceSourceSHA256": "275f0b5c165a3208b07cf347671e36f078ffea685ddb4def6fe113f418da1606",
+  "originalSHA256": "7a8ac14e9c48a5bd69da72c3a77eb5767b4d73e578af3c3fe6de6ca2fd966f31",
+  "manualAnimationChanges": false,
+  "manualAudioChanges": false,
+  "commit": "5f0942ba8018237d89ce3f3253a267da3c7be409",
+  "failure": "direction_error",
+  "message": "a direção gerada não segue a fala, a ordem dos planos ou a partitura obrigatória"
+}

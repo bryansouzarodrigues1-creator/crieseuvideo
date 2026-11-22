@@ -4,7 +4,9 @@ on:
     branches: [feat/ark-tsunami-gemini-20261122]
     paths:
       - scripts/ark-gemini-review.ts
+      - scripts/ark-gemini-review-replay.ts
       - scripts/ark-gemini-render.mjs
+      - scripts/fixtures/ark-gemini-reviewed.*
       - .github/workflows/ark-gemini-review.yml
 permissions:
   contents: read
@@ -14,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   revise-and-render:
-    if: github.event.pull_request.head.ref == 'feat/ark-tsunami-gemini-review-20261122' && github.event.action == 'opened'
+    if: github.event.pull_request.head.ref == 'feat/ark-tsunami-gemini-review-20261122'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -23,6 +25,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test src/studio/code3d/arkGeneration.test.ts
       - uses: actions/download-artifact@v4
+        if: github.event.action == 'opened'
         with:
           name: ark-gemini-20s
           run-id: 45011247705
@@ -40,11 +43,15 @@ jobs:
           done
           exit 1
       - name: One explicit Gemini revision with four actual rendered frames
+        if: github.event.action == 'opened'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
           GEMINI_CODE3D_MODEL: gemini-3.6-flash
           ARK_REVIEW_CALL: ARK_VISUAL_REVIEW_20261122
         run: bun scripts/ark-gemini-review.ts
+      - name: Explicitly import the unchanged saved model revision without another request
+        if: github.event.action != 'opened'
+        run: bun scripts/ark-gemini-review-replay.ts
       - name: Render the Gemini revision unchanged, including its synthesized choir
         run: bun scripts/ark-gemini-render.mjs
       - uses: actions/upload-artifact@v4
