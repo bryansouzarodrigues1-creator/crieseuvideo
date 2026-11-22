@@ -107,9 +107,10 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
 
 async function askGemini(
   prompt: string, onProblem?: (reason: ProviderProblem) => void,
-  responseSchema?:Record<string,unknown>
+  responseSchema?:Record<string,unknown>,
+  keyOverride?:string
 ): Promise<string | null> {
-  const key = process.env.GEMINI_API_KEY;
+  const key = keyOverride ?? process.env.GEMINI_API_KEY;
   if (!key){onProblem?.('not_configured');return null;}
   const ctrl = new AbortController();
   // HIGH can require substantial deliberation; do not silently downgrade on timeout.
@@ -164,10 +165,12 @@ async function askGemini(
 
 /** Motion 2D always uses the user's Gemini API. One call, no alternative provider.
  * A missing key, blocked output or quota failure remains visible to the editor. */
-export async function askGeminiForExplainer(prompt: string):
+export async function askGeminiForExplainer(prompt: string, whichKey:'primary'|'alternate'='primary'):
   Promise<{ text: string | null; model: string; thinkingLevel: typeof GEMINI_THINKING_LEVEL; problem: ProviderProblem | null }> {
   let problem: ProviderProblem = 'invalid_response';
-  const text = await askGemini(prompt, reason => { problem = reason; });
+  const selected = whichKey === 'alternate' ? process.env.GEMINI_API_KEY_ALT : process.env.GEMINI_API_KEY;
+  if(!selected) return {text:null,model:GEMINI_MODEL,thinkingLevel:GEMINI_THINKING_LEVEL,problem:'not_configured'};
+  const text = await askGemini(prompt, reason => { problem = reason; },undefined,selected);
   return { text, model: GEMINI_MODEL, thinkingLevel: GEMINI_THINKING_LEVEL, problem: text ? null : problem };
 }
 
