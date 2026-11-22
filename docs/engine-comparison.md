@@ -39,3 +39,35 @@ close-up and front-facing support legs. The authored fixture's camera now fits
 the elevated pieces before closing in, and both 3D fixtures put legs behind the
 panel. These are documented manual fixture revisions, not Gemini output repairs
 or production-engine changes.
+
+## Observed result
+
+Workflow run `45019544045` successfully rendered all five implementations from
+head `872c11eb914b6b2f4e7d8c0403f0b79b3aaea0d2`. All reported zero provider
+requests, no page errors and equal sampled replay PNGs. Each actual export has
+360 frames at 720x1280/30fps and lasts twelve seconds. These sampled checks do
+not prove every legacy renderer is independent of frame history.
+
+The five mastered MP4s retain those video properties and add the identical
+original sound effects and scheduled action labels. Labels sit above/below the
+main action, not across the panel. The combined file has 1,800 video frames and
+60.000 seconds of video (container duration 60.021 seconds due to AAC packets).
+All files are H.264/AAC. The common soundtrack's encoded true peak is -11.4 dBFS;
+it is effects-only, without speech or a claimed narration alignment.
+
+Visual review found useful differences rather than a universal winner:
+
+| Path | Observed limitation | Initial use |
+| --- | --- | --- |
+| Motion 2D | Preset house windows are already yellow before power is restored; diagram scenes reset rather than maintain one assembled world. | Supporting diagrams; extend object state before narrative assembly. |
+| Classic Toon | Presenter and board remain central; abrupt pose changes at frames 60, 75 and 315 were confirmed visually. | Presenter format, outside the main action/story path. |
+| SceneProgram | Actual assembly and lighting state work, but transparent cover produces flat patches and automatic framing changes composition. | Improve materials, shot transitions and object assets. |
+| Code 3D | Stronger volume and lighting in this authored sample; worker anatomy/acting and connector contact remain simple. | Main candidate for bespoke 3D scenes. |
+| HTML/SVG/GSAP | Clear vector shapes and controlled assembly; assembly close-up crops supporting elements and needs more careful framing. | Main candidate for explanatory 2D animation. |
+
+Frame-level QA found no black or white frames. The Toon pose pops remain real
+limitations of the sample. Short low-motion ranges in JSON (124-137, 273-290)
+and SVG (273-297) were inspected: they occur during waits or small energy-flow
+motion, not a failed decode. These are pacing limitations, not blanket visual
+approval. The comparison does not test complex human interaction, autonomous
+Gemini direction, speech synchronization or the published production defaults.

@@ -65,15 +65,14 @@ def soundtrack(path):
 def card(path, title, subtitle, phase):
     im = Image.new('RGBA', (720, 1280))
     d = ImageDraw.Draw(im)
-    d.rounded_rectangle((44, 68, 676, 177), radius=22, fill=(13, 30, 43, 241))
-    d.rounded_rectangle((44, 948, 676, 1112), radius=22, fill=(13, 30, 43, 239))
-    d.text((66, 83), title, font=ImageFont.truetype(BOLD, 28), fill='#fff1ce')
-    d.text((66, 130), subtitle, font=ImageFont.truetype(FONT, 20), fill='#b9d6de')
-    d.multiline_text((360, 972), CAPTIONS[phase], font=ImageFont.truetype(BOLD, 34), fill='#ffffff', anchor='ma', align='center', spacing=12)
+    d.rounded_rectangle((44, 22, 676, 131), radius=22, fill=(13, 30, 43, 241))
+    d.rounded_rectangle((44, 1164, 676, 1271), radius=22, fill=(13, 30, 43, 239))
+    d.text((66, 37), title, font=ImageFont.truetype(BOLD, 28), fill='#fff1ce')
+    d.text((66, 84), subtitle, font=ImageFont.truetype(FONT, 20), fill='#b9d6de')
+    d.multiline_text((360, 1176), CAPTIONS[phase], font=ImageFont.truetype(BOLD, 30), fill='#ffffff', anchor='ma', align='center', spacing=8)
     for i in range(3):
         x = 58 + i * 207
-        d.rounded_rectangle((x, 1136, x + 188, 1143), radius=3, fill='#f1bd65' if i == phase else '#a6b2b1')
-    d.text((360, 1180), 'MESMA CENA · 12 s · SEM NARRAÇÃO', font=ImageFont.truetype(BOLD, 17), fill='#344c57', anchor='mm', stroke_width=3, stroke_fill='#dfe9dc')
+        d.rounded_rectangle((x, 1260, x + 188, 1265), radius=2, fill='#f1bd65' if i == phase else '#556b78')
     im.save(path)
 
 
@@ -105,11 +104,11 @@ def main():
             card(overlay, title, subtitle, phase)
             overlays.append(overlay)
         dst = args.output / filename
-        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(native), '-i', str(work/'same-sound.wav')]
+        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-filter_complex_threads', '1', '-i', str(native), '-i', str(work/'same-sound.wav')]
         for overlay in overlays:
             cmd += ['-i', str(overlay)]
         filters = "[0:v][2:v]overlay=0:0:enable='lt(t,4)'[a];[a][3:v]overlay=0:0:enable='gte(t,4)*lt(t,8)'[b];[b][4:v]overlay=0:0:enable='gte(t,8)',format=yuv420p[v]"
-        cmd += ['-filter_complex', filters, '-map', '[v]', '-map', '1:a', '-c:v', 'libx264', '-preset', 'fast', '-crf', '19', '-r', '30', '-frames:v', '360', '-c:a', 'aac', '-b:a', '160k', '-t', '12', '-movflags', '+faststart', str(dst)]
+        cmd += ['-filter_complex', filters, '-map', '[v]', '-map', '1:a', '-c:v', 'libx264', '-threads', '2', '-preset', 'fast', '-crf', '19', '-r', '30', '-frames:v', '360', '-c:a', 'aac', '-b:a', '160k', '-t', '12', '-movflags', '+faststart', str(dst)]
         print('MASTER ' + filename, flush=True)
         run(cmd)
         report['results'].append(probe(dst))
