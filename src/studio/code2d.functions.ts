@@ -12,6 +12,7 @@ const input=z.object({
   aspect:z.enum(['9:16','16:9']),
   duration:z.number().int().min(CODE2D_MIN_DURATION).max(CODE2D_MAX_DURATION),
   mode:z.enum(['solo','team']).default('solo'),
+  useLovableReview:z.boolean().default(false),
 }).strict();
 const inFlight=new Set<string>();
 const lastRequest=new Map<string,number>();
@@ -29,7 +30,7 @@ export const generateCode2D=createServerFn({method:'POST'})
     try{
       if(data.mode==='team'){
         const {generateMultiAgentCode2D}=await import('./server/code2dMultiAgent');
-        return await generateMultiAgentCode2D(data.topic,data.aspect,data.duration);
+        return await generateMultiAgentCode2D(data.topic,data.aspect,data.duration,data.useLovableReview);
       }
       const {generateCode2DWithGemini}=await import('./server/code2dGemini');
       return await generateCode2DWithGemini(data.topic,data.aspect,data.duration);
