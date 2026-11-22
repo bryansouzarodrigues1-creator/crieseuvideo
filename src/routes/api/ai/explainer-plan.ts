@@ -2,6 +2,7 @@ import { cueRule } from "@/studio/explainer/keywords";
 import { createFileRoute } from "@tanstack/react-router";
 import { askGeminiForExplainer, parseJson } from "@/studio/server/ai";
 import { DRAWING_GUIDE } from "@/studio/explainer/drawing";
+import { MOTION_GUIDE } from "@/studio/explainer/shapeMotion";
 import { SETTING_GUIDE } from "@/studio/explainer/settings";
 import { normalizePlan, keepScriptWords, VISUALS, MOODS, PALETTES } from "@/studio/explainer/plan";
 
@@ -40,8 +41,10 @@ Duração desejada: ${durationSeconds} segundos. Crie aproximadamente ${targetWo
 Se a pauta envolver fatos atuais ou números não fornecidos, não invente estatísticas ou fontes; prefira conceitos verificáveis.
 Gere o roteiro INTEGRAL no campo "script", sem marcadores de cena. Divida esse mesmo roteiro em 6 a 10 cenas com campo "text", sem acrescentar, duplicar ou omitir palavras.
 Cada cena deve conter um desenho VISUALMENTE ESPECÍFICO para a frase, com objetos, personagens e ações que o motor realmente suporta; evite depender só de etiquetas. Varie cenários e enquadramentos.
+O Gemini não é o renderizador: VOCÊ é o programador da animação. Especifique trajetórias usando o campo motion em pelo menos um objeto protagonista por cena, sempre que uma ação for descrita. Mostre origem, contato/ação e resultado em instantes diferentes, não apenas uma pose com pop.
 ${modeRule}
 ${DRAWING_GUIDE}
+${MOTION_GUIDE}
 ${SETTING_GUIDE}
 ${lessons}
 Cada cena deve ter:
@@ -85,6 +88,8 @@ Para cada cena escolha o visual que MELHOR ilustra o significado:
 - visual: um de [${VISUALS.join(", ")}] (character = personagem com expressão; phone_chat = celular com mensagem digitando (só para conversa/WhatsApp); profile = celular mostrando perfil de rede social com LINK NA BIO e botão seguir; laptop = site sendo montado; map_pins = mapa com pinos; clock = passagem de tempo; scale = comparação/preço; eye = ver/atenção; chips = lista de etiquetas; city_night = cena noturna final/impacto; chart_up = gráfico crescendo; money = dinheiro/lucro; custom = você DESENHA a cena livremente com formas)
 ${modeRule} Seja criativo e literal: ilustre o que a frase diz.
 - ${DRAWING_GUIDE}
+- ${MOTION_GUIDE}
+No modo criativo, atribua motion ao objeto principal quando houver verbo de movimento ou transformação; a sequência deve ter ação e consequência, não só surgimento de símbolos.
 - ${SETTING_GUIDE} Sempre preencha "setting" em todas as cenas.
 - mood: um de [${MOODS.join(", ")}]
 - palette: um de [${PALETTES.join(", ")}], varie entre cenas; use night para momentos tristes ou finais
