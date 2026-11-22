@@ -6,7 +6,7 @@ import { generateAi3DWorld } from '../ai3d.functions';
 const InlineAi3DPlayer=lazy(()=>import('../components/InlineAi3DPlayer').then(m=>({default:m.InlineAi3DPlayer})));
 
 import type {ComplexWorldClip} from './sceneProgram/planner/complexWorldBatch';
-import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Box, Code2, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
 import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
@@ -577,6 +577,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
           <Button variant="ghost" size="sm" onClick={() => setLibrary(true)}><FolderOpen />Meus projetos</Button>
           <Button variant="ghost" size="sm" onClick={onOpenEditor}>Editor de cenas</Button>
           <Button variant="ghost" size="sm" onClick={onOpenVideo}><Film />Vídeo por IA</Button>
+          <a href="/motor-2d/codigo" className="native-3d-nav-link" aria-label="Abrir Code2D experimental">
+            <Code2 size={17}/> Code2D <span>novo</span>
+          </a>
           <a href="/motor-3d" className="native-3d-nav-link" aria-label="Abrir motor 3D experimental">
             <Box size={17}/> Motor 3D <span>novo</span>
           </a>
