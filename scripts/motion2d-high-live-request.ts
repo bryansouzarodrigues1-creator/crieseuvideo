@@ -29,12 +29,19 @@ assert.ok(Array.isArray(result.plan?.scenes) && result.plan.scenes.length>=3);
 const allWords=result.plan.scenes.map(s=>s.text).join(' ').replace(/\s+/g,' ').trim();
 const scriptWords=result.script.replace(/\s+/g,' ').trim();
 assert.equal(allWords,scriptWords,'All words of generated narration must match animated scene captions');
+// Save the untouched Gemini response before quality assertions: failed creative
+// direction must not be rewritten by us or mislabelled as Gemini output.
 await writeFile(out+'/gemini-response.json',JSON.stringify(result,null,2));
+const directions=result.motionAudit||{totalScenes:result.plan.scenes.length,directedScenes:0,directedObjects:0,coverage:0};
 await writeFile(out+'/generation-proof.json',JSON.stringify({
   provider:'gemini',model:result.model,requestedThinkingLevel:'HIGH',
   createdScriptByGemini:true,createdScenesByGemini:true,
   sceneCount:result.plan.scenes.length,wordCount:result.script.split(/\s+/).length,
+  realMotionDirection:directions,
   userRequestCount:1,lovableFallback:false,automaticRetry:false,
   durationTargetSeconds:40,narrationRecording:'not requested'
 },null,2));
+if(directions.directedScenes<1) {
+  await writeFile(out+'/visual-qa-warning.txt','Gemini did not produce any original keyframed objects. Native video is a baseline, NOT a new-motion proof.\n');
+}
 console.log('GEMINI_2D_REAL_SUCCESS',result.model,'High',result.plan.scenes.length,'scenes',result.script.length,'characters');
