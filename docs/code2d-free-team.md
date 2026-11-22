@@ -46,8 +46,11 @@ Não use VITE_ nas chaves, nem as inclua na interface, GitHub, logs ou MP4.
 Faltando uma das duas chaves essenciais, não se faz nenhuma chamada.
 
 ## Limites e proteção
-- Uma execução pode usar até 3 solicitações externas no modo gratuito,
-  ou até 4 com revisão Lovable marcada explicitamente; zero retries automáticos.
+- Uma execução pode fazer até 8 solicitações por clique no pior caso
+  de fallback (até 3 por função). Por isso o modo multiagente pode consumir
+  a cota gratuita de vários serviços, mesmo sem produzir vídeo. Sem retries
+  para o mesmo modelo/função; não confundir fallback entre fornecedores com
+  tentativas ilimitadas.
 - Não há troca para modelos pagos do OpenRouter. Lovable só é usado com opt-in
   explícito e pode cobrar por inferência, independentemente dos créditos de build.
 - Ter chave Groq/Gemini não garante que sua conta seja gratuita. Confira o
@@ -60,6 +63,28 @@ Faltando uma das duas chaves essenciais, não se faz nenhuma chamada.
   bloqueando rede; código malicioso ainda pode consumir CPU.
 - No futuro, o sistema deve manter cotas persistentes por usuário, controle
   de orçamento, fila de processamento e proteção contra abuso.
+
+## Fallback experimental — PR #106
+
+Quando uma etapa falha, uma alternativa **da mesma função** pode continuar, sem
+trocar um modelo gratuito por modelo pago:
+
+- Roteiro: Groq -> Gemini HIGH -> OpenRouter gratuito.
+- Direção: Gemini HIGH -> Groq -> OpenRouter gratuito.
+- Programação Canvas: OpenRouter gratuito -> Gemini HIGH -> Groq.
+- Na etapa Gemini, uma chave alternativa de servidor pode ser tentada
+  EXCLUSIVAMENTE após falha de credencial, autorização ou cota
+  (401/403/404/429); para erros gerais 5xx, preferir outro provedor.
+- Cada resposta precisa ser validada; se falhar JSON, cronologia ou sintaxe,
+  o relatório registra `failed` e tenta outro provedor permitido.
+- No máximo 3 tentativas por função e 8 chamadas externas por clique de
+  usuário, contando a revisão Lovable se explicitamente habilitada.
+- O Lovable AI Gateway não é fallback gratuito: somente a opção de revisão
+  selecionada pelo usuário pode chamá-lo e cobrar seus créditos.
+- Não há retries infinitos, redeploy ou publicação automáticos.
+- O sistema não considera código válido sinônimo de qualidade artística.
+- Essa lógica ainda precisa de teste real de provedores; testes de CI são
+  mockados e não verificam cotas, billing nem validade das credenciais.
 
 ## Falta antes de declarar o produto pronto
 - Testar com chaves reais em contas verificadamente gratuitas.
