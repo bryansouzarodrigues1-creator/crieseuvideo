@@ -264,7 +264,7 @@ export default function Code2DStudio() {
                 <p key={scene.id}>{scene.start}s–{scene.end}s: {scene.narration} — {scene.action}</p>
               ))}
             </details>
-          )}}
+          )}
           <p className="native-3d-small" aria-live="polite">
             Modo: {aiMode === 'team' ? 'Equipe gratuita' : 'Gemini direto'}{lastModel ? ` · último modelo ${lastModel}` : ''} · estado: {{
               idle: 'aguardando', generating: 'gerando código', loading: 'executando na caixa isolada', ready: 'pronto', error: 'falhou',
