@@ -1,0 +1,47 @@
+name: Controlled Gemini low versus high thinking comparison
+on:
+  pull_request:
+    branches: [feat/ark-tsunami-gemini-review-20261122]
+    paths:
+      - scripts/thinking-ab-*
+      - .github/workflows/thinking-ab-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: thinking-ab-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  compare:
+    if: github.event.pull_request.head.ref == 'feat/gemini-thinking-ab-20261122' && github.event.action == 'opened'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node --check scripts/thinking-ab-render.mjs
+      - name: Prepare identical native renderer
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/thinking-ab
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/thinking-ab/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Exactly two real requests differing only in thinking level
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
+          GEMINI_CODE3D_MODEL: gemini-3.6-flash
+          THINKING_AB_CALLS: TWO_CONTROLLED_REQUESTS_20261122
+        run: bun scripts/thinking-ab-generate.ts
+      - name: Render both original programs without repairs
+        run: bun scripts/thinking-ab-render.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-thinking-low-high
+          path: tmp/thinking-ab/
+          retention-days: 14
