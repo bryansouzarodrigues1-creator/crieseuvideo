@@ -3,6 +3,8 @@
  * The AI never makes pixels: it describes primitives and motions, and this code draws them,
  * so any idea in a script (fire, chair, firefighters, hose) costs only text credits.
  */
+import { normalizeShapeMotion, type ShapeMotionKey } from './shapeMotion';
+
 export const SHAPE_TYPES = ['circle', 'ellipse', 'rect', 'poly', 'line', 'text', 'star', 'flame', 'person', 'car', 'house', 'tree', 'cloud', 'building', 'sun', 'moon', 'heart', 'arrow', 'bubble', 'bust', 'phone', 'laptop', 'pin', 'scale', 'chart', 'coin', 'clock', 'stamp', 'xmark', 'check', 'hand', 'dog', 'cat', 'crowd', 'skyline'] as const;
 export const SHAPE_ANIMS = ['none', 'pop', 'float', 'flicker', 'spin', 'shake', 'rise', 'fall', 'pulse', 'swing', 'walk', 'rock', 'drive', 'bounce', 'grow', 'zoom', 'orbit'] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
@@ -15,6 +17,8 @@ export interface Shape {
   color?: string; stroke?: string;
   rot?: number; text?: string; size?: number;
   mood?: string; anim: ShapeAnim; delay: number;
+  /** Gemini-directed absolute-time motion relative to layout-safe coordinates. */
+  motion?: ShapeMotionKey[];
 }
 export const MAX_SHAPES = 40;
 const LIMIT = 560;
@@ -45,6 +49,7 @@ export function normalizeDrawing(raw: unknown): Shape[] | undefined {
       mood: typeof o.mood === 'string' ? o.mood : undefined,
       anim: SHAPE_ANIMS.includes(o.anim as ShapeAnim) ? (o.anim as ShapeAnim) : 'pop',
       delay: num(o.delay, 0, 0, 6),
+      motion: normalizeShapeMotion(o.motion),
     });
   }
   return out.length ? out : undefined;
@@ -55,5 +60,6 @@ Tipos: circle{x,y,r} ellipse{x,y,w,h} rect{x,y,w,h} (x,y = centro) poly{points:[
 Objetos prontos (use size 0.5 a 2.5, color = cor principal): car{x,y,size,color} (rodas giram; anim drive atravessa a tela), house{x,y,size,color}, tree{x,y,size}, cloud{x,y,size}, building{x,y,size,color}, sun{x,y,size}, moon{x,y,size}, heart{x,y,size,color}, arrow{x,y,size,color,rot}, bubble{x,y,text,size} (balão de fala).
 Peças polidas (prefira-as a montar com formas; o HERÓI da cena deve ser grande, size 1.4 a 2.4, ocupando 60-70% da área): bust{x,y,size,mood} (personagem do peito para cima, sem braços, ideal para falar/reagir; coloque embaixo, y 200 a 260), phone{x,y,size,text} (celular WhatsApp, balões entram sozinhos, text = 1ª mensagem), laptop{x,y,size,text,color} (site carregando), pin{x,y,size,color} (pino de mapa cai e quica), scale{x,y,size} (balança oscilando), chart{x,y,size} (gráfico de barras subindo), coin{x,y,size} (moeda girando), clock{x,y,size} (relógio correndo), stamp{x,y,text,size,color,rot} (selo/carimbo inclinado que bate na tela), xmark/check{x,y,size} (errado/certo carimbado), hand{x,y,size,rot} (mão apontando/tocando), dog/cat{x,y,size,color}, crowd{x,y,size} (multidão), skyline{x,y,size} (cidade com carros passando).
 Animações extras: drive (anda da esquerda p/ direita), bounce (quica), grow (cresce do chão), zoom (aproxima), orbit (gira em volta).
+Novidade: cada objeto pode receber "motion" com chaves explícitas de posição, rotação, escala e opacidade. Use "anim":"none" quando usar motion.
 Campos comuns: color "#hex", stroke "#hex", rot (graus), anim [${SHAPE_ANIMS.join(', ')}], delay (segundos para entrar).
 Use cores vivas, combine formas para montar objetos (cadeira = rects+poly, casa = rect+poly do telhado, mangueira = line grossa). O cenário (setting) já desenha chão e paredes: não redesenhe fundos.`;

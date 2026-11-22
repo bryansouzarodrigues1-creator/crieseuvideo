@@ -1,0 +1,56 @@
+name: Gemini HIGH creates 2D story with original motion keyframes
+on:
+  push:
+    branches:
+      - feat/motion2d-gemini-high-director-20261122
+    paths:
+      - .github/workflows/motion2d-high-live-proof.yml
+permissions:
+  contents: read
+jobs:
+  prove-one-real-gemini-high:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
+      GEMINI_AI_MODEL: gemini-3.8-flash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Check that the user-owned server key exists without exposing it
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then echo "NO_GEMINI_KEY_AVAILABLE"; exit 1; fi
+      - run: bun install --frozen-lockfile
+      - name: Verify exact High contract before any model request
+        run: |
+          bunx vitest run src/studio/server/geminiHigh.test.ts
+          bunx tsc --noEmit
+      - name: Install Chromium and native video diagnostics
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/motion2d-high-live
+      - name: Launch real CrieSeuVideo server
+        run: |
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/motion2d-high-live/vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -60 tmp/motion2d-high-live/vite.log
+          exit 1
+      - name: Exactly one real Gemini HIGH generation for original 2D plan
+        run: bun scripts/motion2d-high-live-request.ts
+      - name: Compile read-only harness calling the existing Canvas renderer
+        run: bun build scripts/fixtures/motion2d-high-live/harness.ts --target browser --format esm --outfile tmp/motion2d-high-live/harness.js
+      - name: Render two native 20s MP4s and join to 40s
+        run: bun scripts/motion2d-high-live-render.mjs
+      - name: Store generated script, screenshots, native MP4 and evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-high-motion2d-real-40s
+          path: tmp/motion2d-high-live/
+          retention-days: 14

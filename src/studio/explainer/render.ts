@@ -1,6 +1,7 @@
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
 import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
 import type { Shape } from './drawing';
+import { sampleShapeMotion } from './shapeMotion';
 import { drawSetting } from './settings';
 import { laidOut, foregroundExtent } from './layout';
 import { frameZones, fitScale, centerIn, padRect, scaleRect, MAX_CAPTION_LINES, type FrameZones, type Rect } from './safeZone';
@@ -385,7 +386,17 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
       case 'zoom': sc *= 1 + Math.min(0.5, Math.max(0, local - d) * 0.12); break;
       case 'orbit': dx = Math.cos(t * 1.1 + i) * 50; dy = Math.sin(t * 1.1 + i) * 22; break;
     }
+    // Explicit Gemini animation cues take precedence over canned gestures.
+    // Every frame is a pure sample of its scene-local time, including reverse seek.
+    if (sh.motion?.length) {
+      const pose = sampleShapeMotion(sh.motion, Math.max(0, local - d));
+      dx += pose.dx; dy += pose.dy;
+      rot += pose.rotation * Math.PI / 180;
+      sc *= pose.scale;
+      alpha *= pose.opacity;
+    }
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
+    if (alpha <= 0.001 || sc <= 0.001) return;
     c.save(); c.globalAlpha *= alpha;
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style

@@ -1,0 +1,42 @@
+name: Motion 2D Gemini keyframes — native renderer proof
+on:
+  push:
+    branches:
+      - feat/motion2d-gemini-high-director-20261122
+    paths:
+      - .github/workflows/motion2d-motion-proof.yml
+permissions:
+  contents: read
+jobs:
+  draw-native-2d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install repository dependencies
+        run: bun install --frozen-lockfile
+      - name: Unit test declared motion without network/model requests
+        run: bunx vitest run src/studio/explainer/shapeMotion.test.ts src/studio/server/geminiHigh.test.ts
+      - name: Build and typecheck
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Install browser runner and FFprobe video validator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Bundle original Motion 2D only
+        run: |
+          mkdir -p tmp/motion2d-keyframes
+          bun build scripts/fixtures/motion2d-motion-qa/harness.ts --target browser --format esm --outfile tmp/motion2d-keyframes/harness.js
+      - name: Browser replay, frame screenshots and real native MP4
+        run: bun scripts/motion2d-motion-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion2d-declarative-keyframe-native-qa
+          path: tmp/motion2d-keyframes/
+          retention-days: 14

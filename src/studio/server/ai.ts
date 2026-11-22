@@ -1,7 +1,7 @@
-// Server-only AI helper. Preference: Lovable AI first. Work is split:
-// - "direction" (scene planning, the heavy job) always prefers Lovable AI.
-// - "light" (captions, storyboards) goes to Gemini direct when GEMINI_API_KEY exists, saving Lovable credits.
-// Either provider covers for the other when it fails (no credits, rate limit, outage). Returns null so callers use fallbacks.
+// Server-only AI helper. Legacy non-2D tasks retain their provider ordering.
+// Motion 2D calls askGeminiForExplainer() directly: Gemini only, no Lovable fallback.
+// Every direct Gemini request uses HIGH thinking; failures are shown, never silently
+// replaced by manual/preset scenes or a lower-thinking provider.
 export type AiTask = "direction" | "light";
 
 /** Only safe, nonsecret provider diagnoses travel to the browser. */
@@ -58,6 +58,7 @@ const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash";
 // New API projects can receive 404 for legacy Gemini 2.5 Flash even when
 // models.get lists it. Prefer a current model; allow server-side override.
 const GEMINI_MODEL = process.env.GEMINI_AI_MODEL || "gemini-3.8-flash";
+export const GEMINI_THINKING_LEVEL = "HIGH" as const;
 
 async function askLovable(prompt: string, model: string, onProblem?: (reason: ProviderProblem) => void): Promise<string | null> {
   const key = process.env.LOVABLE_API_KEY;
@@ -111,7 +112,8 @@ async function askGemini(
   const key = process.env.GEMINI_API_KEY;
   if (!key){onProblem?.('not_configured');return null;}
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 60000);
+  // HIGH can require substantial deliberation; do not silently downgrade on timeout.
+  const t = setTimeout(() => ctrl.abort(), 180_000);
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
@@ -126,6 +128,7 @@ async function askGemini(
           // IDs and geometry before the separate strict compiler checks.
           generationConfig: {
             responseMimeType: "application/json",
+            thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL },
             ...(responseSchema?{responseSchema}:{}),
           },
         }),
@@ -144,7 +147,8 @@ async function askGemini(
     }
     const content=candidate?.content?.parts
       ?.filter((p:unknown):p is {text:string}=>
-        !!p&&typeof p==='object'&&typeof (p as {text?:unknown}).text==='string')
+        !!p&&typeof p==='object'&&typeof (p as {text?:unknown;thought?:boolean}).text==='string'
+        && !(p as {thought?:boolean}).thought)
       .map((p:{text:string})=>p.text).join('') || null;
     if(!content) onProblem?.('empty_response');
     return content;
@@ -156,6 +160,15 @@ async function askGemini(
   } finally {
     clearTimeout(t);
   }
+}
+
+/** Motion 2D always uses the user's Gemini API. One call, no alternative provider.
+ * A missing key, blocked output or quota failure remains visible to the editor. */
+export async function askGeminiForExplainer(prompt: string):
+  Promise<{ text: string | null; model: string; thinkingLevel: typeof GEMINI_THINKING_LEVEL; problem: ProviderProblem | null }> {
+  let problem: ProviderProblem = 'invalid_response';
+  const text = await askGemini(prompt, reason => { problem = reason; });
+  return { text, model: GEMINI_MODEL, thinkingLevel: GEMINI_THINKING_LEVEL, problem: text ? null : problem };
 }
 
 export function providerOrder(task: AiTask, hasGemini: boolean): ("lovable" | "gemini")[] {
