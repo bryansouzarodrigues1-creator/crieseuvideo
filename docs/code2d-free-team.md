@@ -13,7 +13,10 @@ vídeos nos provedores: apenas texto, roteiros e JavaScript.
 4. Validação: Zod (roteiro e tempos), Acorn (código), replay de quadros em
    sandbox de origem opaca. Prova técnica não é aprovação artística.
 
-Lovable AI Gateway não participa do caminho gratuito.
+Lovable AI Gateway participa APENAS se o usuário marcar "Revisão Lovable"
+no Code2D. Essa etapa consome crédito do gateway do aplicativo quando disponível,
+que não equivale automaticamente aos 5 créditos diários gratuitos de construção
+no editor. Sem confirmação explícita, zero chamadas ao gateway.
 Gemini High sozinho continua sendo um modo separado.
 
 ## Chaves e modelos (configurar no SERVIDOR)
@@ -26,13 +29,27 @@ CODE2D_GROQ_MODEL: opcional, aceita openai/gpt-oss-120b ou qwen/qwen3.8-27b.
 CODE2D_OPENROUTER_MODEL: opcional, aceita particle-ai/particle-1:free,
 nvidia/nemotron-3-ultra-550b-a55b:free ou openrouter/free.
 CODE2D_SKIP_GEMINI_DIRECTION=true: omite Gemini na etapa opcional.
+LOVABLE_API_KEY: opcional e separado, exclusivamente no servidor. Se faltar,
+a revisão opcional é indicada como skipped sem chamada.
+LOVABLE_AI_MODEL: opcional; o código atual tem como padrão google/gemini-3.7-flash
+no gateway do Lovable, o que NÃO garante mais inteligência que Gemini High.
+A seleção de outros modelos exige confirmação de disponibilidade/custo na conta.
+
+As chaves GROQ_API_KEY, OPENROUTER_API_KEY e GEMINI_API_KEY citadas pelo
+usuário na conversa NÃO foram cadastradas automaticamente via esta conexão:
+as ferramentas de GitHub disponíveis não escrevem secrets e não se deve
+colá-las no Git ou em mensagens do agente Lovable. Cadastre chaves rotacionadas
+em Lovable Cloud > Secrets ou no ambiente do servidor que realmente executa
+as funções, nunca em VITE_ nem no frontend.
 
 Não use VITE_ nas chaves, nem as inclua na interface, GitHub, logs ou MP4.
 Faltando uma das duas chaves essenciais, não se faz nenhuma chamada.
 
 ## Limites e proteção
-- Uma execução pode usar até 3 solicitações externas; zero retries automáticos.
-- Não há troca para modelos pagos do OpenRouter nem Lovable.
+- Uma execução pode usar até 3 solicitações externas no modo gratuito,
+  ou até 4 com revisão Lovable marcada explicitamente; zero retries automáticos.
+- Não há troca para modelos pagos do OpenRouter. Lovable só é usado com opt-in
+  explícito e pode cobrar por inferência, independentemente dos créditos de build.
 - Ter chave Groq/Gemini não garante que sua conta seja gratuita. Confira o
   plano e a cobrança antes de fazer testes reais.
 - O OpenRouter anuncia 50 pedidos gratuitos/dia (sem compra de créditos)
