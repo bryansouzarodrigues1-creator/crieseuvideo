@@ -16,6 +16,7 @@ import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
 import { audioCues, exportDuration, mixdown, EXPORT_FPS } from './exportTimeline';
+import { previewFrameAt, previewResumeAt } from './previewPlayback';
 import {prepareAi3DHandoff,saveAi3DHandoff} from './ai3dHandoff';
 import {checkSceneScript} from './sceneProgram/planner/sceneScript';
 import {AI3D_COOLDOWN_MS,parseAi3DCooldown} from '../ai3dCooldown';
@@ -159,22 +160,32 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     }catch{/* blocked sessionStorage is not a login failure */}
   },[]);
 
-  /** Schedule every narrated scene from timeline time `from`; returns a stop function. */
-  const startAudio = (from: number, extra?: AudioNode) => {
-    const ac = ctx(); void ac.resume();
-    const now = ac.currentTime + 0.05, nodes: AudioBufferSourceNode[] = [];
+  /** Schedule narration at the exact origin used by the preview's audio clock. */
+  const startAudio = (from: number, startAt: number) => {
+    const ac = ctx();
+    const nodes: AudioBufferSourceNode[] = [];
     if (plan.track && trackRef.current) {
-      const src = ac.createBufferSource(); src.buffer = trackRef.current; src.connect(ac.destination); if (extra) src.connect(extra);
-      src.start(now, Math.min(from, trackRef.current.duration)); return () => { try { src.stop(); } catch {} };
+      if (from >= trackRef.current.duration) return () => {};
+      const src = ac.createBufferSource();
+      src.buffer = trackRef.current;
+      src.connect(ac.destination);
+      src.start(startAt, from);
+      nodes.push(src);
+    } else if (voiceOn) {
+      plan.scenes.forEach((s, i) => {
+        const buf = s.voice && buffers.current.get(`${voiceKey}|${s.text}`);
+        if (!buf) return;
+        const relative = sceneStart(plan, i) + SCENE_LEAD - from;
+        const offset = Math.max(0, -relative);
+        if (offset >= buf.duration) return;
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        src.connect(ac.destination);
+        src.start(startAt + Math.max(0, relative), offset);
+        nodes.push(src);
+      });
     }
-    plan.scenes.forEach((s, i) => {
-      const buf = s.voice && buffers.current.get(`${voiceKey}|${s.text}`); if (!buf) return;
-      const at = sceneStart(plan, i) + SCENE_LEAD - from;
-      if (at + buf.duration <= 0) return;
-      const src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); if (extra) src.connect(extra);
-      src.start(now + Math.max(0, at), Math.max(0, -at)); nodes.push(src);
-    });
-    return () => nodes.forEach((n) => { try { n.stop(); } catch {} });
+    return () => nodes.forEach((node) => { try { node.stop(); } catch {} });
   };
 
   const narrate = async (target: ExplainerPlan) => {
@@ -223,17 +234,42 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   };
 
   useEffect(() => {
-    if (!playing || exportingRef.current) return;
-    let raf = 0, last = performance.now();
-    const loop = (now: number) => {
-      timeRef.current += (now - last) / 1000; last = now;
-      if (timeRef.current >= total) { timeRef.current = 0; setPlaying(false); }
-      draw(timeRef.current); setTime(timeRef.current); raf = requestAnimationFrame(loop);
+    if (!playing || exportingRef.current || total <= 0) return;
+    let raf = 0;
+    const from = previewResumeAt(timeRef.current, total);
+    if (from !== timeRef.current) {
+      timeRef.current = from;
+      setTime(from);
+      draw(from);
+    }
+
+    // AudioContext is authoritative when sound is available and unlocked.
+    // For silent playback or blocked autoplay, keep the preview moving on the
+    // wall clock; the two clocks are never added together.
+    const hasTrack = Boolean(plan.track && trackRef.current);
+    const hasVoice = voiceOn && plan.scenes.some((s) => s.voice && buffers.current.has(`${voiceKey}|${s.text}`));
+    const ac = hasTrack || hasVoice ? ctx() : null;
+    if (ac && ac.state !== 'running') void ac.resume().catch(() => {});
+    const audioReady = ac?.state === 'running';
+    const lead = audioReady ? 0.05 : 0;
+    const startAt = audioReady && ac ? ac.currentTime + lead : null;
+    const wallStart = performance.now() + lead * 1000;
+    const stopAudio = startAt !== null ? startAudio(from, startAt) : () => {};
+    const elapsed = () => startAt !== null && ac
+      ? ac.currentTime - startAt
+      : (performance.now() - wallStart) / 1000;
+
+    const loop = () => {
+      const next = previewFrameAt(from, elapsed(), total);
+      timeRef.current = next;
+      draw(next);
+      setTime(next);
+      if (next >= total) { setPlaying(false); return; }
+      raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    const stop = startAudio(timeRef.current);
-    return () => { cancelAnimationFrame(raf); stop(); };
-  }, [playing, plan, total, engine, toonReady]);
+    return () => { cancelAnimationFrame(raf); stopAudio(); };
+  }, [playing, plan, total, engine, toonReady, voiceKey, voiceOn]);
 
   // Library: load on mount, autosave the current project after edits.
   useEffect(() => {
@@ -285,7 +321,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     addToGallery(s.text.slice(0, 50), s.drawing); setGallery(listGallery()); setNote('Desenho salvo na galeria.');
   };
 
-  const seek = (t: number) => { timeRef.current = t; setTime(t); draw(t); };
+  const seek = (t: number) => {
+    const next = previewFrameAt(0, t, total);
+    timeRef.current = next;
+    setTime(next);
+    draw(next);
+  };
 
   /** Mobile browsers only allow sound when unlocked inside a tap. */
   const unlockAudio = () => {
