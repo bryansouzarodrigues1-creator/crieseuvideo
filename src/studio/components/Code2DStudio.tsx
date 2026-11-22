@@ -31,6 +31,7 @@ export default function Code2DStudio() {
   const [duration, setDuration] = useState(CODE2D_DEFAULT_DURATION);
   const [targetDuration, setTargetDuration] = useState(CODE2D_DEFAULT_DURATION);
   const [aiMode, setAiMode] = useState<'team' | 'solo'>('team');
+  const [useLovableReview, setUseLovableReview] = useState(false);
   const [steps, setSteps] = useState<StudioStep[]>([]);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [replay, setReplay] = useState<{ deterministic: boolean; maxDiff: number } | null>(null);
@@ -154,7 +155,7 @@ export default function Code2DStudio() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
-      const r = await send({ data: { topic: script, aspect, duration: targetDuration, mode: aiMode },
+      const r = await send({ data: { topic: script, aspect, duration: targetDuration, mode: aiMode, useLovableReview: aiMode === 'team' && useLovableReview },
         headers: { Authorization: `Bearer ${session.access_token}` } });
       if (r.model) setLastModel(r.model);
       if ('steps' in r && Array.isArray(r.steps)) setSteps(r.steps);
@@ -220,6 +221,13 @@ export default function Code2DStudio() {
             <option value="team">Equipe gratuita: Groq + Gemini High + OpenRouter</option>
             <option value="solo">Gemini High sozinho (modo anterior)</option>
           </select>
+          {aiMode === 'team' && (
+            <label className="native-3d-small" htmlFor="code2d-lovable">
+              <input id="code2d-lovable" type="checkbox" checked={useLovableReview} disabled={busy}
+                onChange={e => setUseLovableReview(e.target.checked)} />
+              Incluir revisão criativa pelo Lovable AI Gateway (opcional, pode consumir créditos de IA diferentes dos 5 créditos diários de construção).
+            </label>
+          )}
           <label htmlFor="code2d-script">Tema ou história do vídeo</label>
           <textarea id="code2d-script" rows={6} maxLength={CODE2D_MAX_SCRIPT_CHARS} value={script} disabled={busy} onChange={(e) => setScript(e.target.value)} />
           <p className="native-3d-small">{script.trim().length}/{CODE2D_MAX_SCRIPT_CHARS} caracteres · vídeo integral de {CODE2D_MIN_DURATION}–{CODE2D_MAX_DURATION} s.</p>
@@ -230,7 +238,7 @@ export default function Code2DStudio() {
             Formato: {aspect === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}
           </button>
           <p className="native-3d-small" role="note">{aiMode === 'team'
-            ? 'A equipe usa até 3 chamadas (Groq, Gemini High opcional, OpenRouter). Exige chaves próprias no servidor e contas com cotas gratuitas. Não há uso automático de Lovable, nem tentativas repetidas. Um plano pago do provedor pode cobrar normalmente.'
+            ? `A equipe usa 2 a ${useLovableReview ? '4' : '3'} chamadas (Groq, Gemini High opcional, OpenRouter${useLovableReview ? ' e Lovable, com aprovação explícita' : ''}). Requer chaves no servidor. Sem tentativas repetidas. Provedores podem cobrar conforme seus planos.`
             : 'O modo individual solicita apenas Gemini High, sujeito à cota e à disponibilidade. Nenhuma outra IA entra sem sua escolha.'}</p>
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE2D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
