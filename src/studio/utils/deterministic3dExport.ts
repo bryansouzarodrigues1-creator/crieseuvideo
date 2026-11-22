@@ -1,4 +1,4 @@
-/** Exporting a realtime captureStream gives unpredictable frame counts on slow
+/** Maximum export length is 60 s for Code2D; expect slower processing on mobile.\n * Exporting a realtime captureStream gives unpredictable frame counts on slow
  * mobile GPUs. Render SceneProgram3D at fixed timeline coordinates and feed every
  * frame into a WebCodecs-based muxer. No API calls or external rendering service. */
 export interface Encoded3DClip {
@@ -25,7 +25,7 @@ export async function encodeFixedFrame3DClip({
   if(typeof VideoEncoder==='undefined'){
     throw new Error('Seu navegador não possui WebCodecs para gerar MP4 com quadros fixos.');
   }
-  if(!Number.isFinite(durationSeconds)||durationSeconds<=0||durationSeconds>30||
+  if(!Number.isFinite(durationSeconds)||durationSeconds<=0||durationSeconds>60||
     !Number.isInteger(fps)||fps<12||fps>60){
     throw new Error('Parâmetros de renderização inválidos.');
   }

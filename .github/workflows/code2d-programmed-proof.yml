@@ -1,0 +1,50 @@
+name: Code2D experimental engine — TypeScript, High API and isolated browser
+on:
+  push:
+    branches:
+      - experiment/code2d-generated-scenes-20261122
+    paths:
+      - .github/workflows/code2d-programmed-proof.yml
+      - src/studio/code2d/**
+      - src/studio/components/Code2DStudio.tsx
+      - src/studio/code2d.functions.ts
+      - src/studio/server/code2dGemini.ts
+      - src/routes/motor-2d_.codigo.tsx
+      - src/studio/utils/deterministic3dExport.ts
+      - scripts/code2d-sandbox-browser-qa.mjs
+permissions:
+  contents: read
+jobs:
+  test-code2d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Unit tests for Gemini HIGH, 40s contract and sandbox
+        run: bunx vitest run src/studio/code2d/code2d.test.ts
+      - name: Build site and regenerate typed route tree
+        run: bun run build
+      - name: TypeScript validation after route generation
+        run: bunx tsc --noEmit
+      - name: Install Chrome and open local site
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/code2d-proof
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/code2d-proof/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-2d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat tmp/code2d-proof/vite.log
+          exit 1
+      - name: Verify isolated render at 0 and 39s plus 40-second video UI
+        run: bun scripts/code2d-sandbox-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code2d-browser-validation
+          path: tmp/code2d-proof/
+          retention-days: 14
