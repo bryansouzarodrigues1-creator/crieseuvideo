@@ -93,7 +93,7 @@ export async function generateMultiAgentCode2D(
   else report('story','groq',r.model,'failed',r.problem);
  }
  if(!board&&storyAttempts<CODE2D_MAX_ATTEMPTS_PER_ROLE&&available()){
-  const key:keyof never|GeminiKey=keyExists('primary')?'primary':'alternate';
+  const key:GeminiKey=keyExists('primary')?'primary':'alternate';
   if(keyExists(key)){
    storyAttempts++;
    const r=await callGemini(storyPrompt,key);
