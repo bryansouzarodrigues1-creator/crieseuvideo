@@ -4,6 +4,7 @@
  * Runs at render time so old saved projects and gallery drawings are fixed too.
  */
 import type { Shape } from './drawing';
+import { sampleShapeMotion } from './shapeMotion';
 
 export const SAFE = { left: -420, right: 420, top: -290, bottom: 430 };
 export type Box = { x0: number; y0: number; x1: number; y1: number };
@@ -188,6 +189,21 @@ export function foregroundExtent(shapes: Shape[]): Box | null {
       const half = Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2 * grow * (spins ? 1.42 : 1);
       const hw = spins ? half : (b.x1 - b.x0) / 2 * grow, hh = spins ? half : (b.y1 - b.y0) / 2 * grow;
       b = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
+    }
+    // Account for Gemini-authored movement BEFORE fitting the frame. Rendering
+    // seeks directly to arbitrary timestamps: never use last-frame geometry.
+    if (s.motion?.length) {
+      const radius = Math.hypot(
+        Math.max(Math.abs(b.x0 - s.x), Math.abs(b.x1 - s.x)),
+        Math.max(Math.abs(b.y0 - s.y), Math.abs(b.y1 - s.y))
+      );
+      for (const key of s.motion) {
+        const pose = sampleShapeMotion(s.motion, key.time);
+        const x = s.x + pose.dx, y = s.y + pose.dy;
+        const rr = radius * Math.max(1, pose.scale);
+        b = { x0: Math.min(b.x0, x - rr), y0: Math.min(b.y0, y - rr),
+          x1: Math.max(b.x1, x + rr), y1: Math.max(b.y1, y + rr) };
+      }
     }
     ext = ext ? { x0: Math.min(ext.x0, b.x0), y0: Math.min(ext.y0, b.y0), x1: Math.max(ext.x1, b.x1), y1: Math.max(ext.y1, b.y1) } : b;
   }
