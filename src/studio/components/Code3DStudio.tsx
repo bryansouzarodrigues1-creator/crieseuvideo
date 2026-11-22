@@ -286,7 +286,7 @@ export default function Code3DStudio() {
           <p className="native-3d-small">{script.trim().length}/{CODE3D_MAX_SCRIPT_CHARS} caracteres · gera uma cena de {CODE3D_MIN_DURATION}–{CODE3D_MAX_DURATION} s.</p>
           <details>
             <summary>Usar falas com tempos do áudio</summary>
-            <label htmlFor="code3d-narration">Importar alinhamento de um trecho de 8–12 s (.json)</label>
+            <label htmlFor="code3d-narration">Importar alinhamento de um trecho de 8–20 s (.json)</label>
             <input id="code3d-narration" type="file" accept=".json,application/json" disabled={busy} onChange={async e => {
               const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
               try {

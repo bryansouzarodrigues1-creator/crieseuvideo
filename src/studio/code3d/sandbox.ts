@@ -73,6 +73,21 @@ export function replayCheck(
 
 const js = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
 
+/** Self-contained bounds check; called only inside the opaque iframe. */
+export function checkedSoundtrack(value: unknown, duration: number): { sampleRate: number; channels: Float32Array[] } {
+  const v = value as { sampleRate?: unknown; channels?: unknown } | null;
+  if (!v || typeof v.sampleRate !== 'number' || !Number.isInteger(v.sampleRate) || v.sampleRate < 8000 || v.sampleRate > 48000 || !Number.isFinite(duration) || duration < 8 || duration > 20)
+    throw new Error('Formato de áudio inválido.');
+  if (!Array.isArray(v.channels) || v.channels.length < 1 || v.channels.length > 2) throw new Error('Canais de áudio inválidos.');
+  const count = Math.round(duration * v.sampleRate);
+  const channels = v.channels.map(channel => {
+    if (!(channel instanceof Float32Array) || channel.length !== count) throw new Error('Duração do áudio não corresponde à cena.');
+    for (let i = 0; i < count; i++) if (!Number.isFinite(channel[i]) || Math.abs(channel[i]) > 1) throw new Error('Amostra de áudio inválida.');
+    return new Float32Array(channel);
+  });
+  return { sampleRate: v.sampleRate, channels };
+}
+
 /** Self-contained: runs inside the iframe, where helpers from the app do not exist. */
 export function bindThreeCore(source: string, coreUrl: string): string {
   const quoted = JSON.stringify(coreUrl);
@@ -99,6 +114,7 @@ const MIN=${js(opts.minDuration)}, MAX=${js(opts.maxDuration)}, DEF=${js(opts.de
 const diff=(${maxPixelDiff.toString()});
 const replay=(${replayCheck.toString()});
 const bindCore=(${bindThreeCore.toString()});
+const readSoundtrack=(${checkedSoundtrack.toString()});
 const post=parent.postMessage.bind(parent);
 const send=(m,tr)=>post(Object.assign({},m,{token:TOKEN}),PARENT,tr||[]);
 // Defense in depth only; CSP connect-src 'none' is the real network block.
@@ -154,6 +170,14 @@ addEventListener('message',async ev=>{
   }
   if(d.type==='dispose'){dispose();return;}
   if(!scene||failed)return;
+  if(d.type==='soundtrack'&&Number.isInteger(d.seq)&&d.seq>0){
+    try{
+      if(typeof scene.getSoundtrack!=='function')throw new Error('A cena não forneceu getSoundtrack.');
+      const audio=readSoundtrack(scene.getSoundtrack(),duration);
+      send({type:'soundtrack',seq:d.seq,sampleRate:audio.sampleRate,channels:audio.channels},audio.channels.map(c=>c.buffer));
+    }catch(e){fail('runtime',e);}
+    return;
+  }
   if(d.type==='render'){try{render(d.t);}catch(e){fail('runtime',e);}return;}
   if(d.type==='frame'){
     try{render(d.t);const bitmap=await createImageBitmap(canvas);send({type:'frame',seq:d.seq|0,bitmap},[bitmap]);}

@@ -21,7 +21,7 @@ const finiteVector=(v:number[],n:number)=>v.length===n&&v.every(x=>Number.isFini
 /** A reusable scene compiler; the resulting string runs only in the existing opaque sandbox. */
 export function normalizeConstructionRecipe(input: ConstructionRecipe = {}) {
   const timelineDuration=numeric(input.timelineDuration,10,8,180,'Duração da linha do tempo');
-  const clipDuration=validDuration(input.clipDuration);if(clipDuration===null)throw new Error('O clipe precisa ter entre 8 e 12 segundos.');
+  const clipDuration=validDuration(input.clipDuration);if(clipDuration===null||clipDuration>12)throw new Error('O clipe precisa ter entre 8 e 12 segundos.');
   const clipStart=numeric(input.clipStart,0,0,timelineDuration-clipDuration,'Início do clipe');
   const area=numeric(input.area,40000,8000,120000,'Área'),floors=numeric(input.floors,2,1,4,'Pavimentos');
   if(!Number.isInteger(floors))throw new Error('Pavimentos precisa ser inteiro.');

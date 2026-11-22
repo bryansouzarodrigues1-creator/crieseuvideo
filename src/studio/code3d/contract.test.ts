@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CODE3D_MAX_DURATION, CODE3D_MIN_DURATION, code3dPrompt, extractCode, validDuration } from './contract';
-import { SANDBOX_ATTRIBUTE, SANDBOX_CSP, bindThreeCore, buildSandboxSrcdoc, maxPixelDiff, readSandboxMessage, replayCheck } from './sandbox';
+import { SANDBOX_ATTRIBUTE, SANDBOX_CSP, bindThreeCore, buildSandboxSrcdoc, checkedSoundtrack, maxPixelDiff, readSandboxMessage, replayCheck } from './sandbox';
 import { checkGeneratedCode } from '../server/code3dGemini';
 
 describe('Gemini Code 3D experimental contract (offline)', () => {
@@ -18,13 +18,23 @@ describe('Gemini Code 3D experimental contract (offline)', () => {
     expect(checkGeneratedCode('import x from "evil"; function createScene(){}')).toMatchObject({ ok: false, failure: 'contract_error' });
   });
 
-  it('requires scenes between 8 and 12 seconds and asks for absolute-time replay', () => {
+  it('requires scenes between 8 and 20 seconds and asks for absolute-time replay', () => {
     expect(validDuration(8)).toBe(CODE3D_MIN_DURATION);
-    expect(validDuration(12)).toBe(CODE3D_MAX_DURATION);
+    expect(validDuration(20)).toBe(CODE3D_MAX_DURATION);
     expect(validDuration(7.9)).toBeNull();
-    expect(validDuration(12.1)).toBeNull();
+    expect(validDuration(20.1)).toBeNull();
     expect(code3dPrompt('Uma grua carrega um contêiner', '9:16')).toContain('renderAt(t)');
     expect(code3dPrompt('Uma grua carrega um contêiner', '9:16')).toContain('createScene');
+  });
+
+  it('bounds optional PCM by the exact scene duration and rejects malformed or unsafe audio data', () => {
+    const pcm=new Float32Array(20*22050);pcm[20]=.5;
+    const audio=checkedSoundtrack({sampleRate:22050,channels:[pcm]},20);
+    expect(audio.channels[0].length).toBe(441000);expect(audio.channels[0]).not.toBe(pcm);
+    expect(()=>checkedSoundtrack({sampleRate:22050,channels:[pcm.subarray(0,10)]},20)).toThrow();
+    expect(()=>checkedSoundtrack({sampleRate:192000,channels:[pcm]},20)).toThrow();
+    pcm[5]=NaN;expect(()=>checkedSoundtrack({sampleRate:22050,channels:[pcm]},20)).toThrow();
+    pcm[5]=2;expect(()=>checkedSoundtrack({sampleRate:22050,channels:[pcm]},20)).toThrow();
   });
 
   it('keeps arbitrary model code in an opaque-origin restricted iframe shell', () => {
