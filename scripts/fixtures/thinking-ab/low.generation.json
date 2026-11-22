@@ -1,0 +1,84 @@
+{
+  "level": "low",
+  "model": "gemini-3.6-flash",
+  "attempts": 1,
+  "elapsedMs": 38915,
+  "usage": {
+    "promptTokenCount": 4710,
+    "candidatesTokenCount": 4674,
+    "totalTokenCount": 9384,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 4710
+      }
+    ],
+    "serviceTier": "standard"
+  },
+  "finishReason": "STOP",
+  "requestHash": "8561cd4a9351699aef583fbf1505d303d4ee42f891ff0561fbe40d6aff7cef48",
+  "commonRequestHash": "c4b0a29a8820463c4b09e20a644ec0ac59ee152f82e84fe1a7a25f9104f38a4b",
+  "scriptSHA256": "1dcb1387480f039d02d43815639067eb1a5ca9a65f8d3a8c8d273c41fc82984d",
+  "originalSHA256": "3b58f0753d657dc4c750808dfdff8b0b44963f2a5d5644d272a59299954b3eb4",
+  "providerAccepted": false,
+  "manualCreativeEdits": false,
+  "codeReady": true,
+  "providerFailure": "direction_error",
+  "direction": {
+    "version": 1,
+    "duration": 8,
+    "timing": "planned",
+    "objects": [
+      {
+        "id": "elefante",
+        "description": "Elefante cinza cartoon de corpo inteiro com patas articuladas, orelhas, tromba e presas",
+        "parts": [
+          "corpo",
+          "cabeca",
+          "tromba",
+          "orelha_esq",
+          "orelha_dir",
+          "presa_esq",
+          "presa_dir",
+          "pata_di",
+          "pata_dd",
+          "pata_ti",
+          "pata_td"
+        ]
+      },
+      {
+        "id": "arca",
+        "description": "Convés de madeira da arca com cabine e porta aberta",
+        "parts": [
+          "conves",
+          "parede_cabine",
+          "porta_aberta"
+        ]
+      }
+    ],
+    "shots": [
+      {
+        "id": "caminhada_elefante",
+        "quote": "Um elefante cinza de corpo INTEIRO sai da cabine de madeira da arca para o convés aberto, em dia claro.",
+        "start": 0,
+        "end": 8,
+        "subjects": [
+          "elefante",
+          "arca"
+        ],
+        "focus": "elefante",
+        "camera": "wide",
+        "action": "O elefante sai de dentro da cabine, caminha três passos no convés de madeira, para e olha para a câmera",
+        "before": "Elefante posicionado na abertura da porta da cabine",
+        "after": "Elefante parado no convés em vista completa, olhando para a câmera"
+      }
+    ],
+    "lessonVersion": "spoken-actions-v1"
+  },
+  "codeSHA256": "d4f706d93f41e669baf97e94fbcbd1f2f80e456343b010a80f0fbf0f8e70c6b7",
+  "originalBodySHA256": "c3b66c6d738b5f21e3bbf33550b0979133c195ed91b4bd0b0c39d8fa4bd8df8a",
+  "sourceCharacters": 13018,
+  "scoreInjectedAsData": true,
+  "warnings": [],
+  "executionMode": "explicit_import_of_model_response"
+}
