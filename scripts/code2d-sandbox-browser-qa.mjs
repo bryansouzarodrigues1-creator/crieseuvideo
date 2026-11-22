@@ -10,7 +10,8 @@ try{
  page.on('pageerror',e=>report.errors.push(e.message));
  page.on('request',r=>{if(/generativelanguage.googleapis.com|ai.gateway.lovable.dev/.test(r.url()))report.providerRequests++});
  await page.goto('http://127.0.0.1:4198/motor-2d/codigo',{waitUntil:'domcontentloaded'});
- await page.getByText('O Gemini programa o vídeo 2D inteiro').waitFor({timeout:30000});
+ await page.getByText('CrieSeuVideo — Estúdio de programação 2D').waitFor({timeout:30000});
+ assert.equal(await page.locator('#code2d-mode').inputValue(),'team');
  const label=await page.locator('#code2d-duration').inputValue();
  assert.equal(label,'40');
  // ENGINE-only smoke input, not a model response and not a video offered to the user.
