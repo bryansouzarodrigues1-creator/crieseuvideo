@@ -1,0 +1,51 @@
+name: Gemini ark tsunami and animal choir
+on:
+  pull_request:
+    branches: [feat/gemini-directed-lessons-20261121]
+    paths:
+      - src/studio/code3d/**
+      - src/studio/components/Code3DStudio.tsx
+      - scripts/ark-gemini-*
+      - .github/workflows/ark-gemini-proof.yml
+permissions:
+  contents: read
+concurrency:
+  group: ark-gemini-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  generate-and-render:
+    if: github.event.pull_request.head.ref == 'feat/ark-tsunami-gemini-20261122' && github.event.action == 'opened'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: bun run build
+      - name: Prepare native player
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/ark-gemini
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/ark-gemini/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: One actual Gemini request for scene and original choir
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.FREEFORM_3D_GEMINI_API_KEY }}
+          GEMINI_CODE3D_MODEL: gemini-3.6-flash
+          ARK_ONE_CALL: ARK_TSUNAMI_20261122
+        run: bun scripts/ark-gemini-generate.ts
+      - name: Render untouched program and export its PCM in the sandbox
+        run: bun scripts/ark-gemini-render.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ark-gemini-20s
+          path: tmp/ark-gemini/
+          retention-days: 14

@@ -11,7 +11,7 @@
  */
 import { directionPrompt, type NarrationTiming } from './direction';
 export const CODE3D_MIN_DURATION = 8;
-export const CODE3D_MAX_DURATION = 12;
+export const CODE3D_MAX_DURATION = 20;
 export const CODE3D_DEFAULT_DURATION = 10;
 export const CODE3D_MAX_CODE_CHARS = 80_000;
 export const CODE3D_MAX_SCRIPT_CHARS = 1_200;
@@ -28,7 +28,7 @@ export const code3dSize = (aspect: Code3DAspect, quality: Code3DQuality = 'previ
   return aspect === '16:9' ? { width: height, height: width } : { width, height };
 };
 
-/** A duration outside 8–12 s is a contract violation, not something to guess. */
+/** A duration outside 8–20 s is a contract violation, not something to guess. */
 export function validDuration(value: unknown): number | null {
   if (value === undefined) return CODE3D_DEFAULT_DURATION;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < CODE3D_MIN_DURATION || value > CODE3D_MAX_DURATION) return null;
@@ -58,6 +58,10 @@ CONTRATO OBRIGATÓRIO
 - Retorne { duration, renderAt(t), dispose() } com duration entre ${CODE3D_MIN_DURATION} e ${CODE3D_MAX_DURATION} segundos.
 - renderAt(t) recebe o tempo ABSOLUTO em segundos e deve: posicionar todos os objetos, câmera e luzes calculando tudo a partir de t, e então chamar renderer.render(scene, camera). Precisa ser determinística: chamar renderAt(5) depois de renderAt(9) dá exatamente a mesma imagem. Proibido: Date, performance.now, requestAnimationFrame, setTimeout, Math.random dentro de renderAt, acumular estado entre quadros. Se precisar de aleatoriedade, use um PRNG com semente fixa só dentro de createScene.
 - dispose() libera geometrias, materiais, texturas e o renderer.
+
+SOM OPCIONAL, SOMENTE QUANDO PEDIDO
+- O objeto retornado pode incluir getSoundtrack(): {sampleRate:22050,channels:[Float32Array]}. É uma função síncrona chamada uma vez, dentro da MESMA caixa isolada, após a criação da cena; ela devolve PCM de exatamente Math.round(duration*22050) amostras por canal, até dois canais, com valores finitos entre -1 e 1. Sem AudioContext, reprodução automática, rede, bibliotecas ou arquivos externos.
+- Quando houver canto, componha uma melodia ORIGINAL e sintetize vozes de vogais com harmônicos/formantes e ataque/soltura, não apenas apitos. Use os mesmos eventos de notas para animar as mandíbulas e para gerar o PCM, para que boca e coro coincidam. Gere a trilha só dentro de getSoundtrack, nunca a cada renderAt. Normalização final antes de retornar o PCM; ruído de tempestade usa semente fixa. Se o usuário não pediu som, omita getSoundtrack.
 
 RECURSOS FIXOS OPCIONAIS (tools, versão 1)
 - tools.cue(t,inicio,fim) e tools.stagger(t,inicio,fim,indice,total): transições puras por tempo absoluto. Não suavize a câmera acumulando camera.position.lerp(alvo, 0.16) por quadro.

@@ -4,9 +4,9 @@ import { z } from 'zod';
 export const DIRECTOR_LESSON_VERSION = 'spoken-actions-v1';
 export const DIRECTION_MARKER = 'CRIESEUVIDEO_DIRECTION_V1';
 const id = z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/);
-const time = z.number().finite().min(0).max(12);
+const time = z.number().finite().min(0).max(20);
 export const narrationTimingSchema = z.object({
-  duration: z.number().finite().min(8).max(12),
+  duration: z.number().finite().min(8).max(20),
   words: z.array(z.object({ text: z.string().trim().min(1).max(100), start: time, end: time }).strict()).min(1).max(120),
 }).strict().superRefine((value, ctx) => {
   for (let i = 0; i < value.words.length; i++) {
@@ -19,7 +19,7 @@ export type NarrationTiming = z.infer<typeof narrationTimingSchema>;
 
 const rawDirection = z.object({
   version: z.literal(1),
-  duration: z.number().finite().min(8).max(12),
+  duration: z.number().finite().min(8).max(20),
   timing: z.enum(['planned', 'provided']),
   objects: z.array(z.object({
     id, description: z.string().trim().min(3).max(160),
@@ -117,6 +117,6 @@ Comece o bloco JavaScript com um comentário JSON estrito, antes de function cre
 O exemplo mostra o FORMATO, não o conteúdo. Escolha 1 a 6 planos adequados ao pedido e preencha todos os campos. Planos cobrem de 0 até duration, sem lacunas nem sobreposição. quote deve ser trecho literal da fonte. subjects/focus usam IDs de objects; parts são IDs persistentes das peças.
 O servidor valida o comentário e injeta const DIRECTOR_SCORE com a partitura normalizada antes do seu programa. NÃO declare DIRECTOR_SCORE. Seu código DEVE ler DIRECTOR_SCORE.shots e usar seus start/end para as ações e a câmera; duration deve ser DIRECTOR_SCORE.duration. Nenhuma função adicional de planejar ou gerar vídeo existe no runtime.
 Para montagem, use tools.createAssemblyPart(objeto,{start:plano.start,end:plano.end,fromPosition:[x,y,z],fromRotation:[rx,ry,rz]}). Defina primeiro a pose final local do objeto, então crie o controlador UMA vez em createScene. Chame controlador.apply(t) em renderAt. Ele preserva a escala e volta à mesma pose quando o tempo é buscado fora de ordem. Escalone start/end das peças dentro do plano e deixe tempo para ver o resultado; não termine todas no último quadro.
-${checked ? `TEMPOS DE FALA FORNECIDOS (dados imutáveis): duração=${checked.duration}. Use timing:"provided". Em cada plano emita firstWord (índice da primeira palavra, primeiro plano = 0), em vez de start/end. O motor deriva start dessa palavra e end da primeira palavra do próximo plano, ou da duração. quote começa exatamente em firstWord. A fala é a fonte de quote; o roteiro continua definindo os objetos e ações. Palavras: ${JSON.stringify(checked.words.map((w, index) => ({ index, ...w })))}` : 'SEM TEMPOS DE ÁUDIO: use timing:"planned", duration entre 8 e 12, e start/end explícitos. Não afirme sincronização medida nem invente narração.'}
+${checked ? `TEMPOS DE FALA FORNECIDOS (dados imutáveis): duração=${checked.duration}. Use timing:"provided". Em cada plano emita firstWord (índice da primeira palavra, primeiro plano = 0), em vez de start/end. O motor deriva start dessa palavra e end da primeira palavra do próximo plano, ou da duração. quote começa exatamente em firstWord. A fala é a fonte de quote; o roteiro continua definindo os objetos e ações. Palavras: ${JSON.stringify(checked.words.map((w, index) => ({ index, ...w })))}` : 'SEM TEMPOS DE ÁUDIO: use timing:"planned", duration entre 8 e 20, e start/end explícitos. Não afirme sincronização medida nem invente narração.'}
 ROTEIRO PARA CONFERIR A PARTITURA: ${JSON.stringify(script.slice(0, 1200))}`;
 }
