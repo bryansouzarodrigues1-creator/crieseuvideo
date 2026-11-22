@@ -22,11 +22,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun add --no-save playwright@1.57.0 gsap@3.12.5
       - run: bunx playwright install chromium
+      - name: Bundle the trusted renderer-only harness
+        run: bun build scripts/fixtures/engine-comparison/harness.ts --target browser --format esm --outfile tmp/engine-comparison/harness.js
       - name: Start original application and read-only renderer harness
         run: |
           mkdir -p tmp/engine-comparison
           bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/engine-comparison/vite.log 2>&1 &
-          bunx vite --config scripts/engine-comparison-vite.config.mjs >tmp/engine-comparison/fixture-vite.log 2>&1 &
+          node scripts/engine-comparison-host.mjs >tmp/engine-comparison/fixture-host.log 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:4198/motor-3d/codigo >/dev/null && curl -fsS http://127.0.0.1:4201/scripts/fixtures/engine-comparison/index.html >/dev/null; then exit 0; fi
             sleep 1

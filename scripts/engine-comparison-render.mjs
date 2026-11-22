@@ -7,9 +7,9 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 const results=[];
 try{
  for(const engine of ['motion2d','toon3d','sceneprogram','code3d','htmlsvg']){
-  const page=await browser.newPage({viewport:{width:1100,height:1150},acceptDownloads:true});const errors=[];let providerRequests=0;const started=Date.now();
+  const page=await browser.newPage({viewport:{width:1100,height:1150},acceptDownloads:true});const errors=[],consoleErrors=[],failedRequests=[];let providerRequests=0;const started=Date.now();
   const result={engine,authorship:'hand-authored controlled fixture',newModelRequests:0,rendered:false};
-  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/generativelanguage.googleapis.com|ai.gateway.lovable.dev/.test(r.url()))providerRequests++;});
+  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});page.on('requestfailed',r=>failedRequests.push({url:r.url(),failure:r.failure()}));page.on('request',r=>{if(/generativelanguage.googleapis.com|ai.gateway.lovable.dev/.test(r.url()))providerRequests++;});
   try{
    let frameAt;
    if(engine==='code3d'){
@@ -25,7 +25,8 @@ try{
    }else{
     const response=await page.goto('http://127.0.0.1:4201/scripts/fixtures/engine-comparison/index.html?engine='+engine,{waitUntil:'domcontentloaded',timeout:60000});
     assert.equal(response?.status(),200,'Read-only fixture HTML did not load');
-    await page.waitForFunction(()=>document.body.dataset.ready==='true',undefined,{timeout:60000});
+    await page.waitForFunction(()=>document.body.dataset.ready==='true'||window.fixtureError,undefined,{timeout:15000});
+    assert.equal(await page.evaluate(()=>window.fixtureError||''),'');
     frameAt=async t=>Buffer.from(await page.evaluate(t=>window.comparison.frame(t),t),'base64');
    }
    for(const t of [0.5,1.5,3.6,4.3,5.3,6.4,7.5,8.6,9.3,10.5,11.7])await writeFile(`${out}/${engine}-${t.toFixed(1)}.png`,await frameAt(t));
@@ -42,7 +43,7 @@ try{
    assert.ok(bytes.length>10000);assert.equal(providerRequests,0);assert.deepEqual(errors,[]);
    Object.assign(result,{rendered:true,bytes:bytes.length,width:720,height:1280,fps:30,frames:360,duration:12,milliseconds:Date.now()-started});
    console.log('EXPORT_DONE '+engine);
-  }catch(e){result.error=String(e);result.errors=errors;await page.screenshot({path:`${out}/${engine}-failure.png`,fullPage:true}).catch(()=>{});console.log('RENDER_FAILED '+engine+' '+e);}
+  }catch(e){result.error=String(e);result.errors=errors;result.consoleErrors=consoleErrors;result.failedRequests=failedRequests;result.document=await page.evaluate(()=>({url:location.href,ready:document.body.dataset.ready,api:typeof window.comparison,scripts:Array.from(document.scripts).map(s=>({type:s.type,src:s.src})),text:document.body.innerText})).catch(()=>null);await writeFile(`${out}/${engine}-failure.html`,await page.content().catch(()=>''));await page.screenshot({path:`${out}/${engine}-failure.png`,fullPage:true}).catch(()=>{});console.log('RENDER_FAILED '+engine+' '+e);}
   finally{result.providerRequests=providerRequests;results.push(result);await page.close();await writeFile(out+'/report.json',JSON.stringify({kind:'renderer comparison, not autonomous AI benchmark',productionChanges:false,newModelRequests:0,results},null,2));}
  }
  assert.equal(results.filter(r=>r.rendered).length,5,'Preserve individual failures, but do not label missing arms complete.');

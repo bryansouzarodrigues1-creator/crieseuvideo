@@ -31,8 +31,10 @@ and whether the connection and final light are understandable without text.
 
 The first browser run exported Code 3D, but the app router returned a 404 for
 the other four fixture HTML requests. They are not renderer failures. The
-fixture now has a separate plain Vite host, while Code 3D still uses the original
-app. Review of the first real Code 3D frames also found an over-tight assembly
+fixture now has a separately bundled static host, while Code 3D still uses the
+original app. The intermediate two-Vite setup served HTML but never initialized
+the fixture and is retained as a harness failure, not a renderer outcome. Review
+of the first real Code 3D frames also found an over-tight assembly
 close-up and front-facing support legs. The authored fixture's camera now fits
 the elevated pieces before closing in, and both 3D fixtures put legs behind the
 panel. These are documented manual fixture revisions, not Gemini output repairs
