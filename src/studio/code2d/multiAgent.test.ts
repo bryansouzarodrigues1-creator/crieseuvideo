@@ -3,7 +3,8 @@ import {generateMultiAgentCode2D} from '../server/code2dMultiAgent';
 import {validateStoryboard} from './multiAgentContract';
 
 const KEYS=['GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY',
- 'CODE2D_SKIP_GEMINI_DIRECTION','CODE2D_OPENROUTER_MODEL','CODE2D_GROQ_MODEL'] as const;
+ 'CODE2D_SKIP_GEMINI_DIRECTION','CODE2D_OPENROUTER_MODEL','CODE2D_GROQ_MODEL',
+ 'LOVABLE_API_KEY','LOVABLE_AI_MODEL'] as const;
 const original=Object.fromEntries(KEYS.map(k=>[k,process.env[k]])) as Record<string,string|undefined>;
 const board={
  title:'Uma pequena oficina aprende a trabalhar melhor',
@@ -29,6 +30,8 @@ beforeEach(()=>{
  process.env.GROQ_API_KEY='test-groq';
  process.env.OPENROUTER_API_KEY='test-openrouter';
  delete process.env.GEMINI_API_KEY;
+ delete process.env.LOVABLE_API_KEY;
+ delete process.env.LOVABLE_AI_MODEL;
  process.env.CODE2D_SKIP_GEMINI_DIRECTION='true';
  delete process.env.CODE2D_GROQ_MODEL;
  delete process.env.CODE2D_OPENROUTER_MODEL;
@@ -65,7 +68,7 @@ describe('free multi-agent Code2D orchestra',()=>{
   if(!r.ok)throw Error(r.message);
   expect(r.storyboard.scenes).toHaveLength(5);
   expect(r.steps.map(x=>[x.stage,x.status])).toEqual([
-   ['story','ok'],['direction','skipped'],['animation','ok'],['validation','ok']
+   ['story','ok'],['direction','skipped'],['lovable_review','skipped'],['animation','ok'],['validation','ok']
   ]);
   expect(requests).toHaveLength(2);
   expect(requests[0].url).toContain('api.groq.com');
@@ -109,6 +112,50 @@ describe('free multi-agent Code2D orchestra',()=>{
   expect(r.steps[1]).toMatchObject({stage:'direction',status:'skipped',provider:'gemini'});
   expect(calls).toHaveLength(3);
   expect(calls.every(x=>!x.includes('lovable'))).toBe(true);
+ });
+ it('does not spend Lovable credits when checkbox is off, even if gateway key exists',async()=>{
+  process.env.LOVABLE_API_KEY='test-lovable';
+  const requests:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL)=>{
+   const u=String(url);requests.push(u);
+   return u.includes('groq')?answer(board):codeAnswer();
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina com rotina diária e desafios','9:16',40,false);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(r.steps.find(x=>x.stage==='lovable_review')).toMatchObject({status:'skipped'});
+  expect(requests).toHaveLength(2);
+  expect(requests.every(x=>!x.includes('lovable.dev'))).toBe(true);
+ });
+ it('reports missing Lovable key without spending credit after explicit toggle',async()=>{
+  const requests:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL)=>{
+   const u=String(url);requests.push(u);
+   return u.includes('groq')?answer(board):codeAnswer();
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina com rotina diária e desafios','9:16',40,true);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(r.steps.find(x=>x.stage==='lovable_review')).toMatchObject({status:'skipped'});
+  expect(requests).toHaveLength(2);
+ });
+ it('sends exactly one opt-in Lovable artistic review to programmer before rendering',async()=>{
+  process.env.LOVABLE_API_KEY='test-lovable';
+  const calls:{url:string;body:any}[]=[];
+  const review={continuity:'Personagem mantém o macacão azul, movimentos funcionais e câmera estável.',
+   notes:[{sceneId:'s1',direction:'A personagem deve pegar a caixa com as duas mãos e deixá-la totalmente apoiada na bancada.'}]};
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
+   const u=String(url);calls.push({url:u,body:JSON.parse(String(init?.body))});
+   return u.includes('groq.com')?answer(board):
+     u.includes('ai.gateway.lovable.dev')?answer(review):codeAnswer();
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina com rotina diária e desafios','9:16',40,true);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(calls).toHaveLength(3);
+  expect(calls[1].url).toContain('ai.gateway.lovable.dev');
+  expect(calls[2].body.messages[0].content).toContain('A personagem deve pegar a caixa');
+  expect(r.steps.find(x=>x.stage==='lovable_review')).toMatchObject({status:'ok',provider:'lovable'});
  });
  it('stops at quota exhaustion instead of wasting coding quota',async()=>{
   const calls:string[]=[];
