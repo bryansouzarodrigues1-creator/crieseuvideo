@@ -1,11 +1,11 @@
 import {CODE2D_MAX_SCRIPT_CHARS,extractCode2D,type Code2DAspect} from '../code2d/contract';
 import {
- buildAnimatorPrompt,buildDirectorPrompt,buildStoryPrompt,
+ buildAnimatorPrompt,buildDirectorPrompt,buildLovableReviewPrompt,buildStoryPrompt,
  parseTextJson,validateDirectorNotes,validateStoryboard,
  type StudioStep,type Storyboard,
 } from '../code2d/multiAgentContract';
 import {askFreeTextProvider,freeProviderConfiguration} from './freeCode2DProviders';
-import {askGeminiForExplainer} from './ai';
+import {ask3DWorldAi,askGeminiForExplainer} from './ai';
 import {checkCode2D} from './code2dGemini';
 
 export type MultiAgentSuccess={
@@ -20,12 +20,13 @@ export type MultiAgentResult=MultiAgentSuccess|MultiAgentFailure;
 
 /**
  * One Groq storyboard, optional ONE Gemini HIGH visual-direction request,
+ * one optional explicitly approved Lovable artistic review,
  * one OpenRouter :free coding request and deterministic local checks.
  * No Lovable, no automatic retries, no surprise paid endpoints.
  * The video is NOT assumed artistic success before browser frame review.
  */
 export async function generateMultiAgentCode2D(
- topic:string,aspect:Code2DAspect,duration:number,
+ topic:string,aspect:Code2DAspect,duration:number,useLovableReview=false,
 ):Promise<MultiAgentResult>{
  const steps:StudioStep[]=[];
  const fail=(failure:string,message:string):MultiAgentFailure=>({
@@ -80,9 +81,39 @@ export async function generateMultiAgentCode2D(
    detail:'Gemini não configurado ou direção opcional desabilitada'});
  }
 
- // 3) Canvas programmer (a verified :free OpenRouter model).
+ // 3) Optional Lovable AI artistic review: separate gateway credits.
+ // User must enable it explicitly; free editor build credits are NOT
+ // guaranteed to fund this inference.
+ let lovableNotes=null;
+ if(useLovableReview){
+  const model=process.env.LOVABLE_AI_MODEL||'google/gemini-3.7-flash';
+  if(!process.env.LOVABLE_API_KEY){
+   steps.push({stage:'lovable_review',provider:'lovable',model,status:'skipped',
+     detail:'LOVABLE_API_KEY ausente; não foi gasto crédito. Revisão não realizada'});
+  }else{
+   try{
+    const response=await ask3DWorldAi(
+      buildLovableReviewPrompt(board,direction),'lovable',
+      text=>!!validateDirectorNotes(parseTextJson(text),board),
+    );
+    lovableNotes=response?validateDirectorNotes(parseTextJson(response.text),board):null;
+    steps.push({stage:'lovable_review',provider:'lovable',model,
+      status:lovableNotes?'ok':'skipped',
+      detail:lovableNotes?'Revisão criativa estruturada recebida; vídeo ainda não foi visto nem renderizado':
+        'Revisão não aplicada; nenhuma aprovação inferida'});
+   }catch{
+    steps.push({stage:'lovable_review',provider:'lovable',model,status:'skipped',
+      detail:'Gateway Lovable indisponível ou sem créditos; nenhuma troca de provedor'});
+   }
+  }
+ }else{
+  steps.push({stage:'lovable_review',provider:'lovable',model:'não solicitado',status:'skipped',
+    detail:'Revisão Lovable desativada para preservar créditos'});
+ }
+
+ // 4) Canvas programmer (a verified :free OpenRouter model).
  const codeResult=await askFreeTextProvider(
-  'openrouter',buildAnimatorPrompt(topic,board,direction,aspect,duration),'javascript',
+  'openrouter',buildAnimatorPrompt(topic,board,direction,aspect,duration,lovableNotes),'javascript',
  );
  if(!codeResult.ok){
   steps.push({stage:'animation',provider:'openrouter',model:codeResult.model,status:'failed',detail:codeResult.problem});
