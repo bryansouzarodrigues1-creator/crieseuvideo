@@ -1,0 +1,42 @@
+name: Motion 2D real — Brazilian federal budget 40s
+on:
+  push:
+    branches:
+      - demo/motion2d-orcamento-40s-20261122
+    paths:
+      - scripts/motion2d-budget-40s-*
+      - scripts/fixtures/motion2d-spending/**
+      - .github/workflows/motion2d-budget-40s.yml
+permissions:
+  contents: read
+jobs:
+  motion2d-video:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install repository and browser test dependencies
+        run: |
+          bun install --frozen-lockfile
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Install offline Brazilian Portuguese narrator and video tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg espeak-ng
+      - name: Bundle the original Motion 2D drawing engine as read-only test harness
+        run: |
+          mkdir -p tmp/motion2d-budget-40s
+          bun build scripts/fixtures/motion2d-spending/harness.ts --target browser --format esm --outfile tmp/motion2d-budget-40s/harness.js
+      - name: Render exactly 1,200 original Motion 2D frames in two native 20s MP4s
+        run: bun scripts/motion2d-budget-40s-render.mjs
+      - name: Compose forty-second test narration and captioned MP4
+        run: python3 scripts/motion2d-budget-40s-master.py
+      - name: Upload native evidence, preview frames and finished MP4
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion2d-government-spending-40s-original-engine
+          path: tmp/motion2d-budget-40s/
+          retention-days: 14
