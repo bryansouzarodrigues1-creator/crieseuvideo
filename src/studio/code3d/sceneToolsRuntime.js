@@ -19,6 +19,22 @@ function createSceneTools(THREE) {
     function apply(t){if(!Number.isFinite(t))throw new Error('Tempo de montagem inválido.');const p=cue(t,options.start,options.end);object.visible=t>=options.start;object.position.lerpVectors(fromPosition,toPosition,p);object.quaternion.slerpQuaternions(fromQuaternion,toQuaternion,p);object.scale.copy(scale);object.updateMatrix();return p;}
     return Object.freeze({apply});
   }
+  // Fit the whole assembled subject, including its actual hierarchy, in either aspect.
+  function fitCameraToObjects(camera,objects,options={}){
+    if(!camera?.isPerspectiveCamera||!Array.isArray(objects)||!objects.length)throw new Error('Câmera ou protagonistas inválidos.');
+    const margin=options.margin??.12,reserve=options.captionReserve??.2;
+    if(![margin,reserve,camera.aspect,camera.fov].every(Number.isFinite)||margin<0||reserve<0||margin>=.45||reserve>=.45||camera.aspect<=0||camera.fov<=0||camera.fov>=150)throw new Error('Margens de câmera inválidas.');
+    const bounds=new THREE.Box3();for(const object of objects){if(!object?.isObject3D)throw new Error('Protagonista inválido.');object.updateWorldMatrix(true,true);bounds.expandByObject(object);}
+    if(bounds.isEmpty()||![...bounds.min,...bounds.max].every(Number.isFinite))throw new Error('Protagonista sem geometria finita.');
+    const sphere=bounds.getBoundingSphere(new THREE.Sphere()),direction=vec(options.direction??[.65,.7,1]);
+    if(![...direction].every(Number.isFinite)||direction.lengthSq()<1e-10)throw new Error('Direção de câmera inválida.');direction.normalize();
+    const tan=Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/camera.zoom;
+    const angle=Math.min(Math.atan(tan*camera.aspect*(1-2*margin)),Math.atan(tan*(1-2*Math.max(margin,reserve))));
+    const distance=Math.max(.01,sphere.radius)/Math.sin(angle),position=sphere.center.clone().addScaledVector(direction,distance);
+    if(camera.parent){camera.parent.updateWorldMatrix(true,false);camera.position.copy(camera.parent.worldToLocal(position.clone()));}else camera.position.copy(position);
+    camera.far=Math.max(camera.far,distance+sphere.radius*4);camera.lookAt(sphere.center);camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
+    return {position:position.clone(),target:sphere.center.clone(),distance,bounds:bounds.clone()};
+  }
   function solveTwoBone(start,target,pole,a,b){
     if(!(a>0&&b>0))throw new Error('Comprimentos de membros inválidos.');
     start=vec(start);target=vec(target);pole=vec(pole);const delta=target.clone().sub(start),requested=delta.length();
@@ -159,5 +175,5 @@ function createSceneTools(THREE) {
     }
     camera.position.copy(target).addScaledVector(vec(candidates[chosen]).normalize(),distance);camera.lookAt(target);camera.updateMatrixWorld(true);camera.userData.targetVisibility={clear:best===0,blocked:best,selected:chosen};return chosen;
   }
-  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,createAssemblyPart,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,graspFrames,createPropTransfer,createPerson,aimCamera});
+  return Object.freeze({version:1,vec,clamp,progress,ease,cue,stagger,createAssemblyPart,fitCameraToObjects,solveTwoBone,surfaceTop,registerSurface,supportAt,placeOnSurface,walkFeet,createWalkPath,walkOnPath,setWorldPose,objectGrips,graspFrames,createPropTransfer,createPerson,aimCamera});
 }

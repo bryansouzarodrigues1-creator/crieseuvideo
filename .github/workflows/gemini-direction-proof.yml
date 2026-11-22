@@ -13,6 +13,7 @@ on:
       - .github/workflows/gemini-direction-proof.yml
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: gemini-direction-${{ github.ref }}
   cancel-in-progress: false
@@ -48,8 +49,16 @@ jobs:
           GEMINI_CODE3D_MODEL: gemini-3.6-flash
           DIRECTION_ONE_CALL: ONE_DIRECTED_REQUEST_20261121
         run: bun scripts/gemini-direction-proof.ts
+      - name: Reuse the original generation for subsequent render checks
+        if: github.event.pull_request.head.ref == 'feat/gemini-directed-lessons-20261121' && github.event.action != 'opened'
+        uses: actions/download-artifact@v4
+        with:
+          name: gemini-direction-proof
+          run-id: 44964365935
+          github-token: ${{ github.token }}
+          path: tmp/gemini-direction/
       - name: Render untouched actual Gemini source
-        if: github.event.pull_request.head.ref == 'feat/gemini-directed-lessons-20261121' && github.event.action == 'opened'
+        if: github.event.pull_request.head.ref == 'feat/gemini-directed-lessons-20261121'
         run: bun scripts/gemini-direction-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()

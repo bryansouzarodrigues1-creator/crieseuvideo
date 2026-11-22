@@ -41,3 +41,9 @@ Existing imported programs, pinned Three.js sources, opaque iframe origin, CSP, 
 - Browser success means the program ran and exported. Visual acceptance must be recorded separately after inspecting the frames and MP4; one successful theme is not proof of general generation quality.
 
 Deployment status: feature branch based on the latest garden summary branch; not merged or published by this change alone.
+
+## First real result and feedback
+
+Run `44964365935` made one successful Gemini 3.6 Flash request and returned three valid shots anchored at 0, 3.14 and 7.04 seconds for a 10.2-second clip. The untouched code opened in the actual isolated player. The capture harness then failed because it sent a floating-point range value of `10.149999999999999`; that harness error is corrected by decimal quantization. Subsequent checks reuse the saved artifact and verify the generated source hash, rather than spending another request or editing the model's program.
+
+Visual review of its first set of frames found real shortcomings: very tight camera framing, dark solar panels without readable cell details, and water hidden inside an opaque tank. Visual quality is **not approved** by the successful plan validation. These observations are now explicit lessons in the real prompt. A deterministic `fitCameraToObjects` helper was added to compute a complete subject frame from actual transformed bounds; portrait and landscape projection tests cover the caption clearance. The saved first generation predates those additional lessons and does not demonstrate their use by Gemini yet.

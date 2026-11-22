@@ -70,4 +70,16 @@ describe('rigid component assembly by absolute time',()=>{
     expect(()=>t.createAssemblyPart(part,{start:2,end:2})).toThrow();
     expect(()=>t.createAssemblyPart(part,{start:0,end:1,fromPosition:[Infinity,1,0]})).toThrow();
   });
+  it.each([9/16,16/9])('fits the entire transformed subject with caption clearance at aspect %s',aspect=>{
+    const t=tools(),parent=new THREE.Group();parent.position.set(8,2,-4);parent.rotation.y=.7;parent.scale.set(1.2,1,1.5);
+    const part=new THREE.Mesh(new THREE.BoxGeometry(5,3,2),new THREE.MeshBasicMaterial());part.position.set(0,1.5,0);parent.add(part);
+    const camera=new THREE.PerspectiveCamera(45,aspect,.1,100);
+    const fit=t.fitCameraToObjects(camera,[parent],{direction:[.65,.7,1],margin:.12,captionReserve:.2});
+    const box=fit.bounds;
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+      const p=new THREE.Vector3(x,y,z).project(camera);
+      expect(Math.abs(p.x)).toBeLessThanOrEqual(.76+1e-6);expect(Math.abs(p.y)).toBeLessThanOrEqual(.6+1e-6);expect(p.z).toBeLessThan(1);
+    }
+    expect(parent.position.toArray()).toEqual([8,2,-4]);
+  });
 });

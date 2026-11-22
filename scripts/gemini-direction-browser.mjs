@@ -1,12 +1,14 @@
 // Inspect and export the untouched actual Gemini response through the native UI.
 import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 const out = 'tmp/gemini-direction';
 await mkdir(out, { recursive: true });
 const proof = JSON.parse(await readFile(out + '/generation.json', 'utf8'));
 assert.equal(proof.ok, true); assert.equal(proof.attempts, 1); assert.equal(proof.manualChanges, false);
 const code = await readFile(out + '/gemini-scene.js');
+assert.equal(createHash('sha256').update(code).digest('hex'), proof.codeSHA256, 'The generated program must remain untouched.');
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1100, height: 1150 }, acceptDownloads: true });
 const errors = []; let browserModelRequests = 0;
@@ -26,7 +28,7 @@ try {
   const frame = page.frames().find(f => f.url() === 'about:srcdoc');
   assert.ok(frame);
   const capture = async (time, save = true) => {
-    const t = Math.min(proof.direction.duration - .05, Math.max(0, Math.round(time * 20) / 20));
+    const t = Number(Math.min(proof.direction.duration - .05, Math.max(0, Math.round(time * 20) / 20)).toFixed(2));
     await page.getByRole('slider', { name: 'Linha do tempo' }).fill(String(t));
     await page.waitForTimeout(100);
     const png = await frame.evaluate(() => document.querySelector('canvas').toDataURL('image/png').split(',')[1]);
