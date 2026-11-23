@@ -1,7 +1,7 @@
 name: One-shot Gemini Vision test for Cinema 2D
 on:
-  push:
-    branches: [feature/editorial-2d-scenespec-v1-20261123]
+  pull_request:
+    branches: [main]
     paths:
       - '.github/workflows/editorial2d-gemini-once.yml'
 permissions:
