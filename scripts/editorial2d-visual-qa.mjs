@@ -88,6 +88,23 @@ try{
   await page.getByRole('button',{name:'Modelo · Loja (34s)',exact:true}).click();
   await verifyPreset('loja',34,['L']);
 
+  // A beginner must be able to operate the full no-cost narration wizard on mobile.
+  const mode=page.locator('#cinema2d-audio-mode');
+  await mode.selectOption('narrated');
+  assert.ok((await page.locator('body').innerText()).includes('falta importar o MP3'),'Narration setup must request MP3');
+  await mode.selectOption('without_voice');
+  assert.ok((await page.locator('body').innerText()).includes('Vídeo sem fala'),'No-voice flow must be recognized');
+  await mode.selectOption('auto');
+  await page.locator('#cinema2d-spoken-script').fill('Uma loja vendia muito. Mas quanto dinheiro realmente sobrava?');
+  assert.ok((await page.locator('body').innerText()).includes('falta importar o MP3'),'Auto should expect audio when spoken script exists');
+  await page.getByRole('button',{name:'Usar roteiro limpo'}).click();
+  assert.equal(await page.locator('#cinema2d-performance-script').inputValue(),
+    'Uma loja vendia muito. Mas quanto dinheiro realmente sobrava?');
+  await page.locator('#cinema2d-video-length').selectOption('60');
+  assert.ok((await page.locator('body').innerText()).includes('1:00'),'Video-duration preset must update the studio');
+  assert.equal(aiRequests,0,'Narration wizard must not contact paid providers');
+  await page.screenshot({path:path.join(out,'onboarding_mobile.png'),fullPage:true});
+
   const viewportStatus=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   assert.ok(viewportStatus.scrollWidth<=viewportStatus.viewport+3,'Mobile UI scrolls sideways unexpectedly');
   assert.equal(aiRequests,0);
@@ -95,7 +112,7 @@ try{
   await writeFile(path.join(out,'visual-qa-report.json'),JSON.stringify({
     passed:true,
     screenshots:report.length,
-    checks:['mobile responsive','SVG text safe margins','two templates','deterministic seek','console/page errors','no unapproved AI provider request'],
+    checks:['mobile responsive','SVG text safe margins','two templates','deterministic seek','console/page errors','no unapproved AI provider request','narration mode + no-voice flow','duration preset + ElevenLabs tutorial'],
     note:'This is deterministic layout QA only, NOT semantic judgment by Gemini Vision. Screenshots are produced for a later multimodal review.',
     frames:report
   },null,2));
