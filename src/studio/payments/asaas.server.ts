@@ -52,3 +52,36 @@ export async function fetchAsaasPaymentSandbox(paymentId: string): Promise<Verif
  }
  return p as VerifiedAsaasPayment;
 }
+
+/**
+ * Read-only connectivity probe for server operators.
+ * Does not create orders, Pix QRs, payments, or expose account details.
+ * This is intentionally NOT mapped to a public HTTP endpoint.
+ * It works with only ASAAS_API_KEY and ASAAS_ENV=sandbox configured.
+ */
+export async function probeAsaasSandboxCredential(): Promise<
+  { ok: true } | { ok: false; reason: 'wrong_environment' | 'key_missing' | 'unauthorized' | 'provider_unavailable' }
+> {
+  if (process.env['ASAAS_ENV'] !== 'sandbox') {
+    return { ok: false, reason: 'wrong_environment' };
+  }
+  const apiKey = process.env['ASAAS_API_KEY'];
+  if (!apiKey) return { ok: false, reason: 'key_missing' };
+  try {
+    const response = await fetch(ASAAS_BASE_URL.sandbox + '/myAccount/status/', {
+      method: 'GET',
+      headers: {
+        'accept': 'application/json',
+        'access_token': apiKey,
+        'User-Agent': 'CrieSeuVideo/0.1 (sandbox)',
+      },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, reason: 'unauthorized' };
+    }
+    return response.ok ? { ok: true } : { ok: false, reason: 'provider_unavailable' };
+  } catch {
+    return { ok: false, reason: 'provider_unavailable' };
+  }
+}
