@@ -1,0 +1,2944 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CrieSeuVideo — Mascote 3D v2 | Rig, Caminhada e Sockets</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Fonte Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f1221;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Layout responsivo em 2 colunas (desktop) / empilhado (mobile) */
+    .lab-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 410px;
+      height: 100dvh;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    @media (max-width: 1024px) {
+      .lab-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(52dvh, 58dvh) auto;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+      }
+    }
+
+    /* Viewport 3D inspirado na iluminação clara/lilás da Madeireira */
+    .viewport-pane {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 360px;
+      background: radial-gradient(circle at 50% 35%, #f5f3ff 0%, #e4def7 55%, #cbc2ea 100%);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #webglMount {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #webglMount:active {
+      cursor: grabbing;
+    }
+
+    #webglMount canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Painel lateral direito com rolagem independente */
+    .control-pane {
+      background: linear-gradient(180deg, #13172a 0%, #0e1120 100%);
+      border-left: 1px solid rgba(148, 163, 184, 0.16);
+      overflow-y: auto;
+      height: 100%;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+    }
+
+    @media (max-width: 1024px) {
+      .control-pane {
+        border-left: none;
+        border-top: 1px solid rgba(148, 163, 184, 0.18);
+        height: auto;
+        overflow-y: visible;
+      }
+    }
+
+    /* Cartões de seção do painel */
+    .panel-card {
+      background: rgba(30, 36, 62, 0.56);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 16px;
+    }
+
+    /* Sliders customizados */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(148, 163, 184, 0.22);
+      height: 6px;
+      border-radius: 999px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #818cf8;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+    }
+
+    /* Seletor de cor estilizado */
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      border: 2px solid rgba(255, 255, 255, 0.24);
+      border-radius: 10px;
+      width: 38px;
+      height: 30px;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 8px;
+    }
+
+    /* Toggle Switch */
+    .toggle-pill {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(100, 116, 139, 0.45);
+      transition: background 0.2s ease;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .toggle-pill.on {
+      background: #6366f1;
+    }
+
+    .toggle-pill::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #ffffff;
+      transition: transform 0.2s ease;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+
+    .toggle-pill.on::after {
+      transform: translateX(18px);
+    }
+  </style>
+</head>
+<body>
+  <div class="lab-layout">
+    <!-- =================================================================== -->
+    <!-- COLUNA ESQUERDA: VIEWPORT 3D INTERATIVO 360°                        -->
+    <!-- =================================================================== -->
+    <section id="viewportPane" class="viewport-pane">
+      <div id="webglMount" aria-label="Palco 3D interativo do Mascote"></div>
+
+      <!-- Badge de Modo no topo do Viewport -->
+      <div class="absolute top-3.5 left-3.5 right-3.5 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div id="modeBadge"
+          class="pointer-events-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-extrabold tracking-wide shadow-lg border backdrop-blur-md bg-indigo-950/88 border-indigo-400/50 text-indigo-100">
+          <span id="modeDot" class="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></span>
+          <span id="modeBadgeText">MASCOTE v2 — RIG 3D PROCEDURAL</span>
+        </div>
+
+        <div class="pointer-events-auto hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/75 border border-white/15 text-[11px] font-semibold text-slate-100 backdrop-blur-md shadow">
+          <span>CrieSeuVideo</span>
+          <span class="text-slate-400">•</span>
+          <span id="fpsLabel" class="tabular-nums text-indigo-300">glTF 2.0</span>
+        </div>
+      </div>
+
+      <!-- Barra inferior do Viewport: Câmeras rápidas + dica 360° -->
+      <div class="absolute bottom-3.5 left-3.5 right-3.5 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div class="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-900/80 border border-white/15 backdrop-blur-md shadow-xl">
+          <button type="button" data-cam="front"
+            class="cam-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-500 text-white transition cursor-pointer">
+            Frente
+          </button>
+          <button type="button" data-cam="threeQuarter"
+            class="cam-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-200 hover:bg-white/10 transition cursor-pointer">
+            3/4
+          </button>
+          <button type="button" data-cam="profile"
+            class="cam-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-200 hover:bg-white/10 transition cursor-pointer">
+            Perfil
+          </button>
+          <button type="button" data-cam="back"
+            class="cam-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-200 hover:bg-white/10 transition cursor-pointer">
+            Costas
+          </button>
+        </div>
+
+        <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/72 border border-white/12 text-[11px] font-medium text-slate-200 backdrop-blur-md">
+          <span>Arraste para girar 360°</span>
+          <span class="text-slate-400">•</span>
+          <span>Scroll/Pinça: Zoom</span>
+          <span class="text-slate-400">•</span>
+          <span>2× Clique: Reset</span>
+        </div>
+      </div>
+
+      <!-- Overlay de carregamento / erro amigável -->
+      <div id="loaderOverlay"
+        class="absolute inset-0 z-40 flex flex-col items-center justify-center px-6 text-center bg-slate-950/88 backdrop-blur-md transition-opacity duration-300">
+        <div id="loaderSpinner" class="w-10 h-10 rounded-full border-4 border-indigo-400/25 border-t-indigo-400 animate-spin mb-3"></div>
+        <div id="loaderTitle" class="text-sm font-extrabold text-white">Carregando Laboratório 3D...</div>
+        <div id="loaderDetail" class="mt-1 text-xs text-slate-300 max-w-xs">
+          Inicializando Three.js r128, GLTFExporter e GLTFLoader.
+        </div>
+        <button id="retryBootBtn" type="button"
+          class="hidden mt-4 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold cursor-pointer">
+          Tentar Novamente
+        </button>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- COLUNA DIREITA: CONTROLES DO LABORATÓRIO E VALIDAÇÃO .GLB           -->
+    <!-- =================================================================== -->
+    <aside class="control-pane p-4 flex flex-col gap-3.5">
+      <!-- Cabeçalho -->
+      <header class="flex items-start justify-between gap-2 pb-1 border-b border-slate-700/40">
+        <div>
+          <div class="text-[10px] font-extrabold uppercase tracking-[0.18em] text-indigo-400">
+            Biblioteca 3D Experimental
+          </div>
+          <h1 class="text-base font-black text-white leading-tight mt-0.5">
+            CrieSeuVideo — Mascote 3D (.GLB)
+          </h1>
+          <p class="text-[11px] text-slate-400 mt-0.5">
+            Rig 19 ossos • Membros Skinned • IK Walk • 3 Sockets • 5 clipes • GLB
+          </p>
+        </div>
+        <span class="px-2 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-[10px] font-extrabold text-indigo-300">
+          v2.0
+        </span>
+      </header>
+
+      <!-- 1) SEÇÃO ANIMAÇÕES -->
+      <section class="panel-card p-3.5 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-200">
+            1. Animações (AnimationClip)
+          </h2>
+          <span id="clipDurationLabel" class="tabular-nums text-[11px] font-bold text-indigo-300">
+            0.00s / 2.40s
+          </span>
+        </div>
+
+        <!-- Botões das 5 animações -->
+        <div id="animButtonsGrid" class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-3 gap-1.5">
+          <button type="button" data-anim="idle"
+            class="anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-indigo-500 border-indigo-400 text-white shadow">
+            Idle
+          </button>
+          <button type="button" data-anim="walk"
+            class="anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80">
+            Walk
+          </button>
+          <button type="button" data-anim="point"
+            class="anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80">
+            Point
+          </button>
+          <button type="button" data-anim="talk"
+            class="anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80">
+            Talk
+          </button>
+          <button type="button" data-anim="celebrate"
+            class="anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80 col-span-2 sm:col-span-1 lg:col-span-2">
+            Celebrate
+          </button>
+        </div>
+
+        <!-- Scrub determinístico + Play/Pause -->
+        <div class="flex items-center gap-2.5">
+          <button id="playPauseBtn" type="button" title="Play / Pause"
+            class="p-2 rounded-xl bg-indigo-500/25 hover:bg-indigo-500/35 border border-indigo-400/40 text-indigo-200 transition active:scale-95 cursor-pointer">
+            <svg id="iconPlay" class="w-4 h-4 fill-current hidden" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            <svg id="iconPause" class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z" /></svg>
+          </button>
+          <input id="scrubSlider" type="range" min="0" max="1000" value="0" class="flex-1" aria-label="Linha do tempo da animação" />
+        </div>
+
+        <!-- Controle de velocidade -->
+        <div class="flex items-center justify-between gap-3">
+          <label for="speedSlider" class="text-[11px] font-semibold text-slate-300">Velocidade</label>
+          <input id="speedSlider" type="range" min="0.25" max="2.0" step="0.05" value="1.0" class="flex-1" />
+          <span id="speedValue" class="tabular-nums text-[11px] font-extrabold text-indigo-300 min-w-[40px] text-right">1.00x</span>
+        </div>
+
+        <!-- Toggles visuais: Esqueleto + Contorno Toon -->
+        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-700/40">
+          <button id="toggleSkeletonBtn" type="button"
+            class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-slate-900/60 border border-slate-700/60 hover:border-slate-600 transition cursor-pointer">
+            <span class="text-[11px] font-semibold text-slate-200 text-left leading-tight">Esqueleto<br><span class="text-[10px] text-slate-400">(Bones)</span></span>
+            <span id="skeletonPill" class="toggle-pill"></span>
+          </button>
+
+          <button id="toggleOutlineBtn" type="button"
+            class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-slate-900/60 border border-slate-700/60 hover:border-slate-600 transition cursor-pointer">
+            <span class="text-[11px] font-semibold text-slate-200 text-left leading-tight">Contorno<br><span class="text-[10px] text-slate-400">Toon</span></span>
+            <span id="outlinePill" class="toggle-pill on"></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 2) SEÇÃO EXPRESSÕES FACIAIS -->
+      <section class="panel-card p-3.5 flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-200">
+            2. Expressões Faciais (Face_*)
+          </h2>
+          <span class="text-[10px] font-semibold text-slate-400">5 placas no .GLB</span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-1.5">
+          <button type="button" data-expr="neutral"
+            class="expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-amber-400/20 border-amber-400/70 text-amber-200">
+            Neutro
+          </button>
+          <button type="button" data-expr="happy"
+            class="expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80">
+            Feliz
+          </button>
+          <button type="button" data-expr="talk"
+            class="expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80">
+            Falando
+          </button>
+          <button type="button" data-expr="surprised"
+            class="expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80">
+            Surpreso
+          </button>
+          <button type="button" data-expr="celebrate"
+            class="expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80 col-span-2">
+            Comemorando
+          </button>
+        </div>
+      </section>
+
+      <!-- 3) SEÇÃO PERSONALIZAÇÃO (PRESETS + MATERIAIS Mat_*) -->
+      <section class="panel-card p-3.5 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-200">
+            3. Personalização (Mat_*)
+          </h2>
+          <span class="text-[10px] font-semibold text-slate-400">Live &amp; pós-GLB</span>
+        </div>
+
+        <!-- 4 Presets rápidos -->
+        <div class="grid grid-cols-4 gap-1.5">
+          <button type="button" data-preset="madeireira"
+            class="preset-btn px-2 py-1.5 rounded-xl text-[11px] font-bold bg-pink-500/25 border border-pink-400/60 text-pink-100 hover:bg-pink-500/35 transition cursor-pointer">
+            Madeireira
+          </button>
+          <button type="button" data-preset="obra"
+            class="preset-btn px-2 py-1.5 rounded-xl text-[11px] font-bold bg-slate-800/80 border border-slate-700 text-slate-200 hover:bg-slate-700/80 transition cursor-pointer">
+            Obra
+          </button>
+          <button type="button" data-preset="tech"
+            class="preset-btn px-2 py-1.5 rounded-xl text-[11px] font-bold bg-slate-800/80 border border-slate-700 text-slate-200 hover:bg-slate-700/80 transition cursor-pointer">
+            Tech
+          </button>
+          <button type="button" data-preset="fazenda"
+            class="preset-btn px-2 py-1.5 rounded-xl text-[11px] font-bold bg-slate-800/80 border border-slate-700 text-slate-200 hover:bg-slate-700/80 transition cursor-pointer">
+            Fazenda
+          </button>
+        </div>
+
+        <!-- 5 Seletores de cor -->
+        <div class="grid grid-cols-5 gap-2">
+          <label class="flex flex-col items-center gap-1 cursor-pointer">
+            <input id="colCap" type="color" value="#ec4899" />
+            <span class="text-[10px] font-semibold text-slate-300">Boné</span>
+          </label>
+          <label class="flex flex-col items-center gap-1 cursor-pointer">
+            <input id="colShirt" type="color" value="#f8fafc" />
+            <span class="text-[10px] font-semibold text-slate-300">Camiseta</span>
+          </label>
+          <label class="flex flex-col items-center gap-1 cursor-pointer">
+            <input id="colPants" type="color" value="#263175" />
+            <span class="text-[10px] font-semibold text-slate-300">Calça</span>
+          </label>
+          <label class="flex flex-col items-center gap-1 cursor-pointer">
+            <input id="colShoes" type="color" value="#ec4899" />
+            <span class="text-[10px] font-semibold text-slate-300">Tênis</span>
+          </label>
+          <label class="flex flex-col items-center gap-1 cursor-pointer">
+            <input id="colSkin" type="color" value="#f2c29b" />
+            <span class="text-[10px] font-semibold text-slate-300">Pele</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- 4) TESTE DE SOCKETS E MOVIMENTO v2 -->
+      <section class="panel-card p-3.5 flex flex-col gap-3 border-indigo-400/25">
+        <h2 class="text-xs font-extrabold uppercase tracking-wider text-indigo-300">4. Encaixes / Props / Cinemática</h2>
+        <p class="text-[11px] text-slate-400 leading-relaxed">As âncoras são nós nomeados no GLB. O objeto selecionado acompanha a mão, inclusive após reimportação.</p>
+        <label for="propSelect" class="text-[11px] font-semibold text-slate-200">Objeto de teste</label>
+        <select id="propSelect" class="w-full rounded-xl bg-slate-900 border border-slate-700 text-sm text-white p-2.5">
+          <option value="none">Vazio</option>
+          <option value="phone">Celular</option>
+          <option value="clipboard">Prancheta</option>
+          <option value="hammer">Martelo</option>
+        </select>
+        <label for="propSocketSelect" class="text-[11px] font-semibold text-slate-200">Onde segurar</label>
+        <select id="propSocketSelect" class="w-full rounded-xl bg-slate-900 border border-slate-700 text-sm text-white p-2.5">
+          <option value="Socket_Hand_R">Mão direita</option>
+          <option value="Socket_Hand_L">Mão esquerda</option>
+        </select>
+        <label class="flex items-center gap-2 cursor-pointer text-[11px] font-semibold text-slate-200">
+          <input id="helmetToggle" type="checkbox" class="accent-indigo-400" /> Capacete no Socket_Head (oculta boné)
+        </label>
+        <div id="gaitMetrics" class="text-[11px] bg-slate-950/70 rounded-xl border border-slate-700 p-2.5 text-sky-200 leading-relaxed">Walk v2: 73 amostras/s • apoio alternado • IK de joelho • rotação contrária de tronco • atraso nos braços.</div>
+      </section>
+
+      <!-- 5) SEÇÃO EXPORTAR & VALIDAR .GLB (ROUND-TRIP DECISIVO) -->
+      <section class="panel-card p-3.5 flex flex-col gap-2.5 border-emerald-500/25">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+            5. Exportar &amp; Validar .GLB
+          </h2>
+          <span id="glbSizeBadge" class="tabular-nums text-[10.5px] font-bold text-slate-400">
+            Não exportado
+          </span>
+        </div>
+
+        <!-- Botão 1: Exportar .GLB -->
+        <button id="exportGlbBtn" type="button"
+          class="w-full py-2.5 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white text-xs font-extrabold shadow-lg shadow-indigo-950/50 flex items-center justify-center gap-2 transition cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          <span>Exportar .GLB (mascote_crieseuvideo_v2.glb)</span>
+        </button>
+
+        <!-- Botão 2: Validar Último .GLB (Reimportar Agora) -->
+        <button id="validateLastBtn" type="button" disabled
+          class="w-full py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700 border border-emerald-400/40 text-white text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer disabled:cursor-not-allowed">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Validar Último .GLB (Reimportar Agora)</span>
+        </button>
+
+        <!-- Botão 3: Importar Arquivo .GLB do PC -->
+        <div class="grid grid-cols-1 gap-2">
+          <button id="importFileBtn" type="button"
+            class="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600/70 text-slate-100 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer">
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M17 8l-5-5-5 5M12 3v12" />
+            </svg>
+            <span>Importar Arquivo .GLB do PC</span>
+          </button>
+          <input id="glbFileInput" type="file" accept=".glb,.gltf" class="hidden" />
+
+          <!-- Botão 4: Voltar ao Editor Procedural -->
+          <button id="backToEditorBtn" type="button"
+            class="hidden w-full py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span>Voltar ao Editor Procedural</span>
+          </button>
+        </div>
+
+        <!-- 5) PAINEL DE AUDITORIA AUTOMÁTICA DO .GLB IMPORTADO -->
+        <div id="auditPanel" class="mt-1 rounded-xl bg-slate-950/75 border border-slate-700/70 p-3 flex flex-col gap-1.5">
+          <div class="flex items-center justify-between pb-1 border-b border-slate-800">
+            <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-300">
+              Auditoria do .GLB Importado
+            </span>
+            <span id="auditSummaryTag" class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-bold">
+              Aguardando teste
+            </span>
+          </div>
+          <ul id="auditList" class="text-[11px] space-y-1.5 text-slate-400">
+            <li>Exporte o mascote e clique em <strong class="text-slate-200">Validar Último .GLB</strong> (ou importe um .glb do PC) para auditar ossos, SkinnedMesh, animações, expressões e materiais.</li>
+          </ul>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <!-- Toast discreto (substitui alert/confirm) -->
+  <div id="toast"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-slate-900/95 border border-slate-600/70 text-xs font-bold text-white shadow-2xl backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300 text-center max-w-[92vw]">
+    Status
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * CRIESEUVIDEO — LABORATÓRIO DE MASCOTE 3D (.GLB)
+     * ----------------------------------------------------------------------------
+     * Arquitetura 100% autocontida em Three.js r128 UMD:
+     *   1. Loader sequencial resiliente (cdnjs -> jsdelivr -> unpkg) para:
+     *      three.min.js -> GLTFExporter.js -> GLTFLoader.js
+     *   2. Mascote Low-Poly proporcional (~1.74 u, pés em y = 0.000):
+     *      - 19 ossos nomeados (THREE.Bone) sob MascoteRoot
+     *      - Tronco real em THREE.SkinnedMesh + THREE.Skeleton (skins glTF 2.0)
+     *      - Contornos Toon via inverted-hull com winding invertido (100% glTF 2.0)
+     *      - 5 placas faciais (Face_*) com CanvasTexture 256x256 preservadas no GLB
+     *      - 9 materiais padronizados (Mat_*) recoloríveis antes e depois do GLB
+     *   3. 5 AnimationClips (idle, walk, point, talk, celebrate) usando APENAS
+     *      QuaternionKeyframeTrack e VectorKeyframeTrack (glTF 2.0 compliant).
+     *   4. Validação Round-Trip independente: GLTFExporter -> ArrayBuffer ->
+     *      novo GLTFLoader().parse() -> novo AnimationMixer + Auditoria Automática.
+     * ============================================================================
+     */
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. LOADER RESILIENTE THREE.JS r128 UMD (CDNJS -> jsDelivr -> UNPKG)
+      // =========================================================================
+      const SCRIPT_STEPS = [
+        {
+          label: 'Three.js r128',
+          check: function () { return Boolean(window.THREE && typeof window.THREE.WebGLRenderer === 'function'); },
+          urls: [
+            'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+            'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+            'https://unpkg.com/three@0.128.0/build/three.min.js'
+          ]
+        },
+        {
+          label: 'GLTFExporter r128',
+          check: function () { return Boolean(window.THREE && typeof window.THREE.GLTFExporter === 'function'); },
+          urls: [
+            'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/exporters/GLTFExporter.js',
+            'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js',
+            'https://unpkg.com/three@0.128.0/examples/js/exporters/GLTFExporter.js'
+          ]
+        },
+        {
+          label: 'GLTFLoader r128',
+          check: function () { return Boolean(window.THREE && typeof window.THREE.GLTFLoader === 'function'); },
+          urls: [
+            'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js',
+            'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js',
+            'https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js'
+          ]
+        }
+      ];
+
+      const loaderOverlay = document.getElementById('loaderOverlay');
+      const loaderSpinner = document.getElementById('loaderSpinner');
+      const loaderTitle   = document.getElementById('loaderTitle');
+      const loaderDetail  = document.getElementById('loaderDetail');
+      const retryBootBtn  = document.getElementById('retryBootBtn');
+
+      function loadScriptTag(url, timeoutMs) {
+        return new Promise(function (resolve, reject) {
+          const s = document.createElement('script');
+          s.src = url;
+          s.async = true;
+          let done = false;
+
+          const timer = setTimeout(function () {
+            if (done) return;
+            done = true;
+            try { s.remove(); } catch (e) {}
+            reject(new Error('Timeout: ' + url));
+          }, timeoutMs);
+
+          s.onload = function () {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve();
+          };
+
+          s.onerror = function () {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            try { s.remove(); } catch (e) {}
+            reject(new Error('Falha de rede: ' + url));
+          };
+
+          document.head.appendChild(s);
+        });
+      }
+
+      async function loadThreeSuite() {
+        for (let i = 0; i < SCRIPT_STEPS.length; i++) {
+          const step = SCRIPT_STEPS[i];
+          if (step.check()) continue;
+          let loaded = false;
+          for (let u = 0; u < step.urls.length; u++) {
+            loaderDetail.textContent = 'Carregando ' + step.label + ' (servidor ' + (u + 1) + '/' + step.urls.length + ')...';
+            try {
+              await loadScriptTag(step.urls[u], 7000);
+              if (step.check()) {
+                loaded = true;
+                break;
+              }
+            } catch (err) {
+              // Tenta o próximo CDN na cadeia
+            }
+          }
+          if (!loaded) return { ok: false, missing: step.label };
+        }
+        return { ok: true };
+      }
+
+      function showBootError(title, detail) {
+        loaderOverlay.style.display = 'flex';
+        loaderOverlay.style.opacity = '1';
+        loaderSpinner.classList.add('hidden');
+        loaderTitle.textContent = title;
+        loaderDetail.textContent = detail;
+        retryBootBtn.classList.remove('hidden');
+      }
+
+      function hideBootOverlay() {
+        loaderOverlay.style.opacity = '0';
+        setTimeout(function () { loaderOverlay.style.display = 'none'; }, 300);
+      }
+
+      // =========================================================================
+      // 2. CONSTANTES DE PRESETS, MATERIAIS E EXPRESSÕES
+      // =========================================================================
+      const PRESETS = {
+        madeireira: {
+          label: 'Madeireira',
+          Mat_Cap: '#ec4899',
+          Mat_Shirt: '#f8fafc',
+          Mat_ShirtAccent: '#7c3aed',
+          Mat_Pants: '#263175',
+          Mat_Shoes: '#ec4899',
+          Mat_Sole: '#f8fafc',
+          Mat_Skin: '#f2c29b',
+          Mat_Hair: '#4a3222'
+        },
+        obra: {
+          label: 'Obra',
+          Mat_Cap: '#facc15',
+          Mat_Shirt: '#f97316',
+          Mat_ShirtAccent: '#fde047',
+          Mat_Pants: '#334155',
+          Mat_Shoes: '#78350f',
+          Mat_Sole: '#e2e8f0',
+          Mat_Skin: '#e8b38a',
+          Mat_Hair: '#2c1e16'
+        },
+        tech: {
+          label: 'Tech',
+          Mat_Cap: '#6366f1',
+          Mat_Shirt: '#1e293b',
+          Mat_ShirtAccent: '#38bdf8',
+          Mat_Pants: '#0f172a',
+          Mat_Shoes: '#38bdf8',
+          Mat_Sole: '#f8fafc',
+          Mat_Skin: '#f5cba7',
+          Mat_Hair: '#1f2430'
+        },
+        fazenda: {
+          label: 'Fazenda',
+          Mat_Cap: '#d97706',
+          Mat_Shirt: '#dc2626',
+          Mat_ShirtAccent: '#fbbf24',
+          Mat_Pants: '#1d4ed8',
+          Mat_Shoes: '#5c3a21',
+          Mat_Sole: '#e7e5e4',
+          Mat_Skin: '#eab68c',
+          Mat_Hair: '#3d2817'
+        }
+      };
+
+      const EXPRESSION_KEYS = ['neutral', 'happy', 'talk', 'surprised', 'celebrate'];
+      const EXPECTED_MATERIALS = [
+        'Mat_Cap', 'Mat_Shirt', 'Mat_ShirtAccent', 'Mat_Pants',
+        'Mat_Shoes', 'Mat_Sole', 'Mat_Skin', 'Mat_Hair', 'Mat_Outline'
+      ];
+      const ANIM_NAMES = ['idle', 'walk', 'point', 'talk', 'celebrate'];
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      // =========================================================================
+      // 3. UTILITÁRIOS DE GEOMETRIA (CONTORNO TOON INVERTED-HULL glTF 2.0)
+      // =========================================================================
+      /**
+       * Gera uma malha de contorno toon 100% compatível com glTF 2.0:
+       * 1) Calcula normais suaves médias por posição de vértice (evita frestas em cantos);
+       * 2) Infla os vértices ao longo das normais em `thickness`;
+       * 3) Inverte o winding dos triângulos (e nega normais) para usar THREE.FrontSide!
+       *    (Como glTF 2.0 não tem flag BackSide, winding invertido + FrontSide
+       *     preserva perfeitamente o efeito inverted-hull após exportação e reimportação.)
+       */
+      function createInvertedHullGeometry(sourceGeo, thickness) {
+        const geo = sourceGeo.clone();
+        const pos = geo.attributes.position;
+        if (!pos) return geo;
+
+        // Garante normais de vértice
+        geo.computeVertexNormals();
+        const norm = geo.attributes.normal;
+
+        // Média de normais por posição quantizada para contorno selado sem frestas
+        const acc = Object.create(null);
+        for (let i = 0; i < pos.count; i++) {
+          const key =
+            Math.round(pos.getX(i) * 1000) + ',' +
+            Math.round(pos.getY(i) * 1000) + ',' +
+            Math.round(pos.getZ(i) * 1000);
+          if (!acc[key]) acc[key] = [0, 0, 0];
+          acc[key][0] += norm.getX(i);
+          acc[key][1] += norm.getY(i);
+          acc[key][2] += norm.getZ(i);
+        }
+
+        for (let i = 0; i < pos.count; i++) {
+          const key =
+            Math.round(pos.getX(i) * 1000) + ',' +
+            Math.round(pos.getY(i) * 1000) + ',' +
+            Math.round(pos.getZ(i) * 1000);
+          const v = acc[key];
+          const len = Math.hypot(v[0], v[1], v[2]) || 1;
+          const nx = v[0] / len;
+          const ny = v[1] / len;
+          const nz = v[2] / len;
+          pos.setXYZ(
+            i,
+            pos.getX(i) + nx * thickness,
+            pos.getY(i) + ny * thickness,
+            pos.getZ(i) + nz * thickness
+          );
+          norm.setXYZ(i, -nx, -ny, -nz);
+        }
+        pos.needsUpdate = true;
+        norm.needsUpdate = true;
+
+        // Inverte o winding de cada triângulo
+        if (geo.index) {
+          const idx = geo.index.array;
+          for (let i = 0; i < idx.length; i += 3) {
+            const tmp = idx[i + 1];
+            idx[i + 1] = idx[i + 2];
+            idx[i + 2] = tmp;
+          }
+          geo.index.needsUpdate = true;
+        } else {
+          // Geometria não-indexada: troca vértice i+1 e i+2 em todos os atributos
+          const attrs = geo.attributes;
+          const attrNames = Object.keys(attrs);
+          for (let i = 0; i < pos.count; i += 3) {
+            for (let a = 0; a < attrNames.length; a++) {
+              const attr = attrs[attrNames[a]];
+              const sz = attr.itemSize;
+              for (let c = 0; c < sz; c++) {
+                const i1 = (i + 1) * sz + c;
+                const i2 = (i + 2) * sz + c;
+                const tmp = attr.array[i1];
+                attr.array[i1] = attr.array[i2];
+                attr.array[i2] = tmp;
+              }
+            }
+          }
+          for (let a = 0; a < attrNames.length; a++) {
+            attrs[attrNames[a]].needsUpdate = true;
+          }
+        }
+
+        return geo;
+      }
+
+      // =========================================================================
+      // 4. TEXTURAS FACIAIS PROCEDURAIS 256x256 (CANVAS 2D -> PNG NO .GLB)
+      // =========================================================================
+      function createFaceTexture(expression) {
+        const c = document.createElement('canvas');
+        c.width = 256;
+        c.height = 256;
+        const g = c.getContext('2d');
+        g.clearRect(0, 0, 256, 256);
+
+        const ink = '#171a2b';
+        const blush = 'rgba(244, 114, 182, 0.34)';
+        const white = '#ffffff';
+        const mouthBg = '#881337';
+        const tongue = '#fb7185';
+
+        // Bochechas sutis
+        function drawBlush(alphaMult) {
+          g.fillStyle = blush;
+          g.globalAlpha = alphaMult || 1;
+          g.beginPath(); g.ellipse(54, 146, 20, 11, 0, 0, Math.PI * 2); g.fill();
+          g.beginPath(); g.ellipse(202, 146, 20, 11, 0, 0, Math.PI * 2); g.fill();
+          g.globalAlpha = 1;
+        }
+
+        // Olhos redondos estilizados com brilho
+        function drawRoundEyes(radiusY, pupilOffsetY) {
+          const xs = [84, 172];
+          for (let i = 0; i < 2; i++) {
+            const ex = xs[i];
+            const ey = 112;
+            g.fillStyle = ink;
+            g.beginPath();
+            g.ellipse(ex, ey, 16, radiusY || 19, 0, 0, Math.PI * 2);
+            g.fill();
+
+            // Brilho principal e secundário
+            g.fillStyle = white;
+            g.beginPath();
+            g.arc(ex - 5, ey - 6 + (pupilOffsetY || 0), 5.5, 0, Math.PI * 2);
+            g.fill();
+            g.beginPath();
+            g.arc(ex + 5, ey + 5 + (pupilOffsetY || 0), 2.5, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+
+        // Olhos felizes em arco (^)
+        function drawHappyArcEyes() {
+          g.strokeStyle = ink;
+          g.lineWidth = 10;
+          g.lineCap = 'round';
+          const xs = [84, 172];
+          for (let i = 0; i < 2; i++) {
+            g.beginPath();
+            g.arc(xs[i], 122, 19, Math.PI * 1.12, Math.PI * 1.88);
+            g.stroke();
+          }
+        }
+
+        // Sobrancelhas
+        function drawBrows(yOffset, tilt) {
+          g.strokeStyle = ink;
+          g.lineWidth = 8;
+          g.lineCap = 'round';
+          // Esquerda (do observador)
+          g.beginPath();
+          g.moveTo(64, 78 + yOffset + tilt);
+          g.quadraticCurveTo(84, 70 + yOffset, 102, 78 + yOffset - tilt);
+          g.stroke();
+          // Direita
+          g.beginPath();
+          g.moveTo(154, 78 + yOffset - tilt);
+          g.quadraticCurveTo(172, 70 + yOffset, 192, 78 + yOffset + tilt);
+          g.stroke();
+        }
+
+        if (expression === 'neutral') {
+          drawBlush(0.75);
+          drawBrows(0, 0);
+          drawRoundEyes(18, 0);
+          // Sorriso leve confiante
+          g.strokeStyle = ink;
+          g.lineWidth = 8.5;
+          g.lineCap = 'round';
+          g.beginPath();
+          g.moveTo(100, 174);
+          g.quadraticCurveTo(128, 192, 156, 174);
+          g.stroke();
+        } else if (expression === 'happy') {
+          drawBlush(1.15);
+          drawBrows(-6, 3);
+          drawHappyArcEyes();
+          // Sorriso aberto simpático
+          g.fillStyle = mouthBg;
+          g.strokeStyle = ink;
+          g.lineWidth = 7;
+          g.beginPath();
+          g.moveTo(90, 164);
+          g.quadraticCurveTo(128, 168, 166, 164);
+          g.quadraticCurveTo(162, 208, 128, 208);
+          g.quadraticCurveTo(94, 208, 90, 164);
+          g.closePath();
+          g.fill();
+          g.stroke();
+          // Língua
+          g.fillStyle = tongue;
+          g.beginPath();
+          g.ellipse(128, 197, 18, 8, 0, 0, Math.PI * 2);
+          g.fill();
+        } else if (expression === 'talk') {
+          drawBlush(0.85);
+          drawBrows(-4, 2);
+          drawRoundEyes(19, -1);
+          // Boca oval falando com dentes superiores
+          g.fillStyle = mouthBg;
+          g.strokeStyle = ink;
+          g.lineWidth = 7;
+          g.beginPath();
+          g.ellipse(128, 182, 24, 19, 0, 0, Math.PI * 2);
+          g.fill();
+          // Dentes
+          g.fillStyle = white;
+          g.beginPath();
+          g.roundRect ? g.roundRect(109, 166, 38, 10, 4) : g.rect(109, 166, 38, 10);
+          g.fill();
+          // Língua
+          g.fillStyle = tongue;
+          g.beginPath();
+          g.ellipse(128, 194, 14, 6, 0, 0, Math.PI * 2);
+          g.fill();
+          // Contorno boca
+          g.strokeStyle = ink;
+          g.lineWidth = 7;
+          g.beginPath();
+          g.ellipse(128, 182, 24, 19, 0, 0, Math.PI * 2);
+          g.stroke();
+        } else if (expression === 'surprised') {
+          drawBlush(0.95);
+          drawBrows(-15, 0);
+          // Olhos bem abertos
+          const xs = [84, 172];
+          for (let i = 0; i < 2; i++) {
+            g.fillStyle = white;
+            g.strokeStyle = ink;
+            g.lineWidth = 6.5;
+            g.beginPath(); g.arc(xs[i], 112, 22, 0, Math.PI * 2); g.fill(); g.stroke();
+            g.fillStyle = ink;
+            g.beginPath(); g.arc(xs[i], 112, 10, 0, Math.PI * 2); g.fill();
+            g.fillStyle = white;
+            g.beginPath(); g.arc(xs[i] - 4, 108, 3.8, 0, Math.PI * 2); g.fill();
+          }
+          // Boca "O"
+          g.fillStyle = mouthBg;
+          g.strokeStyle = ink;
+          g.lineWidth = 7.5;
+          g.beginPath();
+          g.ellipse(128, 184, 16, 21, 0, 0, Math.PI * 2);
+          g.fill();
+          g.stroke();
+        } else if (expression === 'celebrate') {
+          drawBlush(1.3);
+          drawBrows(-10, 4);
+          drawHappyArcEyes();
+          // Estrelinhas sutis nas bochechas
+          g.fillStyle = '#facc15';
+          const stars = [[42, 128], [214, 128]];
+          for (let i = 0; i < 2; i++) {
+            const sx = stars[i][0], sy = stars[i][1];
+            g.beginPath();
+            g.moveTo(sx, sy - 9); g.lineTo(sx + 3, sy - 3);
+            g.lineTo(sx + 9, sy); g.lineTo(sx + 3, sy + 3);
+            g.lineTo(sx, sy + 9); g.lineTo(sx - 3, sy + 3);
+            g.lineTo(sx - 9, sy); g.lineTo(sx - 3, sy - 3);
+            g.closePath();
+            g.fill();
+          }
+          // Sorriso largo comemorando
+          g.fillStyle = mouthBg;
+          g.strokeStyle = ink;
+          g.lineWidth = 7;
+          g.beginPath();
+          g.moveTo(84, 160);
+          g.quadraticCurveTo(128, 166, 172, 160);
+          g.quadraticCurveTo(168, 214, 128, 214);
+          g.quadraticCurveTo(88, 214, 84, 160);
+          g.closePath();
+          g.fill();
+          g.fillStyle = white;
+          g.fillRect(98, 164, 60, 12);
+          g.fillStyle = tongue;
+          g.beginPath(); g.ellipse(128, 200, 22, 9, 0, 0, Math.PI * 2); g.fill();
+          g.strokeStyle = ink;
+          g.beginPath();
+          g.moveTo(84, 160);
+          g.quadraticCurveTo(128, 166, 172, 160);
+          g.quadraticCurveTo(168, 214, 128, 214);
+          g.quadraticCurveTo(88, 214, 84, 160);
+          g.closePath();
+          g.stroke();
+        }
+
+        const tex = new THREE.CanvasTexture(c);
+        tex.encoding = THREE.sRGBEncoding;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      // =========================================================================
+      // 5. CONSTRUTOR DO MASCOTE 3D PROCEDURAL (19 BONES + SKINNED MESH REAL)
+      // =========================================================================
+      function buildProceduralMascot(initialPalette) {
+        const palette = initialPalette || PRESETS.madeireira;
+        const root = new THREE.Group();
+        root.name = 'MascoteRoot';
+
+        // ---------------------------------------------------------------------
+        // 5.1 Materiais Padronizados glTF 2.0 (nomes preservados no .glb)
+        // ---------------------------------------------------------------------
+        function stdMat(name, hex, rough, metal) {
+          return new THREE.MeshStandardMaterial({
+            name: name,
+            color: hex,
+            roughness: rough !== undefined ? rough : 0.86,
+            metalness: metal !== undefined ? metal : 0.04
+          });
+        }
+
+        const mats = {
+          Mat_Cap:         stdMat('Mat_Cap',         palette.Mat_Cap,         0.84, 0.04),
+          Mat_Shirt:       stdMat('Mat_Shirt',       palette.Mat_Shirt,       0.88, 0.03),
+          Mat_ShirtAccent: stdMat('Mat_ShirtAccent', palette.Mat_ShirtAccent, 0.82, 0.06),
+          Mat_Pants:       stdMat('Mat_Pants',       palette.Mat_Pants,       0.88, 0.04),
+          Mat_Shoes:       stdMat('Mat_Shoes',       palette.Mat_Shoes,       0.80, 0.05),
+          Mat_Sole:        stdMat('Mat_Sole',        palette.Mat_Sole,        0.86, 0.02),
+          Mat_Skin:        stdMat('Mat_Skin',        palette.Mat_Skin,        0.84, 0.02),
+          Mat_Hair:        stdMat('Mat_Hair',        palette.Mat_Hair,        0.90, 0.03),
+          Mat_Outline:     new THREE.MeshBasicMaterial({
+            name: 'Mat_Outline',
+            color: '#171a2b',
+            side: THREE.FrontSide // Winding invertido na geometria -> 100% glTF 2.0!
+          })
+        };
+
+        // Helper para criar malha + contorno toon opcional como filho
+        function addPart(parent, name, geo, mat, pos, rot, scale, outlineThickness) {
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.name = name;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          if (pos) mesh.position.set(pos[0], pos[1], pos[2]);
+          if (rot) mesh.rotation.set(rot[0], rot[1], rot[2]);
+          if (scale) mesh.scale.set(scale[0], scale[1], scale[2]);
+          parent.add(mesh);
+
+          if (outlineThickness && outlineThickness > 0) {
+            const oGeo = createInvertedHullGeometry(geo, outlineThickness);
+            const oMesh = new THREE.Mesh(oGeo, mats.Mat_Outline);
+            oMesh.name = 'Outline_' + name;
+            oMesh.castShadow = false;
+            oMesh.receiveShadow = false;
+            mesh.add(oMesh);
+          }
+          return mesh;
+        }
+
+        // ---------------------------------------------------------------------
+        // 5.2 Hierarquia Real de Ossos (THREE.Bone)
+        //     Sistema de coordenadas: personagem olha para +Z.
+        //     +X = esquerda do personagem | -X = direita do personagem
+        // ---------------------------------------------------------------------
+        function makeBone(name, parent, x, y, z) {
+          const b = new THREE.Bone();
+          b.name = name;
+          b.position.set(x, y, z);
+          b.userData.restPos = [x, y, z];
+          parent.add(b);
+          return b;
+        }
+
+        const Hips      = makeBone('Hips',      root,      0,      0.78, 0);
+        const Spine     = makeBone('Spine',     Hips,      0,      0.16, 0); // world y = 0.94
+        const Chest     = makeBone('Chest',     Spine,     0,      0.18, 0); // world y = 1.12
+        const Neck      = makeBone('Neck',      Chest,     0,      0.13, 0); // world y = 1.25
+        const Head      = makeBone('Head',      Neck,      0,      0.09, 0); // world y = 1.34
+
+        // Braço Esquerdo (+X)
+        const ShoulderL = makeBone('ShoulderL', Chest,     0.17,   0.06, 0); // world (0.17, 1.18, 0)
+        const UpperArmL = makeBone('UpperArmL', ShoulderL, 0.085, -0.02, 0); // world (0.255, 1.16, 0)
+        const LowerArmL = makeBone('LowerArmL', UpperArmL, 0,     -0.23, 0); // world (0.255, 0.93, 0)
+        const HandL     = makeBone('HandL',     LowerArmL, 0,     -0.22, 0); // world (0.255, 0.71, 0)
+
+        // Braço Direito (-X)
+        const ShoulderR = makeBone('ShoulderR', Chest,    -0.17,   0.06, 0); // world (-0.17, 1.18, 0)
+        const UpperArmR = makeBone('UpperArmR', ShoulderR,-0.085, -0.02, 0); // world (-0.255, 1.16, 0)
+        const LowerArmR = makeBone('LowerArmR', UpperArmR, 0,     -0.23, 0); // world (-0.255, 0.93, 0)
+        const HandR     = makeBone('HandR',     LowerArmR, 0,     -0.22, 0); // world (-0.255, 0.71, 0)
+
+        // Perna Esquerda (+X): world y = 0.76 -> 0.42 -> 0.08 (sola em y = 0.000)
+        const UpperLegL = makeBone('UpperLegL', Hips,      0.115, -0.02, 0);
+        const LowerLegL = makeBone('LowerLegL', UpperLegL, 0,     -0.34, 0);
+        const FootL     = makeBone('FootL',     LowerLegL, 0,     -0.34, 0);
+
+        // Perna Direita (-X)
+        const UpperLegR = makeBone('UpperLegR', Hips,     -0.115, -0.02, 0);
+        const LowerLegR = makeBone('LowerLegR', UpperLegR, 0,     -0.34, 0);
+        const FootR     = makeBone('FootR',     LowerLegR, 0,     -0.34, 0);
+
+        // Array completo de ossos para THREE.Skeleton (índices 0 = Hips, 1 = Spine, 2 = Chest)
+        const bones = [
+          Hips, Spine, Chest, Neck, Head,
+          ShoulderL, UpperArmL, LowerArmL, HandL,
+          ShoulderR, UpperArmR, LowerArmR, HandR,
+          UpperLegL, LowerLegL, FootL,
+          UpperLegR, LowerLegR, FootR
+        ];
+
+        // ---------------------------------------------------------------------
+        // 5.3 TRONCO / CAMISETA COMO THREE.SkinnedMesh REAL (exporta glTF skins)
+        //     Perfil escultórico afunilado (y = 0.78 a 1.24) com pesos suaves
+        //     entre Hips (0), Spine (1) e Chest (2), soma exata = 1.0.
+        // ---------------------------------------------------------------------
+        function buildSkinnedTorsoGeometry() {
+          // Perfil Lathe estilizado (cintura/barra -> peito -> ombros suaves -> gola)
+          const profile = [
+            new THREE.Vector2(0.001, 0.775),
+            new THREE.Vector2(0.185, 0.775), // barra inferior da camiseta
+            new THREE.Vector2(0.205, 0.800), // volume do quadril/barra
+            new THREE.Vector2(0.195, 0.890), // cintura suave
+            new THREE.Vector2(0.206, 1.000), // meio do tronco
+            new THREE.Vector2(0.214, 1.120), // peito
+            new THREE.Vector2(0.198, 1.200), // curvatura dos ombros
+            new THREE.Vector2(0.115, 1.242), // base do pescoço/gola
+            new THREE.Vector2(0.001, 1.245)
+          ];
+          const geo = new THREE.LatheGeometry(profile, 20);
+          // Achata levemente no eixo Z para proporção anatômica estilizada (mais largo que profundo)
+          geo.scale(1.06, 1.0, 0.76);
+          geo.computeVertexNormals();
+
+          const pos = geo.attributes.position;
+          const count = pos.count;
+          const skinIndices = new Uint16Array(count * 4);
+          const skinWeights = new Float32Array(count * 4);
+
+          function smoothstep(e0, e1, x) {
+            const t = clamp((x - e0) / (e1 - e0), 0, 1);
+            return t * t * (3 - 2 * t);
+          }
+
+          for (let i = 0; i < count; i++) {
+            const y = pos.getY(i);
+            let wHips = 0, wSpine = 0, wChest = 0;
+
+            if (y <= 0.94) {
+              // Transição suave entre Hips (0.78) e Spine (0.94)
+              const t = smoothstep(0.78, 0.94, y);
+              wHips = 1 - t;
+              wSpine = t;
+            } else {
+              // Transição suave entre Spine (0.94) e Chest (1.12)
+              const t = smoothstep(0.94, 1.13, y);
+              wSpine = 1 - t;
+              wChest = t;
+            }
+
+            // Normalização estrita (soma = 1.000000)
+            const sum = wHips + wSpine + wChest || 1;
+            skinIndices[i * 4 + 0] = 0; // Hips
+            skinIndices[i * 4 + 1] = 1; // Spine
+            skinIndices[i * 4 + 2] = 2; // Chest
+            skinIndices[i * 4 + 3] = 0;
+
+            skinWeights[i * 4 + 0] = wHips / sum;
+            skinWeights[i * 4 + 1] = wSpine / sum;
+            skinWeights[i * 4 + 2] = wChest / sum;
+            skinWeights[i * 4 + 3] = 0;
+          }
+
+          geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+          geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+          return geo;
+        }
+
+        const torsoGeo = buildSkinnedTorsoGeometry();
+        const torsoMesh = new THREE.SkinnedMesh(torsoGeo, mats.Mat_Shirt);
+        torsoMesh.name = 'Torso_Skinned';
+        torsoMesh.castShadow = true;
+        torsoMesh.receiveShadow = true;
+        torsoMesh.frustumCulled = false;
+        root.add(torsoMesh);
+
+        // Contorno Toon também Skinned para acompanhar perfeitamente o tronco
+        const torsoOutlineGeo = createInvertedHullGeometry(torsoGeo, 0.013);
+        const torsoOutlineMesh = new THREE.SkinnedMesh(torsoOutlineGeo, mats.Mat_Outline);
+        torsoOutlineMesh.name = 'Outline_Torso';
+        torsoOutlineMesh.castShadow = false;
+        torsoOutlineMesh.receiveShadow = false;
+        torsoOutlineMesh.frustumCulled = false;
+        root.add(torsoOutlineMesh);
+
+        // Cria o THREE.Skeleton real e vincula após atualizar matrizes de mundo
+        root.updateMatrixWorld(true);
+        const skeleton = new THREE.Skeleton(bones);
+        torsoMesh.bind(skeleton);
+        torsoOutlineMesh.bind(skeleton);
+
+        // ---------------------------------------------------------------------
+        // 5.4 DETALHES DO TRONCO E QUADRIL (GOLA, EMBLEMA E CALÇA/QUADRIL)
+        // ---------------------------------------------------------------------
+        // Gola esportiva estilizada no Chest (world y ~ 1.24)
+        addPart(
+          Chest, 'Collar_Accent',
+          new THREE.TorusGeometry(0.102, 0.022, 8, 18),
+          mats.Mat_ShirtAccent,
+          [0, 0.122, 0.004], [Math.PI / 2, 0, 0], [1.05, 0.85, 1.0], 0
+        );
+
+        // Emblema circular estiloso no peito (inspirado na Madeireira, original do CrieSeuVideo)
+        addPart(
+          Chest, 'Chest_Badge',
+          new THREE.CylinderGeometry(0.058, 0.058, 0.016, 14),
+          mats.Mat_ShirtAccent,
+          [0, -0.02, 0.158], [Math.PI / 2, 0, 0], [1, 1, 1], 0
+        );
+        addPart(
+          Chest, 'Chest_Badge_Core',
+          new THREE.CylinderGeometry(0.032, 0.032, 0.018, 12),
+          mats.Mat_Cap,
+          [0, -0.02, 0.162], [Math.PI / 2, 0, 0], [1, 1, 1], 0
+        );
+
+        // Quadril / Bermuda-Calça no Hips (cobre perfeitamente a junção com as pernas)
+        addPart(
+          Hips, 'Pelvis_Pants',
+          new THREE.CylinderGeometry(0.195, 0.175, 0.165, 16),
+          mats.Mat_Pants,
+          [0, -0.035, 0], null, [1.06, 1.0, 0.78], 0.012
+        );
+        // Cós / detalhe na cintura
+        addPart(
+          Hips, 'Waist_Trim',
+          new THREE.CylinderGeometry(0.200, 0.200, 0.036, 16),
+          mats.Mat_ShirtAccent,
+          [0, 0.028, 0], null, [1.06, 1.0, 0.79], 0
+        );
+
+        // ---------------------------------------------------------------------
+        // 5.5 PESCOÇO, CABEÇA, CABELO, BONÉ ESPORTIVO E 5 EXPRESSÕES (Face_*)
+        // ---------------------------------------------------------------------
+        addPart(
+          Neck, 'Neck_Mesh',
+          new THREE.CylinderGeometry(0.068, 0.076, 0.12, 12),
+          mats.Mat_Skin,
+          [0, 0.04, 0], null, null, 0.009
+        );
+
+        // Cabeça estilizada (centro em local y = 0.175 -> world y = 1.515)
+        const HEAD_CY = 0.175;
+        const HEAD_R = 0.198;
+        const HEAD_SCALE = [1.03, 0.98, 0.96];
+
+        addPart(
+          Head, 'Head_Mesh',
+          new THREE.SphereGeometry(HEAD_R, 20, 16),
+          mats.Mat_Skin,
+          [0, HEAD_CY, 0], null, HEAD_SCALE, 0.013
+        );
+
+        // Orelhas estilizadas
+        const earGeo = new THREE.SphereGeometry(0.046, 10, 8);
+        addPart(Head, 'Ear_L', earGeo, mats.Mat_Skin, [ 0.196, HEAD_CY - 0.01, -0.005], null, [0.75, 1.05, 0.7], 0.009);
+        addPart(Head, 'Ear_R', earGeo, mats.Mat_Skin, [-0.196, HEAD_CY - 0.01, -0.005], null, [0.75, 1.05, 0.7], 0.009);
+
+        // Nariz discreto cartoon
+        addPart(
+          Head, 'Nose_Mesh',
+          new THREE.SphereGeometry(0.025, 10, 8),
+          mats.Mat_Skin,
+          [0, HEAD_CY - 0.012, 0.192], null, [1.05, 0.85, 0.9], 0.005
+        );
+
+        // Cabelo traseiro e costeletas discretas sob o boné
+        addPart(
+          Head, 'Hair_Back',
+          new THREE.SphereGeometry(HEAD_R * 1.03, 16, 12, 0, Math.PI * 2, 0.35, 1.55),
+          mats.Mat_Hair,
+          [0, HEAD_CY + 0.01, -0.022], [0.22, 0, 0], [1.02, 0.96, 0.95], 0.010
+        );
+        const sideburnGeo = new THREE.BoxGeometry(0.032, 0.08, 0.055);
+        addPart(Head, 'Hair_SideL', sideburnGeo, mats.Mat_Hair, [ 0.182, HEAD_CY + 0.03, 0.04], [0, 0, -0.1], null, 0);
+        addPart(Head, 'Hair_SideR', sideburnGeo, mats.Mat_Hair, [-0.182, HEAD_CY + 0.03, 0.04], [0, 0,  0.1], null, 0);
+
+        // Boné esportivo estilizado (copa + aba curva + botão no topo + faixa frontal)
+        const capGroup = new THREE.Group();
+        capGroup.name = 'Cap_Group';
+        capGroup.position.set(0, HEAD_CY + 0.025, 0);
+        capGroup.rotation.x = -0.14; // Levemente inclinado para trás para valorizar o rosto
+        Head.add(capGroup);
+
+        // Copa do boné (semiesfera)
+        addPart(
+          capGroup, 'Cap_Crown',
+          new THREE.SphereGeometry(HEAD_R * 1.08, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.54),
+          mats.Mat_Cap,
+          [0, 0.005, 0], null, [1.03, 0.94, 1.00], 0.012
+        );
+
+        // Faixa/base do boné
+        addPart(
+          capGroup, 'Cap_Band',
+          new THREE.CylinderGeometry(HEAD_R * 1.07, HEAD_R * 1.08, 0.038, 18, 1, true),
+          mats.Mat_ShirtAccent,
+          [0, 0.006, 0], null, [1.03, 1.0, 1.00], 0
+        );
+
+        // Botão no topo do boné (topo final ~ y = 1.74!)
+        addPart(
+          capGroup, 'Cap_Button',
+          new THREE.SphereGeometry(0.026, 10, 8),
+          mats.Mat_ShirtAccent,
+          [0, HEAD_R * 1.01, 0], null, [1, 0.65, 1], 0.006
+        );
+
+        // Aba curva do boné (cilindro achatado/ovalado projetado para +Z)
+        const visorGeo = new THREE.CylinderGeometry(0.185, 0.195, 0.022, 16, 1, false, -Math.PI * 0.42, Math.PI * 0.84);
+        addPart(
+          capGroup, 'Cap_Visor',
+          visorGeo,
+          mats.Mat_Cap,
+          [0, 0.008, 0.145], [0.06, 0, 0], [1.02, 1.0, 0.92], 0.009
+        );
+
+        // 5 PLACAS FACIAIS INTERCAMBIÁVEIS (Face_neutral ... Face_celebrate)
+        // Patch esférico concêntrico com a cabeça (r = HEAD_R + 0.009) -> zero clipping/z-fighting!
+        const facePatchGeo = new THREE.SphereGeometry(
+          HEAD_R + 0.009, 14, 12,
+          Math.PI * 0.5 - 0.56, 1.12,   // phi centrado no +Z
+          Math.PI * 0.5 - 0.46, 0.92    // theta centrado nos olhos/boca
+        );
+
+        for (let i = 0; i < EXPRESSION_KEYS.length; i++) {
+          const exprKey = EXPRESSION_KEYS[i];
+          const tex = createFaceTexture(exprKey);
+          const fMat = new THREE.MeshBasicMaterial({
+            name: 'Mat_Face_' + exprKey,
+            map: tex,
+            transparent: true,
+            alphaTest: 0.04,
+            depthWrite: false
+          });
+          const fMesh = new THREE.Mesh(facePatchGeo, fMat);
+          fMesh.name = 'Face_' + exprKey;
+          fMesh.position.set(0, HEAD_CY, 0);
+          const isDefault = exprKey === 'neutral';
+          fMesh.scale.set(
+            HEAD_SCALE[0] * (isDefault ? 1 : 0.0001),
+            HEAD_SCALE[1] * (isDefault ? 1 : 0.0001),
+            HEAD_SCALE[2] * (isDefault ? 1 : 0.0001)
+          );
+          fMesh.userData.baseScale = HEAD_SCALE.slice();
+          Head.add(fMesh);
+        }
+
+        // ---------------------------------------------------------------------
+        // 5.6 BRAÇOS COM MANGAS, ANTEBRAÇOS E MÃOS (HandR COM DEDO INDICADOR)
+        // ---------------------------------------------------------------------
+        function buildArm(side, shoulderBone, upperBone, lowerBone, handBone) {
+          const sgn = side === 'L' ? 1 : -1;
+
+          // Ombro arredondado em manga (cobre a junção com o tronco)
+          addPart(
+            shoulderBone, 'ShoulderCap_' + side,
+            new THREE.SphereGeometry(0.076, 12, 10),
+            mats.Mat_Shirt,
+            [sgn * 0.04, -0.01, 0], null, [1.05, 0.95, 0.95], 0.010
+          );
+
+          // Manga curta no UpperArm
+          addPart(
+            upperBone, 'Sleeve_' + side,
+            new THREE.CylinderGeometry(0.068, 0.064, 0.13, 12),
+            mats.Mat_Shirt,
+            [0, -0.055, 0], null, null, 0.010
+          );
+          // Detalhe de punho da manga
+          addPart(
+            upperBone, 'SleeveTrim_' + side,
+            new THREE.CylinderGeometry(0.066, 0.066, 0.022, 12),
+            mats.Mat_ShirtAccent,
+            [0, -0.118, 0], null, null, 0
+          );
+          // Braço (pele) abaixo da manga até o cotovelo
+          addPart(
+            upperBone, 'Bicep_' + side,
+            new THREE.CylinderGeometry(0.052, 0.048, 0.12, 12),
+            mats.Mat_Skin,
+            [0, -0.175, 0], null, null, 0.009
+          );
+
+          // Cotovelo arredondado + Antebraço (LowerArm)
+          addPart(
+            lowerBone, 'Elbow_' + side,
+            new THREE.SphereGeometry(0.049, 10, 8),
+            mats.Mat_Skin,
+            [0, 0, 0], null, null, 0.008
+          );
+          addPart(
+            lowerBone, 'Forearm_' + side,
+            new THREE.CylinderGeometry(0.047, 0.041, 0.21, 12),
+            mats.Mat_Skin,
+            [0, -0.11, 0], null, null, 0.009
+          );
+
+          // Mão estilizada (Hand)
+          addPart(
+            handBone, 'Palm_' + side,
+            new THREE.SphereGeometry(0.054, 12, 10),
+            mats.Mat_Skin,
+            [0, -0.038, 0.008], null, [0.92, 1.05, 0.72], 0.009
+          );
+          // Polegar
+          addPart(
+            handBone, 'Thumb_' + side,
+            new THREE.CylinderGeometry(0.016, 0.018, 0.055, 8),
+            mats.Mat_Skin,
+            [-sgn * 0.042, -0.045, 0.028], [0.35, 0, sgn * 0.55], null, 0.006
+          );
+
+          if (side === 'R') {
+            // Detalhe estilizado de DEDO INDICADOR na HandR para leitura clara da pose Point!
+            addPart(
+              handBone, 'IndexFinger_R',
+              new THREE.CylinderGeometry(0.015, 0.017, 0.088, 8),
+              mats.Mat_Skin,
+              [-0.012, -0.105, 0.015], [0.08, 0, 0.05], null, 0.006
+            );
+            addPart(
+              handBone, 'IndexTip_R',
+              new THREE.SphereGeometry(0.0155, 8, 6),
+              mats.Mat_Skin,
+              [-0.010, -0.148, 0.019], null, null, 0
+            );
+          } else {
+            // Dedos agrupados suaves na HandL
+            addPart(
+              handBone, 'Fingers_L',
+              new THREE.SphereGeometry(0.042, 10, 8),
+              mats.Mat_Skin,
+              [0, -0.082, 0.012], null, [0.95, 0.9, 0.65], 0.007
+            );
+          }
+        }
+
+        buildArm('L', ShoulderL, UpperArmL, LowerArmL, HandL);
+        buildArm('R', ShoulderR, UpperArmR, LowerArmR, HandR);
+
+        // ---------------------------------------------------------------------
+        // 5.7 PERNAS E TÊNIS COM SOLA BRANCA (BASE EXATA EM y = 0.000)
+        // ---------------------------------------------------------------------
+        function buildLeg(side, upperBone, lowerBone, footBone) {
+          // Articulação do quadril (esfera) + Coxa
+          addPart(
+            upperBone, 'HipJoint_' + side,
+            new THREE.SphereGeometry(0.078, 12, 10),
+            mats.Mat_Pants,
+            [0, -0.01, 0], null, null, 0
+          );
+          addPart(
+            upperBone, 'Thigh_' + side,
+            new THREE.CylinderGeometry(0.076, 0.064, 0.34, 12),
+            mats.Mat_Pants,
+            [0, -0.17, 0], null, null, 0.010
+          );
+
+          // Joelho arredondado + Canela
+          addPart(
+            lowerBone, 'Knee_' + side,
+            new THREE.SphereGeometry(0.063, 12, 10),
+            mats.Mat_Pants,
+            [0, 0, 0], null, null, 0.009
+          );
+          addPart(
+            lowerBone, 'Shin_' + side,
+            new THREE.CylinderGeometry(0.062, 0.054, 0.31, 12),
+            mats.Mat_Pants,
+            [0, -0.16, 0], null, null, 0.010
+          );
+
+          // Tênis estiloso em Foot (Foot está em world y = 0.08 -> sola em local y = -0.08 até -0.046)
+          // Sola branca (base exatamente em local -0.080 => world y = 0.000!)
+          addPart(
+            footBone, 'ShoeSole_' + side,
+            new THREE.BoxGeometry(0.122, 0.034, 0.228),
+            mats.Mat_Sole,
+            [0, -0.063, 0.042], null, null, 0.007
+          );
+          // Corpo principal do tênis
+          addPart(
+            footBone, 'ShoeUpper_' + side,
+            new THREE.BoxGeometry(0.114, 0.078, 0.165),
+            mats.Mat_Shoes,
+            [0, -0.008, 0.018], null, null, 0.009
+          );
+          // Biqueira arredondada frontal
+          addPart(
+            footBone, 'ShoeToe_' + side,
+            new THREE.SphereGeometry(0.056, 12, 8),
+            mats.Mat_Shoes,
+            [0, -0.018, 0.095], null, [1.02, 0.68, 1.05], 0.008
+          );
+          // Detalhe/cadarço na língua do tênis
+          addPart(
+            footBone, 'ShoeAccent_' + side,
+            new THREE.BoxGeometry(0.065, 0.018, 0.065),
+            mats.Mat_Sole,
+            [0, 0.024, 0.062], [0.35, 0, 0], null, 0
+          );
+        }
+
+        buildLeg('L', UpperLegL, LowerLegL, FootL);
+        buildLeg('R', UpperLegR, LowerLegR, FootR);
+
+        // v2: três âncoras nomeadas e persistentes em qualquer exportação GLB.
+        function makeSocket(parent, name, xyz) {
+          const socket = new THREE.Group();
+          socket.name = name;
+          socket.position.set(xyz[0], xyz[1], xyz[2]);
+          parent.add(socket);
+          return socket;
+        }
+        const sockets = {
+          Socket_Hand_R: makeSocket(HandR, 'Socket_Hand_R', [0, -0.06, 0.045]),
+          Socket_Hand_L: makeSocket(HandL, 'Socket_Hand_L', [0, -0.06, 0.045]),
+          Socket_Head: makeSocket(Head, 'Socket_Head', [0, HEAD_CY + 0.135, 0])
+        };
+
+        // v2: deformação suave nos cotovelos e joelhos, com geometria contínua
+        // ligada a 2 ossos, e cortes no tecido minimizados pelo blend de pesos.
+        // As peças rígidas equivalentes são removidas, não apenas escondidas:
+        // GLTFExporter usa onlyVisible=false para preservar as expressões.
+        const replaceParts = [
+          /^Bicep_[LR]$/, /^Elbow_[LR]$/, /^Forearm_[LR]$/,
+          /^Thigh_[LR]$/, /^Knee_[LR]$/, /^Shin_[LR]$/
+        ];
+        const toDelete = [];
+        root.traverse(function(node) {
+          if (replaceParts.some(function(regex) { return regex.test(node.name); })) toDelete.push(node);
+        });
+        toDelete.forEach(function(node) { if (node.parent) node.parent.remove(node); });
+
+        function addSmoothLimb(name, upperBone, lowerBone, topY, bottomY, radiusTop, radiusBottom, boneTopIndex, boneBottomIndex, material) {
+          upperBone.updateWorldMatrix(true, false);
+          lowerBone.updateWorldMatrix(true, false);
+          const upperPos = new THREE.Vector3();
+          const lowerPos = new THREE.Vector3();
+          upperBone.getWorldPosition(upperPos);
+          lowerBone.getWorldPosition(lowerPos);
+          const height = topY - bottomY;
+          const geo = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 12, 16, false);
+          geo.translate(upperPos.x, (topY + bottomY) * 0.5, upperPos.z);
+          const positions = geo.getAttribute('position');
+          const ids = new Uint16Array(positions.count * 4);
+          const weights = new Float32Array(positions.count * 4);
+          const smoothstep = function(x) { const t = clamp(x, 0, 1); return t * t * (3 - 2*t); };
+          for (let j=0; j<positions.count; j++) {
+            const y = positions.getY(j);
+            const lowerWeight = smoothstep((lowerPos.y + 0.085 - y) / 0.17);
+            const ii = j*4;
+            ids[ii] = boneTopIndex; ids[ii+1] = boneBottomIndex;
+            weights[ii] = 1-lowerWeight; weights[ii+1] = lowerWeight;
+          }
+          geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(ids,4));
+          geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights,4));
+          const mesh = new THREE.SkinnedMesh(geo, material);
+          mesh.name = name;
+          mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
+          root.add(mesh); mesh.bind(skeleton);
+          const outline = new THREE.SkinnedMesh(createInvertedHullGeometry(geo, 0.007), mats.Mat_Outline);
+          outline.name = 'Outline_' + name;
+          outline.frustumCulled = false;
+          root.add(outline); outline.bind(skeleton);
+        }
+        root.updateMatrixWorld(true);
+        addSmoothLimb('Arm_Skinned_L', UpperArmL, LowerArmL, 1.045, 0.72, 0.049, 0.040, 6, 7, mats.Mat_Skin);
+        addSmoothLimb('Arm_Skinned_R', UpperArmR, LowerArmR, 1.045, 0.72, 0.049, 0.040, 10, 11, mats.Mat_Skin);
+        addSmoothLimb('Leg_Skinned_L', UpperLegL, LowerLegL, 0.755, 0.095, 0.075, 0.054, 13, 14, mats.Mat_Pants);
+        addSmoothLimb('Leg_Skinned_R', UpperLegR, LowerLegR, 0.755, 0.095, 0.075, 0.054, 16, 17, mats.Mat_Pants);
+
+        // Atualiza matrizes finais
+        root.updateMatrixWorld(true);
+
+        return {
+          root: root,
+          bones: bones,
+          skeleton: skeleton,
+          sockets: sockets,
+          capGroup: capGroup,
+          materials: mats
+        };
+      }
+
+      // =========================================================================
+      // 6. GERADOR DOS 5 ANIMATIONCLIPS (100% QUATERNION / VECTOR TRACKS glTF 2.0)
+      // =========================================================================
+      function createAnimationClips() {
+        const tmpEuler = new THREE.Euler();
+        const tmpQuat = new THREE.Quaternion();
+
+        function qTrack(boneName, times, eulerTriples) {
+          const values = [];
+          for (let i = 0; i < eulerTriples.length; i++) {
+            const e = eulerTriples[i];
+            tmpEuler.set(e[0], e[1], e[2], 'XYZ');
+            tmpQuat.setFromEuler(tmpEuler);
+            values.push(tmpQuat.x, tmpQuat.y, tmpQuat.z, tmpQuat.w);
+          }
+          return new THREE.QuaternionKeyframeTrack(boneName + '.quaternion', times, values);
+        }
+
+        function vTrack(nodeName, prop, times, vecTriples) {
+          const values = [];
+          for (let i = 0; i < vecTriples.length; i++) {
+            values.push(vecTriples[i][0], vecTriples[i][1], vecTriples[i][2]);
+          }
+          return new THREE.VectorKeyframeTrack(nodeName + '.' + prop, times, values);
+        }
+
+        // ---------------------------------------------------------------------
+        // 1) IDLE (2.4s): respiração suave, balanço leve e olhar curioso
+        // ---------------------------------------------------------------------
+        const tIdle = [0, 0.6, 1.2, 1.8, 2.4];
+        const idleClip = new THREE.AnimationClip('idle', 2.4, [
+          vTrack('Hips', 'position', tIdle, [
+            [0, 0.780, 0], [0, 0.794, 0], [0, 0.782, 0], [0, 0.794, 0], [0, 0.780, 0]
+          ]),
+          qTrack('Spine', tIdle, [
+            [0.00, 0.00,  0.00], [-0.03, 0.02,  0.02], [0.01, 0.00,  0.00], [-0.03, -0.02, -0.02], [0.00, 0.00, 0.00]
+          ]),
+          qTrack('Chest', tIdle, [
+            [0.00, 0.00,  0.00], [-0.04, 0.03,  0.015], [0.01, 0.00, 0.00], [-0.04, -0.03, -0.015], [0.00, 0.00, 0.00]
+          ]),
+          qTrack('Head', tIdle, [
+            [0.02,  0.00,  0.00], [-0.02,  0.14,  0.04], [0.03, 0.00, 0.00], [-0.02, -0.12, -0.04], [0.02, 0.00, 0.00]
+          ]),
+          qTrack('UpperArmL', tIdle, [
+            [-0.04, 0,  0.14], [-0.08, 0,  0.19], [-0.03, 0,  0.13], [-0.07, 0,  0.18], [-0.04, 0,  0.14]
+          ]),
+          qTrack('LowerArmL', tIdle, [
+            [-0.22, 0, 0], [-0.28, 0, 0], [-0.20, 0, 0], [-0.27, 0, 0], [-0.22, 0, 0]
+          ]),
+          qTrack('UpperArmR', tIdle, [
+            [-0.04, 0, -0.14], [-0.07, 0, -0.18], [-0.03, 0, -0.13], [-0.08, 0, -0.19], [-0.04, 0, -0.14]
+          ]),
+          qTrack('LowerArmR', tIdle, [
+            [-0.22, 0, 0], [-0.27, 0, 0], [-0.20, 0, 0], [-0.28, 0, 0], [-0.22, 0, 0]
+          ])
+        ]);
+
+        // ---------------------------------------------------------------------
+        // 2) WALK v2 (1.0s): 73 amostras, apoio/balanço, IK 2D, foot roll,
+        // contrarrotação quadril/peito, braços em atraso, compatível glTF.
+        // Os pés correm em lugar: translade o ator no motor a ~0.48 unidades/s
+        // para manter o apoio imóvel no espaço do mundo.
+        // ---------------------------------------------------------------------
+        function smooth01(v) { const x=clamp(v,0,1); return x*x*(3-2*x); }
+        const gaitSteps=72, gaitDuration=1.0, gaitTimes=[];
+        const gaitChannels={};
+        function addChannel(name, kind) { gaitChannels[name]={kind:kind, values:[]}; }
+        ['Hips.position','Hips.quaternion','Spine.quaternion','Chest.quaternion','Head.quaternion',
+         'UpperLegL.quaternion','LowerLegL.quaternion','FootL.quaternion',
+         'UpperLegR.quaternion','LowerLegR.quaternion','FootR.quaternion',
+         'UpperArmL.quaternion','LowerArmL.quaternion','UpperArmR.quaternion','LowerArmR.quaternion'].forEach(function(key){
+            addChannel(key, key.endsWith('position') ? 'position':'rotation');
+         });
+        function pushPose(name, vals) {
+          const channel=gaitChannels[name];
+          if (channel.kind==='position') { channel.values.push(vals[0],vals[1],vals[2]); return; }
+          tmpEuler.set(vals[0],vals[1],vals[2],'XYZ');
+          tmpQuat.setFromEuler(tmpEuler);
+          channel.values.push(tmpQuat.x,tmpQuat.y,tmpQuat.z,tmpQuat.w);
+        }
+        function sampleFoot(phase, hipY) {
+          const p=(phase+1)%1;
+          // STANCE: foot moves -Z relative pelvis. SWING: rises and returns.
+          const contactRatio=0.62, stance=p<contactRatio;
+          const s=stance?p/contactRatio:(p-contactRatio)/(1-contactRatio);
+          const z=stance?(0.145-0.29*s):(-0.145+0.29*smooth01(s));
+          const lift=stance?0:0.115*Math.sin(Math.PI*s);
+          const ankleRoll=stance
+             ? (p<0.14 ? -0.12*Math.sin(Math.PI*p/0.14) : p>0.47 ? 0.23*smooth01((p-0.47)/0.15) : 0)
+             : (0.23*(1-smooth01(s)) - 0.06*Math.sin(Math.PI*s));
+          // Conserva a sola no chão durante apoio; inclui extremos do sapato
+          // (y = -0.08 local, z = -0.072 .. +0.156 do BoxGeometry).
+          const soleY=[-0.080,-0.046], soleZ=[-0.072,0.156];
+          let minLocal=Number.POSITIVE_INFINITY;
+          for (const yy of soleY) for(const zz of soleZ) {
+            minLocal=Math.min(minLocal, yy*Math.cos(ankleRoll)-zz*Math.sin(ankleRoll));
+          }
+          const ankleY=-minLocal+lift;
+          const upperOffset=0.02; // quadril -> osso superior da perna
+          const dy=ankleY-(hipY-upperOffset), dz=z;
+          const a=0.34, b=0.34;
+          const length=Math.min(a+b-0.0005,Math.max(0.05,Math.hypot(dy,dz)));
+          const knee=Math.acos(clamp((length*length-a*a-b*b)/(2*a*b),-1,1));
+          const thigh=Math.atan2(-dz,-dy)-Math.atan2(b*Math.sin(knee),a+b*Math.cos(knee));
+          const ankle=-thigh-knee+ankleRoll;
+          return {thigh:thigh,knee:knee,ankle:ankle,stance:stance,clearance:lift};
+        }
+        // Offset temporal dos braços/peito sem chaveamento rígido em 5 poses.
+        for(let i=0;i<=gaitSteps;i++) {
+          const t=i/gaitSteps, phase=t*Math.PI*2;
+          gaitTimes.push(t*gaitDuration);
+          const hipY=0.718+0.006*Math.cos(phase*2);
+          const left=sampleFoot(t,hipY), right=sampleFoot(t+0.5,hipY);
+          pushPose('Hips.position',[0,hipY,0]);
+          pushPose('Hips.quaternion',[0,0.055*Math.cos(phase),0.012*Math.sin(phase)]);
+          pushPose('Spine.quaternion',[0.018, -0.043*Math.cos(phase-0.13),-0.012*Math.sin(phase-0.20)]);
+          pushPose('Chest.quaternion',[0.018,-0.073*Math.cos(phase-0.22),-0.018*Math.sin(phase-0.24)]);
+          pushPose('Head.quaternion',[-0.03,0.028*Math.cos(phase-0.44),0.012*Math.sin(phase-0.53)]);
+          pushPose('UpperLegL.quaternion',[left.thigh,0,0]);
+          pushPose('LowerLegL.quaternion',[left.knee,0,0]);
+          pushPose('FootL.quaternion',[left.ankle,0,0]);
+          pushPose('UpperLegR.quaternion',[right.thigh,0,0]);
+          pushPose('LowerLegR.quaternion',[right.knee,0,0]);
+          pushPose('FootR.quaternion',[right.ankle,0,0]);
+          pushPose('UpperArmL.quaternion',[0.40*Math.cos(phase-0.27),0,0.13]);
+          pushPose('LowerArmL.quaternion',[-0.39-0.10*Math.cos(phase-0.46),0,0]);
+          pushPose('UpperArmR.quaternion',[-0.40*Math.cos(phase-0.27),0,-0.13]);
+          pushPose('LowerArmR.quaternion',[-0.39+0.10*Math.cos(phase-0.46),0,0]);
+        }
+        const walkTracks=Object.keys(gaitChannels).map(function(key){
+          const ch=gaitChannels[key];
+          return ch.kind==='position'
+             ? new THREE.VectorKeyframeTrack(key,gaitTimes,ch.values)
+             : new THREE.QuaternionKeyframeTrack(key,gaitTimes,ch.values);
+        });
+        const walkClip=new THREE.AnimationClip('walk',gaitDuration,walkTracks);
+
+        // ---------------------------------------------------------------------
+        // 3) POINT (2.0s): giro 3/4 + braço direito apontando com 2 pulsações claras
+        // ---------------------------------------------------------------------
+        const tPoint = [0, 0.35, 0.70, 1.00, 1.30, 1.65, 2.00];
+        const pointClip = new THREE.AnimationClip('point', 2.0, [
+          vTrack('Hips', 'position', tPoint, [
+            [0, 0.78, 0], [0, 0.788, 0], [0, 0.776, 0], [0, 0.788, 0], [0, 0.776, 0], [0, 0.786, 0], [0, 0.78, 0]
+          ]),
+          qTrack('Hips', tPoint, [
+            [0, -0.18, 0], [0, -0.24, 0.02], [0, -0.26, 0.03], [0, -0.22, 0.02], [0, -0.26, 0.03], [0, -0.22, 0.01], [0, -0.18, 0]
+          ]),
+          qTrack('Chest', tPoint, [
+            [0.02, -0.14, 0], [0.04, -0.20, -0.02], [0.06, -0.22, -0.03], [0.03, -0.18, -0.02], [0.06, -0.22, -0.03], [0.03, -0.16, -0.01], [0.02, -0.14, 0]
+          ]),
+          qTrack('Head', tPoint, [
+            [-0.02, -0.16, 0], [-0.04, -0.24, -0.03], [0.03, -0.26, -0.04], [-0.04, -0.22, -0.02], [0.03, -0.26, -0.04], [-0.03, -0.20, -0.02], [-0.02, -0.16, 0]
+          ]),
+          // Braço direito (-X) erguido apontando com 2 pulsações de ênfase
+          qTrack('ShoulderR', tPoint, [
+            [0, 0, -0.06], [0, 0, -0.12], [0, 0, -0.16], [0, 0, -0.10], [0, 0, -0.16], [0, 0, -0.10], [0, 0, -0.06]
+          ]),
+          qTrack('UpperArmR', tPoint, [
+            [-1.30, -0.10, -0.24],
+            [-1.44, -0.12, -0.32],
+            [-1.60, -0.14, -0.38], // pulso 1
+            [-1.36, -0.10, -0.28],
+            [-1.60, -0.14, -0.38], // pulso 2
+            [-1.38, -0.11, -0.28],
+            [-1.30, -0.10, -0.24]
+          ]),
+          qTrack('LowerArmR', tPoint, [
+            [-0.18, 0, 0], [-0.14, 0, 0], [-0.05, 0, 0], [-0.22, 0, 0], [-0.05, 0, 0], [-0.16, 0, 0], [-0.18, 0, 0]
+          ]),
+          qTrack('HandR', tPoint, [
+            [0, 0, 0], [-0.05, 0, 0], [0.08, 0, 0], [-0.06, 0, 0], [0.08, 0, 0], [-0.04, 0, 0], [0, 0, 0]
+          ]),
+          // Braço esquerdo relaxado próximo ao quadril
+          qTrack('UpperArmL', tPoint, [
+            [0.10, 0, 0.26], [0.12, 0, 0.28], [0.14, 0, 0.30], [0.11, 0, 0.27], [0.14, 0, 0.30], [0.11, 0, 0.27], [0.10, 0, 0.26]
+          ]),
+          qTrack('LowerArmL', tPoint, [
+            [-0.58, 0, -0.24], [-0.62, 0, -0.26], [-0.66, 0, -0.28], [-0.60, 0, -0.25], [-0.66, 0, -0.28], [-0.60, 0, -0.25], [-0.58, 0, -0.24]
+          ])
+        ]);
+
+        // ---------------------------------------------------------------------
+        // 4) TALK (1.8s): gestos alternados de conversa + acenos + Face_talk.scale
+        // ---------------------------------------------------------------------
+        const tTalk = [0, 0.30, 0.60, 0.90, 1.20, 1.50, 1.80];
+        const tFace = [0, 0.225, 0.45, 0.675, 0.90, 1.125, 1.35, 1.575, 1.80];
+        const talkClip = new THREE.AnimationClip('talk', 1.8, [
+          vTrack('Hips', 'position', tTalk, [
+            [0, 0.780, 0], [0, 0.788, 0], [0, 0.778, 0], [0, 0.788, 0], [0, 0.778, 0], [0, 0.786, 0], [0, 0.780, 0]
+          ]),
+          qTrack('Spine', tTalk, [
+            [0.05, 0.00, 0.00], [0.08, 0.06, 0.03], [0.06, -0.04, -0.02], [0.09, 0.05, 0.02], [0.06, -0.06, -0.03], [0.08, 0.03, 0.01], [0.05, 0.00, 0.00]
+          ]),
+          qTrack('Chest', tTalk, [
+            [0.04, 0.00, 0.00], [0.07, 0.09, 0.03], [0.05, -0.08, -0.03], [0.08, 0.07, 0.02], [0.04, -0.09, -0.03], [0.06, 0.05, 0.02], [0.04, 0.00, 0.00]
+          ]),
+          qTrack('Head', tTalk, [
+            [-0.02,  0.00,  0.00],
+            [ 0.07,  0.10,  0.05],
+            [-0.05, -0.08, -0.04],
+            [ 0.06,  0.08,  0.03],
+            [-0.04, -0.10, -0.05],
+            [ 0.05,  0.05,  0.02],
+            [-0.02,  0.00,  0.00]
+          ]),
+          // Braços alternando gestos abertos de explicação
+          qTrack('UpperArmL', tTalk, [
+            [-0.45, 0, 0.22], [-0.82, 0.14, 0.42], [-0.52, 0.05, 0.24], [-0.36, 0, 0.18], [-0.74, 0.12, 0.36], [-0.46, 0.04, 0.20], [-0.45, 0, 0.22]
+          ]),
+          qTrack('LowerArmL', tTalk, [
+            [-1.02, 0, 0], [-0.62, 0, 0.12], [-1.08, 0, 0], [-0.88, 0, -0.06], [-0.68, 0, 0.10], [-0.98, 0, 0], [-1.02, 0, 0]
+          ]),
+          qTrack('UpperArmR', tTalk, [
+            [-0.38, 0, -0.20], [-0.48, -0.04, -0.22], [-0.86, -0.15, -0.44], [-0.58, -0.06, -0.26], [-0.40, 0, -0.20], [-0.78, -0.12, -0.38], [-0.38, 0, -0.20]
+          ]),
+          qTrack('LowerArmR', tTalk, [
+            [-0.90, 0, 0], [-1.04, 0, 0], [-0.58, 0, -0.14], [-0.96, 0, 0], [-0.86, 0, 0.05], [-0.64, 0, -0.10], [-0.90, 0, 0]
+          ]),
+          // Pulso sutil na placa Face_talk (baseScale = [1.03, 0.98, 0.96])
+          vTrack('Face_talk', 'scale', tFace, [
+            [1.03, 0.95, 0.96],
+            [1.06, 1.04, 0.96],
+            [1.02, 0.93, 0.96],
+            [1.06, 1.05, 0.96],
+            [1.03, 0.95, 0.96],
+            [1.06, 1.04, 0.96],
+            [1.02, 0.93, 0.96],
+            [1.05, 1.03, 0.96],
+            [1.03, 0.95, 0.96]
+          ])
+        ]);
+
+        // ---------------------------------------------------------------------
+        // 5) CELEBRATE (1.6s): agachamento -> salto no ar com braços em V -> pouso
+        // ---------------------------------------------------------------------
+        const tCel = [0, 0.22, 0.56, 0.78, 1.06, 1.32, 1.60];
+        const celebrateClip = new THREE.AnimationClip('celebrate', 1.6, [
+          vTrack('Hips', 'position', tCel, [
+            [0, 0.780, 0],
+            [0, 0.655, 0], // agachamento de impulso
+            [0, 1.070, 0], // pico do salto!
+            [0, 1.015, 0], // flutuação alegre
+            [0, 0.690, 0], // absorção do pouso
+            [0, 0.795, 0], // rebote suave
+            [0, 0.780, 0]
+          ]),
+          qTrack('Spine', tCel, [
+            [0.00, 0, 0], [0.16, 0, 0], [-0.10, 0, 0], [-0.06, 0, 0], [0.12, 0, 0], [-0.02, 0, 0], [0.00, 0, 0]
+          ]),
+          qTrack('Chest', tCel, [
+            [0.00, 0, 0], [0.12, 0, 0], [-0.14, 0, 0], [-0.08, 0, 0], [0.08, 0, 0], [-0.04, 0, 0], [0.00, 0, 0]
+          ]),
+          qTrack('Head', tCel, [
+            [0.00, 0, 0], [0.10, 0, 0], [-0.18, 0, 0.05], [-0.14, 0, -0.05], [0.06, 0, 0], [-0.04, 0, 0], [0.00, 0, 0]
+          ]),
+          // Braços erguidos em V com duplo impulso nos antebraços
+          qTrack('UpperArmL', tCel, [
+            [-0.08, 0,  0.22],
+            [ 0.28, 0,  0.34],
+            [-0.22, 0,  2.66], // V alto!
+            [-0.18, 0,  2.52],
+            [-0.16, 0,  2.62],
+            [-0.12, 0,  1.25],
+            [-0.08, 0,  0.22]
+          ]),
+          qTrack('LowerArmL', tCel, [
+            [-0.25, 0, 0], [-0.75, 0, 0], [-0.22, 0, 0.14], [-0.55, 0, 0.24], [-0.20, 0, 0.10], [-0.40, 0, 0], [-0.25, 0, 0]
+          ]),
+          qTrack('UpperArmR', tCel, [
+            [-0.08, 0, -0.22],
+            [ 0.28, 0, -0.34],
+            [-0.22, 0, -2.66], // V alto!
+            [-0.18, 0, -2.52],
+            [-0.16, 0, -2.62],
+            [-0.12, 0, -1.25],
+            [-0.08, 0, -0.22]
+          ]),
+          qTrack('LowerArmR', tCel, [
+            [-0.25, 0, 0], [-0.75, 0, 0], [-0.22, 0, -0.14], [-0.55, 0, -0.24], [-0.20, 0, -0.10], [-0.40, 0, 0], [-0.25, 0, 0]
+          ]),
+          // Pernas: agachamento -> salto alegre -> pouso amortecido
+          qTrack('UpperLegL', tCel, [
+            [0, 0, 0], [-0.46, 0, 0.06], [-0.26, 0, 0.12], [-0.20, 0, 0.10], [-0.38, 0, 0.05], [-0.04, 0, 0], [0, 0, 0]
+          ]),
+          qTrack('LowerLegL', tCel, [
+            [0, 0, 0], [ 0.78, 0, 0], [ 0.48, 0, 0], [ 0.36, 0, 0], [ 0.64, 0, 0], [ 0.06, 0, 0], [0, 0, 0]
+          ]),
+          qTrack('FootL', tCel, [
+            [0, 0, 0], [-0.30, 0, 0], [ 0.24, 0, 0], [ 0.18, 0, 0], [-0.24, 0, 0], [-0.02, 0, 0], [0, 0, 0]
+          ]),
+          qTrack('UpperLegR', tCel, [
+            [0, 0, 0], [-0.46, 0, -0.06], [-0.26, 0, -0.12], [-0.20, 0, -0.10], [-0.38, 0, -0.05], [-0.04, 0, 0], [0, 0, 0]
+          ]),
+          qTrack('LowerLegR', tCel, [
+            [0, 0, 0], [ 0.78, 0, 0], [ 0.48, 0, 0], [ 0.36, 0, 0], [ 0.64, 0, 0], [ 0.06, 0, 0], [0, 0, 0]
+          ]),
+          qTrack('FootR', tCel, [
+            [0, 0, 0], [-0.30, 0, 0], [ 0.24, 0, 0], [ 0.18, 0, 0], [-0.24, 0, 0], [-0.02, 0, 0], [0, 0, 0]
+          ])
+        ]);
+
+        return [idleClip, walkClip, pointClip, talkClip, celebrateClip];
+      }
+
+      // =========================================================================
+      // 7. CÂMERA 360° FLUIDA EM JS PURO (MOUSE, TOQUE, ZOOM, 2x CLIQUE, PRESETS)
+      // =========================================================================
+      function createOrbitController(mountEl, camera) {
+        const PRESET_VIEWS = {
+          front:        { theta: 0.0,            phi: 1.42, radius: 3.35 },
+          threeQuarter: { theta: 0.56,           phi: 1.34, radius: 3.45 },
+          profile:      { theta: Math.PI * 0.5,  phi: 1.42, radius: 3.35 },
+          back:         { theta: Math.PI,        phi: 1.40, radius: 3.35 }
+        };
+
+        const ctrl = {
+          target: new THREE.Vector3(0, 0.90, 0),
+          theta: 0.32,
+          phi: 1.38,
+          radius: 3.40,
+          goalTheta: 0.32,
+          goalPhi: 1.38,
+          goalRadius: 3.40,
+          dragging: false,
+          lastX: 0,
+          lastY: 0,
+          pinchDist: 0,
+          lastTapTime: 0,
+
+          setView: function (viewName) {
+            const v = PRESET_VIEWS[viewName] || PRESET_VIEWS.front;
+            // Escolhe o caminho angular mais curto para theta
+            const diff = Math.atan2(Math.sin(v.theta - ctrl.goalTheta), Math.cos(v.theta - ctrl.goalTheta));
+            ctrl.goalTheta = ctrl.goalTheta + diff;
+            ctrl.goalPhi = v.phi;
+            ctrl.goalRadius = v.radius;
+          },
+
+          reset: function () {
+            ctrl.setView('front');
+          },
+
+          update: function (dt) {
+            const damp = 1 - Math.exp(-dt * 11);
+            ctrl.theta += (ctrl.goalTheta - ctrl.theta) * damp;
+            ctrl.phi += (ctrl.goalPhi - ctrl.phi) * damp;
+            ctrl.radius += (ctrl.goalRadius - ctrl.radius) * damp;
+
+            const sinP = Math.sin(ctrl.phi);
+            camera.position.set(
+              ctrl.target.x + ctrl.radius * sinP * Math.sin(ctrl.theta),
+              ctrl.target.y + ctrl.radius * Math.cos(ctrl.phi),
+              ctrl.target.z + ctrl.radius * sinP * Math.cos(ctrl.theta)
+            );
+            camera.lookAt(ctrl.target);
+          }
+        };
+
+        // Mouse drag
+        mountEl.addEventListener('mousedown', function (e) {
+          ctrl.dragging = true;
+          ctrl.lastX = e.clientX;
+          ctrl.lastY = e.clientY;
+        });
+        window.addEventListener('mousemove', function (e) {
+          if (!ctrl.dragging) return;
+          ctrl.goalTheta -= (e.clientX - ctrl.lastX) * 0.010;
+          ctrl.goalPhi = clamp(ctrl.goalPhi - (e.clientY - ctrl.lastY) * 0.008, 0.25, Math.PI * 0.49);
+          ctrl.lastX = e.clientX;
+          ctrl.lastY = e.clientY;
+        });
+        window.addEventListener('mouseup', function () { ctrl.dragging = false; });
+
+        // Duplo clique -> reset
+        mountEl.addEventListener('dblclick', function () { ctrl.reset(); });
+
+        // Wheel zoom
+        mountEl.addEventListener('wheel', function (e) {
+          e.preventDefault();
+          ctrl.goalRadius = clamp(ctrl.goalRadius + e.deltaY * 0.0026, 1.65, 6.2);
+        }, { passive: false });
+
+        // Touch drag, pinça zoom e duplo toque
+        mountEl.addEventListener('touchstart', function (e) {
+          if (e.touches.length === 1) {
+            const now = Date.now();
+            if (now - ctrl.lastTapTime < 280) {
+              ctrl.reset();
+            }
+            ctrl.lastTapTime = now;
+            ctrl.dragging = true;
+            ctrl.lastX = e.touches[0].clientX;
+            ctrl.lastY = e.touches[0].clientY;
+          } else if (e.touches.length === 2) {
+            ctrl.dragging = false;
+            ctrl.pinchDist = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+          }
+        }, { passive: true });
+
+        mountEl.addEventListener('touchmove', function (e) {
+          if (e.touches.length === 1 && ctrl.dragging) {
+            ctrl.goalTheta -= (e.touches[0].clientX - ctrl.lastX) * 0.011;
+            ctrl.goalPhi = clamp(ctrl.goalPhi - (e.touches[0].clientY - ctrl.lastY) * 0.0085, 0.25, Math.PI * 0.49);
+            ctrl.lastX = e.touches[0].clientX;
+            ctrl.lastY = e.touches[0].clientY;
+          } else if (e.touches.length === 2 && ctrl.pinchDist > 0) {
+            const d = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            ctrl.goalRadius = clamp(ctrl.goalRadius - (d - ctrl.pinchDist) * 0.009, 1.65, 6.2);
+            ctrl.pinchDist = d;
+          }
+        }, { passive: true });
+
+        mountEl.addEventListener('touchend', function () {
+          ctrl.dragging = false;
+          ctrl.pinchDist = 0;
+        });
+
+        return ctrl;
+      }
+
+      // =========================================================================
+      // 8. APLICAÇÃO PRINCIPAL DO LABORATÓRIO
+      // =========================================================================
+      function createPreviewProp(kind) {
+        const group=new THREE.Group(); group.name='Prop_' + kind;
+        const mat=function(color){return new THREE.MeshStandardMaterial({color:color,roughness:0.64,metalness:0.08});};
+        function part(name, geo, material, pos, rot) {
+          const m=new THREE.Mesh(geo,material);m.name=name;
+          m.position.set(pos[0],pos[1],pos[2]);
+          if(rot)m.rotation.set(rot[0],rot[1],rot[2]);
+          m.castShadow=true;group.add(m);return m;
+        }
+        if(kind==='phone') {
+          part('PropPhone_Body',new THREE.BoxGeometry(0.105,0.185,0.020),mat('#19233b'),[0,0.075,0.02]);
+          part('PropPhone_Screen',new THREE.BoxGeometry(0.089,0.159,0.003),mat('#38bdf8'),[0,0.075,0.032]);
+        } else if(kind==='clipboard') {
+          part('PropClipboard_Board',new THREE.BoxGeometry(0.18,0.24,0.017),mat('#ab814b'),[0,0.10,0.02]);
+          part('PropClipboard_Paper',new THREE.BoxGeometry(0.153,0.192,0.002),mat('#fffef0'),[0,0.10,0.031]);
+          part('PropClipboard_Clip',new THREE.BoxGeometry(0.053,0.026,0.02),mat('#94a3b8'),[0,0.218,0.038]);
+        } else if(kind==='hammer') {
+          part('PropHammer_Handle',new THREE.CylinderGeometry(0.014,0.017,0.28,10),mat('#92400e'),[0,0.10,0.02]);
+          part('PropHammer_Head',new THREE.BoxGeometry(0.185,0.052,0.060),mat('#64748b'),[0,0.237,0.02]);
+        }
+        return group;
+      }
+      function createPreviewHelmet() {
+        const g=new THREE.Group();g.name='Prop_Helmet';
+        const m=new THREE.MeshStandardMaterial({name:'Mat_Helmet',color:'#facc15',roughness:0.76});
+        const dome=new THREE.Mesh(new THREE.SphereGeometry(0.220,18,10,0,Math.PI*2,0,Math.PI*0.52),m);
+        dome.name='Helmet_Dome';g.add(dome);
+        const rim=new THREE.Mesh(new THREE.CylinderGeometry(0.220,0.226,0.032,18),m);
+        rim.name='Helmet_Rim';rim.position.y=0.012;g.add(rim);
+        return g;
+      }
+
+      function startLabApp() {
+        const viewportPane     = document.getElementById('viewportPane');
+        const webglMount       = document.getElementById('webglMount');
+        const modeBadge        = document.getElementById('modeBadge');
+        const modeDot          = document.getElementById('modeDot');
+        const modeBadgeText    = document.getElementById('modeBadgeText');
+        const clipDurationEl   = document.getElementById('clipDurationLabel');
+        const playPauseBtn     = document.getElementById('playPauseBtn');
+        const iconPlay         = document.getElementById('iconPlay');
+        const iconPause        = document.getElementById('iconPause');
+        const scrubSlider      = document.getElementById('scrubSlider');
+        const speedSlider      = document.getElementById('speedSlider');
+        const speedValueEl     = document.getElementById('speedValue');
+        const toggleSkeletonBtn= document.getElementById('toggleSkeletonBtn');
+        const skeletonPill     = document.getElementById('skeletonPill');
+        const toggleOutlineBtn = document.getElementById('toggleOutlineBtn');
+        const outlinePill      = document.getElementById('outlinePill');
+        const exportGlbBtn     = document.getElementById('exportGlbBtn');
+        const validateLastBtn  = document.getElementById('validateLastBtn');
+        const importFileBtn    = document.getElementById('importFileBtn');
+        const glbFileInput     = document.getElementById('glbFileInput');
+        const backToEditorBtn  = document.getElementById('backToEditorBtn');
+        const glbSizeBadge     = document.getElementById('glbSizeBadge');
+        const auditSummaryTag  = document.getElementById('auditSummaryTag');
+        const auditList        = document.getElementById('auditList');
+        const toastEl          = document.getElementById('toast');
+        const propSelect       = document.getElementById('propSelect');
+        const propSocketSelect = document.getElementById('propSocketSelect');
+        const helmetToggle     = document.getElementById('helmetToggle');
+
+        const colorInputs = {
+          Mat_Cap:   document.getElementById('colCap'),
+          Mat_Shirt: document.getElementById('colShirt'),
+          Mat_Pants: document.getElementById('colPants'),
+          Mat_Shoes: document.getElementById('colShoes'),
+          Mat_Skin:  document.getElementById('colSkin')
+        };
+
+        // ---------------------------------------------------------------------
+        // 8.1 Renderer, Cena, Iluminação de Estúdio (Estilo Madeireira) & Palco
+        // ---------------------------------------------------------------------
+        let renderer;
+        try {
+          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+        } catch (e1) {
+          try {
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+          } catch (e2) {
+            showBootError('WebGL indisponível', 'Ative a aceleração gráfica no navegador para abrir o laboratório 3D.');
+            return;
+          }
+        }
+
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.06;
+
+        webglMount.innerHTML = '';
+        webglMount.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 60);
+        const orbit = createOrbitController(webglMount, camera);
+
+        // Iluminação de estúdio clara/lilás suave
+        const hemiLight = new THREE.HemisphereLight('#ffffff', '#c4b5fd', 0.92);
+        scene.add(hemiLight);
+
+        const keyLight = new THREE.DirectionalLight('#fffaf5', 0.95);
+        keyLight.position.set(3.2, 5.4, 4.2);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 1024;
+        keyLight.shadow.mapSize.height = 1024;
+        keyLight.shadow.camera.near = 1;
+        keyLight.shadow.camera.far = 15;
+        keyLight.shadow.camera.left = -2.4;
+        keyLight.shadow.camera.right = 2.4;
+        keyLight.shadow.camera.top = 2.8;
+        keyLight.shadow.camera.bottom = -1.2;
+        keyLight.shadow.bias = -0.0005;
+        scene.add(keyLight);
+
+        const rimLight = new THREE.DirectionalLight('#c084fc', 0.35);
+        rimLight.position.set(-3.5, 3.2, -3.5);
+        scene.add(rimLight);
+
+        // Palco circular suave + grade discreta (topo exato em y = 0.000)
+        const stageGroup = new THREE.Group();
+        const pedestal = new THREE.Mesh(
+          new THREE.CylinderGeometry(1.18, 1.28, 0.12, 48),
+          new THREE.MeshStandardMaterial({ color: '#f8f7ff', roughness: 0.92, metalness: 0.02 })
+        );
+        pedestal.position.y = -0.06;
+        pedestal.receiveShadow = true;
+        stageGroup.add(pedestal);
+
+        const pedestalRing = new THREE.Mesh(
+          new THREE.RingGeometry(1.06, 1.13, 48),
+          new THREE.MeshBasicMaterial({ color: '#a78bfa', side: THREE.DoubleSide, transparent: true, opacity: 0.42 })
+        );
+        pedestalRing.rotation.x = -Math.PI / 2;
+        pedestalRing.position.y = 0.002;
+        stageGroup.add(pedestalRing);
+
+        const gridHelper = new THREE.GridHelper(6.4, 16, '#a5b4fc', '#c4b5fd');
+        gridHelper.position.y = -0.122;
+        if (gridHelper.material) {
+          gridHelper.material.transparent = true;
+          gridHelper.material.opacity = 0.35;
+        }
+        stageGroup.add(gridHelper);
+        scene.add(stageGroup);
+
+        // ---------------------------------------------------------------------
+        // 8.2 Estado Central do Laboratório
+        // ---------------------------------------------------------------------
+        const proceduralClips = createAnimationClips();
+        const proceduralBuild = buildProceduralMascot(PRESETS.madeireira);
+
+        const state = {
+          mode: 'editor', // 'editor' | 'validation'
+          activeRoot: null,
+          activeMixer: null,
+          activeActions: {},
+          activeClips: [],
+          skeletonHelper: null,
+          currentAnim: 'idle',
+          currentExpr: 'neutral',
+          playing: true,
+          speed: 1.0,
+          showSkeleton: false,
+          showOutline: true,
+          scrubbing: false,
+          palette: Object.assign({}, PRESETS.madeireira),
+          lastGlbBuffer: null,
+          lastGlbName: 'mascote_crieseuvideo.glb',
+          toastTimer: null,
+          lastTs: 0,
+          propType: 'none',
+          propSocket: 'Socket_Hand_R',
+          helmet: false
+        };
+
+        function showToast(msg) {
+          toastEl.textContent = msg;
+          toastEl.style.opacity = '1';
+          clearTimeout(state.toastTimer);
+          state.toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, 3000);
+        }
+
+        // ---------------------------------------------------------------------
+        // 8.3 Operações Genéricas sobre o Ator Ativo (Editor OU GLB Reimportado!)
+        // ---------------------------------------------------------------------
+        function applyPaletteToRoot(rootObj) {
+          if (!rootObj) return;
+          rootObj.traverse(function (child) {
+            if (!child || !child.isMesh || !child.material) return;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            for (let i = 0; i < mats.length; i++) {
+              const m = mats[i];
+              if (m && m.name && state.palette[m.name] && m.color) {
+                m.color.set(state.palette[m.name]);
+              }
+            }
+          });
+        }
+
+        function applyOutlineVisibility(rootObj, visible) {
+          if (!rootObj) return;
+          rootObj.traverse(function (child) {
+            if (!child || !child.isMesh) return;
+            const isOutlineMat = Boolean(child.material && child.material.name === 'Mat_Outline');
+            const isOutlineName = typeof child.name === 'string' && child.name.indexOf('Outline_') === 0;
+            if (isOutlineMat || isOutlineName) {
+              child.visible = Boolean(visible);
+            }
+          });
+        }
+
+        function applyExpressionToRoot(rootObj, exprKey) {
+          if (!rootObj) return;
+          const targetName = 'Face_' + exprKey;
+          rootObj.traverse(function (child) {
+            if (!child || typeof child.name !== 'string') return;
+            if (child.name.indexOf('Face_') === 0) {
+              // Preserva a proporção da cabeça (1.03, 0.98, 0.96)
+              const bs = (child.userData && child.userData.baseScale) ? child.userData.baseScale : [1.03, 0.98, 0.96];
+              if (child.name === targetName) {
+                child.scale.set(bs[0], bs[1], bs[2]);
+              } else {
+                child.scale.set(0.0001, 0.0001, 0.0001);
+              }
+            }
+          });
+        }
+
+        function applyPropsToRoot(rootObj) {
+          if(!rootObj) return;
+          const nodes={};rootObj.traverse(function(node){if(node.name)nodes[node.name]=node;});
+          for(const key of ['Socket_Hand_R','Socket_Hand_L','Socket_Head']) {
+            const socket=nodes[key];
+            if(!socket) continue;
+            // Remove somente props de teste para nunca apagar ossos/sockets.
+            const old=socket.children.filter(function(n){return /^Prop_/.test(n.name);});
+            old.forEach(function(child){socket.remove(child);});
+          }
+          if (state.propType!=='none' && nodes[state.propSocket])
+            nodes[state.propSocket].add(createPreviewProp(state.propType));
+          const cap=nodes.Cap_Group;
+          if(cap)cap.visible=!state.helmet;
+          if(state.helmet && nodes.Socket_Head)nodes.Socket_Head.add(createPreviewHelmet());
+        }
+
+        function clearActiveActor() {
+          if (state.activeMixer) {
+            try { state.activeMixer.stopAllAction(); } catch (e) {}
+            state.activeMixer = null;
+          }
+          if (state.skeletonHelper) {
+            scene.remove(state.skeletonHelper);
+            state.skeletonHelper = null;
+          }
+          if (state.activeRoot) {
+            scene.remove(state.activeRoot);
+            state.activeRoot = null;
+          }
+          state.activeActions = {};
+          state.activeClips = [];
+        }
+
+        function mountActor(rootObj, clips, mode, labelSuffix) {
+          clearActiveActor();
+
+          state.mode = mode;
+          state.activeRoot = rootObj;
+          state.activeClips = clips || [];
+
+          // Garante sombras corretas em todas as malhas (exceto contornos e placas faciais)
+          rootObj.traverse(function (child) {
+            if (!child || !child.isMesh) return;
+            const isOut = (child.material && child.material.name === 'Mat_Outline') || child.name.indexOf('Outline_') === 0;
+            const isFace = child.name.indexOf('Face_') === 0;
+            child.castShadow = !isOut && !isFace;
+            child.receiveShadow = !isOut && !isFace;
+            if (child.isSkinnedMesh) {
+              child.frustumCulled = false;
+            }
+          });
+
+          scene.add(rootObj);
+
+          // Cria novo AnimationMixer independente para o ator montado
+          const mixer = new THREE.AnimationMixer(rootObj);
+          state.activeMixer = mixer;
+          state.activeActions = {};
+
+          for (let i = 0; i < state.activeClips.length; i++) {
+            const clip = state.activeClips[i];
+            const action = mixer.clipAction(clip);
+            action.setLoop(THREE.LoopRepeat, Infinity);
+            state.activeActions[clip.name] = action;
+          }
+
+          // Cria SkeletonHelper
+          try {
+            const skelHelper = new THREE.SkeletonHelper(rootObj);
+            skelHelper.visible = state.showSkeleton;
+            scene.add(skelHelper);
+            state.skeletonHelper = skelHelper;
+          } catch (e) {}
+
+          // Aplica cores atuais, contorno e expressão
+          applyPaletteToRoot(rootObj);
+          applyOutlineVisibility(rootObj, state.showOutline);
+          applyExpressionToRoot(rootObj, state.currentExpr);
+          applyPropsToRoot(rootObj);
+
+          // Atualiza Badge de Modo no topo do Viewport
+          if (mode === 'validation') {
+            modeBadge.className =
+              'pointer-events-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-extrabold tracking-wide shadow-lg border backdrop-blur-md bg-emerald-950/90 border-emerald-400/60 text-emerald-100';
+            modeDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+            modeBadgeText.textContent = 'MODO VALIDAÇÃO — .GLB REIMPORTADO VIA GLTFLoader' + (labelSuffix ? ' (' + labelSuffix + ')' : '');
+            backToEditorBtn.classList.remove('hidden');
+          } else {
+            modeBadge.className =
+              'pointer-events-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-extrabold tracking-wide shadow-lg border backdrop-blur-md bg-indigo-950/88 border-indigo-400/50 text-indigo-100';
+            modeDot.className = 'w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse';
+            modeBadgeText.textContent = 'MODO EDITOR — PROCEDURAL (ORIGEM)';
+            backToEditorBtn.classList.add('hidden');
+          }
+
+          // Ativa animação atual (ou primeira disponível)
+          const initialAnim = state.activeActions[state.currentAnim]
+            ? state.currentAnim
+            : (state.activeClips[0] ? state.activeClips[0].name : null);
+
+          if (initialAnim) {
+            playAnimation(initialAnim, true);
+          }
+        }
+
+        function playAnimation(animName, immediate) {
+          const nextAction = state.activeActions[animName];
+          if (!nextAction) {
+            showToast('Animação "' + animName + '" não encontrada neste modelo.');
+            return;
+          }
+
+          const prevAction = state.activeActions[state.currentAnim];
+          state.currentAnim = animName;
+
+          nextAction.enabled = true;
+          nextAction.setEffectiveTimeScale(1);
+          nextAction.setEffectiveWeight(1);
+
+          if (immediate || !prevAction || prevAction === nextAction) {
+            if (state.activeMixer) state.activeMixer.stopAllAction();
+            nextAction.reset().play();
+          } else {
+            nextAction.reset().play();
+            prevAction.crossFadeTo(nextAction, 0.25, false);
+          }
+
+          // Sincroniza expressão natural sugerida em Talk/Celebrate (sem bloquear troca manual depois)
+          if (animName === 'talk') {
+            setExpression('talk');
+          } else if (animName === 'celebrate') {
+            setExpression('celebrate');
+          }
+
+          syncAnimButtonsUI();
+        }
+
+        function setExpression(exprKey) {
+          state.currentExpr = exprKey;
+          applyExpressionToRoot(state.activeRoot, exprKey);
+          syncExprButtonsUI();
+        }
+
+        // ---------------------------------------------------------------------
+        // 8.4 EXPORTAÇÃO .GLB (RESETA REST POSE ANTES DE EXPORTAR!)
+        // ---------------------------------------------------------------------
+        function resetProceduralToRestPose() {
+          const build = proceduralBuild;
+          for (let i = 0; i < build.bones.length; i++) {
+            const b = build.bones[i];
+            const rp = b.userData.restPos;
+            if (rp) b.position.set(rp[0], rp[1], rp[2]);
+            b.quaternion.set(0, 0, 0, 1);
+            b.scale.set(1, 1, 1);
+          }
+          applyExpressionToRoot(build.root, 'neutral');
+          applyOutlineVisibility(build.root, true);
+          build.root.updateMatrixWorld(true);
+        }
+
+        function exportMascotGLB() {
+          try {
+            // Se estiver em modo validação, garantimos que o procedural receba a paleta atual
+            applyPaletteToRoot(proceduralBuild.root);
+
+            const wasInEditor = state.mode === 'editor';
+            const savedAnim = state.currentAnim;
+            const savedExpr = state.currentExpr;
+            const savedTime = (state.activeActions[savedAnim] ? state.activeActions[savedAnim].time : 0);
+
+            // Para garantir bind pose impecável no arquivo .glb:
+            if (wasInEditor && state.activeMixer) {
+              state.activeMixer.stopAllAction();
+            }
+            resetProceduralToRestPose();
+
+            const exporter = new THREE.GLTFExporter();
+            // ASSINATURA EXATA DO Three.js r128: parse(input, onCompleted, options) — 3 ARGUMENTOS!
+            exporter.parse(
+              proceduralBuild.root,
+              function (result) {
+                // Restaura o estado do editor imediatamente
+                if (wasInEditor) {
+                  applyOutlineVisibility(proceduralBuild.root, state.showOutline);
+                  applyExpressionToRoot(proceduralBuild.root, savedExpr);
+                  playAnimation(savedAnim, true);
+                  if (state.activeActions[savedAnim]) {
+                    state.activeActions[savedAnim].time = savedTime;
+                    if (state.activeMixer) state.activeMixer.update(0);
+                  }
+                }
+
+                if (!(result instanceof ArrayBuffer)) {
+                  showToast('Erro: exportador não retornou binário ArrayBuffer.');
+                  return;
+                }
+
+                state.lastGlbBuffer = result;
+                state.lastGlbName = 'mascote_crieseuvideo_v2.glb';
+                const sizeKB = (result.byteLength / 1024).toFixed(1);
+                glbSizeBadge.textContent = sizeKB + ' KB';
+                glbSizeBadge.className = 'tabular-nums text-[10.5px] font-extrabold text-emerald-300';
+                validateLastBtn.disabled = false;
+
+                // Dispara download do arquivo .glb
+                const blob = new Blob([result], { type: 'model/gltf-binary' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'mascote_crieseuvideo_v2.glb';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function () {
+                  try { a.remove(); } catch (e) {}
+                  URL.revokeObjectURL(url);
+                }, 400);
+
+                showToast('Exportado: mascote_crieseuvideo_v2.glb (' + sizeKB + ' KB). Clique em "Validar Último .GLB"!');
+              },
+              {
+                binary: true,
+                animations: proceduralClips,
+                onlyVisible: true
+              }
+            );
+          } catch (err) {
+            showToast('Erro ao exportar .GLB: ' + (err && err.message ? err.message : 'falha inesperada'));
+          }
+        }
+
+        // ---------------------------------------------------------------------
+        // 8.5 REIMPORTAÇÃO INDEPENDENTE VIA GLTFLoader + AUDITORIA AUTOMÁTICA
+        // ---------------------------------------------------------------------
+        function auditAndRenderChecklist(gltf, byteLength, fileName) {
+          const bonesFound = [];
+          const skinnedFound = [];
+          const facesFound = [];
+          const socketsFound = [];
+          const limbsFound = [];
+          const matsFoundSet = new Set();
+
+          gltf.scene.traverse(function (obj) {
+            if (!obj) return;
+            if (obj.isBone) bonesFound.push(obj.name);
+            if (/^Socket_(Hand_R|Hand_L|Head)$/.test(obj.name||'')) socketsFound.push(obj.name);
+            if (/^(Arm|Leg)_Skinned_[LR]$/.test(obj.name||'') && obj.isSkinnedMesh) limbsFound.push(obj.name);
+            if (obj.isSkinnedMesh) {
+              const skBones = (obj.skeleton && obj.skeleton.bones) ? obj.skeleton.bones.length : 0;
+              skinnedFound.push(obj.name + ' (' + skBones + ' joints)');
+            }
+            if (typeof obj.name === 'string' && /^Face_(neutral|happy|talk|surprised|celebrate)$/.test(obj.name)) {
+              facesFound.push(obj.name);
+            }
+            if (obj.isMesh && obj.material) {
+              const ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+              for (let i = 0; i < ms.length; i++) {
+                if (ms[i] && ms[i].name && ms[i].name.indexOf('Mat_') === 0) {
+                  matsFoundSet.add(ms[i].name);
+                }
+              }
+            }
+          });
+
+          const clipNames = (gltf.animations || []).map(function (c) { return c.name; });
+          const matchedMats = EXPECTED_MATERIALS.filter(function (m) { return matsFoundSet.has(m); });
+          const sizeKB = (byteLength / 1024).toFixed(1);
+
+          const checks = [
+            {
+              ok: byteLength > 0 && Boolean(gltf.scene),
+              title: 'Arquivo GLB válido carregado',
+              detail: fileName + ' • ' + sizeKB + ' KB'
+            },
+            {
+              ok: bonesFound.length >= 15,
+              title: 'Ossos (THREE.Bone) na hierarquia',
+              detail: bonesFound.length + ' ossos detectados'
+            },
+            {
+              ok: skinnedFound.length >= 1,
+              title: 'SkinnedMesh / Skeleton (glTF skins)',
+              detail: skinnedFound.length > 0 ? skinnedFound.join(', ') : 'Nenhum detectado'
+            },
+            {
+              ok: ['Socket_Hand_R','Socket_Hand_L','Socket_Head'].every(function(n){return socketsFound.includes(n);}),
+              title: 'Sockets de mão e cabeça',
+              detail: socketsFound.length + '/3 nós de encaixe preservados'
+            },
+            {
+              ok: limbsFound.length === 4,
+              title: 'Membros com deformação SkinnedMesh',
+              detail: limbsFound.length + '/4 braços e pernas deformáveis'
+            },
+            {
+              ok: clipNames.length >= 5,
+              title: 'Animações detectadas (' + clipNames.length + ')',
+              detail: clipNames.length > 0 ? clipNames.join(', ') : 'Nenhuma'
+            },
+            {
+              ok: facesFound.length === 5,
+              title: 'Expressões faciais (Face_*)',
+              detail: facesFound.length + '/5 placas intercambiáveis'
+            },
+            {
+              ok: matchedMats.length >= 8,
+              title: 'Materiais padronizados (Mat_*)',
+              detail: matchedMats.length + '/' + EXPECTED_MATERIALS.length + ' recoloríveis'
+            }
+          ];
+
+          const passedCount = checks.filter(function (c) { return c.ok; }).length;
+          const allPassed = passedCount === checks.length;
+
+          auditSummaryTag.textContent = allPassed ? 'APROVADO (' + passedCount + '/' + checks.length + ')' : 'ATENÇÃO (' + passedCount + '/' + checks.length + ')';
+          auditSummaryTag.className = allPassed
+            ? 'px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-extrabold'
+            : 'px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-400/50 text-rose-300 text-[10px] font-extrabold';
+
+          function escapeAudit(value){return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+          auditList.innerHTML = '';
+          for (let i = 0; i < checks.length; i++) {
+            const c = checks[i];
+            const li = document.createElement('li');
+            li.className = 'flex items-start gap-2 py-0.5';
+            li.innerHTML =
+              '<span class="mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ' +
+              (c.ok ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/50' : 'bg-rose-500/25 text-rose-300 border border-rose-400/50') +
+              '">' + (c.ok ? '✓' : '✕') + '</span>' +
+              '<div class="min-w-0 leading-tight">' +
+              '<div class="font-bold ' + (c.ok ? 'text-slate-100' : 'text-rose-200') + '">' + escapeAudit(c.title) + '</div>' +
+              '<div class="text-[10px] text-slate-400 break-words">' + escapeAudit(c.detail) + '</div>' +
+              '</div>';
+            auditList.appendChild(li);
+          }
+        }
+
+        function validateGlbArrayBuffer(arrayBuffer, fileName) {
+          try {
+            // Nova instância completamente independente do GLTFLoader
+            const loader = new THREE.GLTFLoader();
+            // ASSINATURA EXATA DO Three.js r128: parse(data, path, onLoad, onError)
+            loader.parse(
+              arrayBuffer,
+              '',
+              function (gltf) {
+                // Restaura baseScale nas placas Face_* importadas para troca fiel de expressões
+                gltf.scene.traverse(function (obj) {
+                  if (obj && typeof obj.name === 'string' && obj.name.indexOf('Face_') === 0) {
+                    obj.userData.baseScale = [1.03, 0.98, 0.96];
+                  }
+                });
+
+                auditAndRenderChecklist(gltf, arrayBuffer.byteLength, fileName);
+                mountActor(gltf.scene, gltf.animations || [], 'validation', (arrayBuffer.byteLength / 1024).toFixed(1) + ' KB');
+                showToast('Validação ativa! Testando o .GLB reimportado de forma 100% independente.');
+              },
+              function (err) {
+                showToast('Falha ao importar .GLB: ' + (err && err.message ? err.message : 'arquivo inválido'));
+              }
+            );
+          } catch (err) {
+            showToast('Erro na validação do .GLB: ' + (err && err.message ? err.message : 'falha inesperada'));
+          }
+        }
+
+        // ---------------------------------------------------------------------
+        // 8.6 SINCRONIZAÇÃO DE INTERFACE (BOTÕES, PRESETS E CORES)
+        // ---------------------------------------------------------------------
+        const animBtns   = document.querySelectorAll('.anim-btn');
+        const exprBtns   = document.querySelectorAll('.expr-btn');
+        const camBtns    = document.querySelectorAll('.cam-btn');
+        const presetBtns = document.querySelectorAll('.preset-btn');
+
+        function syncAnimButtonsUI() {
+          for (let i = 0; i < animBtns.length; i++) {
+            const b = animBtns[i];
+            const active = b.getAttribute('data-anim') === state.currentAnim;
+            b.className = active
+              ? 'anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-indigo-500 border-indigo-400 text-white shadow' + (b.getAttribute('data-anim') === 'celebrate' ? ' col-span-2 sm:col-span-1 lg:col-span-2' : '')
+              : 'anim-btn px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80' + (b.getAttribute('data-anim') === 'celebrate' ? ' col-span-2 sm:col-span-1 lg:col-span-2' : '');
+          }
+        }
+
+        function syncExprButtonsUI() {
+          for (let i = 0; i < exprBtns.length; i++) {
+            const b = exprBtns[i];
+            const active = b.getAttribute('data-expr') === state.currentExpr;
+            const spanCls = b.getAttribute('data-expr') === 'celebrate' ? ' col-span-2' : '';
+            b.className = active
+              ? 'expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-amber-400/20 border-amber-400/70 text-amber-200' + spanCls
+              : 'expr-btn px-2 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700/80' + spanCls;
+          }
+        }
+
+        function syncPlayUI() {
+          iconPlay.classList.toggle('hidden', state.playing);
+          iconPause.classList.toggle('hidden', !state.playing);
+        }
+
+        function applyPreset(presetKey) {
+          const p = PRESETS[presetKey];
+          if (!p) return;
+          Object.assign(state.palette, p);
+
+          colorInputs.Mat_Cap.value   = state.palette.Mat_Cap;
+          colorInputs.Mat_Shirt.value = state.palette.Mat_Shirt;
+          colorInputs.Mat_Pants.value = state.palette.Mat_Pants;
+          colorInputs.Mat_Shoes.value = state.palette.Mat_Shoes;
+          colorInputs.Mat_Skin.value  = state.palette.Mat_Skin;
+
+          applyPaletteToRoot(state.activeRoot);
+          if (state.mode === 'validation') {
+            applyPaletteToRoot(proceduralBuild.root);
+          }
+
+          for (let i = 0; i < presetBtns.length; i++) {
+            const b = presetBtns[i];
+            const on = b.getAttribute('data-preset') === presetKey;
+            b.className = on
+              ? 'preset-btn px-2 py-1.5 rounded-xl text-[11px] font-bold bg-pink-500/25 border border-pink-400/60 text-pink-100 transition cursor-pointer'
+              : 'preset-btn px-2 py-1.5 rounded-xl text-[11px] font-bold bg-slate-800/80 border border-slate-700 text-slate-200 hover:bg-slate-700/80 transition cursor-pointer';
+          }
+        }
+
+        propSelect.addEventListener('change',function(){
+          state.propType=propSelect.value;
+          applyPropsToRoot(state.activeRoot);
+          if(state.mode==='validation')applyPropsToRoot(proceduralBuild.root);
+        });
+        propSocketSelect.addEventListener('change',function(){
+          state.propSocket=propSocketSelect.value;
+          applyPropsToRoot(state.activeRoot);
+          if(state.mode==='validation')applyPropsToRoot(proceduralBuild.root);
+        });
+        helmetToggle.addEventListener('change',function(){
+          state.helmet=helmetToggle.checked;
+          applyPropsToRoot(state.activeRoot);
+          if(state.mode==='validation')applyPropsToRoot(proceduralBuild.root);
+        });
+
+        // Eventos dos botões
+        for (let i = 0; i < animBtns.length; i++) {
+          animBtns[i].addEventListener('click', function () {
+            playAnimation(this.getAttribute('data-anim'), false);
+          });
+        }
+
+        for (let i = 0; i < exprBtns.length; i++) {
+          exprBtns[i].addEventListener('click', function () {
+            setExpression(this.getAttribute('data-expr'));
+          });
+        }
+
+        for (let i = 0; i < camBtns.length; i++) {
+          camBtns[i].addEventListener('click', function () {
+            const view = this.getAttribute('data-cam');
+            orbit.setView(view);
+            for (let j = 0; j < camBtns.length; j++) {
+              const on = camBtns[j] === this;
+              camBtns[j].className = on
+                ? 'cam-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-500 text-white transition cursor-pointer'
+                : 'cam-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-200 hover:bg-white/10 transition cursor-pointer';
+            }
+          });
+        }
+
+        for (let i = 0; i < presetBtns.length; i++) {
+          presetBtns[i].addEventListener('click', function () {
+            applyPreset(this.getAttribute('data-preset'));
+          });
+        }
+
+        // Seletores individuais de cor
+        Object.keys(colorInputs).forEach(function (matKey) {
+          colorInputs[matKey].addEventListener('input', function (e) {
+            state.palette[matKey] = e.target.value;
+            applyPaletteToRoot(state.activeRoot);
+            if (state.mode === 'validation') {
+              applyPaletteToRoot(proceduralBuild.root);
+            }
+          });
+        });
+
+        // Play / Pause
+        playPauseBtn.addEventListener('click', function () {
+          state.playing = !state.playing;
+          syncPlayUI();
+        });
+
+        // Scrub determinístico
+        scrubSlider.addEventListener('input', function () {
+          const action = state.activeActions[state.currentAnim];
+          if (!action || !state.activeMixer) return;
+          state.scrubbing = true;
+          const dur = action.getClip().duration || 1;
+          const targetT = (Number(scrubSlider.value) / 1000) * dur;
+          action.time = targetT;
+          state.activeMixer.update(0);
+          clipDurationEl.textContent = targetT.toFixed(2) + 's / ' + dur.toFixed(2) + 's';
+        });
+        scrubSlider.addEventListener('change', function () {
+          state.scrubbing = false;
+        });
+
+        // Velocidade
+        speedSlider.addEventListener('input', function () {
+          state.speed = Number(speedSlider.value);
+          speedValueEl.textContent = state.speed.toFixed(2) + 'x';
+        });
+
+        // Toggle Esqueleto
+        toggleSkeletonBtn.addEventListener('click', function () {
+          state.showSkeleton = !state.showSkeleton;
+          skeletonPill.classList.toggle('on', state.showSkeleton);
+          if (state.skeletonHelper) state.skeletonHelper.visible = state.showSkeleton;
+        });
+
+        // Toggle Contorno Toon
+        toggleOutlineBtn.addEventListener('click', function () {
+          state.showOutline = !state.showOutline;
+          outlinePill.classList.toggle('on', state.showOutline);
+          applyOutlineVisibility(state.activeRoot, state.showOutline);
+        });
+
+        // Exportar .GLB
+        exportGlbBtn.addEventListener('click', exportMascotGLB);
+
+        // Validar Último .GLB (Reimportar Agora)
+        validateLastBtn.addEventListener('click', function () {
+          if (!state.lastGlbBuffer) {
+            showToast('Exporte um .GLB primeiro para validar.');
+            return;
+          }
+          validateGlbArrayBuffer(state.lastGlbBuffer, state.lastGlbName);
+        });
+
+        // Importar .GLB do PC
+        importFileBtn.addEventListener('click', function () {
+          glbFileInput.value = '';
+          glbFileInput.click();
+        });
+
+        glbFileInput.addEventListener('change', function (e) {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          if(file.size > 20*1024*1024) {showToast('Arquivo muito grande (limite: 20 MB).');return;}
+          const reader = new FileReader();
+          reader.onload = function (ev) {
+            const buf = ev.target.result;
+            if (buf instanceof ArrayBuffer) {
+              state.lastGlbBuffer = buf;
+              state.lastGlbName = file.name;
+              glbSizeBadge.textContent = (buf.byteLength / 1024).toFixed(1) + ' KB';
+              validateLastBtn.disabled = false;
+              validateGlbArrayBuffer(buf, file.name);
+            }
+          };
+          reader.onerror = function () {
+            showToast('Não foi possível ler o arquivo selecionado.');
+          };
+          reader.readAsArrayBuffer(file);
+        });
+
+        // Voltar ao Editor Procedural
+        backToEditorBtn.addEventListener('click', function () {
+          mountActor(proceduralBuild.root, proceduralClips, 'editor');
+          showToast('De volta ao Modo Editor Procedural.');
+        });
+
+        // ---------------------------------------------------------------------
+        // 8.7 Redimensionamento Responsivo + Loop Principal 60fps
+        // ---------------------------------------------------------------------
+        function handleResize() {
+          const w = Math.max(240, viewportPane.clientWidth || 640);
+          const h = Math.max(280, viewportPane.clientHeight || 480);
+          renderer.setSize(w, h, false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        }
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        if (typeof ResizeObserver !== 'undefined') {
+          try { new ResizeObserver(handleResize).observe(viewportPane); } catch (e) {}
+        }
+
+        function animate(ts) {
+          requestAnimationFrame(animate);
+          try {
+            if (!state.lastTs) state.lastTs = ts;
+            const dt = Math.min((ts - state.lastTs) / 1000, 0.05);
+            state.lastTs = ts;
+
+            if (state.activeMixer) {
+              if (state.playing && !state.scrubbing) {
+                state.activeMixer.update(dt * state.speed);
+              }
+              // Se o usuário escolheu outra expressão durante o clip `talk`, evita sobreposição da placa Face_talk
+              if (state.currentExpr !== 'talk' && state.activeRoot) {
+                const talkPlate = state.activeRoot.getObjectByName('Face_talk');
+                if (talkPlate) talkPlate.scale.set(0.0001, 0.0001, 0.0001);
+              }
+
+              // Atualiza scrub e relógio da animação ativa
+              const act = state.activeActions[state.currentAnim];
+              if (act) {
+                const dur = act.getClip().duration || 1;
+                const cur = act.time % dur;
+                if (!state.scrubbing) {
+                  scrubSlider.value = String(Math.round((cur / dur) * 1000));
+                }
+                clipDurationEl.textContent = cur.toFixed(2) + 's / ' + dur.toFixed(2) + 's';
+              }
+            }
+
+            orbit.update(dt);
+            renderer.render(scene, camera);
+          } catch (err) {
+            // Mantém loop ativo sem travar
+          }
+        }
+
+        // Monta o mascote procedural inicial já rodando `idle` e inicia o loop!
+        mountActor(proceduralBuild.root, proceduralClips, 'editor');
+        syncPlayUI();
+        syncExprButtonsUI();
+        orbit.update(1);
+        renderer.render(scene, camera);
+        hideBootOverlay();
+        requestAnimationFrame(animate);
+      }
+
+      // =========================================================================
+      // 9. BOOTSTRAP SEGURO
+      // =========================================================================
+      async function boot() {
+        retryBootBtn.classList.add('hidden');
+        loaderSpinner.classList.remove('hidden');
+        loaderTitle.textContent = 'Carregando Laboratório 3D...';
+
+        const res = await loadThreeSuite();
+        if (!res.ok) {
+          showBootError(
+            'Não foi possível carregar ' + res.missing,
+            'Verifique sua conexão com a internet e clique abaixo para tentar novamente.'
+          );
+          return;
+        }
+
+        try {
+          startLabApp();
+        } catch (err) {
+          showBootError(
+            'Erro ao iniciar o Laboratório 3D',
+            err && err.message ? err.message : 'Falha inesperada na inicialização.'
+          );
+        }
+      }
+
+      retryBootBtn.addEventListener('click', boot);
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+      } else {
+        boot();
+      }
+    })();
+  </script>
+</body>
+</html>
