@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { StoryFrame } from './StoryFrame';
+import { NarrationSetup } from './NarrationSetup';
+import { rescaleStoryDuration, resolveAudioMode, type AudioIntent, type ImportedAudioType } from './productionFlow';
 import { storytellingOvos } from './storytellingOvosSpec';
 import { storytellingLoja } from './storytellingLojaSpec';
 import { sceneAt, validateStory, type StorytellingSpec } from './storytelling';
@@ -37,6 +39,10 @@ export default function Storytelling2DStudio(){
   const [jsonOpen,setJsonOpen]=useState(false);
   const [raw,setRaw]=useState(()=>JSON.stringify(storytellingOvos,null,2));
   const [error,setError]=useState('');
+  const [audioIntent,setAudioIntent]=useState<AudioIntent>('auto');
+  const [audioType,setAudioType]=useState<ImportedAudioType>('unclassified');
+  const [spokenText,setSpokenText]=useState('');
+  const [performanceText,setPerformanceText]=useState('');
   const [audioUrl,setAudioUrl]=useState('');
   const [audioName,setAudioName]=useState('');
   const [audioDuration,setAudioDuration]=useState(0);
@@ -52,7 +58,7 @@ export default function Storytelling2DStudio(){
     setTime(target);
     clock.current={start:performance.now(),offset:target};
     const au=audioRef.current;
-    if(au&&audioDuration>0)au.currentTime=Math.min(audioDuration,target/project.duration*audioDuration);
+    if(au&&audioDuration>0)au.currentTime=Math.min(audioDuration,target);
   },[audioDuration,project.duration]);
 
   useEffect(()=>{
@@ -62,7 +68,7 @@ export default function Storytelling2DStudio(){
       const a=audioRef.current;
       const now=performance.now();
       const t=a&&!a.paused&&audioDuration>0
-        ? Math.min(project.duration,(a.currentTime/audioDuration)*project.duration)
+        ? Math.min(project.duration,a.currentTime)
         :Math.min(project.duration,clock.current.offset+(now-clock.current.start)/1000);
       setTime(t);
       if(t>=project.duration-.005){setPlaying(false);return;}
@@ -74,22 +80,56 @@ export default function Storytelling2DStudio(){
 
   const toggle=async()=>{
     if(playing){audioRef.current?.pause();setPlaying(false);return;}
+    const status=resolveAudioMode(audioIntent,audioType,!!audioName,spokenText);
+    if(status==='confirm_audio_type'){
+      setError('Informe se o MP3 importado contém narração ou apenas música antes de reproduzir.');
+      return;
+    }
     const from=time>=project.duration-.03?0:time;
+    const au=audioRef.current;
+    const useImportedAudio=!!au&&audioDuration>0&&
+      (status==='narrated'||(status==='no_voice'&&audioType==='music'));
+    if(useImportedAudio&&Math.abs(audioDuration-project.duration)>.5){
+      setError('O áudio tem outra duração. Use "Ajustar cenas ao MP3" para manter a voz no tempo original.');
+      return;
+    }
+    setError('');
     clock.current={start:performance.now(),offset:from};
     setTime(from);
-    const au=audioRef.current;
-    if(au&&audioDuration>0){
-      au.currentTime=from/project.duration*audioDuration;
-      try{await au.play();}catch{setError('O navegador bloqueou a reprodução do MP3; a animação seguirá sem áudio.');}
-    }
+    if(useImportedAudio&&au){
+      au.currentTime=Math.min(audioDuration,from);
+      try{await au.play();}
+      catch{setError('Não foi possível iniciar o áudio; a prévia continuará sem voz.');}
+    }else{au?.pause();}
     setPlaying(true);
   };
   const chooseAudio=(e:ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];
     if(!file)return;
+    e.target.value='';
+    if(!/\.mp3$/i.test(file.name)){
+      setError('Por enquanto, importe um arquivo MP3 gerado no ElevenLabs.');return;
+    }
+    if(file.size>80*1024*1024){setError('O MP3 ultrapassa 80 MB.');return;}
+    audioRef.current?.pause();
     if(lastUrl.current)URL.revokeObjectURL(lastUrl.current);
     const url=URL.createObjectURL(file);lastUrl.current=url;
-    setAudioUrl(url);setAudioName(file.name);setAudioDuration(0);setPlaying(false);setTime(0);setError('');
+    setAudioUrl(url);setAudioName(file.name);setAudioDuration(0);
+    setAudioType('unclassified');setPlaying(false);setTime(0);setError('');
+  };
+  const clearAudio=()=>{
+    audioRef.current?.pause();
+    if(lastUrl.current)URL.revokeObjectURL(lastUrl.current);
+    lastUrl.current='';
+    setAudioUrl('');setAudioName('');setAudioDuration(0);
+    setAudioType('unclassified');setPlaying(false);setTime(0);setError('');
+  };
+  const adjustLength=(seconds:number)=>{
+    try{
+      const next=rescaleStoryDuration(project,seconds);
+      audioRef.current?.pause();setPlaying(false);
+      setProject(next);setTime(0);setSelected(0);setError('');
+    }catch(e){setError(e instanceof Error?e.message:'Duração inválida');}
   };
   const editScene=(ix:number,field:'headline'|'caption',value:string)=>{
     setProject(p=>({...p,scenes:p.scenes.map((s,i)=>i===ix?{...s,[field]:value}:s)}));
@@ -161,15 +201,22 @@ export default function Storytelling2DStudio(){
             <button type="button" onClick={()=>{setPlaying(false);audioRef.current?.pause();seek(Math.min(project.duration,time+5));}} className={baseButton}>+5s</button>
           </div>
           <audio ref={audioRef} src={audioUrl||undefined} onLoadedMetadata={e=>setAudioDuration(e.currentTarget.duration)} preload="metadata"/>
-          <div className="mt-4 rounded-xl border border-slate-700 p-3 text-sm">
-            <div className="mb-1 font-semibold">Narração MP3 (opcional)</div>
-            <input type="file" accept="audio/*" onChange={chooseAudio} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-2 file:py-2 file:text-slate-100"/>
-            {audioName&&<p className="mt-2 text-xs text-slate-300">{audioName} · {audioDuration?audioDuration.toFixed(1)+'s':'carregando…'}</p>}
-            {audioDuration>0&&Math.abs(audioDuration-project.duration)>1&&<p className="mt-2 text-xs text-amber-300">A narração tem duração diferente. A prévia distribui o tempo proporcionalmente; isso ainda não é alinhamento por palavra.</p>}
-          </div>
+          <p className="mt-3 text-center text-xs text-slate-400">
+            Timeline local; se houver MP3, o áudio roda no tempo original, sem acelerar palavras.
+          </p>
         </div>
       </section>
       <section className="min-w-0 space-y-4">
+        <NarrationSetup
+          duration={project.duration} onSetDuration={adjustLength}
+          mode={audioIntent} onModeChange={setAudioIntent}
+          audioType={audioType} onAudioTypeChange={setAudioType}
+          spokenText={spokenText} onSpokenTextChange={setSpokenText}
+          performanceText={performanceText} onPerformanceTextChange={setPerformanceText}
+          audioName={audioName} audioDuration={audioDuration}
+          onChooseAudio={chooseAudio} onClearAudio={clearAudio}
+          onFitAudio={()=>adjustLength(audioDuration)}
+        />
         <div className="rounded-2xl border border-slate-700 bg-[#111D2A] p-4">
           <div className="mb-4 flex flex-wrap gap-2">
             <button className={baseButton} type="button" onClick={()=>loadTemplate(storytellingOvos)}>Modelo · Ovos (42s)</button>
@@ -202,7 +249,7 @@ export default function Storytelling2DStudio(){
           <button className={'mt-2 '+accentButton} type="button" onClick={applyJson}>Validar e carregar</button>
         </div>}
         {error&&<div role="alert" className="rounded-xl border border-rose-600/70 bg-rose-950/50 p-3 text-sm text-rose-200">{error}</div>}
-        <p className="text-xs text-slate-400">Prévia/edição 2D da branch experimental. Exportação de vídeo, alinhamento fonético e geração automática pelo Gemini ainda não estão conectados a esta tela.</p>
+        <p className="text-xs text-slate-400">Prévia/edição 2D da branch experimental. O MP3 acompanha o tempo real, mas alinhamento por palavra, geração de roteiro com Gemini e exportação MP4 ainda estão pendentes.</p>
       </section>
     </div>
   </main>;
