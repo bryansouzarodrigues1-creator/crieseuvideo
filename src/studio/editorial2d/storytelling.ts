@@ -9,7 +9,8 @@ export type StoryTheme = 'studio_dark' | 'farm_light' | 'math_cream' | 'city_sho
 export type StoryBlock =
   | {type:'actors';actors:Actor2D[]}
   | {type:'icon_grid';id:string;icon:'hen'|'egg'|'coin';count:number;columns:number;x:number;y:number;gapX:number;gapY:number}
-  | {type:'equation';rows:EquationRow[];x:number;y:number}
+  | {type:'cash_register';id:string;orders:number;x:number;y:number}
+  | {type:'equation';rows:EquationRow[];x:number;y:number;chart?:'split_bar'}
   | {type:'concept';title:string;detail:string};
 export interface Actor2D{
  id:string;x:number;y:number;scale:number;facing:Facing;pose:StoryPose;
@@ -48,6 +49,9 @@ export function validateStory(spec:StorytellingSpec):string[]{
     if(!Number.isInteger(block.count)||block.count<0||block.count>2000)errors.push('Invalid grid count '+block.id);
     if(!Number.isInteger(block.columns)||block.columns<1||block.columns>100)errors.push('Invalid grid columns '+block.id);
     if([block.x,block.y,block.gapX,block.gapY].some(x=>!finite(x)||x<0))errors.push('Invalid grid geometry '+block.id);
+   } else if(block.type==='cash_register'){
+    if(!Number.isInteger(block.orders)||block.orders<1||block.orders>120)errors.push('Invalid paid order count');
+    if(!finite(block.x)||!finite(block.y)||block.x<260||block.x>820||block.y<700||block.y>1250)errors.push('Cash register outside safe area');
    } else if(block.type==='equation'){
     if(block.rows.some(x=>!finite(x.amount)))errors.push('Invalid equation amounts');
    }
