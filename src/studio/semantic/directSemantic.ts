@@ -59,8 +59,7 @@ export function compileDirectSemantic(raw:unknown):SemanticCompileResult{
  const compiled:CompiledSemanticAction[]=[];
  for(const a of ordered){
   if(a.at+a.duration>plan.duration+1e-6)fail(a.id+': evento fora da duração.');
-  const zone=actors.get(a.actorId);
-  if(zone===undefined)fail(a.id+': ator não declarado.');
+  const zone=actors.get(a.actorId)??fail(a.id+': ator não declarado.');
   if(a.at<(busy.get(a.actorId)??0)-1e-6)fail(a.id+': ações simultâneas do mesmo ator.');
   const held=holders.get(a.actorId)??null;
   let nextZone=zone,nextHeld=held;
