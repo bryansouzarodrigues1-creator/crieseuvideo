@@ -16,7 +16,8 @@ export function resolveAudioMode(
   spokenText: string,
 ): ResolvedAudio {
   if (intent === 'without_voice') return 'no_voice';
-  if (intent === 'narrated') return hasAudio ? 'narrated' : 'waiting_for_mp3';
+  if (hasAudio && imported === 'unclassified') return 'confirm_audio_type';
+  if (intent === 'narrated') return hasAudio && imported === 'voice' ? 'narrated' : hasAudio ? 'confirm_audio_type' : 'waiting_for_mp3';
   if (hasAudio && imported === 'voice') return 'narrated';
   if (hasAudio && imported === 'music') return 'no_voice';
   if (hasAudio && imported === 'unclassified') return 'confirm_audio_type';
