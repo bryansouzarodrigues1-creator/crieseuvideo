@@ -33,7 +33,7 @@ export function NarrationSetup(p: Props) {
   const scriptMismatch=!!p.performanceText.trim() &&
     cleanElevenPerformanceText(p.performanceText).replace(/\s+/g,' ') !== p.spokenText.trim().replace(/\s+/g,' ');
   const time=(n:number)=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
-  const acts=splitIntoActs(p.duration).length;
+  const acts=durationAllowed(p.duration)?splitIntoActs(p.duration).length:0;
   const copy=async()=>{
     const t=p.performanceText.trim()||p.spokenText.trim();
     if(!t){setCopyMessage('Preencha o roteiro primeiro.');return;}
@@ -64,7 +64,7 @@ export function NarrationSetup(p: Props) {
 
     <label htmlFor="cinema2d-video-length" className="mt-4 block font-semibold">Duração pretendida</label>
     <select id="cinema2d-video-length" className={'mt-1 '+field}
-      value={[30,60,120,180,300].includes(p.duration)?String(p.duration):'custom'}
+      value={[30,60,120,180,300,600].includes(p.duration)?String(p.duration):'custom'}
       onChange={e=>{const n=Number(e.target.value);if(durationAllowed(n))p.onSetDuration(n);}}>
       <option value="custom" disabled>Duração atual: {time(p.duration)}</option>
       <option value="30">30 segundos — vídeo rápido</option>
@@ -72,6 +72,7 @@ export function NarrationSetup(p: Props) {
       <option value="120">2 minutos — história explicada</option>
       <option value="180">3 minutos — documentário curto</option>
       <option value="300">5 minutos — documentário em atos</option>
+      <option value="600">10 minutos — modo longo experimental</option>
     </select>
     <p className="mt-1 text-xs text-slate-400">
       Atual: {time(p.duration)} · cerca de {acts} atos de 20–35s.
