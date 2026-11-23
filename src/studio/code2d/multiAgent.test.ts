@@ -209,6 +209,29 @@ describe('free multi-agent Code2D orchestra',()=>{
   expect(r.steps.find(x=>x.stage==='animation'&&x.provider==='groq')?.status).toBe('ok');
   expect(r.model).toBe('openai/gpt-oss-120b');
  });
+ it('prioritizes Groq low-reasoning programming after OpenRouter 429 without calling Gemini High for code',async()=>{
+  process.env.GEMINI_API_KEY='test-gemini'; // Available but expensive as full-code fallback.
+  process.env.CODE2D_SKIP_GEMINI_DIRECTION='true';
+  const calls:{url:string;body:any}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
+   const u=String(url),body=JSON.parse(String(init?.body));calls.push({url:u,body});
+   if(u.includes('openrouter.ai'))return new Response('',{status:429});
+   if(u.includes('api.groq.com')&&body.messages[0].content.includes('ROTEIRISTA'))return answer(board);
+   if(u.includes('api.groq.com'))return codeAnswer();
+   return new Response('',{status:503});
+  }));
+  const r=await generateMultiAgentCode2D('Uma oficina realiza a troca de pneu','9:16',40);
+  expect(r.ok).toBe(true);
+  if(!r.ok)throw Error(r.message);
+  expect(r.model).toBe('openai/gpt-oss-120b');
+  expect(r.steps.filter(s=>s.stage==='animation').map(s=>[s.provider,s.status])).toEqual([
+   ['openrouter','failed'],['groq','ok']
+  ]);
+  expect(calls).toHaveLength(3);
+  expect(calls.every(x=>!x.url.includes('generativelanguage'))).toBe(true);
+  expect(calls[2].body.reasoning_effort).toBe('low');
+ });
+
  it('uses the Gemini alternative key only after a primary quota/auth failure',async()=>{
   process.env.GEMINI_API_KEY='dummy-primary';
   process.env.GEMINI_API_KEY_ALT='dummy-alternate';
