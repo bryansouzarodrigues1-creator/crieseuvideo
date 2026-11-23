@@ -13,6 +13,9 @@ describe('Storytelling 2D',()=>{
   expect(validateStory(storytellingLoja)).toEqual([]);
   expect(sceneAt(storytellingLoja,16).id).toBe('custos');
   expect(storytellingLoja.scenes.find(s=>s.id==='custos')?.blocks.some(b=>b.type==='equation')).toBe(true);
+  expect(storytellingLoja.scenes.find(s=>s.id==='vendas')?.blocks.some(b=>b.type==='cash_register')).toBe(true);
+  const eq=storytellingLoja.scenes.find(s=>s.id==='custos')?.blocks.find(b=>b.type==='equation');
+  expect(eq?.type==='equation'&&eq.chart==='split_bar').toBe(true);
  });
  it('creates precise icon-grid counts',()=>{
   expect(iconGridPositions(5,5,0,0,20,20)).toHaveLength(5);
