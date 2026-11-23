@@ -40,3 +40,27 @@ Nunca configure este webhook para eventos de produção enquanto o módulo estiv
 ## Verificações atuais e limites
 
 As tabelas, RLS e privilégios da RPC foram consultados no banco e confirmados. A integração com API do Asaas e o fluxo real de pagamento ainda NÃO foram validados sem chave sandbox. O PR segue em rascunho sem merge. Não foi realizada cobrança nem configurado webhook real.
+
+
+## Continuação após cadastrar ASAAS_API_KEY no Lovable Cloud (23/11/2026)
+
+O responsável pelo projeto informou que cadastrou a chave no campo `ASAAS_API_KEY`. **Isso é uma confirmação de configuração manual, não validação da chave**: o PR #107 ainda não está em produção nem possui um backend de teste publicado com essas alterações.
+
+Foi incluída a função `probeAsaasSandboxCredential()` em `src/studio/payments/asaas.server.ts`: chamada interna e **somente leitura** a `GET https://api-sandbox.asaas.com/v3/myAccount/status/`. Ela não gera cobranças, não retorna dados da conta, não expõe segredo, não possui rota pública e nunca muda o ambiente para produção. Testes automatizados verificam isso. A execução real dependerá de disponibilizar o código em ambiente com os Secrets.
+
+**Configuração restante, SEM nova mensagem para a IA do Lovable**:
+1. Definir `ASAAS_ENV=sandbox` como Secret/configuração do servidor.
+2. Cadastrar **uma chave Pix na conta de destino do Asaas Sandbox** e registrar o seu identificador em `ASAAS_PIX_ADDRESS_KEY`.
+3. Criar um token exclusivo de webhook com 32–255 caracteres sem espaços e registrar o mesmo valor em `ASAAS_WEBHOOK_TOKEN` (não reutilizar a API Key).
+4. Criar o webhook na conta **Sandbox** de destino, vinculado à URL de HTTPS do backend de teste e aos eventos de cobrança; conferir o token e logs na página de Integrações do Asaas.
+5. Habilitar `ASAAS_CHECKOUT_ENABLED=true` apenas na implantação de homologação sandbox, nunca em produção.
+
+**Procedimento oficial de simulação**: requer DUAS contas de Sandbox, a recebedora (com chave Pix e QR estático) e outra pagadora com saldo. O QR gerado na recebedora fornece um `payload`; a outra conta executa `POST /v3/pix/qrCodes/pay`. Validar a cobrança gerada, `pixQrCodeId`, webhook e liberação de 3 créditos uma única vez. Sem necessidade de dinheiro real.
+
+**Referências**:
+- https://docs.asaas.com/docs/testar-pagamento-de-qrcodes-pix
+- https://docs.asaas.com/reference/criar-qrcode-estatico
+- https://docs.asaas.com/docs/criar-novo-webhook-pela-aplicacao-web
+- https://docs.asaas.com/reference/consultar-situacao-cadastral-da-conta
+
+**Bloqueador atual**: Somente a chave API foi informada como cadastrada. Ainda não há confirmação da chave Pix, do token de webhook nem de um ambiente com PR #107 implantado. O sistema de consumo de créditos na geração/exportação 2D e os fluxos de estorno também seguem pendentes. Não liberar compras reais.
