@@ -60,13 +60,15 @@ export async function askFreeTextProvider(
     // Earlier, the same model spent 12k/12k tokens only on reasoning and
     // returned empty content. Keep explicit budget for other free models,
     // which may not accept a disabled reasoning mode.
-    max_tokens:expected==='json'?3000:14000,
-    ...(provider==='openrouter'?{
-      reasoning:config.model==='particle-ai/particle-1:free'
-        ? {enabled:false}
-        : {max_tokens:expected==='javascript'?1800:650},
-    }:{}),
-    ...(provider==='groq'?{reasoning_effort:'low'}:{}),
+    // Groq's real successful GPT-OSS storyboard request used
+    // max_completion_tokens:4000 with reasoning_effort:low. Keep that exact
+    // known-working shape, reserving more visible output for Code2D scripts.
+    ...(provider==='groq'?
+      {max_completion_tokens:expected==='json'?4000:14000,reasoning_effort:'low'}:
+      {max_tokens:expected==='json'?3000:14000,
+        reasoning:config.model==='particle-ai/particle-1:free'
+          ? {enabled:false}
+          : {max_tokens:expected==='javascript'?1800:650}}),
     ...(provider==='groq'&&expected==='json'?{response_format:{type:'json_object'}}:{}),
    }),
   });
