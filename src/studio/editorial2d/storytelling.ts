@@ -5,7 +5,7 @@
  */
 export type StoryPose = 'idle' | 'talking' | 'thinking' | 'pointing' | 'celebrating' | 'sad';
 export type Facing = 'left' | 'right';
-export type StoryTheme = 'studio_dark' | 'farm_light' | 'math_cream';
+export type StoryTheme = 'studio_dark' | 'farm_light' | 'math_cream' | 'city_shop';
 export type StoryBlock =
   | {type:'actors';actors:Actor2D[]}
   | {type:'icon_grid';id:string;icon:'hen'|'egg'|'coin';count:number;columns:number;x:number;y:number;gapX:number;gapY:number}
