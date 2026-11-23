@@ -230,6 +230,9 @@ describe('free multi-agent Code2D orchestra',()=>{
   expect(calls).toHaveLength(3);
   expect(calls.every(x=>!x.url.includes('generativelanguage'))).toBe(true);
   expect(calls[2].body.reasoning_effort).toBe('low');
+  expect(calls[2].body.max_completion_tokens).toBe(14000);
+  expect(calls[2].body.max_tokens).toBeUndefined();
+  expect(calls[0].body.max_completion_tokens).toBe(4000);
  });
 
  it('uses the Gemini alternative key only after a primary quota/auth failure',async()=>{
