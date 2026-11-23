@@ -37,7 +37,7 @@ try{
  const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+report.model+':generateContent',{
    method:'POST',signal:controller.signal,
    headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
-   body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0.2,maxOutputTokens:2600}})
+   body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:6500,thinkingConfig:{thinkingLevel:'minimal'}}})
  });
  report.httpStatus=res.status;
  if(!res.ok){
@@ -53,7 +53,7 @@ try{
   const raw=(candidate?.content?.parts||[]).filter(p=>typeof p.text==='string'&&!p.thought).map(p=>p.text).join('');
   let obj=null;try{obj=JSON.parse(raw.trim())}catch{}
   if(!obj||!Array.isArray(obj.scenes)||obj.scenes.length!==3){
-   report.status='invalid_json';report.finishReason=candidate?.finishReason??'unknown';process.exitCode=1;
+   report.status=candidate?.finishReason==='MAX_TOKENS'?'truncated_response':'invalid_json';report.finishReason=candidate?.finishReason??'unknown';process.exitCode=1;
   }else{
    report.status='success';report.score=Number(obj.overallScore)||0;
    report.verdict=String(obj.verdict||'').slice(0,1200);
