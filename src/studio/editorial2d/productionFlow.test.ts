@@ -9,6 +9,8 @@ describe('Cinema 2D — fluxo de narração e duração',()=>{
   it('não confunde arquivo MP3 com voz automaticamente',()=>{
     expect(resolveAudioMode('auto','unclassified',true,'')).toBe('confirm_audio_type');
     expect(resolveAudioMode('auto','music',true,'')).toBe('no_voice');
+    expect(resolveAudioMode('narrated','unclassified',true,'Roteiro')).toBe('confirm_audio_type');
+    expect(resolveAudioMode('narrated','music',true,'Roteiro')).toBe('confirm_audio_type');
     expect(resolveAudioMode('auto','voice',true,'')).toBe('narrated');
   });
   it('usa decisões explícitas e detecta narração sem áudio',()=>{
