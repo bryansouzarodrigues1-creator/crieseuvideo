@@ -97,8 +97,9 @@ export function StoryFrame({spec,time,svgRef}:{spec:StorytellingSpec;time:number
   const local=Math.max(0,time-scene.start);
   const dark=scene.theme==='studio_dark';
   const farm=scene.theme==='farm_light';
-  const panel=dark?'#0A1628':farm?'#CBE9EB':'#F3EFE6';
-  const ink=dark?'#F7F6F1':farm?'#112835':'#18191A';
+  const shop=scene.theme==='city_shop';
+  const panel=dark?'#0A1628':farm?'#CBE9EB':shop?'#E1EAF0':'#F3EFE6';
+  const ink=dark?'#F7F6F1':farm||shop?'#112835':'#18191A';
   const captionLines=wrapLabel(scene.caption,35,2);
   const titleLines=wrapLabel(scene.headline,23,2);
   return <svg ref={svgRef} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label={'Prévia 2D: '+scene.headline} data-testid="storytelling-svg" style={{width:'100%',height:'100%',display:'block',background:panel}}>
@@ -115,6 +116,16 @@ export function StoryFrame({spec,time,svgRef}:{spec:StorytellingSpec;time:number
       <path d="M0 1060 Q350 880 600 1060 Q850 930 1080 1040 V1510 H0Z" fill="url(#storyGround)"/>
       <g fill="#A55F44"><rect x="90" y="870" width="260" height="260"/><path d="M60 870L220 754 380 870Z" fill="#784533"/><rect x="185" y="1010" width="70" height="120" fill="#46342B"/></g>
       <path d="M0 1175H1080M0 1290H1080" stroke="#F5E1A5" strokeWidth="10"/>
+    </g>:null}
+    {shop?<g>
+      <rect x="0" y="1150" width="1080" height="360" fill="#D6C7B3"/>
+      <rect x="180" y="540" width="720" height="615" rx="14" fill="#E8D2B5" stroke="#33465D" strokeWidth="8"/>
+      <rect x="226" y="680" width="630" height="420" fill="#B9DBE6" stroke="#405C6D" strokeWidth="14"/>
+      <rect x="500" y="680" width="80" height="430" fill="#456A7A"/>
+      <path d="M160 635L200 530H880L920 635Z" fill="#B65543"/>
+      {Array.from({length:10},(_,i)=><rect key={i} x={180+i*72} y="538" width="35" height="97" fill="#F8E5C5"/>)}
+      <rect x="390" y="420" width="300" height="86" rx="15" fill="#233748"/>
+      <text x="540" y="476" textAnchor="middle" fontSize="41" fontWeight="800" fill="#F8F7F0">LOJA DO BAIRRO</text>
     </g>:null}
     {dark?<g opacity=".14" fill="#B9C7D7">{Array.from({length:40},(_,i)=><circle key={i} cx={(i*211+73)%1080} cy={(i*173+147)%1480} r={2+(i%3)}/>)}</g>:null}
     <text className="story-text" x="78" y="185" fontSize="25" fontWeight="700" letterSpacing="5" fill={ink} opacity=".65">CRIESEUVIDEO  /  CINEMA 2D</text>
