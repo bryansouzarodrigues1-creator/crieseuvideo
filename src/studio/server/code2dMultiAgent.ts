@@ -189,8 +189,11 @@ export async function generateMultiAgentCode2D(
  }else report('lovable_review','lovable','opcional','skipped',
    useLovableReview?'Chave ausente ou orçamento de chamadas esgotado':'Desativado para preservar créditos');
 
- // Animator: OpenRouter free -> Gemini HIGH (optionally key alt for auth/quota)
- // -> Groq. Every candidate is syntax-checked; invalid output is a failure.
+ // Animator: OpenRouter free -> Groq (low reasoning) -> Gemini HIGH last.
+ // Live proof: Particle-1 returned HTTP 429; Gemini High used 15,359
+ // thinking tokens and only emitted a truncated 637-token code fragment.
+ // Prioritize Groq's smaller reasoning budget before costly Gemini High.
+ // Every candidate is syntax-checked; invalid output is a failure.
  const animatorPrompt=buildAnimatorPrompt(topic,storyboard,direction,aspect,duration,lovableNotes);
  let output:string|null=null,model='';
  let animationAttempts=0;
@@ -208,6 +211,12 @@ export async function generateMultiAgentCode2D(
   const r=await callFree('openrouter',animatorPrompt,'javascript');
   if(r.ok)acceptCode(r.text,'openrouter',r.model);
   else report('animation','openrouter',r.model,'failed',r.problem);
+ }
+ if(!output&&animationAttempts<CODE2D_MAX_ATTEMPTS_PER_ROLE&&groq.key&&available()){
+  animationAttempts++;
+  const r=await callFree('groq',animatorPrompt,'javascript');
+  if(r.ok)acceptCode(r.text,'groq',r.model);
+  else report('animation','groq',r.model,'failed',r.problem);
  }
  const gemKey:GeminiKey=keyExists('primary')?'primary':'alternate';
  if(!output&&animationAttempts<CODE2D_MAX_ATTEMPTS_PER_ROLE&&keyExists(gemKey)&&available()){
@@ -230,12 +239,6 @@ export async function generateMultiAgentCode2D(
     }else report('animation','gemini',alt.model,'failed','Gemini alternate: '+alt.failure);
    }
   }
- }
- if(!output&&animationAttempts<CODE2D_MAX_ATTEMPTS_PER_ROLE&&groq.key&&available()){
-  animationAttempts++;
-  const r=await callFree('groq',animatorPrompt,'javascript');
-  if(r.ok)acceptCode(r.text,'groq',r.model);
-  else report('animation','groq',r.model,'failed',r.problem);
  }
  if(!output)return fail('animation_failed','Nenhum programador entregou código válido. Não foi usado programa de demonstração.');
  report('validation','local','Acorn','ok','Sintaxe validada; replay e revisão visual ainda dependem do navegador.');
