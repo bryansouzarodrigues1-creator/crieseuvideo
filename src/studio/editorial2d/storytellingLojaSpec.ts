@@ -5,7 +5,7 @@ export const storytellingLoja:StorytellingSpec={
  {id:'abertura',start:0,end:7,theme:'studio_dark',headline:'Loja cheia. Caixa vazio?',caption:'Uma loja vende bastante, mas sobra pouco.',blocks:[
   {type:'actors',actors:[{id:'comerciante',x:550,y:990,scale:1.3,facing:'right',pose:'thinking',bodyColor:'#A86553',skinColor:'#EBC19D',shirtLabel:'L'}]}
  ]},
- {id:'vendas',start:7,end:14,theme:'farm_light',headline:'Os pedidos entram.',caption:'Cada pedido traz receita para o caixa.',blocks:[
+ {id:'vendas',start:7,end:14,theme:'city_shop',headline:'Os pedidos entram.',caption:'Cada pedido traz receita para o caixa.',blocks:[
   {type:'icon_grid',id:'pedidos',icon:'coin',count:16,columns:4,x:368,y:630,gapX:124,gapY:125}
  ]},
  {id:'custos',start:14,end:24,theme:'math_cream',headline:'Mas e os custos?',caption:'Exemplo fictício, antes de despesas fixas.',blocks:[
