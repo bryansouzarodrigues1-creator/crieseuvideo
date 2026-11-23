@@ -74,7 +74,38 @@ function Block({block,local,reveal,index}:{block:StoryBlock;local:number;reveal:
         })}
       </g>;
     }
+    case 'cash_register': return <g data-testid={'register-'+block.id} opacity={show} transform={'translate('+block.x+' '+(block.y+motion)+')'}>
+      <rect x="-180" y="-125" width="360" height="254" rx="28" fill="#253F56" stroke="#122533" strokeWidth="8"/>
+      <rect x="-150" y="-98" width="300" height="108" rx="13" fill="#092538" stroke="#7794A0" strokeWidth="5"/>
+      {Array.from({length:Math.min(block.orders,24)},(_,i)=>{
+        const u=points(local,reveal+.25+i*.075,.36);
+        if(u<=0)return null;
+        const col=i%8, row=Math.floor(i/8);
+        const x=-110+col*31,y=-77+row*30-(1-u)*90;
+        return <g key={i} opacity={u} transform={'translate('+x+' '+y+') scale('+(.7+.3*u)+')'}><Icon icon="coin"/></g>;
+      })}
+      <rect x="-203" y="97" width="406" height="95" rx="18" fill="#49697A" stroke="#152937" strokeWidth="7"/>
+      <rect x="-164" y="124" width="328" height="31" rx="8" fill="#142C3B"/>
+      <text x="0" y="181" textAnchor="middle" fontSize="27" fontWeight="800" fill="#FFF2CB">{block.orders} PEDIDOS PAGOS</text>
+    </g>;
     case 'equation': return <g opacity={show} transform={'translate('+block.x+' '+(block.y+motion)+')'}>
+      {block.chart==='split_bar'&&(()=>{
+        const income=Math.max(0,block.rows.find(r=>r.type==='income')?.amount||0);
+        const cost=Math.max(0,block.rows.filter(r=>r.type==='cost').reduce((n,r)=>n+r.amount,0));
+        const fraction=income>0?Math.max(0,Math.min(1,cost/income)):0;
+        const growth=points(local,reveal+.2,1.2);
+        const total=700*growth, costWidth=total*fraction;
+        return <g transform="translate(0 -268)" opacity={points(local,reveal+.2,.5)}>
+          <text x="0" y="-34" fontSize="28" fontWeight="800" letterSpacing="2" fill="#20364C">COMO O DINHEIRO SE DIVIDE</text>
+          <rect x="0" y="0" width="700" height="83" rx="16" fill="#CBD5E1"/>
+          <rect x="0" y="0" width={costWidth} height="83" rx="13" fill="#EF4444"/>
+          <rect x={costWidth} y="0" width={Math.max(0,total-costWidth)} height="83" fill="#F59E0B"/>
+          {growth>.7&&<g fontSize="25" fontWeight="800" fill="#FFFFFF" textAnchor="middle">
+            {costWidth>160&&<text x={costWidth/2} y="54">CUSTOS</text>}
+            {total-costWidth>135&&<text x={costWidth+(total-costWidth)/2} y="54">SOBRA</text>}
+          </g>}
+        </g>;
+      })()}
       <rect x="-32" y="-92" width="805" height={block.rows.length*102+30} rx="30" fill="#142436" stroke="#577083" strokeWidth="3"/>
       {block.rows.map((r,i)=>{
         const alpha=points(local,reveal+.6+i*.7,.3);
@@ -120,12 +151,12 @@ export function StoryFrame({spec,time,svgRef}:{spec:StorytellingSpec;time:number
     {shop?<g>
       <rect x="0" y="1150" width="1080" height="360" fill="#D6C7B3"/>
       <rect x="180" y="540" width="720" height="615" rx="14" fill="#E8D2B5" stroke="#33465D" strokeWidth="8"/>
-      <rect x="226" y="680" width="630" height="420" fill="#B9DBE6" stroke="#405C6D" strokeWidth="14"/>
-      <rect x="500" y="680" width="80" height="430" fill="#456A7A"/>
-      <path d="M160 635L200 530H880L920 635Z" fill="#B65543"/>
-      {Array.from({length:10},(_,i)=><rect key={i} x={180+i*72} y="538" width="35" height="97" fill="#F8E5C5"/>)}
-      <rect x="390" y="420" width="300" height="86" rx="15" fill="#233748"/>
-      <text x="540" y="476" textAnchor="middle" fontSize="41" fontWeight="800" fill="#F8F7F0">LOJA DO BAIRRO</text>
+      <rect x="226" y="755" width="630" height="355" fill="#B9DBE6" stroke="#405C6D" strokeWidth="14"/>
+      <rect x="500" y="755" width="80" height="356" fill="#456A7A"/>
+      <path d="M160 645L200 540H880L920 645Z" fill="#B65543"/>
+      {Array.from({length:10},(_,i)=><rect key={i} x={180+i*72} y="548" width="35" height="97" fill="#F8E5C5"/>)}
+      <rect x="325" y="661" width="430" height="78" rx="12" fill="#233748" stroke="#E5C89D" strokeWidth="6"/>
+      <text x="540" y="715" textAnchor="middle" fontSize="40" fontWeight="800" fill="#F8F7F0">LOJA DO BAIRRO</text>
     </g>:null}
     {dark?<g opacity=".14" fill="#B9C7D7">{Array.from({length:40},(_,i)=><circle key={i} cx={(i*211+73)%1080} cy={(i*173+147)%1480} r={2+(i%3)}/>)}</g>:null}
     <text className="story-text" x="78" y="185" fontSize="25" fontWeight="700" letterSpacing="5" fill={ink} opacity=".65">CRIESEUVIDEO  /  CINEMA 2D</text>
