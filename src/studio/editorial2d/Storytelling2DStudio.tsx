@@ -117,6 +117,12 @@ export default function Storytelling2DStudio(){
     setAudioUrl(url);setAudioName(file.name);setAudioDuration(0);
     setAudioType('unclassified');setPlaying(false);setTime(0);setError('');
   };
+  const changeAudioIntent=(next:AudioIntent)=>{
+    audioRef.current?.pause();setPlaying(false);setAudioIntent(next);setError('');
+  };
+  const changeAudioType=(next:ImportedAudioType)=>{
+    audioRef.current?.pause();setPlaying(false);setAudioType(next);setError('');
+  };
   const clearAudio=()=>{
     audioRef.current?.pause();
     if(lastUrl.current)URL.revokeObjectURL(lastUrl.current);
@@ -209,8 +215,8 @@ export default function Storytelling2DStudio(){
       <section className="min-w-0 space-y-4">
         <NarrationSetup
           duration={project.duration} onSetDuration={adjustLength}
-          mode={audioIntent} onModeChange={setAudioIntent}
-          audioType={audioType} onAudioTypeChange={setAudioType}
+          mode={audioIntent} onModeChange={changeAudioIntent}
+          audioType={audioType} onAudioTypeChange={changeAudioType}
           spokenText={spokenText} onSpokenTextChange={setSpokenText}
           performanceText={performanceText} onPerformanceTextChange={setPerformanceText}
           audioName={audioName} audioDuration={audioDuration}
