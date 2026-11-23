@@ -12,14 +12,15 @@ import worker from '../dist/server/index.js';
 
 const output = path.resolve('tmp/collision-qa'); await fs.mkdir(output, { recursive: true });
 const shippedWorker = await fs.readFile('dist/server/index.js', 'utf8');
-let backend = worker, fixture, providerCalls = 0;
+let backend = worker, fixture, providerCalls = 0; const semanticPrompts = [];
 const requests = [], errors = [], report = [];
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   assert.match(String(url), /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-3\.6-flash:generateContent$/);
   providerCalls++;
-  const body = JSON.parse(init.body); assert.match(body.contents[0].parts[0].text, /programador e diretor de animação/);
-  assert.deepEqual(body.generationConfig, { responseMimeType: 'application/json', maxOutputTokens: 8192 });
+  const body = JSON.parse(init.body), semantic = /diretor de cena de um vídeo curto 3D/.test(body.contents[0].parts[0].text);
+  if (!semantic) { assert.match(body.contents[0].parts[0].text, /programador e diretor de animação/); assert.deepEqual(body.generationConfig, { responseMimeType: 'application/json', maxOutputTokens: 8192 }); }
+  else semanticPrompts.push(body.contents[0].parts[0].text);
   return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(fixture) }] } }] });
 };
 const server = http.createServer(async (req, res) => {
@@ -61,8 +62,9 @@ fixture = { title: 'colisao', scenes: [{ sourceId: 's1', visual: 'character', mo
   tracks: [key('ana', [[0, [-1.6, 0, 0]], [.5, [1, 0, 0]], [1, [2.8, 0, .1]]]), key('beto', [[0, [-1.4, 0, .05]], [.5, [1.2, 0, 0]], [1, [3, 0, -.1]]])],
   shots: [{ sourceId: 's1', subjects: ['ana', 'beto', 'bau'], azimuth: .3, endAzimuth: .2, elevation: .15, distance: 1.25 }], contacts: [] } };
 const scenario = async (name, text, seconds, program, shots = [.02, .3, .5, .75, .98], video = false) => {
-  fixture = program; backend = (await import(`../dist/server/index.js?program=${name}`)).default;
+  const { __mode, ...clean } = program; fixture = clean; backend = (await import(`../dist/server/index.js?program=${name}`)).default;
   await page.locator('#script').fill(text);
+  if (program.__mode) await page.locator('#direction-mode').selectOption(program.__mode); else await page.locator('#direction-mode').selectOption('program');
   await page.locator('#duration').selectOption('custom'); await page.locator('#duration-custom').fill(String(seconds)); await page.locator('#duration-custom').dispatchEvent('change');
   await page.locator('#generate').click();
   await page.waitForFunction(() => !document.getElementById('generate').disabled);
@@ -107,6 +109,14 @@ await scenario('paisagem', land, 8, { title: 'paisagem', scenes: [{ sourceId: 's
     at('ana', 'actor', [shore.x, walkY(shore.x, shore.z), shore.z], { color: '#E8C55A', rotation: [0, 2.2, 0] })],
   tracks: [key('ana', [[0, [shore.x, walkY(shore.x, shore.z), shore.z]], [1, [shore.x, walkY(shore.x, shore.z), shore.z]]])],
   shots: [{ sourceId: 's1', subjects: ['ana', 'lago'], azimuth: .5, endAzimuth: -.4, elevation: .42, distance: 1.9 }], contacts: [] } }, [.02, .35, .7, .98], process.env.QA_VIDEO === '1');
+}
+if (only === 'verbos') { // semantic direction: the "model" (developer-authored here) answers ONLY with verbs; the engine compiles the 3D program
+  const sentences = ['Ele atravessou a neve até a base da montanha.', 'Depois começou a escalar a parede de gelo, devagar, passo a passo, procurando apoio para cada mão e cada pé, sem olhar para baixo.', 'No topo, cravou a bandeira.', 'E finalmente comemorou.'];
+  const plan = { title: 'A escalada', world: { kind: 'cliff', height: 3.3, mood: process.env.QA_MOOD || 'day' }, hero: { color: '#DF6B35' }, beats: [{ sourceId: 's1', verb: 'walk', camera: 'follow', from: 'left' }, { sourceId: 's2', verb: 'climb', camera: 'follow' }, { sourceId: 's3', verb: 'climb', camera: 'close' }, { sourceId: 's4', verb: 'plant', camera: 'wide' }, { sourceId: 's5', verb: 'celebrate', camera: 'orbit' }] };
+  const total = 30, words = sentences.map((t) => t.split(/\s+/).length), sum = words.reduce((a, b) => a + b, 0);
+  let cursor = 0; const marks = words.flatMap((w) => { const start = cursor; cursor += w; return [(start + w * .15) / sum, (start + w * .5) / sum, (start + w * .85) / sum]; });
+  await scenario('verbos', sentences.join(' '), total, Object.assign(plan, { __mode: 'semantic' }), marks, process.env.QA_VIDEO === '1');
+  console.log(JSON.stringify({ providerCalls, promptBytes: semanticPrompts[0]?.length, responseBytes: JSON.stringify(plan).length }));
 }
 if (only === 'titanic') { // the explainer of how the Titanic was built: authored program, no AI, full MP4 export
   const { SCRIPT, SENTENCES, titanicProgram } = await import('./fixtures/titanic.mjs'), total = 48, words = SENTENCES.map((t) => t.split(/\s+/).length), sum = words.reduce((a, b) => a + b, 0);

@@ -51,7 +51,7 @@ export function createLabWorker(assets: Assets) {
         active = true; lastGeneration = Date.now();
         try {
           const body = await readDirectionBody(request) as { script?: unknown; aspect?: unknown; targetDuration?: unknown; engine?: unknown; mode?: unknown; previousProgram?: unknown; previousProposal?: unknown; repairIssue?: unknown } | null;
-          return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine, mode: body?.mode === 'program' ? 'program' : undefined, previousProgram: body?.previousProgram, previousProposal: body?.previousProposal, repairIssue: body?.repairIssue, requireActing: body?.engine !== '2d' }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
+          return success(await directExplainer({ script: body?.script as string, aspect: body?.aspect, targetDuration: body?.targetDuration, engine: body?.engine, mode: body?.mode === 'program' || body?.mode === 'semantic' ? body.mode : undefined, previousProgram: body?.previousProgram, previousProposal: body?.previousProposal, repairIssue: body?.repairIssue, requireActing: body?.engine !== '2d' }, { AI_TEXT_PROVIDER: 'gemini', GEMINI_API_KEY: env.GEMINI_API_KEY, GEMINI_TEXT_MODEL: env.GEMINI_TEXT_MODEL }));
         } catch (error) {
           return error instanceof DirectorError
             ? failure(error.status, error.code, error.message, error.details, error.candidate)

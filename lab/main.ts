@@ -17,7 +17,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const script = $<HTMLTextAreaElement>('script'), canvas = $<HTMLCanvasElement>('canvas');
 const timeline = $<HTMLInputElement>('timeline'), context = canvas.getContext('2d')!;
 let engine: '2d' | '3d' = '3d', aspect: '9:16' | '16:9' = '9:16';
-let directionMode: 'program' | 'catalogue' = 'program', renderIssue = '';
+let directionMode: 'program' | 'catalogue' | 'semantic' = 'program', renderIssue = '';
 let pendingRepair: { script: string; program?: NonNullable<ExplainerPlan['sceneProgram']>; proposal?: SceneProgramCandidate; issue: string } | null = null;
 let plan: ExplainerPlan = { title: '', aspect: '9:16', scenes: [] }, time = 0, playing = false, last = 0, toon: Toon3D | null = null, loading3d: Promise<void> | null = null;
 let busy = false, selectedScene = -1, source = 'ENSAIO LOCAL';
@@ -118,7 +118,7 @@ function buttons() {
   $('creation-mode').hidden = engine !== '3d'; $<HTMLSelectElement>('direction-mode').value = directionMode;
   if (!busy) $('generate').textContent = generateLabel();
 }
-function generateLabel() { return engine === '3d' && directionMode === 'program' ? pendingRepair?.script === spokenText(script.value) ? '✦ Corrigir com Gemini' : '✦ Programar com Gemini' : '✦ Dirigir com Gemini'; }
+function generateLabel() { return engine === '3d' && directionMode === 'semantic' ? '✦ Dirigir por verbos (semântico)' : engine === '3d' && directionMode === 'program' ? pendingRepair?.script === spokenText(script.value) ? '✦ Corrigir com Gemini' : '✦ Programar com Gemini' : '✦ Dirigir com Gemini'; }
 async function prepare3d(requireProgram = false) {
   if (loading3d) return loading3d;
   loading3d = (async () => {
@@ -207,7 +207,7 @@ timeline.addEventListener('input', () => { if (busy || !hasPreview()) return; ti
 function changedSettings() { buttons(); saveDraft(); if (hasPreview()) setPlan(plan, source); else previewState(); }
 document.querySelectorAll<HTMLButtonElement>('[data-engine]').forEach((b) => b.addEventListener('click', () => { engine = b.dataset.engine as typeof engine; changedSettings(); }));
 document.querySelectorAll<HTMLButtonElement>('[data-aspect]').forEach((b) => b.addEventListener('click', () => { aspect = b.dataset.aspect as typeof aspect; changedSettings(); }));
-$('direction-mode').addEventListener('change', () => { directionMode = $<HTMLSelectElement>('direction-mode').value === 'catalogue' ? 'catalogue' : 'program'; buttons(); saveDraft(); });
+$('direction-mode').addEventListener('change', () => { { const v = $<HTMLSelectElement>('direction-mode').value; directionMode = v === 'catalogue' ? 'catalogue' : v === 'semantic' ? 'semantic' : 'program'; } buttons(); saveDraft(); });
 function changeDuration() {
   const select = $<HTMLSelectElement>('duration'), input = $<HTMLInputElement>('duration-custom');
   input.hidden = select.value !== 'custom';
@@ -309,15 +309,15 @@ $('download-video').addEventListener('click', async () => {
 });
 $('generate').addEventListener('click', async () => {
   if (busy) return; const error = scriptError(script.value); if (error) return note(error);
-  const unavailable = engine === '3d' && directionMode !== 'program' ? actingUnavailableMessage(buildFallbackPlan(script.value, aspect)) : undefined;
+  const unavailable = engine === '3d' && directionMode === 'catalogue' ? actingUnavailableMessage(buildFallbackPlan(script.value, aspect)) : undefined;
   if (unavailable) return note(unavailable + ' Nenhuma chamada de IA foi feita.');
   setBusy(true); note('Gemini está dirigindo suas cenas. A narração não será acionada.');
   try {
     const repair = engine === '3d' && directionMode === 'program' && pendingRepair?.script === spokenText(script.value) ? pendingRepair : null;
-    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode === 'program' ? 'program' : undefined, ...(repair ? { ...(repair.program ? { previousProgram: repair.program } : { previousProposal: repair.proposal }), repairIssue: repair.issue } : {}) }) });
+    const res = await fetch('/api/direct', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ script: script.value, aspect, targetDuration, engine, mode: engine === '3d' && directionMode !== 'catalogue' ? directionMode : undefined, ...(repair ? { ...(repair.program ? { previousProgram: repair.program } : { previousProposal: repair.proposal }), repairIssue: repair.issue } : {}) }) });
     const data = await readDirectionResponse(res);
     const next = normalizePlan(data.plan, script.value, aspect);
-    if (engine === '3d' && directionMode === 'program' && !next.sceneProgram) throw new Error('A IA não entregou o programa de cena solicitado. Seu roteiro foi preservado.');
+    if (engine === '3d' && directionMode !== 'catalogue' && !next.sceneProgram) throw new Error('A IA não entregou o programa de cena solicitado. Seu roteiro foi preservado.');
     const unavailable = engine === '3d' ? actingUnavailableMessage(next) : undefined;
     if (unavailable) throw new Error(unavailable);
     if (engine === '3d') {

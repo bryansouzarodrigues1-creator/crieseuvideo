@@ -12,6 +12,9 @@ import { PRODUCTION_GUIDE, ProductionError, mergeProduction, CHANNELS } from '..
 import { stagingContract } from './directionContract';
 import { actingUnavailableMessage } from '../explainer/actingAvailability';
 import { SCENE_PROGRAM_GUIDE } from '../explainer/sceneProgram/guide';
+import { directSemantic } from '../explainer/sceneProgram/direct/run';
+import { SemanticPlanError } from '../explainer/sceneProgram/direct/plan';
+import { DirectionError } from '../explainer/sceneProgram/direct/verbs';
 import { applyUses, candidateRoots, harvest, offerFor, offerPrompt, stripAssetMarkers } from '../explainer/sceneProgram/vault/flow';
 import type { VaultStore } from '../explainer/sceneProgram/vault/store';
 import { SceneProgramError } from '../explainer/sceneProgram/score';
@@ -68,6 +71,31 @@ export async function directExplainer(input: DirectorInput, env?: AiEnvironment,
   catch (error) { throw new DirectorError(400, 'invalid_duration', (error as Error).message); }
   const script = input.script.trim();
   const aspect = input.aspect === '16:9' ? '16:9' : '9:16';
+  if (input.mode === 'semantic' && input.engine !== '2d') {
+    // Semantic direction: the model picks verbs/cameras from closed lists; the engine compiles the 3D program.
+    const beats = sourceBeats(script), configured = env ?? (typeof process === 'undefined' ? {} : process.env);
+    const trialKey = configured.FREEFORM_3D_GEMINI_API_KEY ?? (env ? env.GEMINI_API_KEY : undefined) ?? '';
+    const directGeminiEnv: AiEnvironment = { ...configured, AI_TEXT_PROVIDER: 'gemini', AI_TEXT_FALLBACK: '', GEMINI_API_KEY: trialKey };
+    let provider = '', model = '';
+    try {
+      const done = await directSemantic(async (prompt) => {
+        const result = await askAiResult(prompt, undefined, directGeminiEnv);
+        if (!result.ok) return { ok: false as const, failure: result };
+        provider = result.provider; model = result.model; return { ok: true as const, text: result.text };
+      }, beats);
+      const scenes = groundScenes(beats.map((b) => ({ sourceId: b.sourceId, visual: 'character', mood: 'neutral', palette: 'teal' })), beats);
+      if (!scenes) throw new DirectorError(502, 'source_mismatch', 'As falas não puderam ser associadas às cenas.');
+      const plan = withTargetDuration(normalizePlan({ title: done.title, scenes, sceneProgram: done.program }, script, aspect), targetDuration);
+      if (spokenText(plan.scenes.map((s) => s.text).join(' ')) !== spokenText(script)) throw new DirectorError(502, 'source_mismatch', 'O programa não preservou o roteiro completo.');
+      return { plan, source: 'ai' as const, provider, model, semantic: { attempts: done.attempts, report: done.report } };
+    } catch (error) {
+      if (error instanceof DirectorError) throw error;
+      const failure = (error as { failure?: AiResult }).failure;
+      if (failure && !failure.ok) throw providerError(failure);
+      if (error instanceof SemanticPlanError || error instanceof DirectionError || error instanceof SceneProgramError) throw new DirectorError(502, 'invalid_scene_program', `${error.message} Seu roteiro foi preservado.`);
+      throw error;
+    }
+  }
   if (input.mode === 'program' && input.engine !== '2d') {
     const beats = sourceBeats(script);
     let repair = '';
