@@ -6,10 +6,10 @@ export const storytellingLoja:StorytellingSpec={
   {type:'actors',actors:[{id:'comerciante',x:550,y:990,scale:1.3,facing:'right',pose:'thinking',bodyColor:'#A86553',skinColor:'#EBC19D',shirtLabel:'L'}]}
  ]},
  {id:'vendas',start:7,end:14,theme:'city_shop',headline:'Os pedidos entram.',caption:'Cada pedido traz receita para o caixa.',blocks:[
-  {type:'icon_grid',id:'pedidos',icon:'coin',count:16,columns:4,x:368,y:630,gapX:124,gapY:125}
+  {type:'cash_register',id:'pedidos',orders:16,x:540,y:1135}
  ]},
  {id:'custos',start:14,end:24,theme:'math_cream',headline:'Mas e os custos?',caption:'Exemplo fictício, antes de despesas fixas.',blocks:[
-  {type:'equation',x:170,y:810,rows:[
+  {type:'equation',x:170,y:810,chart:'split_bar',rows:[
    {label:'Recebido em vendas',amount:900,type:'income'},
    {label:'Produtos e entregas',amount:650,type:'cost'},
    {label:'Sobra parcial',amount:250,type:'result'}
