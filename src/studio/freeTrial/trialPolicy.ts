@@ -1,48 +1,59 @@
 /**
- * Free-trial admission policy — pure server-side decision model.
- * This file DOES NOT authorize API calls. Enforce a unique user credit
- * with an atomic database insert before invoking any paid model.
- * All flags here must come from verified server facts, never client JSON.
+ * R$ 1 ENTRY PACK: 3 basic 2D videos, not a free trial.
+ *
+ * This function is a PURE POLICY. It neither accepts a Pix payment nor
+ * issues credits. All facts must originate in verified server records.
+ * Atomic credit reservations and provider dispatch need a SQL transaction.
  */
-export const FREE_TRIAL_DURATION_SECONDS = 20;
-export const FREE_TRIAL_MAX_COST_USD_CENTS = 30;
-
-export type TrialState='none'|'reserved'|'dispatched'|'completed'|'unknown';
+export const ENTRY_PRICE_BRL_CENTS=100;
+export const ENTRY_INCLUDED_VIDEOS=3;
+export const ENTRY_MAX_VIDEO_DURATION_SECONDS=15;
+/** Provisional HARD cost ceiling, must be measured before sales are enabled. */
+export const ENTRY_MAX_VIDEO_VARIABLE_COST_BRL_CENTS=18;
 export type RiskLevel='low'|'elevated'|'high';
-export type TrialReason=
-  |'sign_in_google'|'already_used'|'in_progress'|'security_review'
-  |'verify_human'|'duration_limit'|'budget_exhausted'|'approved';
+export type PaymentStatus='unpaid'|'pending'|'paid'|'refunded'|'disputed';
+export type AdmissionReason=
+ 'sign_in_google'|'payment_required'|'payment_reversed'|'out_of_credits'|
+ 'in_progress'|'security_review'|'verify_human'|'duration_limit'|
+ 'library_only'|'budget_exhausted'|'approved';
 
 export type TrialFacts={
-  authenticated:boolean;
-  googleIdentityVerified:boolean; // checked from Supabase auth identities/app_metadata on SERVER
-  trialState:TrialState; // fetched from durable Postgres, not localStorage
-  turnstileValidatedByServer:boolean;
-  risk:RiskLevel; // IP/device are merely signals, never sole hard bans
-  seconds:number;
-  dailyBudgetRemainingUsdCents:number;
-  estimateUsdCents:number;
+ authenticated:boolean;
+ googleIdentityVerified:boolean;
+ paymentStatus:PaymentStatus; // verified provider webhook and durable server order
+ remainingCredits:number; // durable count (0..3) after any active reservation
+ inFlight:boolean; // durable reservation/dispatch state, NOT in-memory Map
+ turnstileValidatedByServer:boolean;
+ risk:RiskLevel;
+ seconds:number;
+ usingReusableMotionLibrary:boolean;
+ estimatedVariableCostBrlCents:number;
+ remainingDailyBudgetBrlCents:number;
 };
-
-export function evaluateTrial(facts:TrialFacts):{allowed:boolean;reason:TrialReason}{
-  if(!facts.authenticated||!facts.googleIdentityVerified)
-    return {allowed:false,reason:'sign_in_google'};
-  if(facts.trialState==='completed')
-    return {allowed:false,reason:'already_used'};
-  if(facts.trialState!=='none')
-    return {allowed:false,reason:'in_progress'};
-  if(!Number.isInteger(facts.seconds)||facts.seconds<1||
-      facts.seconds>FREE_TRIAL_DURATION_SECONDS)
-    return {allowed:false,reason:'duration_limit'};
-  if(facts.risk==='high')
-    return {allowed:false,reason:'security_review'};
-  if(!facts.turnstileValidatedByServer)
-    return {allowed:false,reason:'verify_human'};
-  if(!Number.isFinite(facts.estimateUsdCents)||
-     facts.estimateUsdCents<0||
-     facts.estimateUsdCents>FREE_TRIAL_MAX_COST_USD_CENTS||
-     facts.dailyBudgetRemainingUsdCents<facts.estimateUsdCents)
-    return {allowed:false,reason:'budget_exhausted'};
-  // Elevated risk (e.g. shared network) is NOT an automatic block.
-  return {allowed:true,reason:'approved'};
+export function evaluateTrial(facts:TrialFacts):{allowed:boolean;reason:AdmissionReason}{
+ if(!facts.authenticated||!facts.googleIdentityVerified)
+  return {allowed:false,reason:'sign_in_google'};
+ if(facts.paymentStatus==='refunded'||facts.paymentStatus==='disputed')
+  return {allowed:false,reason:'payment_reversed'};
+ if(facts.paymentStatus!=='paid')
+  return {allowed:false,reason:'payment_required'};
+ if(!Number.isInteger(facts.remainingCredits)||facts.remainingCredits<=0||
+    facts.remainingCredits>ENTRY_INCLUDED_VIDEOS)
+  return {allowed:false,reason:'out_of_credits'};
+ if(facts.inFlight)return {allowed:false,reason:'in_progress'};
+ if(!Number.isInteger(facts.seconds)||facts.seconds<1||
+   facts.seconds>ENTRY_MAX_VIDEO_DURATION_SECONDS)
+  return {allowed:false,reason:'duration_limit'};
+ if(!facts.usingReusableMotionLibrary)
+  return {allowed:false,reason:'library_only'};
+ if(facts.risk==='high')return {allowed:false,reason:'security_review'};
+ if(!facts.turnstileValidatedByServer)
+  return {allowed:false,reason:'verify_human'};
+ if(!Number.isFinite(facts.estimatedVariableCostBrlCents)||
+    facts.estimatedVariableCostBrlCents<0||
+    facts.estimatedVariableCostBrlCents>ENTRY_MAX_VIDEO_VARIABLE_COST_BRL_CENTS||
+    facts.remainingDailyBudgetBrlCents<facts.estimatedVariableCostBrlCents)
+  return {allowed:false,reason:'budget_exhausted'};
+ // Elevated risk (IP or device used by multiple people) is no auto-ban.
+ return {allowed:true,reason:'approved'};
 }
