@@ -25,8 +25,10 @@ describe('Free OpenRouter visible output budget',()=>{
     expect(r.ok).toBe(true);
     expect(seen).toHaveLength(1);
     expect(seen[0].model).toBe('particle-ai/particle-1:free');
-    expect(seen[0].reasoning).toEqual({max_tokens:1800});
+    expect(seen[0].reasoning).toEqual({enabled:false});
     expect(seen[0].max_tokens).toBeGreaterThan(13000);
+    // This exact parameter was proved by a live request; do not regress to
+    // max_tokens:1800 (not respected in the earlier all-thinking test).
   });
   it('distinguishes an all-reasoning completion from useful generated code',async()=>{
     process.env.OPENROUTER_API_KEY='test-key';
