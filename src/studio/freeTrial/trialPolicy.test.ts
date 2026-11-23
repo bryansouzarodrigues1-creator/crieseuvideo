@@ -1,40 +1,43 @@
 import {describe,it,expect} from 'vitest';
-import {evaluateTrial,FREE_TRIAL_DURATION_SECONDS,type TrialFacts} from './trialPolicy';
-
+import {evaluateTrial,ENTRY_INCLUDED_VIDEOS,ENTRY_PRICE_BRL_CENTS,ENTRY_MAX_VIDEO_DURATION_SECONDS,type TrialFacts} from './trialPolicy';
 const base:TrialFacts={
- authenticated:true,googleIdentityVerified:true,trialState:'none',
- turnstileValidatedByServer:true,risk:'low',seconds:15,
- dailyBudgetRemainingUsdCents:400,estimateUsdCents:10,
+ authenticated:true,googleIdentityVerified:true,paymentStatus:'paid',
+ remainingCredits:3,inFlight:false,turnstileValidatedByServer:true,risk:'low',
+ seconds:12,usingReusableMotionLibrary:true,estimatedVariableCostBrlCents:14,
+ remainingDailyBudgetBrlCents:100,
 };
-describe('one free video: admission decisions',()=>{
- it('allows a verified Google user with clean record and budget',()=>{
+describe('R$1 entry pack: server-verifiable three-credit policy',()=>{
+ it('requires a verified payment, not only a Google login or redirect',()=>{
+  expect(ENTRY_PRICE_BRL_CENTS).toBe(100);
+  expect(ENTRY_INCLUDED_VIDEOS).toBe(3);
   expect(evaluateTrial(base)).toEqual({allowed:true,reason:'approved'});
+  expect(evaluateTrial({...base,paymentStatus:'unpaid'}).reason).toBe('payment_required');
+  expect(evaluateTrial({...base,paymentStatus:'pending'}).reason).toBe('payment_required');
+  expect(evaluateTrial({...base,paymentStatus:'refunded'}).reason).toBe('payment_reversed');
+  expect(evaluateTrial({...base,paymentStatus:'disputed'}).reason).toBe('payment_reversed');
  });
- it('requires Google and never trusts a session alone',()=>{
-  expect(evaluateTrial({...base,authenticated:false}).reason).toBe('sign_in_google');
+ it('uses exactly 3 credits in a durable ledger, no free fourth video',()=>{
+  expect(evaluateTrial({...base,remainingCredits:2}).allowed).toBe(true);
+  expect(evaluateTrial({...base,remainingCredits:1}).allowed).toBe(true);
+  expect(evaluateTrial({...base,remainingCredits:0}).reason).toBe('out_of_credits');
+  expect(evaluateTrial({...base,remainingCredits:4}).reason).toBe('out_of_credits');
+ });
+ it('rejects parallel dispatch and requires Google identity',()=>{
+  expect(evaluateTrial({...base,inFlight:true}).reason).toBe('in_progress');
   expect(evaluateTrial({...base,googleIdentityVerified:false}).reason).toBe('sign_in_google');
+  expect(evaluateTrial({...base,authenticated:false}).reason).toBe('sign_in_google');
  });
- it('rejects second free video for the same durable user ID',()=>{
-  expect(evaluateTrial({...base,trialState:'completed'}).reason).toBe('already_used');
+ it('restricts intro to cheap library-based 2D under 15s',()=>{
+  expect(ENTRY_MAX_VIDEO_DURATION_SECONDS).toBe(15);
+  expect(evaluateTrial({...base,seconds:16}).reason).toBe('duration_limit');
+  expect(evaluateTrial({...base,seconds:2.5}).reason).toBe('duration_limit');
+  expect(evaluateTrial({...base,usingReusableMotionLibrary:false}).reason).toBe('library_only');
+  expect(evaluateTrial({...base,estimatedVariableCostBrlCents:19}).reason).toBe('budget_exhausted');
+  expect(evaluateTrial({...base,remainingDailyBudgetBrlCents:3}).reason).toBe('budget_exhausted');
  });
- it('does not allow another request during a reserved or ambiguous dispatch',()=>{
-  for(const trialState of ['reserved','dispatched','unknown'] as const)
-   expect(evaluateTrial({...base,trialState}).reason).toBe('in_progress');
- });
- it('enforces preview length and separate budget cap',()=>{
-  expect(FREE_TRIAL_DURATION_SECONDS).toBe(20);
-  expect(evaluateTrial({...base,seconds:21}).reason).toBe('duration_limit');
-  expect(evaluateTrial({...base,seconds:0}).reason).toBe('duration_limit');
-  expect(evaluateTrial({...base,seconds:20.5}).reason).toBe('duration_limit');
-  expect(evaluateTrial({...base,dailyBudgetRemainingUsdCents:5}).reason).toBe('budget_exhausted');
-  expect(evaluateTrial({...base,estimateUsdCents:31}).reason).toBe('budget_exhausted');
-  expect(evaluateTrial({...base,estimateUsdCents:NaN}).reason).toBe('budget_exhausted');
- });
- it('requires server-verified antibot challenge',()=>{
-  expect(evaluateTrial({...base,turnstileValidatedByServer:false}).reason).toBe('verify_human');
- });
- it('does not punish families, offices or mobile subscribers sharing IP addresses',()=>{
+ it('allows shared IP only as a signal and validates bot challenge server-side',()=>{
   expect(evaluateTrial({...base,risk:'elevated'}).allowed).toBe(true);
   expect(evaluateTrial({...base,risk:'high'}).reason).toBe('security_review');
+  expect(evaluateTrial({...base,turnstileValidatedByServer:false}).reason).toBe('verify_human');
  });
 });
