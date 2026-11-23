@@ -1,4 +1,4 @@
-name: One-shot Gemini Vision test for Cinema 2D
+name: One-shot Gemini Vision test for Cinema 2D (minimal thinking)
 on:
   pull_request:
     branches: [main]
