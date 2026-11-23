@@ -135,7 +135,7 @@ export function createReusableMotionVideo(
    let clip=parsed.clips[parsed.clips.length-1];
    for(const current of parsed.clips){
     clip=current;
-    if(local<current.duration)break;
+    if(local<=current.duration)break;
     local-=current.duration;
    }
    renderMotionClip(ctx,canvas.width,canvas.height,clip,Math.min(clip.duration,local));
