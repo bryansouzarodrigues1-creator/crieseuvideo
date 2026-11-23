@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 20
     env:
       CI: 'true'
-      GEMINI_TEST_MODEL: ${{ vars.GEMINI_AI_MODEL || 'gemini-3.8-flash' }}
+      GEMINI_TEST_MODEL: ${{ 'gemini-3.6-flash' }}
       GEMINI_TEST_API_KEY: ${{ secrets.FREEFORM_3D_GEMINI_API_KEY || secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
