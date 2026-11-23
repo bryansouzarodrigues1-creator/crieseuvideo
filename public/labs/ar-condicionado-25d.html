@@ -1,0 +1,2548 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CrieSeuVideo — Engine 2.5D Paper Diorama (Ar-Condicionado)</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Fonte Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 24%, #1a2234 0%, #0d121d 60%, #06090f 100%);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f8fafc;
+      user-select: none;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Container principal centralizado */
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100dvh;
+      padding: 10px 12px;
+      gap: 10px;
+      transition: padding 0.25s ease;
+    }
+
+    .app-shell.clean-mode {
+      padding: 6px;
+      gap: 0;
+    }
+
+    /* Palco vertical 9:16 responsivo */
+    .stage-frame {
+      position: relative;
+      aspect-ratio: 9 / 16;
+      height: min(calc(100dvh - 118px), 840px);
+      max-width: calc(100vw - 18px);
+      min-width: 240px;
+      min-height: 426px;
+      width: auto;
+      border-radius: 26px;
+      overflow: hidden;
+      background: #2b241d;
+      box-shadow:
+        0 26px 72px rgba(0, 0, 0, 0.72),
+        0 0 0 1.5px rgba(255, 255, 255, 0.14);
+      transition: height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .app-shell.clean-mode .stage-frame {
+      height: min(calc(100dvh - 14px), 930px);
+    }
+
+    @media (max-aspect-ratio: 9/17) {
+      .stage-frame {
+        width: calc(100vw - 14px);
+        height: auto;
+        max-height: calc(100dvh - 122px);
+      }
+      .app-shell.clean-mode .stage-frame {
+        width: calc(100vw - 10px);
+        max-height: calc(100dvh - 14px);
+      }
+    }
+
+    #webglMount {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    #webglMount.peek-active {
+      cursor: grab;
+    }
+
+    #webglMount.peek-active:active {
+      cursor: grabbing;
+    }
+
+    #webglMount canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Flash suave da virada de estação */
+    #seasonFlash {
+      position: absolute;
+      inset: 0;
+      z-index: 24;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 45%, rgba(224, 242, 254, 0.92) 0%, rgba(186, 230, 253, 0.65) 100%);
+      opacity: 0;
+      will-change: opacity;
+    }
+
+    /* Badge de avanço de estação (>> INVERNO) */
+    .season-skip-badge {
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px solid #38bdf8;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.42);
+      will-change: transform, opacity;
+    }
+
+    /* PriceFlipBoard: Safe Area Superior com perspectiva 3D CSS */
+    .price-zone {
+      position: absolute;
+      top: 4.2%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 86%;
+      max-width: 318px;
+      z-index: 22;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      perspective: 900px;
+    }
+
+    .concept-pill {
+      background: #ffffff;
+      color: #0f172a;
+      border: 2.5px solid #18181b;
+      box-shadow: 0 4px 0 #18181b, 0 8px 18px rgba(0, 0, 0, 0.28);
+      will-change: transform, opacity;
+    }
+
+    .price-card-wrapper {
+      width: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    .price-card-face {
+      width: 100%;
+      border-radius: 16px;
+      border: 3px solid #18181b;
+      box-shadow: 0 5px 0 #18181b, 0 12px 26px rgba(0, 0, 0, 0.34);
+      padding: 8px 14px;
+      text-align: center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .price-card-expensive {
+      background: #ffffff;
+    }
+
+    .price-card-discount {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, #fde047 0%, #facc15 100%);
+      transform: rotateX(180deg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .strike-price {
+      position: relative;
+      display: inline-block;
+      color: #dc2626;
+      font-weight: 800;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .strike-price::after {
+      content: '';
+      position: absolute;
+      left: -4px;
+      right: -4px;
+      top: 50%;
+      height: 2.5px;
+      background: #dc2626;
+      transform: rotate(-6deg);
+      border-radius: 2px;
+    }
+
+    .savings-badge {
+      background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+      color: #ffffff;
+      border: 2.5px solid #18181b;
+      box-shadow: 0 4px 0 #18181b, 0 10px 20px rgba(0, 0, 0, 0.3);
+      will-change: transform, opacity;
+    }
+
+    /* Legenda 1 palavra por vez estilo @dinheirofalante na faixa inferior segura */
+    .caption-zone {
+      position: absolute;
+      bottom: 6.2%;
+      left: 0;
+      right: 0;
+      z-index: 25;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 14px;
+      pointer-events: none;
+    }
+
+    .word-caption {
+      font-weight: 900;
+      font-size: clamp(26px, 6.2vw, 38px);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      color: #ffffff;
+      -webkit-text-stroke: 2px #111114;
+      paint-order: stroke fill;
+      text-shadow:
+        -3px -3px 0 #111114,
+         3px -3px 0 #111114,
+        -3px  3px 0 #111114,
+         3px  3px 0 #111114,
+         0px  5px 0 #111114,
+         0px 10px 18px rgba(0, 0, 0, 0.62);
+      will-change: transform, opacity;
+      text-align: center;
+    }
+
+    /* Barra de controles externa */
+    .control-dock {
+      background: rgba(15, 22, 34, 0.92);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.48);
+      width: min(520px, calc(100vw - 14px));
+      transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease;
+    }
+
+    .app-shell.clean-mode .control-dock {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(18px);
+      max-height: 0;
+      padding: 0;
+      border-width: 0;
+      overflow: hidden;
+    }
+
+    .exit-clean-btn {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .app-shell.clean-mode .exit-clean-btn.visible {
+      opacity: 0.95;
+      pointer-events: auto;
+    }
+
+    /* Range scrubber estilizado */
+    input[type="range"].scrub-input {
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(148, 163, 184, 0.26);
+      height: 7px;
+      border-radius: 999px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"].scrub-input::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #facc15;
+      border: 2.5px solid #0f172a;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="appShell" class="app-shell">
+    <!-- Botão discreto para sair do Modo Limpo -->
+    <button id="exitCleanBtn" type="button"
+      class="exit-clean-btn px-3.5 py-1.5 rounded-full bg-slate-900/92 hover:bg-slate-800 border border-slate-600/70 text-xs font-bold text-slate-100 backdrop-blur-md shadow-xl cursor-pointer">
+      Sair do Modo Limpo (ESC)
+    </button>
+
+    <!-- =================================================================== -->
+    <!-- PALCO VERTICAL 9:16                                                 -->
+    <!-- =================================================================== -->
+    <main id="stageFrame" class="stage-frame">
+      <!-- WebGL Three.js Canvas -->
+      <div id="webglMount"></div>
+
+      <!-- Flash suave da virada de estação -->
+      <div id="seasonFlash"></div>
+
+      <!-- Badge de transição de estação no topo esquerdo (>> INVERNO) -->
+      <div id="seasonSkipBadge"
+        class="season-skip-badge absolute top-3.5 left-3.5 z-30 px-3 py-1 rounded-full flex items-center gap-1.5 text-[11px] font-black tracking-wider text-sky-300 opacity-0 pointer-events-none">
+        <span class="text-white">&raquo;</span>
+        <span>INVERNO</span>
+      </div>
+
+      <!-- Aviso quando o modo "Espiar 3D" está ativo -->
+      <div id="peekHintBadge"
+        class="hidden absolute top-3.5 right-3.5 z-30 px-2.5 py-1 rounded-full bg-sky-500/90 border border-white/40 text-slate-950 text-[10px] font-black uppercase tracking-wide shadow-lg pointer-events-none">
+        Arraste 3D
+      </div>
+
+      <!-- MÓDULO 4: PriceFlipBoard (Safe Area Superior — zero clipping) -->
+      <div id="priceZone" class="price-zone">
+        <!-- Pílula de conceito (🔵 BAIXA PROCURA) -->
+        <div id="conceptPill"
+          class="concept-pill mb-1.5 px-3 py-0.5 rounded-full inline-flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-wider opacity-0">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-500 border border-slate-900 inline-block"></span>
+          <span>BAIXA PROCURA</span>
+        </div>
+
+        <!-- Placa de Preço com Flip 3D -->
+        <div id="priceCardWrapper" class="price-card-wrapper">
+          <!-- Face 1: Caro (Branco) -->
+          <div class="price-card-face price-card-expensive">
+            <div class="text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-slate-500 leading-none">
+              AR-CONDICIONADO SPLIT
+            </div>
+            <div class="tabular-nums text-[28px] sm:text-[31px] font-black text-red-600 leading-tight mt-0.5 tracking-tight">
+              R$ 3.999
+            </div>
+          </div>
+
+          <!-- Face 2: Desconto (Amarelo) -->
+          <div class="price-card-face price-card-discount">
+            <div class="strike-price tabular-nums">R$ 3.999</div>
+            <div class="tabular-nums text-[29px] sm:text-[32px] font-black text-emerald-700 leading-none mt-0.5 tracking-tight">
+              R$ 2.499
+            </div>
+          </div>
+        </div>
+
+        <!-- Selo de Economia (6.4s - 8.0s) -->
+        <div id="savingsBadge"
+          class="savings-badge mt-1.5 px-3.5 py-1 rounded-full text-[11.5px] font-black uppercase tracking-wide opacity-0">
+          ECONOMIZE R$ 1.500
+        </div>
+      </div>
+
+      <!-- Legenda 1 palavra por vez na faixa inferior segura -->
+      <div class="caption-zone">
+        <div id="wordCaption" class="word-caption">NO</div>
+      </div>
+
+      <!-- Overlay de carregamento (oculta automaticamente ao iniciar) -->
+      <div id="loadingOverlay"
+        class="absolute inset-0 z-40 flex flex-col items-center justify-center px-6 text-center bg-slate-950/92 backdrop-blur-md transition-opacity duration-300">
+        <div id="loadingSpinner" class="w-9 h-9 rounded-full border-4 border-amber-400/25 border-t-amber-400 animate-spin mb-3"></div>
+        <div id="loadingTitle" class="text-sm font-extrabold text-white">Carregando Engine 2.5D...</div>
+        <div id="loadingDetail" class="mt-1 text-xs text-slate-300 max-w-[230px]">
+          Preparando Three.js r128 e cena Paper Diorama.
+        </div>
+        <button id="retryLoadBtn" type="button"
+          class="hidden mt-4 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs cursor-pointer">
+          Tentar Novamente
+        </button>
+      </div>
+    </main>
+
+    <!-- =================================================================== -->
+    <!-- BARRA DE CONTROLES COMPACTA FORA DO PALCO                           -->
+    <!-- =================================================================== -->
+    <nav id="controlDock" aria-label="Controles do Protótipo 2.5D"
+      class="control-dock rounded-2xl px-3 py-2.5 flex flex-col gap-2">
+      <!-- Linha 1: Scrubber determinístico (0.00s a 8.00s) -->
+      <div class="flex items-center gap-2.5">
+        <span id="timeNowLabel" class="tabular-nums text-[11px] font-extrabold text-amber-300 min-w-[38px]">0.00s</span>
+        <input id="scrubInput" type="range" min="0" max="800" value="0" class="scrub-input flex-1"
+          aria-label="Scrubber determinístico da cena (0 a 8 segundos)" />
+        <span class="tabular-nums text-[11px] font-bold text-slate-400 min-w-[38px] text-right">8.00s</span>
+      </div>
+
+      <!-- Linha 2: Botões principais -->
+      <div class="flex flex-wrap items-center justify-between gap-1.5">
+        <div class="flex items-center gap-1.5">
+          <!-- Play / Pause -->
+          <button id="playPauseBtn" type="button" title="Play / Pause (Espaço)"
+            class="p-2 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/45 text-amber-300 transition active:scale-95 cursor-pointer">
+            <svg id="iconPlay" class="w-4 h-4 fill-current hidden" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            <svg id="iconPause" class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z" /></svg>
+          </button>
+
+          <!-- Reiniciar -->
+          <button id="restartBtn" type="button" title="Reiniciar (R)"
+            class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition active:scale-95 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+
+          <!-- Velocidade (0.5x / 1x) -->
+          <button id="speedBtn" type="button" title="Alternar velocidade (0.5x / 1x)"
+            class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-extrabold tabular-nums min-w-[44px] transition active:scale-95 cursor-pointer">
+            1x
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <!-- Ativar Som -->
+          <button id="soundBtn" type="button" title="Ativar / Silenciar Som Procedural (M)"
+            class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer">
+            <svg id="iconSoundOn" class="w-3.5 h-3.5 text-amber-300 hidden" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07" />
+            </svg>
+            <svg id="iconSoundOff" class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6M17 9l6 6" />
+            </svg>
+            <span id="soundBtnLabel" class="hidden sm:inline">Ativar Som</span>
+          </button>
+
+          <!-- Espiar 3D (Arrastar) -->
+          <button id="peekBtn" type="button" title="Espiar 3D — Arraste para comprovar a paralaxe real (E)"
+            class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-[11px] font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer">
+            <span>Espiar 3D</span>
+          </button>
+
+          <!-- Modo Limpo -->
+          <button id="cleanBtn" type="button" title="Modo Limpo para gravação 9:16 (C)"
+            class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-bold transition active:scale-95 cursor-pointer">
+            Limpo
+          </button>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <!-- Toast discreto (substitui alert/confirm) -->
+  <div id="toastEl"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-slate-900/95 border border-slate-600/70 text-xs font-bold text-slate-100 shadow-2xl backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+    Aviso
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * CRIESEUVIDEO — ENGINE 2.5D "PAPER DIORAMA" (PROVA DE CONCEITO: AR-CONDICIONADO)
+     * ----------------------------------------------------------------------------
+     * Arquitetura Modular Declarativa em 5 Módulos Reutilizáveis:
+     *   0. SCENE_SPEC       : Roteiro declarativo (duração, sala, ator, props,
+     *                         placa de preço, trilho de câmera e legendas).
+     *   1. BoxRoom3D        : Sala 3D real com abertura real de janela, moldura
+     *                         em relevo, móveis low-poly e folgas físicas >= 0.05.
+     *   2. PaperActor2D     : Personagem plano 2D (Nota R$ 100) com contorno preto,
+     *                         4 expressões trocáveis, braços/pernas articulados e
+     *                         sombra oval de contato.
+     *   3. SpriteProp2D     : Props 2D recortados em diferentes profundidades Z
+     *                         (ar-condicionado split, planta, termômetro 40°C/12°C,
+     *                         sol, neve, suor e partículas de brilho).
+     *   4. PriceFlipBoard   : Placa de preço + pílula + badge na safe area superior.
+     *   5. CameraRail25D    : Trilho de câmera 100% determinístico + modo Espiar 3D.
+     * ============================================================================
+     */
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 0. SCENE_SPEC — CONTRATO DECLARATIVO DA CENA (8.00 SEGUNDOS)
+      // =========================================================================
+      const SCENE_SPEC = {
+        id: 'ar_condicionado_verao_inverno_v1',
+        duration: 8.0,
+
+        room: {
+          width: 7.4,
+          height: 4.6,
+          depth: 7.2,
+          backWallZ: -2.8,
+          // Abertura REAL na parede traseira (zero z-fighting)
+          windowRect: { xMin: -2.15, xMax: -0.25, yMin: 1.25, yMax: 2.65 },
+          outdoorSkyZ: -4.25
+        },
+
+        seasons: {
+          transitionStart: 3.85,
+          transitionMid: 4.15,
+          transitionEnd: 4.55,
+          summer: {
+            bgColor: '#f5cfa0',
+            ambientColor: '#ffedd5',
+            ambientIntensity: 0.92,
+            sunColor: '#fff2cc',
+            sunIntensity: 0.78,
+            skyTop: '#f59e0b',
+            skyBottom: '#fef08a'
+          },
+          winter: {
+            bgColor: '#7cb5d9',
+            ambientColor: '#dbeafe',
+            ambientIntensity: 0.94,
+            sunColor: '#bae6fd',
+            sunIntensity: 0.72,
+            skyTop: '#1d4ed8',
+            skyBottom: '#bae6fd'
+          }
+        },
+
+        actor: {
+          basePos: { x: -0.18, y: 0.0, z: -0.35 },
+          cues: [
+            { t0: 0.0, t1: 1.8, expression: 'worried_sweating', pose: 'worried_wave' },
+            { t0: 1.8, t1: 4.6, expression: 'shocked',          pose: 'shocked_up' },
+            { t0: 4.6, t1: 6.4, expression: 'smug',             pose: 'point_up' },
+            { t0: 6.4, t1: 8.0, expression: 'happy',            pose: 'celebrate' }
+          ]
+        },
+
+        priceBoard: {
+          flipStart: 4.60,
+          flipEnd: 5.05,
+          pillStart: 4.55,
+          savingsStart: 6.40
+        },
+
+        // Keyframes determinísticos do trilho de câmera (sempre dentro da sala!)
+        cameraKeys: [
+          { t: 0.0, pos: [-0.52, 1.48, 5.25], look: [-0.08, 1.32, -0.5] },
+          { t: 1.8, pos: [-0.15, 1.50, 5.05], look: [-0.05, 1.34, -0.5] },
+          { t: 3.8, pos: [ 0.28, 1.54, 4.55], look: [ 0.02, 1.40, -0.6] },
+          { t: 4.6, pos: [-0.25, 1.52, 4.82], look: [-0.02, 1.36, -0.5] },
+          { t: 6.4, pos: [ 0.36, 1.49, 4.92], look: [ 0.00, 1.32, -0.5] },
+          { t: 8.0, pos: [-0.30, 1.50, 5.18], look: [-0.05, 1.32, -0.5] }
+        ],
+
+        // Legendas 1 palavra por vez sincronizadas com os 5 atos
+        captions: [
+          // 0.0s - 1.8s: Verão 40°C
+          { t0: 0.00, t1: 0.28, text: 'NO',        color: '#ffffff' },
+          { t0: 0.28, t1: 0.62, text: 'VERÃO',     color: '#fde047' },
+          { t0: 0.62, t1: 0.90, text: 'TODO',      color: '#ffffff' },
+          { t0: 0.90, t1: 1.18, text: 'MUNDO',     color: '#ffffff' },
+          { t0: 1.18, t1: 1.46, text: 'QUER',      color: '#ffffff' },
+          { t0: 1.46, t1: 1.80, text: 'AR...',     color: '#fde047' },
+
+          // 1.8s - 3.8s: Preço nas alturas
+          { t0: 1.80, t1: 2.06, text: 'E',         color: '#ffffff' },
+          { t0: 2.06, t1: 2.32, text: 'O',         color: '#ffffff' },
+          { t0: 2.32, t1: 2.72, text: 'PREÇO',     color: '#ffffff' },
+          { t0: 2.72, t1: 3.18, text: 'DISPARA:',  color: '#fca5a5' },
+          { t0: 3.18, t1: 3.80, text: 'R$ 3.999!', color: '#f87171' },
+
+          // 3.8s - 4.6s: Respiro visual da virada (>> INVERNO assume o foco)
+
+          // 4.6s - 6.4s: Baixa procura
+          { t0: 4.60, t1: 4.88, text: 'NO',        color: '#ffffff' },
+          { t0: 4.88, t1: 5.22, text: 'FRIO,',     color: '#7dd3fc' },
+          { t0: 5.22, t1: 5.58, text: 'NINGUÉM',   color: '#ffffff' },
+          { t0: 5.58, t1: 5.96, text: 'COMPRA:',   color: '#ffffff' },
+          { t0: 5.96, t1: 6.40, text: 'R$ 2.499!', color: '#4ade80' },
+
+          // 6.4s - 8.0s: Economia
+          { t0: 6.40, t1: 6.84, text: 'VOCÊ',      color: '#ffffff' },
+          { t0: 6.84, t1: 7.32, text: 'ECONOMIZA', color: '#fde047' },
+          { t0: 7.32, t1: 8.00, text: 'R$ 1.500!', color: '#4ade80' }
+        ]
+      };
+
+      // =========================================================================
+      // UTILITÁRIOS MATEMÁTICOS DETERMINÍSTICOS
+      // =========================================================================
+      function clamp(v, min, max) {
+        if (min === undefined) min = 0;
+        if (max === undefined) max = 1;
+        return Math.max(min, Math.min(max, v));
+      }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function invLerp(a, b, v) { return clamp((v - a) / (b - a), 0, 1); }
+      function easeOutCubic(t) { t = clamp(t); return 1 - Math.pow(1 - t, 3); }
+      function easeInOutCubic(t) {
+        t = clamp(t);
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      }
+      function easeOutBack(t) {
+        t = clamp(t);
+        const c1 = 1.65;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+      }
+
+      function drawRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      }
+
+      // =========================================================================
+      // LOADER RESILIENTE THREE.JS r128 UMD (CDNJS -> jsDelivr -> UNPKG)
+      // =========================================================================
+      const THREE_CDNS = [
+        { name: 'CDNJS',    url: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js' },
+        { name: 'jsDelivr', url: 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js' },
+        { name: 'UNPKG',    url: 'https://unpkg.com/three@0.128.0/build/three.min.js' }
+      ];
+
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      const loadingTitle   = document.getElementById('loadingTitle');
+      const loadingDetail  = document.getElementById('loadingDetail');
+      const retryLoadBtn   = document.getElementById('retryLoadBtn');
+
+      function loadScript(url, timeoutMs) {
+        return new Promise(function (resolve, reject) {
+          const s = document.createElement('script');
+          s.src = url;
+          s.async = true;
+          let done = false;
+
+          const timer = setTimeout(function () {
+            if (done) return;
+            done = true;
+            try { s.remove(); } catch (e) {}
+            reject(new Error('Timeout'));
+          }, timeoutMs);
+
+          s.onload = function () {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            if (window.THREE && typeof window.THREE.WebGLRenderer === 'function') resolve();
+            else {
+              try { s.remove(); } catch (e) {}
+              reject(new Error('THREE inválido'));
+            }
+          };
+
+          s.onerror = function () {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            try { s.remove(); } catch (e) {}
+            reject(new Error('Erro de rede'));
+          };
+
+          document.head.appendChild(s);
+        });
+      }
+
+      async function ensureThreeLoaded() {
+        if (window.THREE && typeof window.THREE.WebGLRenderer === 'function') return true;
+        for (let i = 0; i < THREE_CDNS.length; i++) {
+          loadingDetail.textContent = 'Baixando Three.js r128 (' + THREE_CDNS[i].name + ')...';
+          try {
+            await loadScript(THREE_CDNS[i].url, 8000);
+            if (window.THREE && typeof window.THREE.WebGLRenderer === 'function') return true;
+          } catch (e) {
+            // Próximo CDN
+          }
+        }
+        return false;
+      }
+
+      function showFatalOverlay(title, detail) {
+        loadingOverlay.style.display = 'flex';
+        loadingOverlay.style.opacity = '1';
+        loadingSpinner.classList.add('hidden');
+        loadingTitle.textContent = title;
+        loadingDetail.textContent = detail;
+        retryLoadBtn.classList.remove('hidden');
+      }
+
+      function hideLoadingOverlay() {
+        loadingOverlay.style.opacity = '0';
+        setTimeout(function () { loadingOverlay.style.display = 'none'; }, 300);
+      }
+
+      // =========================================================================
+      // MOTOR DE ÁUDIO PROCEDURAL BLINDADO (WEB AUDIO API EM TRY/CATCH)
+      // =========================================================================
+      class ProceduralSound25D {
+        constructor() {
+          this.ctx = null;
+          this.master = null;
+          this.enabled = false;
+          this.fired = new Set();
+        }
+
+        setEnabled(on) {
+          try {
+            if (on) {
+              const AC = window.AudioContext || window.webkitAudioContext;
+              if (!AC) return false;
+              if (!this.ctx) {
+                this.ctx = new AC();
+                this.master = this.ctx.createGain();
+                this.master.gain.value = 0.32;
+                this.master.connect(this.ctx.destination);
+              }
+              if (this.ctx.state === 'suspended') {
+                const p = this.ctx.resume();
+                if (p && typeof p.catch === 'function') p.catch(function () {});
+              }
+              this.enabled = true;
+              this.master.gain.setTargetAtTime(0.32, this.ctx.currentTime, 0.04);
+              return true;
+            }
+            this.enabled = false;
+            if (this.master && this.ctx) {
+              this.master.gain.setTargetAtTime(0, this.ctx.currentTime, 0.04);
+            }
+            return false;
+          } catch (e) {
+            this.enabled = false;
+            return false;
+          }
+        }
+
+        canPlay() {
+          try { return Boolean(this.enabled && this.ctx && this.ctx.state === 'running'); }
+          catch (e) { return false; }
+        }
+
+        reset(fromTime) {
+          this.fired.clear();
+          const t0 = fromTime || 0;
+          for (let i = 0; i < AUDIO_CUES.length; i++) {
+            if (AUDIO_CUES[i].t < t0 - 0.08) this.fired.add(AUDIO_CUES[i].id);
+          }
+        }
+
+        noiseBuffer(dur) {
+          const len = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
+          const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+          const d = buf.getChannelData(0);
+          for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+          return buf;
+        }
+
+        playHeatShimmer() {
+          if (!this.canPlay()) return;
+          try {
+            const now = this.ctx.currentTime;
+            const n = this.ctx.createBufferSource();
+            n.buffer = this.noiseBuffer(0.95);
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.setValueAtTime(520, now);
+            bp.frequency.linearRampToValueAtTime(340, now + 0.95);
+            bp.Q.value = 1.6;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.001, now);
+            g.gain.linearRampToValueAtTime(0.09, now + 0.25);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+            n.connect(bp); bp.connect(g); g.connect(this.master);
+            n.start(now);
+          } catch (e) {}
+        }
+
+        playShockBleep() {
+          if (!this.canPlay()) return;
+          try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(310, now);
+            osc.frequency.exponentialRampToValueAtTime(620, now + 0.14);
+            g.gain.setValueAtTime(0.16, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+            osc.connect(g); g.connect(this.master);
+            osc.start(now); osc.stop(now + 0.24);
+          } catch (e) {}
+        }
+
+        playWinterWhoosh() {
+          if (!this.canPlay()) return;
+          try {
+            const now = this.ctx.currentTime;
+            const n = this.ctx.createBufferSource();
+            n.buffer = this.noiseBuffer(0.85);
+            const flt = this.ctx.createBiquadFilter();
+            flt.type = 'bandpass';
+            flt.frequency.setValueAtTime(260, now);
+            flt.frequency.exponentialRampToValueAtTime(2100, now + 0.35);
+            flt.frequency.exponentialRampToValueAtTime(620, now + 0.82);
+            flt.Q.value = 2.4;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.001, now);
+            g.gain.linearRampToValueAtTime(0.24, now + 0.25);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+            n.connect(flt); flt.connect(g); g.connect(this.master);
+            n.start(now);
+          } catch (e) {}
+        }
+
+        playDiscountPop() {
+          if (!this.canPlay()) return;
+          try {
+            const now = this.ctx.currentTime;
+            const notes = [523.25, 783.99, 1046.5];
+            for (let i = 0; i < notes.length; i++) {
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = i === 0 ? 'triangle' : 'sine';
+              const st = now + i * 0.055;
+              osc.frequency.setValueAtTime(notes[i], st);
+              g.gain.setValueAtTime(0.001, st);
+              g.gain.linearRampToValueAtTime(0.16, st + 0.015);
+              g.gain.exponentialRampToValueAtTime(0.001, st + 0.24);
+              osc.connect(g); g.connect(this.master);
+              osc.start(st); osc.stop(st + 0.26);
+            }
+          } catch (e) {}
+        }
+
+        playCelebrateChord() {
+          if (!this.canPlay()) return;
+          try {
+            const now = this.ctx.currentTime;
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            for (let i = 0; i < notes.length; i++) {
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sine';
+              const st = now + i * 0.045;
+              osc.frequency.setValueAtTime(notes[i], st);
+              g.gain.setValueAtTime(0.001, st);
+              g.gain.linearRampToValueAtTime(0.11, st + 0.03);
+              g.gain.exponentialRampToValueAtTime(0.001, st + 0.65);
+              osc.connect(g); g.connect(this.master);
+              osc.start(st); osc.stop(st + 0.7);
+            }
+          } catch (e) {}
+        }
+
+        update(t) {
+          if (!this.canPlay()) return;
+          for (let i = 0; i < AUDIO_CUES.length; i++) {
+            const cue = AUDIO_CUES[i];
+            if (!this.fired.has(cue.id) && t >= cue.t && t < cue.t + 0.22) {
+              this.fired.add(cue.id);
+              cue.fn(this);
+            }
+          }
+        }
+      }
+
+      const AUDIO_CUES = [
+        { id: 'heat',  t: 0.15, fn: function (s) { s.playHeatShimmer(); } },
+        { id: 'shock', t: 1.85, fn: function (s) { s.playShockBleep(); } },
+        { id: 'wint',  t: 3.85, fn: function (s) { s.playWinterWhoosh(); } },
+        { id: 'disc',  t: 4.62, fn: function (s) { s.playDiscountPop(); } },
+        { id: 'save',  t: 6.42, fn: function (s) { s.playCelebrateChord(); } }
+      ];
+
+      // =========================================================================
+      // INICIALIZAÇÃO DA ENGINE 2.5D APÓS CARREGAMENTO DO THREE.JS
+      // =========================================================================
+      function startEngine25D() {
+        const appShell       = document.getElementById('appShell');
+        const stageFrame     = document.getElementById('stageFrame');
+        const webglMount     = document.getElementById('webglMount');
+        const seasonFlashEl  = document.getElementById('seasonFlash');
+        const seasonSkipEl   = document.getElementById('seasonSkipBadge');
+        const peekHintBadge  = document.getElementById('peekHintBadge');
+        const wordCaptionEl  = document.getElementById('wordCaption');
+        const scrubInput     = document.getElementById('scrubInput');
+        const timeNowLabel   = document.getElementById('timeNowLabel');
+        const playPauseBtn   = document.getElementById('playPauseBtn');
+        const iconPlay       = document.getElementById('iconPlay');
+        const iconPause      = document.getElementById('iconPause');
+        const restartBtn     = document.getElementById('restartBtn');
+        const speedBtn       = document.getElementById('speedBtn');
+        const soundBtn       = document.getElementById('soundBtn');
+        const soundBtnLabel  = document.getElementById('soundBtnLabel');
+        const iconSoundOn    = document.getElementById('iconSoundOn');
+        const iconSoundOff   = document.getElementById('iconSoundOff');
+        const peekBtn        = document.getElementById('peekBtn');
+        const cleanBtn       = document.getElementById('cleanBtn');
+        const exitCleanBtn   = document.getElementById('exitCleanBtn');
+        const toastEl        = document.getElementById('toastEl');
+
+        // Renderer WebGL tolerante
+        let renderer;
+        try {
+          renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        } catch (e1) {
+          try {
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+          } catch (e2) {
+            showFatalOverlay('WebGL indisponível', 'Ative a aceleração gráfica no navegador para ver a cena 2.5D.');
+            return;
+          }
+        }
+
+        try {
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          renderer.outputEncoding = THREE.sRGBEncoding;
+        } catch (e) {}
+
+        webglMount.innerHTML = '';
+        webglMount.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(SCENE_SPEC.seasons.summer.bgColor);
+
+        const camera = new THREE.PerspectiveCamera(44, 9 / 16, 0.15, 40);
+
+        // Iluminação da sala (transita entre verão quente e inverno azul-frio)
+        const ambientLight = new THREE.AmbientLight('#ffedd5', 0.92);
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight('#fff2cc', 0.78);
+        keyLight.position.set(-2.5, 4.2, 3.6);
+        try {
+          keyLight.castShadow = true;
+          keyLight.shadow.mapSize.width = 1024;
+          keyLight.shadow.mapSize.height = 1024;
+          keyLight.shadow.camera.near = 1;
+          keyLight.shadow.camera.far = 16;
+          keyLight.shadow.camera.left = -5;
+          keyLight.shadow.camera.right = 5;
+          keyLight.shadow.camera.top = 5;
+          keyLight.shadow.camera.bottom = -2;
+          keyLight.shadow.bias = -0.0005;
+        } catch (e) {}
+        scene.add(keyLight);
+
+        // Luz vinda de fora da janela para banhar o chão de calor ou frio
+        const windowBounceLight = new THREE.PointLight('#fbbf24', 0.65, 9, 1.5);
+        windowBounceLight.position.set(-1.2, 2.0, -2.1);
+        scene.add(windowBounceLight);
+
+        // Helper de textura Canvas 2D
+        function createCanvasTexture(w, h, drawFn, repeatX, repeatY) {
+          const c = document.createElement('canvas');
+          c.width = w;
+          c.height = h;
+          const ctx = c.getContext('2d');
+          if (ctx) drawFn(ctx, w, h);
+          const tex = new THREE.CanvasTexture(c);
+          tex.encoding = THREE.sRGBEncoding;
+          if (repeatX || repeatY) {
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(repeatX || 1, repeatY || 1);
+          }
+          tex.needsUpdate = true;
+          return tex;
+        }
+
+        // =====================================================================
+        // MÓDULO 1: BoxRoom3D — SALA 3D COM JANELA REAL E MÓVEIS LOW-POLY
+        // =====================================================================
+        class BoxRoom3D {
+          constructor(spec) {
+            this.group = new THREE.Group();
+            this.group.name = 'BoxRoom3D';
+            this.spec = spec;
+            this.summerSkyMat = null;
+            this.winterSkyMat = null;
+            this.build();
+          }
+
+          build() {
+            const W = this.spec.width;
+            const H = this.spec.height;
+            const D = this.spec.depth;
+            const bz = this.spec.backWallZ;
+            const win = this.spec.windowRect;
+
+            // Textura procedural de piso de tábuas de madeira aconchegante
+            const woodTex = createCanvasTexture(512, 512, function (g, w, h) {
+              g.fillStyle = '#a47148';
+              g.fillRect(0, 0, w, h);
+              const rows = 8;
+              const rh = h / rows;
+              const shades = ['#a47148', '#99663f', '#ae7b52', '#8f5e39'];
+              for (let r = 0; r < rows; r++) {
+                const offset = (r % 2) * 140;
+                for (let c = -1; c <= 2; c++) {
+                  const px = c * 256 + offset;
+                  g.fillStyle = shades[(r * 3 + c + 4) % shades.length];
+                  g.fillRect(px + 2, r * rh + 2, 252, rh - 4);
+                  // Veio sutil
+                  g.fillStyle = 'rgba(60, 32, 12, 0.08)';
+                  g.fillRect(px + 8, r * rh + rh * 0.32, 240, 3);
+                  g.fillRect(px + 14, r * rh + rh * 0.68, 224, 2);
+                }
+                // Junta escura entre tábuas
+                g.fillStyle = '#6f482b';
+                g.fillRect(0, r * rh, w, 3);
+              }
+            }, 3, 3);
+
+            // Textura procedural de papel de parede cartoon retrô (estilo @dinheirofalante)
+            const wallTex = createCanvasTexture(256, 256, function (g, w, h) {
+              g.fillStyle = '#c8b498';
+              g.fillRect(0, 0, w, h);
+              // Listras verticais sutis
+              g.fillStyle = 'rgba(255, 248, 235, 0.14)';
+              for (let x = 0; x < w; x += 32) {
+                g.fillRect(x, 0, 14, h);
+              }
+              // Padrão geométrico bem discreto
+              g.strokeStyle = 'rgba(110, 88, 64, 0.14)';
+              g.lineWidth = 2;
+              for (let y = 32; y < h; y += 64) {
+                for (let x = 32; x < w; x += 64) {
+                  g.beginPath();
+                  g.arc(x, y, 8, 0, Math.PI * 2);
+                  g.stroke();
+                }
+              }
+            }, 4, 3);
+
+            const floorMat = new THREE.MeshLambertMaterial({ map: woodTex });
+            const wallMat = new THREE.MeshLambertMaterial({ map: wallTex });
+            const ceilMat = new THREE.MeshLambertMaterial({ color: '#e6dccb' });
+            const trimMat = new THREE.MeshLambertMaterial({ color: '#5c3d28' });
+            const frameMat = new THREE.MeshLambertMaterial({ color: '#3b2618' });
+
+            // 1) Piso (topo exato em y = 0.00)
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(W + 0.4, 0.2, D + 2.0), floorMat);
+            floor.position.set(0, -0.10, bz + D / 2 + 0.6);
+            floor.receiveShadow = true;
+            this.group.add(floor);
+
+            // 2) Teto (base em y = H)
+            const ceiling = new THREE.Mesh(new THREE.BoxGeometry(W + 0.4, 0.2, D + 2.0), ceilMat);
+            ceiling.position.set(0, H + 0.10, bz + D / 2 + 0.6);
+            this.group.add(ceiling);
+
+            // 3) Paredes Laterais (com folga real fora da parede traseira)
+            const wallT = 0.24;
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, H, D + 2.0), wallMat);
+            leftWall.position.set(-W / 2 - wallT / 2, H / 2, bz + D / 2 + 0.6);
+            leftWall.receiveShadow = true;
+            this.group.add(leftWall);
+
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, H, D + 2.0), wallMat);
+            rightWall.position.set(W / 2 + wallT / 2, H / 2, bz + D / 2 + 0.6);
+            rightWall.receiveShadow = true;
+            this.group.add(rightWall);
+
+            // 4) Parede Traseira construída em 4 blocos ao redor da ABERTURA REAL DA JANELA
+            const backCenterZ = bz - wallT / 2;
+            const leftSecW = win.xMin - (-W / 2);
+            const rightSecW = (W / 2) - win.xMax;
+            const winW = win.xMax - win.xMin;
+            const winH = win.yMax - win.yMin;
+            const botSecH = win.yMin;
+            const topSecH = H - win.yMax;
+
+            const backLeft = new THREE.Mesh(new THREE.BoxGeometry(leftSecW, H, wallT), wallMat);
+            backLeft.position.set(-W / 2 + leftSecW / 2, H / 2, backCenterZ);
+            backLeft.receiveShadow = true;
+
+            const backRight = new THREE.Mesh(new THREE.BoxGeometry(rightSecW, H, wallT), wallMat);
+            backRight.position.set(win.xMax + rightSecW / 2, H / 2, backCenterZ);
+            backRight.receiveShadow = true;
+
+            const backBottom = new THREE.Mesh(new THREE.BoxGeometry(winW, botSecH, wallT), wallMat);
+            backBottom.position.set((win.xMin + win.xMax) / 2, botSecH / 2, backCenterZ);
+            backBottom.receiveShadow = true;
+
+            const backTop = new THREE.Mesh(new THREE.BoxGeometry(winW, topSecH, wallT), wallMat);
+            backTop.position.set((win.xMin + win.xMax) / 2, win.yMax + topSecH / 2, backCenterZ);
+            backTop.receiveShadow = true;
+
+            this.group.add(backLeft, backRight, backBottom, backTop);
+
+            // 5) Rodapés em relevo (folga 0.05 para zero z-fighting)
+            const baseH = 0.22;
+            const baseD = 0.08;
+            const baseBack = new THREE.Mesh(new THREE.BoxGeometry(W, baseH, baseD), trimMat);
+            baseBack.position.set(0, baseH / 2, bz + baseD / 2);
+            const baseLeft = new THREE.Mesh(new THREE.BoxGeometry(baseD, baseH, D + 1.5), trimMat);
+            baseLeft.position.set(-W / 2 + baseD / 2, baseH / 2, bz + D / 2 + 0.5);
+            const baseRight = baseLeft.clone();
+            baseRight.position.x = W / 2 - baseD / 2;
+            this.group.add(baseBack, baseLeft, baseRight);
+
+            // 6) Moldura 3D da Janela em relevo + parapeito
+            const fThick = 0.11;
+            const fDepth = 0.34;
+            const winCx = (win.xMin + win.xMax) / 2;
+            const winCy = (win.yMin + win.yMax) / 2;
+
+            const fTop = new THREE.Mesh(new THREE.BoxGeometry(winW + fThick * 2, fThick, fDepth), frameMat);
+            fTop.position.set(winCx, win.yMax + fThick / 2 - 0.02, backCenterZ + 0.03);
+            const fBot = new THREE.Mesh(new THREE.BoxGeometry(winW + fThick * 2 + 0.14, fThick + 0.03, fDepth + 0.12), frameMat);
+            fBot.position.set(winCx, win.yMin - fThick / 2 + 0.02, backCenterZ + 0.08);
+            const fLeft = new THREE.Mesh(new THREE.BoxGeometry(fThick, winH, fDepth), frameMat);
+            fLeft.position.set(win.xMin - fThick / 2 + 0.02, winCy, backCenterZ + 0.03);
+            const fRight = new THREE.Mesh(new THREE.BoxGeometry(fThick, winH, fDepth), frameMat);
+            fRight.position.set(win.xMax + fThick / 2 - 0.02, winCy, backCenterZ + 0.03);
+
+            // Cruz central fina da janela
+            const barH = new THREE.Mesh(new THREE.BoxGeometry(winW, 0.055, 0.06), frameMat);
+            barH.position.set(winCx, winCy, bz - 0.08);
+            const barV = new THREE.Mesh(new THREE.BoxGeometry(0.055, winH, 0.06), frameMat);
+            barV.position.set(winCx, winCy, bz - 0.08);
+
+            // Vidro translúcido discreto
+            const glass = new THREE.Mesh(
+              new THREE.PlaneGeometry(winW, winH),
+              new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.10 })
+            );
+            glass.position.set(winCx, winCy, bz - 0.13);
+
+            this.group.add(fTop, fBot, fLeft, fRight, barH, barV, glass);
+
+            // 7) Fundo Externo atrás da janela (2 planos com folga >= 0.08 para transição limpa)
+            const summerSkyTex = createCanvasTexture(256, 256, function (g, w, h) {
+              const gr = g.createLinearGradient(0, 0, 0, h);
+              gr.addColorStop(0, '#f97316');
+              gr.addColorStop(0.55, '#fbbf24');
+              gr.addColorStop(1, '#fef08a');
+              g.fillStyle = gr;
+              g.fillRect(0, 0, w, h);
+            });
+            const winterSkyTex = createCanvasTexture(256, 256, function (g, w, h) {
+              const gr = g.createLinearGradient(0, 0, 0, h);
+              gr.addColorStop(0, '#1e3a8a');
+              gr.addColorStop(0.55, '#3b82f6');
+              gr.addColorStop(1, '#bae6fd');
+              g.fillStyle = gr;
+              g.fillRect(0, 0, w, h);
+            });
+
+            this.summerSkyMat = new THREE.MeshBasicMaterial({ map: summerSkyTex });
+            this.winterSkyMat = new THREE.MeshBasicMaterial({ map: winterSkyTex, transparent: true, opacity: 0 });
+
+            const skyW = 5.4;
+            const skyH = 4.2;
+            const skySummer = new THREE.Mesh(new THREE.PlaneGeometry(skyW, skyH), this.summerSkyMat);
+            skySummer.position.set(winCx, winCy, this.spec.outdoorSkyZ - 0.08);
+            const skyWinter = new THREE.Mesh(new THREE.PlaneGeometry(skyW, skyH), this.winterSkyMat);
+            skyWinter.position.set(winCx, winCy, this.spec.outdoorSkyZ);
+            this.group.add(skySummer, skyWinter);
+
+            // 8) Móveis 3D Low-Poly para dar Paralaxe Real de Profundidade Z
+            this.buildFurniture();
+          }
+
+          buildFurniture() {
+            // Sofá 3D estilizado (plano médio-fundo à direita: x = +1.35, z = -1.78)
+            const sofa = new THREE.Group();
+            const couchMat = new THREE.MeshLambertMaterial({ color: '#8c5332' });
+            const cushionMat = new THREE.MeshLambertMaterial({ color: '#a3643f' });
+            const legMat = new THREE.MeshLambertMaterial({ color: '#3b2416' });
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.42, 0.92), couchMat);
+            base.position.set(0, 0.33, 0);
+            base.castShadow = true; base.receiveShadow = true;
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.68, 0.24), couchMat);
+            back.position.set(0, 0.78, -0.34);
+            back.castShadow = true;
+
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.56, 0.94), couchMat);
+            armL.position.set(-0.96, 0.52, 0);
+            const armR = armL.clone(); armR.position.x = 0.96;
+
+            const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.16, 0.70), cushionMat);
+            c1.position.set(-0.44, 0.59, 0.06);
+            const c2 = c1.clone(); c2.position.x = 0.44;
+
+            const legPos = [[-0.88, -0.34], [0.88, -0.34], [-0.88, 0.34], [0.88, 0.34]];
+            for (let i = 0; i < legPos.length; i++) {
+              const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.14, 8), legMat);
+              leg.position.set(legPos[i][0], 0.07, legPos[i][1]);
+              sofa.add(leg);
+            }
+            sofa.add(base, back, armL, armR, c1, c2);
+            sofa.position.set(1.38, 0.0, -1.78);
+            this.group.add(sofa);
+
+            // Mesinha lateral 3D em primeiro plano à direita (z = +0.58 -> paralaxe forte!)
+            const table = new THREE.Group();
+            const tblTopMat = new THREE.MeshLambertMaterial({ color: '#6b4226' });
+            const tblLegMat = new THREE.MeshLambertMaterial({ color: '#472a16' });
+
+            const top = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.09, 0.66), tblTopMat);
+            top.position.set(0, 0.56, 0);
+            top.castShadow = true; top.receiveShadow = true;
+
+            const tLegs = [[-0.36, -0.24], [0.36, -0.24], [-0.36, 0.24], [0.36, 0.24]];
+            for (let i = 0; i < tLegs.length; i++) {
+              const l = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.026, 0.54, 8), tblLegMat);
+              l.position.set(tLegs[i][0], 0.27, tLegs[i][1]);
+              table.add(l);
+            }
+
+            // Caneca low-poly em cima da mesinha
+            const mug = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.075, 0.065, 0.15, 10),
+              new THREE.MeshLambertMaterial({ color: '#f8fafc' })
+            );
+            mug.position.set(-0.14, 0.68, 0.05);
+            table.add(top, mug);
+            table.position.set(1.52, 0.0, 0.62);
+            table.rotation.y = -0.18;
+            this.group.add(table);
+
+            // Tapete central plano sobre o piso (y = 0.008 -> folga limpa acima do piso y = 0)
+            const rug = new THREE.Mesh(
+              new THREE.PlaneGeometry(3.2, 1.9),
+              new THREE.MeshLambertMaterial({ color: '#dfd3be' })
+            );
+            rug.rotation.x = -Math.PI / 2;
+            rug.position.set(-0.05, 0.008, -0.45);
+            rug.receiveShadow = true;
+            this.group.add(rug);
+          }
+
+          setSeasonBlend(winterFactor) {
+            if (this.winterSkyMat) {
+              this.winterSkyMat.opacity = clamp(winterFactor, 0, 1);
+            }
+          }
+        }
+
+        // =====================================================================
+        // MÓDULO 2: PaperActor2D — PERSONAGEM PLANO 2D (NOTA R$ 100 ESTILIZADA)
+        // =====================================================================
+        class PaperActor2D {
+          constructor(cfg) {
+            this.group = new THREE.Group();
+            this.group.name = 'PaperActor2D';
+            this.basePos = cfg.basePos;
+            this.group.position.set(cfg.basePos.x, cfg.basePos.y, cfg.basePos.z);
+
+            this.bodyPivot = new THREE.Group();
+            this.group.add(this.bodyPivot);
+
+            this.faceTextures = {};
+            this.faceMat = null;
+            this.currentExpr = '';
+            this.leftArmPivot = null;
+            this.rightArmPivot = null;
+            this.leftLegPivot = null;
+            this.rightLegPivot = null;
+            this.sweatDrops = [];
+
+            this.build();
+          }
+
+          createBanknoteTexture() {
+            return createCanvasTexture(512, 860, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+
+              // Sombra interna + corpo da nota R$ 100 com contorno preto grosso
+              const pad = 22;
+              const bw = w - pad * 2;
+              const bh = h - pad * 2;
+
+              // Fundo principal azul-ciano da nota de R$ 100
+              const grad = g.createLinearGradient(0, pad, w, h - pad);
+              grad.addColorStop(0, '#a5e1f5');
+              grad.addColorStop(0.5, '#78c9e8');
+              grad.addColorStop(1, '#58b4da');
+
+              drawRoundedRect(g, pad, pad, bw, bh, 36);
+              g.fillStyle = grad;
+              g.fill();
+
+              // Faixas geométricas sutis de segurança
+              g.save();
+              drawRoundedRect(g, pad + 6, pad + 6, bw - 12, bh - 12, 30);
+              g.clip();
+
+              g.fillStyle = 'rgba(255, 255, 255, 0.24)';
+              g.fillRect(pad + 26, pad + 26, bw - 52, bh - 52);
+
+              g.fillStyle = 'rgba(14, 116, 144, 0.14)';
+              g.fillRect(pad, h - 220, bw, 220);
+
+              // Ondas sutis de fundo
+              g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+              g.lineWidth = 6;
+              for (let i = 0; i < 4; i++) {
+                g.beginPath();
+                g.arc(w * 0.5, h * 0.22 + i * 24, 150 + i * 16, 0.15, Math.PI - 0.15);
+                g.stroke();
+              }
+
+              // Emblema estilizado do peixe (Garoupa da nota de 100) na base
+              g.save();
+              g.translate(w * 0.45, h - 140);
+              g.fillStyle = 'rgba(21, 94, 117, 0.42)';
+              g.strokeStyle = 'rgba(15, 70, 90, 0.65)';
+              g.lineWidth = 5;
+              // Corpo do peixe
+              g.beginPath();
+              g.ellipse(0, 0, 86, 40, 0, 0, Math.PI * 2);
+              g.fill();
+              g.stroke();
+              // Cauda
+              g.beginPath();
+              g.moveTo(76, 0);
+              g.lineTo(122, -32);
+              g.lineTo(116, 32);
+              g.closePath();
+              g.fill();
+              g.stroke();
+              // Olho do peixe
+              g.fillStyle = '#e0f2fe';
+              g.beginPath();
+              g.arc(-48, -8, 7, 0, Math.PI * 2);
+              g.fill();
+              g.restore();
+
+              // Numerais "100" nítidos (nunca espelhados)
+              g.fillStyle = '#0e4f6b';
+              g.font = '900 72px Inter, sans-serif';
+              g.textAlign = 'left';
+              g.textBaseline = 'top';
+              g.fillText('100', pad + 34, pad + 32);
+
+              g.font = '900 56px Inter, sans-serif';
+              g.textAlign = 'right';
+              g.textBaseline = 'bottom';
+              g.fillText('100', w - pad - 34, h - pad - 28);
+
+              // Texto lateral vertical "BANCO CENTRAL DO BRASIL"
+              g.save();
+              g.translate(w - pad - 44, h * 0.52);
+              g.rotate(-Math.PI / 2);
+              g.fillStyle = 'rgba(14, 79, 107, 0.72)';
+              g.font = '800 20px Inter, sans-serif';
+              g.textAlign = 'center';
+              g.fillText('BANCO CENTRAL DO BRASIL', 0, 0);
+              g.restore();
+
+              g.restore();
+
+              // Contorno preto grosso cartoon
+              drawRoundedRect(g, pad, pad, bw, bh, 36);
+              g.strokeStyle = '#18181b';
+              g.lineWidth = 22;
+              g.stroke();
+            });
+          }
+
+          createExpressionTexture(expr) {
+            return createCanvasTexture(512, 512, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              const ink = '#18181b';
+
+              if (expr === 'worried_sweating') {
+                // Sobrancelhas preocupadas inclinadas para cima no centro
+                g.strokeStyle = ink;
+                g.lineWidth = 18;
+                g.lineCap = 'round';
+                g.beginPath(); g.moveTo(126, 175); g.lineTo(195, 142); g.stroke();
+                g.beginPath(); g.moveTo(386, 175); g.lineTo(317, 142); g.stroke();
+
+                // Olhos ovais escuros
+                g.fillStyle = ink;
+                g.beginPath(); g.ellipse(174, 232, 22, 32, 0, 0, Math.PI * 2); g.fill();
+                g.beginPath(); g.ellipse(338, 232, 22, 32, 0, 0, Math.PI * 2); g.fill();
+
+                // Brilho nos olhos
+                g.fillStyle = '#ffffff';
+                g.beginPath(); g.arc(166, 218, 7, 0, Math.PI * 2); g.fill();
+                g.beginPath(); g.arc(330, 218, 7, 0, Math.PI * 2); g.fill();
+
+                // Boca ondulada tensa de calor
+                g.strokeStyle = ink;
+                g.lineWidth = 18;
+                g.beginPath();
+                g.moveTo(175, 344);
+                g.quadraticCurveTo(214, 316, 256, 344);
+                g.quadraticCurveTo(298, 372, 337, 344);
+                g.stroke();
+
+                // Gota de suor fixa na testa
+                g.fillStyle = '#38bdf8';
+                g.strokeStyle = ink;
+                g.lineWidth = 10;
+                g.beginPath();
+                g.moveTo(412, 112);
+                g.quadraticCurveTo(444, 168, 412, 186);
+                g.quadraticCurveTo(380, 168, 412, 112);
+                g.closePath();
+                g.fill();
+                g.stroke();
+
+              } else if (expr === 'shocked') {
+                // Sobrancelhas bem levantadas
+                g.strokeStyle = ink;
+                g.lineWidth = 16;
+                g.lineCap = 'round';
+                g.beginPath(); g.arc(174, 152, 42, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+                g.beginPath(); g.arc(338, 152, 42, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+
+                // Olhos grandes brancos olhando para cima (para o preço!)
+                const xs = [174, 338];
+                for (let i = 0; i < 2; i++) {
+                  g.fillStyle = '#ffffff';
+                  g.strokeStyle = ink;
+                  g.lineWidth = 14;
+                  g.beginPath(); g.arc(xs[i], 224, 46, 0, Math.PI * 2); g.fill(); g.stroke();
+                  g.fillStyle = ink;
+                  g.beginPath(); g.arc(xs[i], 204, 17, 0, Math.PI * 2); g.fill();
+                }
+
+                // Boca "O" espantada
+                g.fillStyle = '#18181b';
+                g.beginPath();
+                g.ellipse(256, 352, 38, 52, 0, 0, Math.PI * 2);
+                g.fill();
+                g.fillStyle = '#ef4444';
+                g.beginPath();
+                g.ellipse(256, 382, 22, 14, 0, 0, Math.PI * 2);
+                g.fill();
+
+              } else if (expr === 'smug') {
+                // Olhar esperto (pálpebras semicerradas confiantes)
+                const xs = [174, 338];
+                for (let i = 0; i < 2; i++) {
+                  g.fillStyle = ink;
+                  g.beginPath();
+                  g.arc(xs[i], 226, 30, 0, Math.PI);
+                  g.closePath();
+                  g.fill();
+                  // Linha superior da pálpebra
+                  g.strokeStyle = ink;
+                  g.lineWidth = 16;
+                  g.lineCap = 'round';
+                  g.beginPath();
+                  g.moveTo(xs[i] - 42, 224);
+                  g.lineTo(xs[i] + 42, 224);
+                  g.stroke();
+                }
+
+                // Sorriso de canto esperto
+                g.strokeStyle = ink;
+                g.lineWidth = 18;
+                g.lineCap = 'round';
+                g.beginPath();
+                g.moveTo(188, 338);
+                g.quadraticCurveTo(268, 362, 344, 314);
+                g.stroke();
+
+              } else if (expr === 'happy') {
+                // Bochechas rosadas
+                g.fillStyle = 'rgba(244, 114, 182, 0.42)';
+                g.beginPath(); g.ellipse(112, 276, 36, 20, 0, 0, Math.PI * 2); g.fill();
+                g.beginPath(); g.ellipse(400, 276, 36, 20, 0, 0, Math.PI * 2); g.fill();
+
+                // Olhos felizes em arco ^ ^
+                g.strokeStyle = ink;
+                g.lineWidth = 20;
+                g.lineCap = 'round';
+                g.beginPath(); g.arc(174, 232, 34, Math.PI * 1.12, Math.PI * 1.88); g.stroke();
+                g.beginPath(); g.arc(338, 232, 34, Math.PI * 1.12, Math.PI * 1.88); g.stroke();
+
+                // Sorriso aberto com dentes brancos
+                g.fillStyle = '#ffffff';
+                g.strokeStyle = ink;
+                g.lineWidth = 16;
+                g.beginPath();
+                g.moveTo(148, 300);
+                g.lineTo(364, 300);
+                g.quadraticCurveTo(356, 412, 256, 412);
+                g.quadraticCurveTo(156, 412, 148, 300);
+                g.closePath();
+                g.fill();
+                g.stroke();
+
+                // Linha interna dos dentes
+                g.beginPath();
+                g.moveTo(164, 346);
+                g.lineTo(348, 346);
+                g.stroke();
+              }
+            });
+          }
+
+          build() {
+            // 1) Sombra oval macia no chão (y = 0.022 -> acima do tapete y = 0.008)
+            const shadowTex = createCanvasTexture(128, 128, function (g, w, h) {
+              const gr = g.createRadialGradient(w / 2, h / 2, 6, w / 2, h / 2, w * 0.46);
+              gr.addColorStop(0, 'rgba(15, 18, 25, 0.48)');
+              gr.addColorStop(1, 'rgba(15, 18, 25, 0)');
+              g.fillStyle = gr;
+              g.fillRect(0, 0, w, h);
+            });
+            const shadowPlane = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.18, 0.56),
+              new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
+            );
+            shadowPlane.rotation.x = -Math.PI / 2;
+            shadowPlane.position.set(0, 0.022, 0);
+            this.group.add(shadowPlane);
+
+            // 2) Corpo 2D plano da Nota R$ 100 (largura 0.86, altura 1.44, base em y = 0.34)
+            const bodyW = 0.86;
+            const bodyH = 1.44;
+            const bodyCenterY = 1.06; // vai de y = 0.34 até y = 1.78
+
+            const noteTex = this.createBanknoteTexture();
+            const bodyMat = new THREE.MeshBasicMaterial({
+              map: noteTex,
+              transparent: true,
+              alphaTest: 0.25,
+              side: THREE.DoubleSide
+            });
+            const bodyPlane = new THREE.Mesh(new THREE.PlaneGeometry(bodyW, bodyH), bodyMat);
+            bodyPlane.position.set(0, bodyCenterY, 0);
+            this.bodyPivot.add(bodyPlane);
+
+            // 3) Placa de Expressão Facial (folga real +0.06 na frente -> zero z-fighting!)
+            const exprKeys = ['worried_sweating', 'shocked', 'smug', 'happy'];
+            for (let i = 0; i < exprKeys.length; i++) {
+              this.faceTextures[exprKeys[i]] = this.createExpressionTexture(exprKeys[i]);
+            }
+            this.faceMat = new THREE.MeshBasicMaterial({
+              map: this.faceTextures.worried_sweating,
+              transparent: true,
+              alphaTest: 0.05,
+              depthWrite: false
+            });
+            const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.66), this.faceMat);
+            facePlane.position.set(0, 1.15, 0.06);
+            this.bodyPivot.add(facePlane);
+
+            // 4) Braços e Pernas articulados (palito cartoon grosso com mãos/pés arredondados)
+            const limbMat = new THREE.MeshBasicMaterial({ color: '#18181b' });
+
+            function createLimb(len, radius, hasFoot) {
+              const piv = new THREE.Group();
+              const rod = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 10), limbMat);
+              rod.position.y = -len / 2;
+              const tip = new THREE.Mesh(new THREE.SphereGeometry(hasFoot ? radius * 1.65 : radius * 1.55, 10, 8), limbMat);
+              tip.position.set(0, -len, hasFoot ? 0.04 : 0);
+              if (hasFoot) tip.scale.set(1.0, 0.72, 1.65);
+              piv.add(rod, tip);
+              return piv;
+            }
+
+            // Braço esquerdo (lado -X do observador)
+            this.leftArmPivot = createLimb(0.46, 0.032, false);
+            this.leftArmPivot.position.set(-0.39, 1.05, -0.02);
+            this.bodyPivot.add(this.leftArmPivot);
+
+            // Braço direito (lado +X do observador)
+            this.rightArmPivot = createLimb(0.46, 0.032, false);
+            this.rightArmPivot.position.set(0.39, 1.05, -0.02);
+            this.bodyPivot.add(this.rightArmPivot);
+
+            // Pernas
+            this.leftLegPivot = createLimb(0.36, 0.036, true);
+            this.leftLegPivot.position.set(-0.18, 0.37, -0.01);
+            this.group.add(this.leftLegPivot);
+
+            this.rightLegPivot = createLimb(0.36, 0.036, true);
+            this.rightLegPivot.position.set(0.18, 0.37, -0.01);
+            this.group.add(this.rightLegPivot);
+
+            // 5) Gotinhas de suor animadas (ativas no ato 1 — Verão 40°C)
+            const dropTex = createCanvasTexture(96, 128, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              g.fillStyle = '#38bdf8';
+              g.strokeStyle = '#18181b';
+              g.lineWidth = 10;
+              g.beginPath();
+              g.moveTo(w / 2, 12);
+              g.quadraticCurveTo(w - 14, h * 0.72, w / 2, h - 12);
+              g.quadraticCurveTo(14, h * 0.72, w / 2, 12);
+              g.closePath();
+              g.fill();
+              g.stroke();
+            });
+            const dropMat = new THREE.MeshBasicMaterial({
+              map: dropTex,
+              transparent: true,
+              alphaTest: 0.1
+            });
+            const dropConfigs = [
+              { x: -0.52, y0: 1.62, phase: 0.0 },
+              { x:  0.54, y0: 1.68, phase: 0.35 },
+              { x:  0.44, y0: 1.85, phase: 0.7 }
+            ];
+            for (let i = 0; i < dropConfigs.length; i++) {
+              const d = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.17), dropMat);
+              d.userData = dropConfigs[i];
+              d.position.set(dropConfigs[i].x, dropConfigs[i].y0, 0.08);
+              this.bodyPivot.add(d);
+              this.sweatDrops.push(d);
+            }
+          }
+
+          setExpression(expr) {
+            if (this.currentExpr === expr) return;
+            if (!this.faceTextures[expr]) return;
+            this.currentExpr = expr;
+            this.faceMat.map = this.faceTextures[expr];
+            this.faceMat.needsUpdate = true;
+          }
+
+          update(t) {
+            // Descobre qual cue está ativo no tempo determinístico t
+            let activeCue = SCENE_SPEC.actor.cues[0];
+            for (let i = 0; i < SCENE_SPEC.actor.cues.length; i++) {
+              const c = SCENE_SPEC.actor.cues[i];
+              if (t >= c.t0 && t < c.t1) {
+                activeCue = c;
+                break;
+              }
+              if (t >= c.t1) activeCue = c;
+            }
+
+            this.setExpression(activeCue.expression);
+
+            // Reset base
+            let bobY = 0;
+            let tiltZ = 0;
+            let laZ = -0.35;
+            let raZ = 0.35;
+
+            if (activeCue.pose === 'worried_wave') {
+              // Balança os braços nervoso com o calor
+              bobY = Math.sin(t * 9.0) * 0.025;
+              tiltZ = Math.sin(t * 5.2) * 0.045;
+              laZ = -0.75 + Math.sin(t * 12.0) * 0.35;
+              raZ =  0.75 - Math.sin(t * 12.0 + 0.8) * 0.35;
+            } else if (activeCue.pose === 'shocked_up') {
+              // Susto ao ver o preço de R$ 3.999
+              const p = easeOutBack(invLerp(1.8, 2.25, t));
+              bobY = Math.sin(clamp((t - 1.8) * 6, 0, Math.PI)) * 0.08 + Math.sin(t * 7.0) * 0.015;
+              tiltZ = Math.sin(t * 4.0) * 0.02;
+              laZ = lerp(-0.5, -1.95, clamp(p, 0, 1.1)) + Math.sin(t * 10) * 0.06;
+              raZ = lerp( 0.5,  1.95, clamp(p, 0, 1.1)) - Math.sin(t * 10) * 0.06;
+            } else if (activeCue.pose === 'point_up') {
+              // Olhar esperto apontando para cima (para a placa de desconto!)
+              const p = easeOutBack(invLerp(4.6, 5.05, t));
+              bobY = Math.sin(t * 4.5) * 0.02;
+              tiltZ = -0.05 * clamp(p, 0, 1);
+              laZ = -0.42;
+              raZ = lerp(0.4, 2.55, clamp(p, 0, 1.08)) + Math.sin(t * 8.0) * 0.08;
+            } else if (activeCue.pose === 'celebrate') {
+              // Comemoração alegre com saltinhos e dois braços erguidos
+              const jump = Math.abs(Math.sin((t - 6.4) * 6.5));
+              bobY = jump * 0.14;
+              tiltZ = Math.sin((t - 6.4) * 6.5) * 0.06;
+              laZ = -2.55 + Math.sin(t * 14) * 0.18;
+              raZ =  2.55 - Math.sin(t * 14) * 0.18;
+            }
+
+            this.bodyPivot.position.y = bobY;
+            this.bodyPivot.rotation.z = tiltZ;
+            this.leftArmPivot.rotation.z = laZ;
+            this.rightArmPivot.rotation.z = raZ;
+
+            // Leve movimento nas pernas durante comemoração
+            const legKick = activeCue.pose === 'celebrate' ? Math.abs(Math.sin((t - 6.4) * 6.5)) * 0.14 : 0;
+            this.leftLegPivot.rotation.z = -legKick;
+            this.rightLegPivot.rotation.z = legKick;
+
+            // Gotinhas de suor determinísticas (somente no verão 0.0s - 1.85s)
+            const showSweat = t < 1.85;
+            for (let i = 0; i < this.sweatDrops.length; i++) {
+              const d = this.sweatDrops[i];
+              d.visible = showSweat;
+              if (showSweat) {
+                const cycle = (t * 1.45 + d.userData.phase) % 1;
+                d.position.y = d.userData.y0 - cycle * 0.34;
+                const sc = Math.sin(cycle * Math.PI);
+                d.scale.setScalar(Math.max(0.01, sc));
+              }
+            }
+          }
+        }
+
+        // =====================================================================
+        // MÓDULO 3: SpriteProp2D — PROPS 2D COM CONTORNO EM PROFUNDIDADES Z
+        // =====================================================================
+        class SpriteProp2D {
+          constructor(roomSpec) {
+            this.group = new THREE.Group();
+            this.group.name = 'SpriteProp2D';
+            this.roomSpec = roomSpec;
+
+            this.thermoMesh = null;
+            this.thermoHotTex = null;
+            this.thermoColdTex = null;
+            this.sunMesh = null;
+            this.heatWaves = [];
+            this.coldStreams = [];
+            this.snowflakes = [];
+            this.sparkles = [];
+            this.plantMesh = null;
+
+            this.build();
+          }
+
+          build() {
+            const bz = this.roomSpec.backWallZ;
+            const win = this.roomSpec.windowRect;
+            const winCx = (win.xMin + win.xMax) / 2;
+            const winCy = (win.yMin + win.yMax) / 2;
+
+            // 1) Aparelho de Ar-Condicionado Split na parede direita (z = bz + 0.16)
+            const acTex = createCanvasTexture(512, 220, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              drawRoundedRect(g, 18, 18, w - 36, h - 36, 26);
+              const gr = g.createLinearGradient(0, 18, 0, h - 18);
+              gr.addColorStop(0, '#ffffff');
+              gr.addColorStop(1, '#e2e8f0');
+              g.fillStyle = gr;
+              g.fill();
+              g.strokeStyle = '#18181b';
+              g.lineWidth = 16;
+              g.stroke();
+
+              // Grade frontal / saída de ar
+              drawRoundedRect(g, 52, h - 78, w - 104, 34, 10);
+              g.fillStyle = '#334155';
+              g.fill();
+              g.strokeStyle = '#18181b';
+              g.lineWidth = 8;
+              g.stroke();
+
+              // LED indicador verde/azul
+              g.fillStyle = '#22c55e';
+              g.beginPath(); g.arc(w - 72, 62, 11, 0, Math.PI * 2); g.fill();
+              g.strokeStyle = '#18181b'; g.lineWidth = 5; g.stroke();
+
+              // Display "AR"
+              g.fillStyle = '#0f172a';
+              g.font = '900 32px Inter, sans-serif';
+              g.fillText('SPLIT', 56, 76);
+            });
+            const acMesh = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.52, 0.65),
+              new THREE.MeshBasicMaterial({ map: acTex, transparent: true, alphaTest: 0.25 })
+            );
+            acMesh.position.set(1.22, 2.38, bz + 0.16);
+            this.group.add(acMesh);
+
+            // Ondas de calor (Verão) saindo do AC
+            const heatTex = createCanvasTexture(128, 256, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              g.strokeStyle = '#f97316';
+              g.lineWidth = 14;
+              g.lineCap = 'round';
+              g.beginPath();
+              g.moveTo(w * 0.5, h - 22);
+              g.bezierCurveTo(w * 0.15, h * 0.68, w * 0.85, h * 0.35, w * 0.5, 22);
+              g.stroke();
+            });
+            const heatMat = new THREE.MeshBasicMaterial({ map: heatTex, transparent: true, depthWrite: false });
+            for (let i = 0; i < 3; i++) {
+              const hw = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.52), heatMat);
+              hw.userData = { x0: 0.84 + i * 0.38, y0: 1.98, phase: i * 0.33 };
+              hw.position.set(hw.userData.x0, hw.userData.y0, bz + 0.28);
+              this.group.add(hw);
+              this.heatWaves.push(hw);
+            }
+
+            // Fluxos de ar frio azul-ciano (Inverno) saindo do AC
+            const coldTex = createCanvasTexture(128, 256, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              g.strokeStyle = '#38bdf8';
+              g.lineWidth = 14;
+              g.lineCap = 'round';
+              g.beginPath();
+              g.moveTo(w * 0.5, 22);
+              g.bezierCurveTo(w * 0.8, h * 0.35, w * 0.2, h * 0.68, w * 0.5, h - 22);
+              g.stroke();
+            });
+            const coldMat = new THREE.MeshBasicMaterial({ map: coldTex, transparent: true, depthWrite: false });
+            for (let i = 0; i < 3; i++) {
+              const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.56), coldMat);
+              cs.userData = { x0: 0.84 + i * 0.38, y0: 2.02, phase: i * 0.33 };
+              cs.position.set(cs.userData.x0, cs.userData.y0, bz + 0.28);
+              cs.visible = false;
+              this.group.add(cs);
+              this.coldStreams.push(cs);
+            }
+
+            // 2) Termômetro de Parede 40°C / 12°C (entre a janela e o AC, z = bz + 0.12)
+            function makeThermoTex(tempStr, bgHex, iconType) {
+              return createCanvasTexture(256, 128, function (g, w, h) {
+                g.clearRect(0, 0, w, h);
+                drawRoundedRect(g, 10, 12, w - 20, h - 24, 24);
+                g.fillStyle = bgHex;
+                g.fill();
+                g.strokeStyle = '#18181b';
+                g.lineWidth = 12;
+                g.stroke();
+
+                g.fillStyle = '#ffffff';
+                g.font = '900 54px Inter, sans-serif';
+                g.textAlign = 'center';
+                g.textBaseline = 'middle';
+                g.fillText(tempStr, w * 0.56, h * 0.54);
+
+                // Pequeno ícone de bolinha quente/fria à esquerda
+                g.fillStyle = iconType === 'hot' ? '#fde047' : '#e0f2fe';
+                g.beginPath();
+                g.arc(50, h * 0.52, 16, 0, Math.PI * 2);
+                g.fill();
+                g.strokeStyle = '#18181b';
+                g.lineWidth = 5;
+                g.stroke();
+              });
+            }
+
+            this.thermoHotTex = makeThermoTex('40°C', '#ef4444', 'hot');
+            this.thermoColdTex = makeThermoTex('12°C', '#0284c7', 'cold');
+            this.thermoMesh = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.84, 0.42),
+              new THREE.MeshBasicMaterial({ map: this.thermoHotTex, transparent: true, alphaTest: 0.2 })
+            );
+            this.thermoMesh.position.set(0.18, 2.08, bz + 0.12);
+            this.group.add(this.thermoMesh);
+
+            // 3) Planta em Vaso 2D no PRIMEIRO PLANO ESQUERDO (z = +0.58 -> paralaxe imediata!)
+            const plantTex = createCanvasTexture(320, 420, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              const ink = '#18181b';
+
+              // Folhas verdes cartoon com contorno grosso
+              const leaves = [
+                { cx: 160, cy: 135, rx: 34, ry: 95, rot: 0,    col: '#22c55e' },
+                { cx: 108, cy: 175, rx: 30, ry: 82, rot: -0.5, col: '#16a34a' },
+                { cx: 212, cy: 175, rx: 30, ry: 82, rot:  0.5, col: '#16a34a' },
+                { cx: 78,  cy: 225, rx: 24, ry: 62, rot: -0.9, col: '#4ade80' },
+                { cx: 242, cy: 225, rx: 24, ry: 62, rot:  0.9, col: '#4ade80' }
+              ];
+              for (let i = 0; i < leaves.length; i++) {
+                const lf = leaves[i];
+                g.save();
+                g.translate(lf.cx, lf.cy);
+                g.rotate(lf.rot);
+                g.fillStyle = lf.col;
+                g.strokeStyle = ink;
+                g.lineWidth = 12;
+                g.beginPath();
+                g.ellipse(0, 0, lf.rx, lf.ry, 0, 0, Math.PI * 2);
+                g.fill();
+                g.stroke();
+                g.restore();
+              }
+
+              // Vaso terracota
+              g.fillStyle = '#c26539';
+              g.strokeStyle = ink;
+              g.lineWidth = 14;
+              g.beginPath();
+              g.moveTo(86, 260);
+              g.lineTo(234, 260);
+              g.lineTo(212, 396);
+              g.lineTo(108, 396);
+              g.closePath();
+              g.fill();
+              g.stroke();
+
+              // Borda superior do vaso
+              drawRoundedRect(g, 74, 240, 172, 36, 12);
+              g.fillStyle = '#d97746';
+              g.fill();
+              g.stroke();
+            });
+            this.plantMesh = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.06, 1.38),
+              new THREE.MeshBasicMaterial({ map: plantTex, transparent: true, alphaTest: 0.25 })
+            );
+            this.plantMesh.position.set(-1.58, 0.69, 0.56);
+            this.group.add(this.plantMesh);
+
+            // 4) Sol Brilhante girando atrás da janela (z = outdoorSkyZ + 0.35)
+            const sunTex = createCanvasTexture(256, 256, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              g.translate(w / 2, h / 2);
+              // Raios cartoon
+              g.fillStyle = '#facc15';
+              g.strokeStyle = '#18181b';
+              g.lineWidth = 8;
+              for (let i = 0; i < 10; i++) {
+                g.save();
+                g.rotate((i / 10) * Math.PI * 2);
+                g.beginPath();
+                g.moveTo(-14, -76);
+                g.lineTo(0, -116);
+                g.lineTo(14, -76);
+                g.closePath();
+                g.fill();
+                g.stroke();
+                g.restore();
+              }
+              g.beginPath();
+              g.arc(0, 0, 62, 0, Math.PI * 2);
+              g.fillStyle = '#fde047';
+              g.fill();
+              g.stroke();
+            });
+            this.sunMesh = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.12, 1.12),
+              new THREE.MeshBasicMaterial({ map: sunTex, transparent: true, alphaTest: 0.1 })
+            );
+            this.sunMesh.position.set(winCx + 0.38, winCy + 0.26, this.roomSpec.outdoorSkyZ + 0.35);
+            this.group.add(this.sunMesh);
+
+            // 5) Flocos de neve 2D atrás da janela (z = outdoorSkyZ + 0.48)
+            const snowTex = createCanvasTexture(96, 96, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              g.translate(w / 2, h / 2);
+              g.strokeStyle = '#ffffff';
+              g.lineWidth = 10;
+              g.lineCap = 'round';
+              for (let i = 0; i < 3; i++) {
+                g.save();
+                g.rotate((i / 3) * Math.PI);
+                g.beginPath(); g.moveTo(0, -34); g.lineTo(0, 34); g.stroke();
+                g.restore();
+              }
+            });
+            const snowMat = new THREE.MeshBasicMaterial({ map: snowTex, transparent: true, depthWrite: false });
+            for (let i = 0; i < 16; i++) {
+              const sf = new THREE.Mesh(new THREE.PlaneGeometry(0.19, 0.19), snowMat);
+              sf.userData = {
+                x: winCx - 1.1 + ((i * 0.37) % 2.2),
+                phase: (i * 0.29) % 1,
+                speed: 0.35 + (i % 4) * 0.12,
+                sway: 0.12 + (i % 3) * 0.05
+              };
+              sf.position.set(sf.userData.x, winCy, this.roomSpec.outdoorSkyZ + 0.48);
+              sf.visible = false;
+              this.group.add(sf);
+              this.snowflakes.push(sf);
+            }
+
+            // 6) Partículas sutis de brilho/comemoração (6.4s - 8.0s)
+            const sparkTex = createCanvasTexture(96, 96, function (g, w, h) {
+              g.clearRect(0, 0, w, h);
+              g.translate(w / 2, h / 2);
+              g.fillStyle = '#fde047';
+              g.strokeStyle = '#18181b';
+              g.lineWidth = 5;
+              g.beginPath();
+              g.moveTo(0, -38); g.quadraticCurveTo(6, -6, 38, 0);
+              g.quadraticCurveTo(6, 6, 0, 38);
+              g.quadraticCurveTo(-6, 6, -38, 0);
+              g.quadraticCurveTo(-6, -6, 0, -38);
+              g.closePath();
+              g.fill();
+              g.stroke();
+            });
+            const sparkMat = new THREE.MeshBasicMaterial({ map: sparkTex, transparent: true, depthWrite: false });
+            const sparkSeeds = [
+              [-1.05, 1.55, 0.15, 0.0],
+              [ 0.92, 1.72, 0.20, 0.25],
+              [-0.82, 0.95, 0.25, 0.5],
+              [ 0.78, 1.05, 0.15, 0.75],
+              [ 0.15, 1.98, 0.22, 0.15],
+              [-0.45, 1.92, 0.18, 0.62]
+            ];
+            for (let i = 0; i < sparkSeeds.length; i++) {
+              const sp = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24), sparkMat);
+              sp.userData = { x: sparkSeeds[i][0], y: sparkSeeds[i][1], z: sparkSeeds[i][2], ph: sparkSeeds[i][3] };
+              sp.position.set(sp.userData.x, sp.userData.y, sp.userData.z);
+              sp.visible = false;
+              this.group.add(sp);
+              this.sparkles.push(sp);
+            }
+          }
+
+          update(t, winterFactor) {
+            const win = this.roomSpec.windowRect;
+            const winCy = (win.yMin + win.yMax) / 2;
+
+            // Termômetro troca em t = 4.15 com micro pop
+            const isCold = t >= SCENE_SPEC.seasons.transitionMid;
+            const wantedTex = isCold ? this.thermoColdTex : this.thermoHotTex;
+            if (this.thermoMesh.material.map !== wantedTex) {
+              this.thermoMesh.material.map = wantedTex;
+              this.thermoMesh.material.needsUpdate = true;
+            }
+            const popP = invLerp(4.15, 4.45, t);
+            const popScale = isCold && popP < 1 ? lerp(1.32, 1.0, easeOutCubic(popP)) : 1.0;
+            this.thermoMesh.scale.setScalar(popScale);
+
+            // Sol gira e desce suavemente quando entra o inverno
+            this.sunMesh.visible = winterFactor < 0.96;
+            this.sunMesh.rotation.z = t * 0.75;
+            this.sunMesh.position.y = lerp(winCy + 0.26, winCy - 1.25, winterFactor);
+            this.sunMesh.scale.setScalar(Math.max(0.01, 1 - winterFactor));
+
+            // Neve caindo deterministicamente atrás da janela no inverno
+            const showSnow = winterFactor > 0.12;
+            for (let i = 0; i < this.snowflakes.length; i++) {
+              const sf = this.snowflakes[i];
+              sf.visible = showSnow;
+              if (showSnow) {
+                const cy = (t * sf.userData.speed + sf.userData.phase) % 1;
+                sf.position.y = lerp(win.yMax + 0.55, win.yMin - 0.55, cy);
+                sf.position.x = sf.userData.x + Math.sin(t * 2.5 + i) * sf.userData.sway;
+                sf.rotation.z = t * 1.4 + i;
+                sf.scale.setScalar(winterFactor);
+              }
+            }
+
+            // Ondas de calor (1.6s -> 4.1s) vs. Ar frio (4.2s -> 8.0s)
+            const heatOn = t >= 1.55 && t < 4.15;
+            for (let i = 0; i < this.heatWaves.length; i++) {
+              const hw = this.heatWaves[i];
+              hw.visible = heatOn;
+              if (heatOn) {
+                const cy = (t * 1.35 + hw.userData.phase) % 1;
+                hw.position.y = hw.userData.y0 + cy * 0.42;
+                hw.position.x = hw.userData.x0 + Math.sin(cy * Math.PI * 2) * 0.04;
+                hw.scale.setScalar(Math.max(0.01, Math.sin(cy * Math.PI)));
+              }
+            }
+
+            const coldOn = t >= 4.20;
+            for (let i = 0; i < this.coldStreams.length; i++) {
+              const cs = this.coldStreams[i];
+              cs.visible = coldOn;
+              if (coldOn) {
+                const cy = (t * 1.25 + cs.userData.phase) % 1;
+                cs.position.y = cs.userData.y0 - cy * 0.62;
+                cs.scale.setScalar(Math.max(0.01, Math.sin(cy * Math.PI)));
+              }
+            }
+
+            // Balanço bem sutil da planta com a brisa
+            this.plantMesh.rotation.z = Math.sin(t * 2.2) * 0.025;
+
+            // Brilhos comemorativos (6.4s -> 8.0s)
+            const celebOn = t >= 6.40;
+            for (let i = 0; i < this.sparkles.length; i++) {
+              const sp = this.sparkles[i];
+              sp.visible = celebOn;
+              if (celebOn) {
+                const localT = (t - 6.40) * 1.6 + sp.userData.ph;
+                const pulse = Math.sin((localT % 1) * Math.PI);
+                sp.position.y = sp.userData.y + Math.sin(t * 3.0 + i) * 0.08;
+                sp.rotation.z = t * 2.1 + i;
+                sp.scale.setScalar(Math.max(0.01, pulse * 1.05));
+              }
+            }
+          }
+        }
+
+        // =====================================================================
+        // MÓDULO 4: PriceFlipBoard — PLACA DE PREÇO + PÍLULA + ECONOMIA (DOM)
+        // =====================================================================
+        class PriceFlipBoard {
+          constructor(cfg) {
+            this.cfg = cfg;
+            this.zoneEl = document.getElementById('priceZone');
+            this.pillEl = document.getElementById('conceptPill');
+            this.cardEl = document.getElementById('priceCardWrapper');
+            this.saveEl = document.getElementById('savingsBadge');
+          }
+
+          update(t) {
+            // 1) Pílula de conceito (🔵 BAIXA PROCURA) entrando em 4.55s
+            const pillP = easeOutBack(invLerp(this.cfg.pillStart, this.cfg.pillStart + 0.35, t));
+            this.pillEl.style.opacity = clamp(invLerp(this.cfg.pillStart, this.cfg.pillStart + 0.18, t)).toFixed(3);
+            this.pillEl.style.transform =
+              'translateY(' + lerp(-10, 0, clamp(pillP, 0, 1.1)).toFixed(1) + 'px) scale(' + lerp(0.72, 1.0, clamp(pillP, 0, 1.12)).toFixed(3) + ')';
+
+            // 2) Flip 3D da placa (4.60s -> 5.05s) + micro-shake no impacto
+            const flipP = easeInOutCubic(invLerp(this.cfg.flipStart, this.cfg.flipEnd, t));
+            const rotX = flipP * 180;
+
+            // Pulso leve de escala quando preço dispara (1.8s-2.2s) e quando vira (4.6s-5.1s)
+            const shockBump = Math.sin(clamp(invLerp(1.8, 2.25, t), 0, 1) * Math.PI) * 0.07;
+            const flipBump  = Math.sin(clamp(invLerp(4.6, 5.15, t), 0, 1) * Math.PI) * 0.08;
+            const scale = 1.0 + shockBump + flipBump;
+
+            // Micro-shake determinístico logo ao concluir o flip (4.95s -> 5.22s)
+            const shakeP = invLerp(4.95, 5.22, t);
+            const shakeAmp = (shakeP > 0 && shakeP < 1) ? (1 - shakeP) * 5.0 : 0;
+            const sx = Math.sin(shakeP * Math.PI * 7) * shakeAmp;
+            const sy = Math.cos(shakeP * Math.PI * 5) * (shakeAmp * 0.5);
+
+            this.cardEl.style.transform =
+              'translate3d(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px,0) rotateX(' + rotX.toFixed(1) + 'deg) scale(' + scale.toFixed(3) + ')';
+
+            // 3) Selo verde 'ECONOMIZE R$ 1.500' em 6.40s
+            const savP = easeOutBack(invLerp(this.cfg.savingsStart, this.cfg.savingsStart + 0.36, t));
+            this.saveEl.style.opacity = clamp(invLerp(this.cfg.savingsStart, this.cfg.savingsStart + 0.16, t)).toFixed(3);
+            this.saveEl.style.transform =
+              'translateY(' + lerp(-8, 0, clamp(savP, 0, 1.1)).toFixed(1) + 'px) scale(' + lerp(0.65, 1.0, clamp(savP, 0, 1.14)).toFixed(3) + ')';
+          }
+        }
+
+        // =====================================================================
+        // MÓDULO 5: CameraRail25D — TRILHO DETERMINÍSTICO + ESPIAR 3D
+        // =====================================================================
+        class CameraRail25D {
+          constructor(keys, cameraRef, mountEl) {
+            this.keys = keys;
+            this.camera = cameraRef;
+            this.mountEl = mountEl;
+            this.peekEnabled = false;
+            this.dragging = false;
+            this.lastX = 0;
+            this.lastY = 0;
+            this.peekYaw = 0;
+            this.peekPitch = 0;
+            this.goalYaw = 0;
+            this.goalPitch = 0;
+            this.posOut = new THREE.Vector3();
+            this.lookOut = new THREE.Vector3();
+
+            this.bindEvents();
+          }
+
+          bindEvents() {
+            const self = this;
+
+            this.mountEl.addEventListener('mousedown', function (e) {
+              if (!self.peekEnabled) return;
+              self.dragging = true;
+              self.lastX = e.clientX;
+              self.lastY = e.clientY;
+            });
+            window.addEventListener('mousemove', function (e) {
+              if (!self.peekEnabled || !self.dragging) return;
+              self.goalYaw   = clamp(self.goalYaw   - (e.clientX - self.lastX) * 0.0085, -1.35, 1.35);
+              self.goalPitch = clamp(self.goalPitch + (e.clientY - self.lastY) * 0.0045, -0.45, 0.55);
+              self.lastX = e.clientX;
+              self.lastY = e.clientY;
+            });
+            window.addEventListener('mouseup', function () { self.dragging = false; });
+
+            this.mountEl.addEventListener('touchstart', function (e) {
+              if (!self.peekEnabled || e.touches.length !== 1) return;
+              self.dragging = true;
+              self.lastX = e.touches[0].clientX;
+              self.lastY = e.touches[0].clientY;
+            }, { passive: true });
+            this.mountEl.addEventListener('touchmove', function (e) {
+              if (!self.peekEnabled || !self.dragging || e.touches.length !== 1) return;
+              self.goalYaw   = clamp(self.goalYaw   - (e.touches[0].clientX - self.lastX) * 0.010, -1.35, 1.35);
+              self.goalPitch = clamp(self.goalPitch + (e.touches[0].clientY - self.lastY) * 0.0055, -0.45, 0.55);
+              self.lastX = e.touches[0].clientX;
+              self.lastY = e.touches[0].clientY;
+            }, { passive: true });
+            this.mountEl.addEventListener('touchend', function () { self.dragging = false; });
+          }
+
+          setPeek(on) {
+            this.peekEnabled = Boolean(on);
+            this.mountEl.classList.toggle('peek-active', this.peekEnabled);
+            if (!this.peekEnabled) {
+              this.goalYaw = 0;
+              this.goalPitch = 0;
+            }
+          }
+
+          sample(t, dt) {
+            let a = this.keys[0];
+            let b = this.keys[this.keys.length - 1];
+            for (let i = 0; i < this.keys.length - 1; i++) {
+              if (t >= this.keys[i].t && t <= this.keys[i + 1].t) {
+                a = this.keys[i];
+                b = this.keys[i + 1];
+                break;
+              }
+            }
+            const p = easeInOutCubic((t - a.t) / Math.max(0.0001, b.t - a.t));
+            this.posOut.set(
+              lerp(a.pos[0], b.pos[0], p),
+              lerp(a.pos[1], b.pos[1], p),
+              lerp(a.pos[2], b.pos[2], p)
+            );
+            this.lookOut.set(
+              lerp(a.look[0], b.look[0], p),
+              lerp(a.look[1], b.look[1], p),
+              lerp(a.look[2], b.look[2], p)
+            );
+
+            // Aplica deslocamento suave do modo "Espiar 3D" sempre clamped dentro da sala
+            const damp = 1 - Math.exp(-(dt || 0.016) * 9.0);
+            this.peekYaw   += (this.goalYaw - this.peekYaw) * damp;
+            this.peekPitch += (this.goalPitch - this.peekPitch) * damp;
+
+            const finalX = clamp(this.posOut.x + this.peekYaw * 1.45, -2.55, 2.55);
+            const finalY = clamp(this.posOut.y + this.peekPitch * 0.95, 0.85, 2.55);
+            const finalZ = clamp(this.posOut.z - Math.abs(this.peekYaw) * 0.45, 3.6, 5.5);
+
+            this.camera.position.set(finalX, finalY, finalZ);
+            this.camera.lookAt(this.lookOut);
+          }
+        }
+
+        // =====================================================================
+        // INSTANCIAÇÃO DOS 5 MÓDULOS DA ENGINE 2.5D
+        // =====================================================================
+        const roomModule   = new BoxRoom3D(SCENE_SPEC.room);
+        const actorModule  = new PaperActor2D(SCENE_SPEC.actor);
+        const propsModule  = new SpriteProp2D(SCENE_SPEC.room);
+        const priceBoard   = new PriceFlipBoard(SCENE_SPEC.priceBoard);
+        const cameraRail   = new CameraRail25D(SCENE_SPEC.cameraKeys, camera, webglMount);
+        const soundEngine  = new ProceduralSound25D();
+
+        scene.add(roomModule.group, actorModule.group, propsModule.group);
+
+        // Cores pré-alocadas para interpolação de iluminação sem lixo de memória
+        const colSummerBg   = new THREE.Color(SCENE_SPEC.seasons.summer.bgColor);
+        const colWinterBg   = new THREE.Color(SCENE_SPEC.seasons.winter.bgColor);
+        const colSummerAmb  = new THREE.Color(SCENE_SPEC.seasons.summer.ambientColor);
+        const colWinterAmb  = new THREE.Color(SCENE_SPEC.seasons.winter.ambientColor);
+        const colSummerSun  = new THREE.Color(SCENE_SPEC.seasons.summer.sunColor);
+        const colWinterSun  = new THREE.Color(SCENE_SPEC.seasons.winter.sunColor);
+        const colWinWarm    = new THREE.Color('#fbbf24');
+        const colWinCold    = new THREE.Color('#38bdf8');
+        const tmpCol        = new THREE.Color();
+
+        // =====================================================================
+        // FUNÇÃO DETERMINÍSTICA CENTRAL: seek(t)
+        // =====================================================================
+        function updateCaptions(t) {
+          let active = null;
+          for (let i = 0; i < SCENE_SPEC.captions.length; i++) {
+            const c = SCENE_SPEC.captions[i];
+            if (t >= c.t0 && t < c.t1) {
+              active = c;
+              break;
+            }
+          }
+          if (!active) {
+            wordCaptionEl.style.opacity = '0';
+            return;
+          }
+          if (wordCaptionEl.textContent !== active.text) {
+            wordCaptionEl.textContent = active.text;
+          }
+          wordCaptionEl.style.color = active.color;
+
+          // Pop elástico curto na entrada de cada palavra
+          const localP = invLerp(active.t0, active.t0 + 0.09, t);
+          const pop = lerp(0.84, 1.0, easeOutBack(localP));
+          wordCaptionEl.style.opacity = '1';
+          wordCaptionEl.style.transform = 'scale(' + pop.toFixed(3) + ')';
+        }
+
+        function updateSeasonEffects(t) {
+          const s = SCENE_SPEC.seasons;
+          const winterFactor = easeInOutCubic(invLerp(s.transitionStart, s.transitionEnd, t));
+
+          // Interpola fundo, luz ambiente, luz direcional e luz da janela
+          tmpCol.copy(colSummerBg).lerp(colWinterBg, winterFactor);
+          scene.background.copy(tmpCol);
+
+          ambientLight.color.copy(colSummerAmb).lerp(colWinterAmb, winterFactor);
+          ambientLight.intensity = lerp(s.summer.ambientIntensity, s.winter.ambientIntensity, winterFactor);
+
+          keyLight.color.copy(colSummerSun).lerp(colWinterSun, winterFactor);
+          keyLight.intensity = lerp(s.summer.sunIntensity, s.winter.sunIntensity, winterFactor);
+
+          windowBounceLight.color.copy(colWinWarm).lerp(colWinCold, winterFactor);
+
+          // Flash suave no meio da virada (3.85s -> 4.45s)
+          const flashP = invLerp(3.85, 4.45, t);
+          const flashOp = (flashP > 0 && flashP < 1) ? Math.sin(flashP * Math.PI) * 0.55 : 0;
+          seasonFlashEl.style.opacity = flashOp.toFixed(3);
+
+          // Badge >> INVERNO no canto superior esquerdo (3.80s -> 4.70s)
+          const badgeIn  = easeOutBack(invLerp(3.80, 4.02, t));
+          const badgeOut = 1 - easeOutCubic(invLerp(4.48, 4.72, t));
+          const badgeOp  = clamp(invLerp(3.80, 3.92, t)) * badgeOut;
+          seasonSkipEl.style.opacity = badgeOp.toFixed(3);
+          seasonSkipEl.style.transform = 'translateX(' + lerp(-14, 0, clamp(badgeIn, 0, 1.1)).toFixed(1) + 'px)';
+
+          return winterFactor;
+        }
+
+        function renderAtTime(t, dt) {
+          const winterFactor = updateSeasonEffects(t);
+          roomModule.setSeasonBlend(winterFactor);
+          actorModule.update(t);
+          propsModule.update(t, winterFactor);
+          priceBoard.update(t);
+          updateCaptions(t);
+          cameraRail.sample(t, dt);
+          renderer.render(scene, camera);
+        }
+
+        // =====================================================================
+        // CONTROLES, REDIMENSIONAMENTO E LOOP 60FPS PROTEGIDO
+        // =====================================================================
+        const state = {
+          time: 0,
+          playing: true,
+          speeds: [0.5, 1.0],
+          speedIdx: 1,
+          scrubbing: false,
+          cleanMode: false,
+          lastTs: 0,
+          toastTimer: null,
+          cleanTimer: null
+        };
+
+        function showToast(msg) {
+          toastEl.textContent = msg;
+          toastEl.style.opacity = '1';
+          clearTimeout(state.toastTimer);
+          state.toastTimer = setTimeout(function () { toastEl.style.opacity = '0'; }, 2400);
+        }
+
+        function syncPlayUI() {
+          iconPlay.classList.toggle('hidden', state.playing);
+          iconPause.classList.toggle('hidden', !state.playing);
+        }
+
+        function syncSoundUI() {
+          const on = soundEngine.enabled;
+          iconSoundOn.classList.toggle('hidden', !on);
+          iconSoundOff.classList.toggle('hidden', on);
+          soundBtnLabel.textContent = on ? 'Som Ativo' : 'Ativar Som';
+          soundBtn.classList.toggle('border-amber-400/50', on);
+          soundBtn.classList.toggle('text-amber-200', on);
+        }
+
+        function updateScrubUI(t) {
+          timeNowLabel.textContent = t.toFixed(2) + 's';
+          if (!state.scrubbing) {
+            scrubInput.value = String(Math.round(clamp(t / SCENE_SPEC.duration) * 800));
+          }
+        }
+
+        function setCleanMode(on) {
+          state.cleanMode = on;
+          appShell.classList.toggle('clean-mode', on);
+          if (on) {
+            showToast('Modo Limpo ativo — pressione ESC ou mova o cursor para sair');
+            revealExitClean();
+          } else {
+            exitCleanBtn.classList.remove('visible');
+          }
+          setTimeout(handleResize, 300);
+        }
+
+        function revealExitClean() {
+          if (!state.cleanMode) return;
+          exitCleanBtn.classList.add('visible');
+          clearTimeout(state.cleanTimer);
+          state.cleanTimer = setTimeout(function () {
+            exitCleanBtn.classList.remove('visible');
+          }, 2200);
+        }
+
+        function handleResize() {
+          try {
+            const rw = stageFrame.clientWidth;
+            const rh = stageFrame.clientHeight;
+            const w = rw >= 60 ? rw : 360;
+            const h = rh >= 60 ? rh : 640;
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+          } catch (e) {}
+        }
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        if (typeof ResizeObserver !== 'undefined') {
+          try { new ResizeObserver(handleResize).observe(stageFrame); } catch (e) {}
+        }
+
+        // Eventos dos controles
+        playPauseBtn.addEventListener('click', function () {
+          state.playing = !state.playing;
+          syncPlayUI();
+        });
+
+        restartBtn.addEventListener('click', function () {
+          state.time = 0;
+          state.playing = true;
+          soundEngine.reset(0);
+          syncPlayUI();
+          updateScrubUI(0);
+          renderAtTime(0, 0.016);
+        });
+
+        speedBtn.addEventListener('click', function () {
+          state.speedIdx = (state.speedIdx + 1) % state.speeds.length;
+          speedBtn.textContent = state.speeds[state.speedIdx] + 'x';
+        });
+
+        scrubInput.addEventListener('input', function () {
+          state.scrubbing = true;
+          state.time = (Number(scrubInput.value) / 800) * SCENE_SPEC.duration;
+          soundEngine.reset(state.time);
+          timeNowLabel.textContent = state.time.toFixed(2) + 's';
+          renderAtTime(state.time, 0.016);
+        });
+        scrubInput.addEventListener('change', function () {
+          state.scrubbing = false;
+        });
+
+        soundBtn.addEventListener('click', function () {
+          soundEngine.setEnabled(!soundEngine.enabled);
+          if (soundEngine.enabled) {
+            soundEngine.reset(state.time);
+            soundEngine.playDiscountPop();
+            showToast('Som procedural ativado');
+          } else {
+            showToast('Som silenciado');
+          }
+          syncSoundUI();
+        });
+
+        peekBtn.addEventListener('click', function () {
+          const next = !cameraRail.peekEnabled;
+          cameraRail.setPeek(next);
+          peekBtn.classList.toggle('bg-sky-500/25', next);
+          peekBtn.classList.toggle('border-sky-400', next);
+          peekHintBadge.classList.toggle('hidden', !next);
+          if (next) {
+            showToast('Modo Espiar 3D ativo — arraste no palco para ver a paralaxe da sala!');
+          }
+        });
+
+        cleanBtn.addEventListener('click', function () { setCleanMode(!state.cleanMode); });
+        exitCleanBtn.addEventListener('click', function () { setCleanMode(false); });
+
+        window.addEventListener('mousemove', revealExitClean);
+        window.addEventListener('touchstart', revealExitClean, { passive: true });
+        window.addEventListener('keydown', function (e) {
+          if (e.code === 'Space') { e.preventDefault(); state.playing = !state.playing; syncPlayUI(); }
+          else if (e.key === 'r' || e.key === 'R') restartBtn.click();
+          else if (e.key === 'm' || e.key === 'M') soundBtn.click();
+          else if (e.key === 'e' || e.key === 'E') peekBtn.click();
+          else if (e.key === 'c' || e.key === 'C') setCleanMode(!state.cleanMode);
+          else if (e.key === 'Escape' && state.cleanMode) setCleanMode(false);
+        });
+
+        // Loop principal a 60fps protegido em try/catch
+        function animate(ts) {
+          requestAnimationFrame(animate);
+          try {
+            if (!state.lastTs) state.lastTs = ts;
+            const dt = Math.min((ts - state.lastTs) / 1000, 0.05);
+            state.lastTs = ts;
+
+            if (state.playing && !state.scrubbing) {
+              state.time += dt * state.speeds[state.speedIdx];
+              if (state.time >= SCENE_SPEC.duration) {
+                state.time = state.time % SCENE_SPEC.duration;
+                soundEngine.reset(0);
+              }
+              soundEngine.update(state.time);
+              updateScrubUI(state.time);
+            }
+
+            renderAtTime(state.time, dt);
+          } catch (err) {
+            // Mantém o loop vivo sem travar silenciosamente
+          }
+        }
+
+        // Inicialização imediata em loop contínuo
+        syncPlayUI();
+        syncSoundUI();
+        updateScrubUI(0);
+        renderAtTime(0, 0.016);
+        hideLoadingOverlay();
+        requestAnimationFrame(animate);
+      }
+
+      // =========================================================================
+      // BOOTSTRAP RESILIENTE (DISPARA MESMO SE window.load JÁ OCORREU)
+      // =========================================================================
+      async function boot() {
+        retryLoadBtn.classList.add('hidden');
+        loadingSpinner.classList.remove('hidden');
+        loadingTitle.textContent = 'Carregando Engine 2.5D...';
+
+        const ok = await ensureThreeLoaded();
+        if (!ok) {
+          showFatalOverlay(
+            'Não foi possível carregar o Three.js',
+            'Verifique sua conexão com a internet e clique abaixo para tentar novamente.'
+          );
+          return;
+        }
+        try {
+          startEngine25D();
+        } catch (err) {
+          showFatalOverlay(
+            'Erro ao iniciar a cena 2.5D',
+            err && err.message ? err.message : 'Falha inesperada na renderização.'
+          );
+        }
+      }
+
+      retryLoadBtn.addEventListener('click', boot);
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+      } else {
+        boot();
+      }
+    })();
+  </script>
+</body>
+</html>
