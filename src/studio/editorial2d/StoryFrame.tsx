@@ -75,6 +75,7 @@ function Block({block,local,reveal,index}:{block:StoryBlock;local:number;reveal:
       </g>;
     }
     case 'equation': return <g opacity={show} transform={'translate('+block.x+' '+(block.y+motion)+')'}>
+      <rect x="-32" y="-92" width="805" height={block.rows.length*102+30} rx="30" fill="#142436" stroke="#577083" strokeWidth="3"/>
       {block.rows.map((r,i)=>{
         const alpha=points(local,reveal+.6+i*.7,.3);
         const col=r.type==='income'?'#10B981':r.type==='cost'?'#EF4444':'#E1B65D';
