@@ -66,13 +66,16 @@ export async function generateMultiAgentCode2D(
   used++;
   return await askFreeTextProvider(provider,prompt,expected);
  };
+ // Use the one model actually proved to answer with High thinking on this
+ // server. Keep 3.8 configurable for a future validated comparison.
+ const code2dGeminiModel=process.env.CODE2D_GEMINI_MODEL||'gemini-3.6-flash';
  const callGemini=async(prompt:string,key:GeminiKey)=>{
   if(!keyExists(key)||!available())return {
-   text:null,model:process.env.GEMINI_AI_MODEL||'gemini-3.8-flash',
+   text:null,model:code2dGeminiModel,
    problem:(!keyExists(key)?'not_configured':'quota') as 'not_configured'|'quota',
   };
   used++;
-  return await askGeminiForExplainer(prompt,key);
+  return await askGeminiForExplainer(prompt,key,code2dGeminiModel);
  };
 
  // Story: Groq -> Gemini HIGH -> OpenRouter free. JSON and clock must validate.
