@@ -11,10 +11,13 @@ const input=z.object({
   topic:z.string().trim().min(CODE2D_MIN_SCRIPT_CHARS).max(CODE2D_MAX_SCRIPT_CHARS),
   aspect:z.enum(['9:16','16:9']),
   duration:z.number().int().min(CODE2D_MIN_DURATION).max(CODE2D_MAX_DURATION),
+  mode:z.enum(['solo','team']).default('solo'),
+  useLovableReview:z.boolean().default(false),
 }).strict();
 const inFlight=new Set<string>();
 const lastRequest=new Map<string,number>();
-/** One provider call per explicit user action. Do not use the Lovable gateway. */
+/** Solo: one Gemini call. Team: up to 3 free-tier provider calls per explicit user action.
+ * Never contacts Lovable and never retries automatically. */
 export const generateCode2D=createServerFn({method:'POST'})
   .middleware([requireSupabaseAuth])
   .inputValidator((data:unknown)=>input.parse(data))
@@ -25,6 +28,10 @@ export const generateCode2D=createServerFn({method:'POST'})
     if(retry>0)return {ok:false as const,failure:'cooldown',model:'',thinkingLevel:'HIGH' as const,message:ai3dCooldownMessage(retry)};
     inFlight.add(id);lastRequest.set(id,now);
     try{
+      if(data.mode==='team'){
+        const {generateMultiAgentCode2D}=await import('./server/code2dMultiAgent');
+        return await generateMultiAgentCode2D(data.topic,data.aspect,data.duration,data.useLovableReview);
+      }
       const {generateCode2DWithGemini}=await import('./server/code2dGemini');
       return await generateCode2DWithGemini(data.topic,data.aspect,data.duration);
     }finally{

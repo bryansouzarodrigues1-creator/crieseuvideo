@@ -47,11 +47,12 @@ function classify(status:number):string{
   return 'provider_error';
 }
 export async function generateCode2DWithGemini(
-  topic:string,aspect:Code2DAspect,duration:number,
+  topic:string,aspect:Code2DAspect,duration:number,promptOverride?:string,
+  keyChoice:'primary'|'alternate'='primary',
 ):Promise<Code2DGeneration>{
-  const model=process.env.GEMINI_CODE2D_MODEL||process.env.GEMINI_AI_MODEL||'gemini-3.8-flash';
+  const model=process.env.GEMINI_CODE2D_MODEL||process.env.CODE2D_GEMINI_MODEL||'gemini-3.6-flash';
   const fail=(failure:string,message:string):Code2DGeneration=>({ok:false,model,thinkingLevel:'HIGH',failure,message});
-  const key=process.env.GEMINI_API_KEY;
+  const key=keyChoice==='alternate'?process.env.GEMINI_API_KEY_ALT:process.env.GEMINI_API_KEY;
   if(!key)return fail('not_configured','GEMINI_API_KEY ausente no servidor.');
   if(!/^[a-zA-Z0-9._-]{1,80}$/.test(model))return fail('invalid_model','Modelo configurado é inválido.');
   if(!validateCode2DDuration(duration))return fail('invalid_duration','A duração precisa ser entre 30 e 60 segundos.');
@@ -62,7 +63,7 @@ export async function generateCode2DWithGemini(
       method:'POST',signal:abort.signal,
       headers:{'x-goog-api-key':key,'content-type':'application/json'},
       body:JSON.stringify({
-        contents:[{role:'user',parts:[{text:code2dPrompt(topic,aspect,duration)}]}],
+        contents:[{role:'user',parts:[{text:promptOverride||code2dPrompt(topic,aspect,duration)}]}],
         generationConfig:{
           thinkingConfig:{thinkingLevel:GEMINI_THINKING_LEVEL},
           responseMimeType:'text/plain',

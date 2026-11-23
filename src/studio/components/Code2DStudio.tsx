@@ -9,6 +9,7 @@ import {
   CODE2D_MIN_DURATION, CODE2D_MIN_SCRIPT_CHARS, code2dSize, type Code2DAspect,
 } from '../code2d/contract';
 import { SANDBOX_ATTRIBUTE, buildCode2DSandboxSrcdoc, randomHex, readSandboxMessage } from '../code2d/sandbox';
+import type { StudioStep, Storyboard } from '../code2d/multiAgentContract';
 
 const SAMPLE = 'Mostre como uma pequena empresa enfrenta o aumento dos custos: o dono compra materiais, calcula as despesas, reorganiza a produção e encontra uma solução, com personagens, loja, estoque e ações reais.';
 const STAGE_TEXT: Record<string, string> = {
@@ -29,6 +30,10 @@ export default function Code2DStudio() {
   const [lastModel, setLastModel] = useState('');
   const [duration, setDuration] = useState(CODE2D_DEFAULT_DURATION);
   const [targetDuration, setTargetDuration] = useState(CODE2D_DEFAULT_DURATION);
+  const [aiMode, setAiMode] = useState<'team' | 'solo'>('team');
+  const [useLovableReview, setUseLovableReview] = useState(false);
+  const [steps, setSteps] = useState<StudioStep[]>([]);
+  const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [replay, setReplay] = useState<{ deterministic: boolean; maxDiff: number } | null>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
@@ -146,13 +151,16 @@ export default function Code2DStudio() {
 
   const generate = async () => {
     if (phase === 'generating' || exportingRef.current || !userId) return;
-    setError(''); setPlaying(false); setPhase('generating');
+    setError(''); setPlaying(false); setSteps([]); setStoryboard(null); setPhase('generating');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
-      const r = await send({ data: { topic: script, aspect, duration: targetDuration }, headers: { Authorization: `Bearer ${session.access_token}` } });
+      const r = await send({ data: { topic: script, aspect, duration: targetDuration, mode: aiMode, useLovableReview: aiMode === 'team' && useLovableReview },
+        headers: { Authorization: `Bearer ${session.access_token}` } });
       if (r.model) setLastModel(r.model);
+      if ('steps' in r && Array.isArray(r.steps)) setSteps(r.steps);
       if (!r.ok) { setPhase('error'); setError(r.message); return; }
+      if ('storyboard' in r && r.storyboard) setStoryboard(r.storyboard);
       setResult({ code: r.code, model: r.model, warnings: r.warnings });
     } catch (e) {
       setPhase('error');
@@ -198,15 +206,28 @@ export default function Code2DStudio() {
     <main className="native-3d-studio ai3d-studio">
       <nav className="native-3d-bar">
         <a className="native-3d-return" href="/"><ArrowLeft size={18} /> Voltar ao CrieSeuVideo</a>
-        <span className="native-3d-engine"><Code2 size={18} /> Gemini — Código 2D</span>
+        <span className="native-3d-engine"><Code2 size={18} /> Code2D — Equipe de IAs</span>
       </nav>
       <header className="native-3d-heading">
-        <span className="native-3d-eyebrow">EXPERIMENTAL • ANIMAÇÃO 2D PROGRAMADA PELO GEMINI</span>
-        <h1>O Gemini programa o vídeo 2D inteiro</h1>
-        <p>Uma única solicitação pede ao Gemini High um programa Canvas 2D original de 30 a 60 segundos, com cenas e movimentos próprios. O renderizador executa o código isolado e exporta os quadros. Nenhuma cena manual substitui a IA se ela falhar.</p>
+        <span className="native-3d-eyebrow">EXPERIMENTAL • CÓDIGO 2D COM MULTIAGENTES GRATUITOS</span>
+        <h1>CrieSeuVideo — Estúdio de programação 2D</h1>
+        <p>Escolha uma equipe gratuita (Groq roteiriza, Gemini High dirige quando disponível e OpenRouter programa) ou use Gemini sozinho. Cada etapa fica registrada. O código roda isolado no navegador; voz e legendas ainda não estão prontas neste laboratório.</p>
       </header>
       <div className="native-3d-layout">
         <section className="native-3d-choices ai3d-panel">
+          <label htmlFor="code2d-mode">Equipe responsável pela criação</label>
+          <select id="code2d-mode" disabled={busy} value={aiMode}
+            onChange={e => setAiMode(e.target.value as 'team' | 'solo')}>
+            <option value="team">Equipe gratuita: Groq + Gemini High + OpenRouter</option>
+            <option value="solo">Gemini High sozinho (modo anterior)</option>
+          </select>
+          {aiMode === 'team' && (
+            <label className="native-3d-small" htmlFor="code2d-lovable">
+              <input id="code2d-lovable" type="checkbox" checked={useLovableReview} disabled={busy}
+                onChange={e => setUseLovableReview(e.target.checked)} />
+              Incluir revisão criativa pelo Lovable AI Gateway (opcional, pode consumir créditos de IA diferentes dos 5 créditos diários de construção).
+            </label>
+          )}
           <label htmlFor="code2d-script">Tema ou história do vídeo</label>
           <textarea id="code2d-script" rows={6} maxLength={CODE2D_MAX_SCRIPT_CHARS} value={script} disabled={busy} onChange={(e) => setScript(e.target.value)} />
           <p className="native-3d-small">{script.trim().length}/{CODE2D_MAX_SCRIPT_CHARS} caracteres · vídeo integral de {CODE2D_MIN_DURATION}–{CODE2D_MAX_DURATION} s.</p>
@@ -216,11 +237,13 @@ export default function Code2DStudio() {
           <button type="button" disabled={busy} onClick={() => setAspect((a) => (a === '9:16' ? '16:9' : '9:16'))}>
             Formato: {aspect === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}
           </button>
-          <p className="native-3d-small" role="note">Cada clique faz uma única chamada ao Gemini e pode usar sua cota, mesmo se o código falhar. Não há nova tentativa automática nem outra IA no lugar.</p>
+          <p className="native-3d-small" role="note">{aiMode === 'team'
+            ? `A equipe usa 2 a ${useLovableReview ? '4' : '3'} chamadas (Groq, Gemini High opcional, OpenRouter${useLovableReview ? ' e Lovable, com aprovação explícita' : ''}). Requer chaves no servidor. Sem tentativas repetidas. Provedores podem cobrar conforme seus planos.`
+            : 'O modo individual solicita apenas Gemini High, sujeito à cota e à disponibilidade. Nenhuma outra IA entra sem sua escolha.'}</p>
           {userId ? (
             <button type="button" className="ai3d-generate" disabled={busy || script.trim().length < CODE2D_MIN_SCRIPT_CHARS} onClick={() => void generate()}>
               {phase === 'generating' ? <Loader2 size={18} className="animate-spin" /> : <Code2 size={18} />}
-              {phase === 'generating' ? 'Gemini escrevendo o código… (até 2 min)' : 'Gerar vídeo Code2D com Gemini High'}
+              {phase === 'generating' ? 'Equipe de IAs trabalhando…' : aiMode === 'team' ? 'Gerar com equipe gratuita' : 'Gerar com Gemini High'}
             </button>
           ) : (
             <div className="ai3d-signin">
@@ -230,8 +253,28 @@ export default function Code2DStudio() {
             </div>
           )}
           {error && <p className="native-3d-error" role="alert">{error}</p>}
+          {steps.length > 0 && (
+            <div className="native-3d-small" role="status">
+              <strong>Relatório dos agentes</strong>
+              {steps.map((step, i) => (
+                <p key={step.stage + i}>
+                  {step.status === 'ok' ? '✓' : step.status === 'failed' ? '✕' : '○'}{' '}
+                  {step.stage}: {step.provider} / {step.model} — {step.detail}
+                </p>
+              ))}
+            </div>
+          )}
+          {storyboard && (
+            <details className="native-3d-small">
+              <summary>Roteiro criado pela IA ({storyboard.scenes.length} cenas)</summary>
+              <strong>{storyboard.title}</strong>
+              {storyboard.scenes.map(scene => (
+                <p key={scene.id}>{scene.start}s–{scene.end}s: {scene.narration} — {scene.action}</p>
+              ))}
+            </details>
+          )}
           <p className="native-3d-small" aria-live="polite">
-            Provedor: Gemini direto{lastModel ? ` · modelo ${lastModel}` : ''} · estado: {{
+            Modo: {aiMode === 'team' ? 'Equipe gratuita' : 'Gemini direto'}{lastModel ? ` · último modelo ${lastModel}` : ''} · estado: {{
               idle: 'aguardando', generating: 'gerando código', loading: 'executando na caixa isolada', ready: 'pronto', error: 'falhou',
             }[phase]}
           </p>
@@ -242,7 +285,7 @@ export default function Code2DStudio() {
               <iframe
                 key={sandbox.token}
                 ref={frameRef}
-                title="Vídeo 2D programado pelo Gemini (caixa isolada)"
+                title="Animação Code2D em caixa isolada; origem registrada no relatório de agentes"
                 sandbox={SANDBOX_ATTRIBUTE}
                 referrerPolicy="no-referrer"
                 srcDoc={sandbox.srcdoc}
@@ -251,7 +294,7 @@ export default function Code2DStudio() {
             ) : (
               <div className="native-3d-start">
                 <Code2 size={34} /><strong>O vídeo gerado aparecerá aqui</strong>
-                <span>Clique em “Gerar vídeo Code2D com Gemini High”.</span>
+                <span>Escolha um modo e gere seu programa de animação.</span>
               </div>
             )}
           </div>

@@ -1,0 +1,46 @@
+name: Code2D free multi-agent orchestration proof
+on:
+  push:
+    branches:
+      - experiment/code2d-multi-agent-free-pipeline-20261122
+    paths:
+      - .github/workflows/code2d-free-agents-qa.yml
+      - src/studio/code2d/**
+      - src/studio/server/code2dMultiAgent.ts
+      - src/studio/server/freeCode2DProviders.ts
+      - src/studio/code2d.functions.ts
+      - src/studio/components/Code2DStudio.tsx
+      - scripts/code2d-sandbox-browser-qa.mjs
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Unit tests — no actual free-tier tokens consumed
+        run: bunx vitest run src/studio/code2d/code2d.test.ts src/studio/code2d/multiAgent.test.ts src/studio/code2d/reasoningBudget.test.ts src/studio/server/geminiHigh.test.ts
+      - name: Build route and validate TypeScript
+        run: |
+          bun run build
+          bunx tsc --noEmit
+      - name: Isolated Code2D browser smoke (manual engine fixture, not AI output)
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+          mkdir -p tmp/code2d-proof
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/code2d-proof/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/motor-2d/codigo >/dev/null; then break; fi
+            sleep 1
+          done
+          bun scripts/code2d-sandbox-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code2d-free-agents-qa
+          path: tmp/code2d-proof/
+          retention-days: 14

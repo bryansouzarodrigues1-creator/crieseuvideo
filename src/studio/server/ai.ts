@@ -107,16 +107,22 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
 
 async function askGemini(
   prompt: string, onProblem?: (reason: ProviderProblem) => void,
-  responseSchema?:Record<string,unknown>
+  responseSchema?:Record<string,unknown>,
+  keyOverride?:string,
+  modelOverride?:string
 ): Promise<string | null> {
-  const key = process.env.GEMINI_API_KEY;
+  const actualModel=modelOverride||GEMINI_MODEL;
+  if(!/^[a-zA-Z0-9._-]{1,80}$/.test(actualModel)){
+    onProblem?.('invalid_request');return null;
+  }
+  const key = keyOverride ?? process.env.GEMINI_API_KEY;
   if (!key){onProblem?.('not_configured');return null;}
   const ctrl = new AbortController();
   // HIGH can require substantial deliberation; do not silently downgrade on timeout.
   const t = setTimeout(() => ctrl.abort(), 180_000);
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`,
       {
         method: "POST",
         signal: ctrl.signal,
@@ -164,11 +170,15 @@ async function askGemini(
 
 /** Motion 2D always uses the user's Gemini API. One call, no alternative provider.
  * A missing key, blocked output or quota failure remains visible to the editor. */
-export async function askGeminiForExplainer(prompt: string):
-  Promise<{ text: string | null; model: string; thinkingLevel: typeof GEMINI_THINKING_LEVEL; problem: ProviderProblem | null }> {
+export async function askGeminiForExplainer(
+  prompt: string, whichKey:'primary'|'alternate'='primary', modelOverride?:string
+): Promise<{ text: string | null; model: string; thinkingLevel: typeof GEMINI_THINKING_LEVEL; problem: ProviderProblem | null }> {
   let problem: ProviderProblem = 'invalid_response';
-  const text = await askGemini(prompt, reason => { problem = reason; });
-  return { text, model: GEMINI_MODEL, thinkingLevel: GEMINI_THINKING_LEVEL, problem: text ? null : problem };
+  const model=modelOverride||GEMINI_MODEL;
+  const selected = whichKey === 'alternate' ? process.env.GEMINI_API_KEY_ALT : process.env.GEMINI_API_KEY;
+  if(!selected) return {text:null,model,thinkingLevel:GEMINI_THINKING_LEVEL,problem:'not_configured'};
+  const text = await askGemini(prompt, reason => { problem = reason; },undefined,selected,model);
+  return { text, model, thinkingLevel: GEMINI_THINKING_LEVEL, problem: text ? null : problem };
 }
 
 export function providerOrder(task: AiTask, hasGemini: boolean): ("lovable" | "gemini")[] {
