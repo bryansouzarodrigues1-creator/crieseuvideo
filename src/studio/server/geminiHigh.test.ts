@@ -36,6 +36,21 @@ describe('explicit Gemini High for all direct animation requests', () => {
     expect(GEMINI_THINKING_LEVEL).toBe('HIGH');
   });
 
+  it('targets proven Gemini 3.6 Flash HIGH for Code2D without changing the global model', async () => {
+    process.env.GEMINI_API_KEY = 'test-secret';
+    const calls:Array<{url:string;body:any}> = [];
+    vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL,init?:RequestInit)=>{
+      calls.push({url:String(input),body:JSON.parse(String(init?.body))});
+      return new Response(JSON.stringify({candidates:[{content:{parts:[{text:'{"continuity":"ok"}'}]}}]}),{status:200});
+    }));
+    const result=await askGeminiForExplainer('Direção visual de oficina','primary','gemini-3.6-flash');
+    expect(result.model).toBe('gemini-3.6-flash');
+    expect(result.thinkingLevel).toBe('HIGH');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toContain('/models/gemini-3.6-flash:generateContent');
+    expect(calls[0].body.generationConfig.thinkingConfig).toEqual({thinkingLevel:'HIGH'});
+  });
+
   it('does not downgrade or contact Lovable after a quota response', async () => {
     process.env.GEMINI_API_KEY = 'test-secret';
     const fn = vi.fn(async () => new Response('', {status:429}));
