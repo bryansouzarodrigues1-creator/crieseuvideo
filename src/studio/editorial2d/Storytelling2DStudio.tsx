@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { StoryFrame } from './StoryFrame';
 import { storytellingOvos } from './storytellingOvosSpec';
+import { storytellingLoja } from './storytellingLojaSpec';
 import { sceneAt, validateStory, type StorytellingSpec } from './storytelling';
 
 const copy = (p:StorytellingSpec):StorytellingSpec => JSON.parse(JSON.stringify(p)) as StorytellingSpec;
@@ -43,11 +44,8 @@ export default function Storytelling2DStudio(){
   const svgRef=useRef<SVGSVGElement|null>(null);
   const audioRef=useRef<HTMLAudioElement|null>(null);
   const clock=useRef({start:0,offset:0});
-  const fileRef=useRef<HTMLInputElement|null>(null);
   const lastUrl=useRef('');
-  const playRef=useRef(false);
   useEffect(()=>()=>{if(lastUrl.current)URL.revokeObjectURL(lastUrl.current);},[]);
-  useEffect(()=>{playRef.current=playing;},[playing]);
 
   const seek=useCallback((t:number)=>{
     const target=Math.max(0,Math.min(project.duration,t));
@@ -124,6 +122,15 @@ export default function Storytelling2DStudio(){
     catch(e){setError(e instanceof Error?e.message:'Falha ao exportar o quadro');}
     finally{setIsCapturing(false);}
   };
+  const loadTemplate=(source:StorytellingSpec)=>{
+    setPlaying(false);
+    audioRef.current?.pause();
+    setProject(copy(source));
+    setTime(0);
+    setSelected(0);
+    setError('');
+    setJsonOpen(false);
+  };
   const downloadProject=()=>saveBlob(new Blob([JSON.stringify(project,null,2)],{type:'application/json'}),'crieseuvideo_storytelling2d.json');
   return <main className="min-h-screen bg-[#0A101B] text-slate-100">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 md:px-8">
@@ -156,7 +163,7 @@ export default function Storytelling2DStudio(){
           <audio ref={audioRef} src={audioUrl||undefined} onLoadedMetadata={e=>setAudioDuration(e.currentTarget.duration)} preload="metadata"/>
           <div className="mt-4 rounded-xl border border-slate-700 p-3 text-sm">
             <div className="mb-1 font-semibold">Narração MP3 (opcional)</div>
-            <input ref={fileRef} type="file" accept="audio/*" onChange={chooseAudio} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-2 file:py-2 file:text-slate-100"/>
+            <input type="file" accept="audio/*" onChange={chooseAudio} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-2 file:py-2 file:text-slate-100"/>
             {audioName&&<p className="mt-2 text-xs text-slate-300">{audioName} · {audioDuration?audioDuration.toFixed(1)+'s':'carregando…'}</p>}
             {audioDuration>0&&Math.abs(audioDuration-project.duration)>1&&<p className="mt-2 text-xs text-amber-300">A narração tem duração diferente. A prévia distribui o tempo proporcionalmente; isso ainda não é alinhamento por palavra.</p>}
           </div>
@@ -164,6 +171,10 @@ export default function Storytelling2DStudio(){
       </section>
       <section className="min-w-0 space-y-4">
         <div className="rounded-2xl border border-slate-700 bg-[#111D2A] p-4">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button className={baseButton} type="button" onClick={()=>loadTemplate(storytellingOvos)}>Modelo · Ovos (42s)</button>
+            <button className={baseButton} type="button" onClick={()=>loadTemplate(storytellingLoja)}>Modelo · Loja (34s)</button>
+          </div>
           <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-slate-400">Título do vídeo</label>
           <input value={project.title} maxLength={100} onChange={e=>setProject(p=>({...p,title:e.target.value}))} className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 outline-none focus:border-amber-400"/>
           <p className="mt-2 text-sm text-slate-400">Edite cada cena abaixo. Os controles não consomem créditos do Gemini nem do Lovable.</p>
