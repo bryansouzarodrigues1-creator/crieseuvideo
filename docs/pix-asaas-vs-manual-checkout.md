@@ -48,3 +48,22 @@ GET /me/orders/:id — status e saldo de créditos do próprio usuário.
 
 ## Antes de lançar
 Confirmar tarifa da conta Asaas, homologar Pix R$ 1 no sandbox, configurar secrets, implementar e testar banco real do CrieSeuVideo e concorrência; integrar upload seguro, notificações reais e fluxo admin; validar três MP4s de 15 segundos com custo líquido aceitável; só então publicar checkout.
+
+
+## Como configurar o valor (exemplo do pacote R$ 1)
+A chave de API autoriza o acesso à conta, mas **não contém preço**. O campo \`value\` é enviado ao criar o QR estático ou a cobrança. Nos arquivos de código o valor vem do SKU aprovado no servidor:
+- \`src/studio/pricing/catalog.ts\`: \`intro-2d.priceCents = 100\` (R$ 1,00); \`credits=3\`.
+- \`src/studio/payments/asaasCheckoutPreview.ts\`: funções PURAS de preparação (não têm \`fetch\` e **não cobram**) \`previewStaticPix('intro-2d',orderId,pixKey)\` e \`previewDynamicPix('intro-2d',orderId,customerId,dueDate)\`; ambas geram \`value:1.00\`.
+- Para alterar a tabela inicial, atualizar o catálogo em um PR revisado ou futuramente um painel **administrativo** com preço versionado no banco; impedir que clientes escolham arbitrary \`value\`.
+- Cobrança Asaas \`PUT /v3/payments/{id}\` admite atualizar valor de cobranças PENDING ou OVERDUE em geral. Depois de paga, não alterar os registros financeiros: gerar nova ordem/compensação auditada.
+- Não confundir a API Key com \`addressKey\`: \`addressKey\` é a CHAVE PIX cadastrada para receber dinheiro. \`ASAAS_API_KEY\` é o segredo que autentica chamadas HTTP. Webhook exige outro token distinto.
+
+## Segredos e ambientes (ainda NÃO configurados na produção)
+1. Revogar a chave Asaas de PRODUÇÃO que foi postada no chat e gerar uma nova em Asaas (site web) > Integrações > Chaves de API. Nunca enviar a nova chave em mensagens.
+2. Criar outra chave de **SANDBOX** separada no ambiente de testes. Produção e sandbox não compartilham chaves. Testar somente sandbox até validar R$1, tarifa e webhooks.
+3. No backend/Secrets do CrieSeuVideo salvar \`ASAAS_API_KEY\` (sandbox), \`ASAAS_ENV=sandbox\`, \`ASAAS_PIX_ADDRESS_KEY\` (chave Pix autorizada, válida no ambiente adequado), \`ASAAS_WEBHOOK_TOKEN\` (credencial única escolhida para o webhook).
+4. Código HTTP server-only usa \`access_token\` para chamadas autenticadas e base \`https://api-sandbox.asaas.com/v3\` em testes. Jamais expor em VITE_*, NEXT_PUBLIC_*, GitHub, componentes React ou URLs.
+5. Para implementar webhook, conferir header \`asaas-access-token\`, reconciliar valor, orderId e paymentId/QR ID, armazenar \`event.id\` UNIQUE e processar pagamento sob transação SQL idempotente.
+6. Fazer antes teste na Asaas Sandbox e revisão de tarifa da conta em Menu do usuário > Taxas, sobretudo porque QR dinâmico pode custar quase o preço da compra.
+
+A chave não é \"editada\" como texto: pode-se gerenciar/desabilitar/excluir e **gerar outra**. O valor por cobrança é independente e alterável.
