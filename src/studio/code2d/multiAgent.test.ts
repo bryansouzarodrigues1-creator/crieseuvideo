@@ -94,6 +94,7 @@ describe('free multi-agent Code2D orchestra',()=>{
   expect(requests).toHaveLength(3);
   const gemini=requests.find(x=>x.url.includes('generativelanguage'))!;
   expect(gemini.body.generationConfig.thinkingConfig.thinkingLevel).toBe('HIGH');
+  expect(gemini.url).toContain('/models/gemini-3.6-flash:generateContent');
   const coder=requests.find(x=>x.url.includes('openrouter.ai'))!;
   expect(coder.body.messages[0].content).toContain('Ana mantém sempre a mesma roupa');
   expect(r.storyboard).toEqual(board);
