@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {storytellingOvos} from './storytellingOvosSpec';
+import {storytellingLoja} from './storytellingLojaSpec';
 import {sceneAt,validateStory,renderActor2DSvg,iconGridPositions,renderIconGridSvg,formatCurrency} from './storytelling';
 describe('Storytelling 2D',()=>{
  it('has a contiguous, safe 42-second script',()=>{
@@ -7,6 +8,11 @@ describe('Storytelling 2D',()=>{
   expect(sceneAt(storytellingOvos,0).id).toBe('hook');
   expect(sceneAt(storytellingOvos,18).id).toBe('calculation');
   expect(sceneAt(storytellingOvos,42).id).toBe('outro');
+ });
+ it('reuses the same components for a different narrative',()=>{
+  expect(validateStory(storytellingLoja)).toEqual([]);
+  expect(sceneAt(storytellingLoja,16).id).toBe('custos');
+  expect(storytellingLoja.scenes.find(s=>s.id==='custos')?.blocks.some(b=>b.type==='equation')).toBe(true);
  });
  it('creates precise icon-grid counts',()=>{
   expect(iconGridPositions(5,5,0,0,20,20)).toHaveLength(5);
