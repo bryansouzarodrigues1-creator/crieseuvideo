@@ -6,6 +6,12 @@ const dest=path.resolve('tmp/editorial2d-gemini');
 await mkdir(dest,{recursive:true});
 const report={test:'cinema2d-gemini-vision',model:process.env.GEMINI_TEST_MODEL||'gemini-3.8-flash',provider:'gemini',status:'starting',calls:0,images:0};
 const store=()=>writeFile(path.join(dest,'result.json'),JSON.stringify(report,null,2));
+if(process.env.GEMINI_TEST_EXPLICIT_RUN!=='true'){
+  report.status='skipped_without_explicit_opt_in';
+  await store();
+  console.log('GEMINI_VISION: skipped — test was not explicitly dispatched');
+  process.exit(0);
+}
 const key=process.env.GEMINI_TEST_API_KEY?.trim();
 if(!key){report.status='skipped_no_key';await store();console.log('GEMINI_VISION: skipped_no_key');process.exit(0);}
 if(!/^[a-zA-Z0-9_.-]{1,75}$/.test(report.model))throw Error('Model id invalid');
