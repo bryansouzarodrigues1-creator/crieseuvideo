@@ -24,7 +24,7 @@ describe('one Pix purchase = three credits, only after financial verification',(
     allowed:true,reason:'paid',creditsToIssue:3,payoutReference:'E2E-55',
   });
   expect(decideCreditGrant(record,undefined,new Set()).allowed).toBe(false);
-  expect(decideCreditGrant(record,{...confirmed,destinationAccountMatched:false},new Set()).allowed).toBe(false);
+  expect(decideCreditGrant(record,({...confirmed,destinationAccountMatched:false} as never),new Set()).allowed).toBe(false);
   expect(rejectProof(record,true).stage).toBe('rejected');
  });
  it('never grants from screenshot-only paid clicks or duplicate transfer evidence',()=>{
@@ -35,8 +35,8 @@ describe('one Pix purchase = three credits, only after financial verification',(
  });
  it('requires authenticated matching Asaas payment data; screenshot cannot impersonate webhook',()=>{
   expect(decideCreditGrant(staticQr,asaas,new Set())).toMatchObject({allowed:true,creditsToIssue:3});
-  expect(decideCreditGrant(staticQr,{...asaas,webhookAuthenticated:false},new Set()).creditsToIssue).toBe(0);
-  expect(decideCreditGrant(staticQr,{...asaas,transactionMatched:false},new Set()).creditsToIssue).toBe(0);
+  expect(decideCreditGrant(staticQr,({...asaas,webhookAuthenticated:false} as never),new Set()).creditsToIssue).toBe(0);
+  expect(decideCreditGrant(staticQr,({...asaas,transactionMatched:false} as never),new Set()).creditsToIssue).toBe(0);
   expect(decideCreditGrant(manual,asaas,new Set()).creditsToIssue).toBe(0);
  });
  it('reserves R$1 exactly and blocks mismatched amount across methods',()=>{
