@@ -55,12 +55,16 @@ export async function askFreeTextProvider(
     model:config.model,
     temperature:expected==='json'?.2:.35,
     messages:[{role:'user',content:prompt}],
-    // Separate visible code from hidden reasoning. OpenRouter documents that
-    // reasoning consumes max_tokens; Particle-1 previously spent all 12k
-    // completion tokens thinking and returned empty code (finish_reason=length).
+    // A REAL Particle-1 free API test with reasoning.enabled=false returned
+    // valid JS (684 completion tokens, 0 reasoning tokens, finish_reason=stop).
+    // Earlier, the same model spent 12k/12k tokens only on reasoning and
+    // returned empty content. Keep explicit budget for other free models,
+    // which may not accept a disabled reasoning mode.
     max_tokens:expected==='json'?3000:14000,
     ...(provider==='openrouter'?{
-      reasoning:{max_tokens:expected==='javascript'?1800:650},
+      reasoning:config.model==='particle-ai/particle-1:free'
+        ? {enabled:false}
+        : {max_tokens:expected==='javascript'?1800:650},
     }:{}),
     ...(provider==='groq'?{reasoning_effort:'low'}:{}),
     ...(provider==='groq'&&expected==='json'?{response_format:{type:'json_object'}}:{}),
