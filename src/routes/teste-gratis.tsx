@@ -3,8 +3,8 @@ import {useEffect,useState} from 'react';
 import {supabase} from '@/integrations/supabase/client';
 
 /**
- * Experimental Google OAuth entry point. A login is NOT a trial credit.
- * The backend quota/Turnstile claim must be deployed before enabling generation.
+ * Experimental Google OAuth entry point. A login does NOT count as payment.
+ * A server-verified Pix payment, ledger and Turnstile must be deployed before generating.
  */
 export const Route=createFileRoute('/teste-gratis')({
  ssr:false,
@@ -48,13 +48,13 @@ function FreeTrialLogin(){
  return (
   <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:20,background:'#101827',color:'white'}}>
    <section style={{width:'100%',maxWidth:490,padding:28,border:'1px solid #334155',borderRadius:16}}>
-    <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>CrieSeuVideo · Teste grátis</h1>
+    <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>CrieSeuVideo · 3 vídeos 2D por R$ 1</h1>
     <p style={{color:'#cbd5e1',lineHeight:1.5,marginBottom:20}}>
-     Preparação do acesso a um vídeo experimental de até 20 segundos por conta verificada.
-     O crédito gratuito ainda não está ativado e não haverá geração por esta página.
+     Nova proposta: R$ 1,00 por 3 vídeos 2D experimentais de até 15 segundos, usando nossa biblioteca reutilizável.
+     Este cadastro não cobra nem libera créditos; o checkout e a confirmação do pagamento ainda não estão integrados.
     </p>
     {loading?<p>Verificando sessão…</p>:
-      googleLinked?<p>Conta Google conectada. A liberação do teste depende da cota verificada no servidor.</p>:
+      googleLinked?<p>Conta Google conectada. A compra de R$ 1,00 e os 3 créditos só serão liberados após integração e confirmação do pagamento no servidor.</p>:
       <button type="button" onClick={googleSignIn} disabled={busy}
        style={{padding:'12px 20px',borderRadius:8,background:'#f8fafc',color:'#0f172a',fontWeight:700,opacity:busy?0.5:1}}>
        {busy?'Abrindo Google…':signedIn?'Vincular conta Google':'Entrar com Google'}
