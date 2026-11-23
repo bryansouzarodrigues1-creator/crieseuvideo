@@ -1,62 +1,53 @@
-# Orçamento de IA e voz para assinaturas — 23 nov 2026
+# Orçamento de caixa e cotas do CrieSeuVideo — revisão 23 nov 2026
 
-Valores de referência são preços publicados pelos fornecedores, não cotações personalizadas, e podem mudar. Valores em USD. Impostos, câmbio, tarifas de pagamentos, hospedagem, CPU, storage e suporte não estão incluídos.
+**Escopo confirmado:** foco 2D; nos planos comuns o assinante gera a voz por conta própria e importa MP3. **Nossa API ElevenLabs só estará disponível no Ultra Pro**, após implementação e limite próprio de créditos. Esta planilha textual NÃO contabiliza impostos ou taxas não confirmadas; custos de plataforma documentados aparecem quando aplicáveis.
 
-## Critério de comparação
-- Uso: 1 vídeo narrativo 2D de ~2 minutos com roteiro + storyboard JSON; 20.000 tokens de ENTRADA e 8.000 de SAÍDA entre chamadas (HIPÓTESE, não medição).
-- IA gera apenas roteiro e cena declarativa. Não gera pixels de vídeo nem código HTML gigante.
-- Formula: custoIA = (tokensEntrada * taxaEntrada + tokensSaida * taxaSaida) / 1.000.000.
+## Valor mínimo para ativar a API (não confundir com custo por vídeo)
 
-| Modelo | Entrada US$/1M | Saída US$/1M | 20k entrada + 8k saída |
-|---|---:|---:|---:|
-| GPT-6 Luna | 0.05 | 0.25 | 0.0030 |
-| Gemini 2.5 Flash-Lite (pago) | 0.10 | 0.40 | 0.0052 |
-| Claude Haiku 5.5 (prompt até 100k) | 0.10 | 0.50 | 0.0060 |
-| DeepSeek Flash (fora de pico) | 0.15 | 0.60 | 0.0078 |
-| DeepSeek Flash (pico) | 0.30 | 1.20 | 0.0156 |
-| Gemini 3.1 Flash-Lite (pago) | 0.25 | 1.50 | 0.0170 |
-| GPT-6.1 Terra | 0.50 | 2.50 | 0.0300 |
+| Serviço | Aporte mínimo confirmado | Observação |
+|---|---:|---|
+| Gemini API (prepay) | US$ 5 | A interface pode apresentar valor convertido por região/tier; modo gratuito continua possível com cotas. |
+| OpenAI API (prepay) | US$ 5 | Valor padrão mostrado na configuração é US$ 10, mas o mínimo publicado é US$ 5. Desativar recarga automática. |
+| OpenRouter | US$ 5 | Há tarifa de 5,5% na compra de créditos do plano Standard, **custo real confirmado**; para primeiro lançamento evitar intermediário se API direta funcionar. |
+| Anthropic Claude API | Valor mínimo não confirmado em documentação pública | O Console permite digitar quantidade; verificar no checkout antes de comprometer o plano. |
+| DeepSeek API | Valor mínimo não confirmado oficialmente | Consultar checkout. |
 
-Fontes de preços:
-- OpenAI: https://developers.openai.com/api/docs/pricing
-- Gemini: https://ai.google.dev/gemini-api/docs/pricing
-- Anthropic: https://www.anthropic.com/claude/haiku
-- DeepSeek: https://api-docs.deepseek.com/quick_start/pricing/
+Fontes:
+- Gemini https://ai.google.dev/gemini-api/docs/billing
+- OpenAI https://help.openai.com/en/articles/8264644-setting-up-and-managing-prepaid-api-billing
+- OpenRouter https://openrouter.ai/terms/ e https://openrouter.ai/pricing
+- Anthropic https://support.claude.com/en/articles/8977456-how-do-i-pay-for-my-claude-api-usage
 
-## Voz via ElevenLabs
-- Fonte: https://elevenlabs.io/pricing/api
-- Eleven v4: US$ 0,08 / mil caracteres.
-- Eleven v4 Turbo: US$ 0,04 / mil caracteres.
-- Exemplo de vídeo com 2.000 caracteres: v4 US$ 0,16; v4 Turbo US$ 0,08.
-- TTS pode envolver regenerações: 25% de consumo adicional de caracteres implica multiplicar por 1,25.
-- Áudio vindo do usuário: custo de geração de voz terceirizada para nós = US$ 0 (mas alinhamento, processamento, armazenamento e termos de licença ainda podem custar).
+## Custo marginal de IA (hipótese; não equivale a saldo mínimo)
+Tomar 20.000 tokens de entrada e 8.000 de saída **no total por vídeo** (roteiro + direção), sem imagens nem narração. Preços podem mudar e modelos específicos têm regimes especiais:
 
-## Cenário de 20 vídeos por assinante por mês
-- Planejador Haiku 5.5, com duas passagens completas: 20 * (0.006 * 2) = US$ 0,24.
-- Voz Eleven v4, 2.000 caracteres por vídeo: 20 * 0.16 = US$ 3,20.
-- Regeneração de voz 25% adicional: US$ 0,80; subtotal voz = US$ 4,00.
-- **Subtotal IA + voz = US$ 4,24 por assinante**. NÃO é o custo total operacional!
-- Em 100 assinantes usando a cota inteira: 2.000 vídeos; IA US$ 24 + voz US$ 400 com extra de 25% = US$ 424, antes de outros custos.
-- Custos de exportação/hospedagem, pagamentos e suporte precisam ser medidos para definir preço final em BRL.
+- Claude Haiku 5.5: entrada US$ 0,10 / 1M; saída US$ 0,50 / 1M => **US$ 0,006 por vídeo** no exemplo.
+- OpenAI GPT-6 Luna: no tier Standard a referência é US$ 0,10 / 1M de entrada e US$ 0,50 / 1M de saída => **US$ 0,006 por vídeo**. Tarifas menores de Batch/Flex não garantem baixa latência para a aplicação.
+- A etapa de revisão ou replanejamento, se repetir todo o volume, dobra o consumo.
+- **Não vender ilimitado de gerações IA.** Renderização 2D local pode ser abundante, mas chamadas de IA, fila e duração de vídeo terão controles.
 
-## Política comercial proposta para teste
-- Plano grátis: previews limitados em resolucao reduzida; geração por Gemini grátis se a cota permitir, sem prometer disponibilidade.
-- Plano de entrada: créditos mensais de planejamento e exportação 2D, voz por MP3 enviado pelo usuário (BYO).
-- Plano criador: adicionar minutos/créditos limitados de ElevenLabs, com consumo visível antes da geração.
-- Plano maior: mais créditos, prioridade de fila e regenerações controladas. Não vender 'ilimitado'.
-- Cancelamento/estorno: política transparente, contabilizar custos externos apenas após pagamentos confirmados e autorizações explícitas.
-- Controle por usuario: teto de créditos, tamanho de roteiro, max retries, cota de TTS, duracao e formato de exportação.
-- Orçamento central por provedor: teto mensal, alerta ao atingir 70/90/100%, proibição de fallback pago silencioso e logs de tokens/latência/falhas.
+## Nova proposta comercial para TESTE (não preços publicados)
+Sem inclusão de voz ElevenLabs nos planos abaixo.
 
-## Validação de qualidade antes da compra
-- Criar conjunto de 15 temas (finanças, negócios, história/curiosidade), três execuções cada por Gemini, Luna, Haiku e opcional Terra.
-- Resultado avaliado com os mesmos requisitos: coerência, factualidade, 1 ideia visual por beat, JSON válido, assets existentes, sobreposição, custo real/geração, retries e tempo.
-- Métrica 'custo por vídeo aprovado' = cobrança total de IA / número de vídeos que passam QA (mais informativa do que preço por token).
-- Não aceitar parecer de um único provedor como prova; comparar vídeos efetivamente renderizados e aprovados.
+| Plano | Preço candidato BRL | Vídeos 2D/mês | Tamanho referência | IA em dois passes/vídeo Haiku (se todos usarem) |
+|---|---:|---:|---|---:|
+| Essencial | R$ 29,90 | 100 | até 2 minutos | US$ 1,20 |
+| Criador | R$ 59,90 | 300 | até 2 minutos | US$ 3,60 |
+| Pro | R$ 99,90 | 600 | até 2 minutos | US$ 7,20 |
+| Ultra Pro | Somente após custos de TTS e infraestrutura | Limite a medir | Voz automática com teto de caracteres | Não definido |
 
-## Integração necessária (AINDA NÃO FEITA)
-- Criar AI provider router com seleção explícita, medição de tokens e cache.
-- Modo gratuito mantém Gemini sem fallback pago, mas aviso em caso de quota.
-- Criar cobrança e contabilidade antes de oferecer voz incluída.
-- Verificar licença de uso comercial e direito de disponibilizar vozes a clientes pela API.
-- Nunca incluir API keys no frontend; usar segredo e checar identidade no backend.
+**Atenção:** esses montantes são apenas roteiros/planos IA, sem exportação ou armazenamento. Antes de prometer quantidades públicas, medir renderização, hospedagem, filas e custo de retenção. Separar:
+- Edições/reexportações **sem IA**: podem ser muito mais numerosas e quase gratuitas no backend se renderizadas no dispositivo.
+- Novas histórias por IA: contabilizar tokens/solicitações e impedir regenerações infinitas.
+- Duração total exportada / resolução / concorrência: limites claros para evitar gargalo.
+
+## Fluxo de caixa inicial e gatilho de upgrade
+1. Durante desenvolvimento, Gemini Free + templates locais, sem saldo pré-pago.
+2. Primeira compra confirmada: reservar saldo mínimo **US$ 5** para **um** provedor selecionado. Não é mensalidade; é crédito consumível.
+3. Desligar auto-reload, definir orçamento/limite por projeto e log de tokens, e não usar fallback pago silencioso.
+4. Se a API parar por falta de saldo, modo local e importação manual continuam disponíveis; comunicar limitação.
+5. Só adicionar segundo provedor ao comprovar maior taxa de vídeos aprovados e margem financeira suficiente.
+6. Ultra Pro: adquirir crédito ElevenLabs apenas após pagamento e precificação dos caracteres, sem confundir com planos comuns.
+
+## Teste necessário
+Registrar custo REAL de 50 gerações e calcular consumo médio, percentis e retries. Comparar Gemini, Haiku e Luna com o mesmo roteiro e validadores do Cinema 2D; escolher por **custo por vídeo aprovado** e qualidade visual, não por preço bruto por token. Receber a primeira assinatura não substitui testar cobrança, prazo de liberação do dinheiro e disponibilidade de API.
