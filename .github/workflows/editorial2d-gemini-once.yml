@@ -1,9 +1,6 @@
-name: One-shot Gemini Vision test for Cinema 2D (minimal thinking)
+name: Manual Gemini Vision test for Cinema 2D
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/editorial2d-gemini-once.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -12,6 +9,7 @@ jobs:
     timeout-minutes: 20
     env:
       CI: 'true'
+      GEMINI_TEST_EXPLICIT_RUN: 'true'
       GEMINI_TEST_MODEL: ${{ 'gemini-3.6-flash' }}
       GEMINI_TEST_API_KEY: ${{ secrets.FREEFORM_3D_GEMINI_API_KEY || secrets.GEMINI_API_KEY }}
     steps:
