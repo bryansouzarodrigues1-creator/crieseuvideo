@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CrieSeuVideo — Cinema Editorial 2D · Teste narrativo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#080e17;color:#e7ebf2;font-family:Inter,Arial,sans-serif}.layout{display:flex;flex-direction:column;gap:12px;align-items:center;min-height:100vh;padding:14px}.screen{height:min(calc(100vh - 130px),78vh);max-width:calc((100vh - 130px)*.5625);width:min(92vw,440px);aspect-ratio:9/16;box-shadow:0 20px 60px #000b;background:#0a1628;overflow:hidden;border-radius:12px}.screen svg{height:100%;width:100%;display:block}.controls{width:min(92vw,660px);display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:center}.controls button{background:#18283d;border:1px solid #3f5369;color:#fff;padding:10px 14px;border-radius:9px;cursor:pointer;font-weight:700}.controls button:hover{background:#263f58}.controls input{width:230px;accent-color:#d9a647}.controls output{font-variant-numeric:tabular-nums;min-width:84px;text-align:right;color:#cfdae8}.note{font-size:12px;color:#96a7bc;text-align:center;max-width:580px}svg text{user-select:none}svg .heading{fill:#f6f6ed;font-family:'Space Grotesk',Arial,sans-serif;font-weight:800;letter-spacing:-2px}svg .darkHeading{fill:#172238;font-family:'Space Grotesk',Arial,sans-serif;font-weight:800;letter-spacing:-2px}svg .minor{font-family:Inter,Arial,sans-serif;letter-spacing:4px;font-weight:700}svg .caption{font-family:Inter,Arial,sans-serif;font-size:38px;fill:#f9fbff;font-weight:800}svg .capDark{fill:#192336}svg .muted{fill:#a2b2c4}svg .info{fill:#6b7685}svg .price{font-variant-numeric:tabular-nums;font-weight:800;font-family:'Space Grotesk',Arial,sans-serif}
+</style></head>
+<body><main class="layout"><div class="screen">
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" aria-label="Animação editorial de 42 segundos sobre vendas de ovos">
+<style>
+.heading{fill:#f6f6ed;font:800 72px Arial,sans-serif}.darkHeading{fill:#172238;font:800 75px Arial,sans-serif}.minor{font:700 25px Arial,sans-serif;letter-spacing:4px}.caption{fill:#f9fbff;font:700 36px Arial,sans-serif}.capDark{fill:#192336}.price{font:bold 86px Arial,sans-serif}.num{font:bold 43px Arial,sans-serif}.outline{stroke-linecap:round;stroke-linejoin:round}.heading.gold{fill:#d9a647}
+</style>
+<defs><radialGradient id="nightG"><stop stop-color="#203550"/><stop offset="1" stop-color="#0A1628"/></radialGradient><radialGradient id="sunG"><stop stop-color="#fff4b2"/><stop offset="1" stop-color="#ffeab0" stop-opacity="0"/></radialGradient><linearGradient id="fieldG" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#8ed8eb"/><stop offset="1" stop-color="#c9e9d5"/></linearGradient><radialGradient id="creamG"><stop stop-color="#F9F6EC"/><stop offset="1" stop-color="#E8E3D2"/></radialGradient></defs>
+<rect width="1080" height="1920" fill="#09121e"/>
+<!-- each scene is independent; GSAP never touches positional transforms -->
+<g id="s0"><rect width="1080" height="1920" fill="url(#nightG)"/>
+  <g transform="translate(80,230)"><g id="hookGroup"><text class="minor" fill="#D5AA51" x="0" y="0">UMA HISTÓRIA DE NEGÓCIOS</text><text class="heading" x="0" y="120">VENDER MUITO</text><text class="heading gold" x="0" y="208">É LUCRAR?</text><rect x="0" y="245" width="420" height="8" rx="4" fill="#d9a647"/></g></g>
+  <g transform="translate(260,960)"><g id="vendorLeft"><ellipse cy="310" rx="188" ry="30" fill="#050d16" opacity=".45"/><rect x="-130" y="120" width="260" height="180" rx="20" fill="#293d58" stroke="#8ba8bf" stroke-width="6"/><rect x="-160" y="100" width="320" height="36" rx="16" fill="#b98b4e"/><circle cx="0" cy="-30" r="76" fill="#edc7a1"/><path d="M-70 -48Q-62 -130 3 -124Q68 -112 70 -45" fill="#19283c"/><circle cx="-24" cy="-31" r="6"/><circle cx="22" cy="-31" r="6"/><path d="M-21 -3Q0 13 22 -3" fill="none" stroke="#6a3d36" stroke-width="5" stroke-linecap="round"/><path d="M-90 40 L-140 112M90 40L135 112" stroke="#edc7a1" stroke-width="26" stroke-linecap="round"/><text x="0" y="210" fill="white" font-size="30" font-weight="bold" text-anchor="middle">VENDAS</text></g></g>
+  <g transform="translate(814,960)"><g id="vendorRight"><ellipse cy="310" rx="188" ry="30" fill="#050d16" opacity=".45"/><rect x="-130" y="120" width="260" height="180" rx="20" fill="#163a3e" stroke="#80c8b6" stroke-width="6"/><rect x="-160" y="100" width="320" height="36" rx="16" fill="#b98b4e"/><circle cx="0" cy="-30" r="76" fill="#c98e6c"/><path d="M-72 -43Q-56 -124 6 -119Q60 -111 75 -48" fill="#162d24"/><circle cx="-24" cy="-31" r="6"/><circle cx="22" cy="-31" r="6"/><path d="M-22 -4Q0 18 22 -4" fill="none" stroke="#693d2f" stroke-width="5" stroke-linecap="round"/><path d="M-90 40 L-140 112M90 40L135 112" stroke="#c98e6c" stroke-width="26" stroke-linecap="round"/><text x="0" y="210" fill="white" font-size="30" font-weight="bold" text-anchor="middle">RESULTADO</text></g></g>
+  <g transform="translate(540,1248)"><g id="compareMark"><path d="M-115 0h230" stroke="#d5aa51" stroke-width="8"/><text text-anchor="middle" fill="#f6f6ed" font-size="112" font-weight="900" y="-60">≠</text></g></g>
+</g>
+<g id="s1" visibility="hidden"><rect width="1080" height="1920" fill="url(#fieldG)"/><circle cx="855" cy="320" r="160" fill="url(#sunG)"/><circle cx="860" cy="325" r="72" fill="#fff2bb"/><path d="M0 955Q210 760 480 925Q810 630 1080 800V1920H0Z" fill="#9ec99b"/><path d="M0 1090Q480 970 1080 1085V1920H0Z" fill="#6ea475"/><path d="M0 1260Q560 1130 1080 1305V1920H0Z" fill="#4d865f"/>
+  <g transform="translate(105,700)"><rect width="285" height="420" fill="#be624c"/><path d="M-38 0L142 -190L328 0" fill="#8a3e42"/><rect x="98" y="208" width="95" height="212" fill="#6c3f33"/><rect x="30" y="50" width="78" height="88" fill="#f2c67f"/></g>
+  <g transform="translate(85,215)"><text class="minor" fill="#213c3e" x="0" y="0">ETAPA 01 / A GRANJA</text><text class="darkHeading" y="115" x="0">O MESMO</text><text class="darkHeading" y="215" x="0">PRODUTO.</text></g>
+  <g id="henGroup" transform="translate(450 890)"></g>
+  <g transform="translate(540,1270)"><g id="henCount"><rect x="-240" y="-70" width="480" height="134" rx="30" fill="#132941" opacity=".95"/><text id="henCountLabel" text-anchor="middle" y="18" class="price" font-size="65" fill="#fff1cd">5 GALINHAS</text></g></g>
+</g>
+<g id="s2" visibility="hidden"><rect width="1080" height="1920" fill="url(#creamG)"/>
+  <g transform="translate(82,255)"><g id="calcTitle"><text class="minor" y="0" fill="#897143">ETAPA 02 / A CONTA</text><text class="darkHeading" y="112">QUANTO SOBRA?</text><path d="M0 165H850" stroke="#D2B365" stroke-width="9"/></g></g>
+  <g transform="translate(540,460)"><g id="eggGrid"></g></g>
+  <g transform="translate(95,1020)"><g id="priceBlocks"><rect width="890" height="420" rx="28" fill="#fffaf0" stroke="#c9bea8" stroke-width="4"/><text x="36" y="77" class="minor" fill="#747b79">EXEMPLO ILUSTRATIVO</text>
+  <text x="40" y="153" fill="#243248" font-size="38" font-weight="bold">VENDAS</text><text x="845" y="153" text-anchor="end" fill="#1d4f4b" class="num" id="revenue">R$ 0</text>
+  <path d="M40 202H850" stroke="#d1c7b1" stroke-width="3"/><text x="40" y="274" fill="#243248" font-size="38" font-weight="bold">CUSTOS</text><text x="845" y="274" text-anchor="end" fill="#b54d51" class="num" id="costs">− R$ 0</text>
+  <rect x="30" y="308" width="825" height="85" rx="14" fill="#173b35"/><text x="49" y="367" fill="#fff" font-size="38" font-weight="800">SOBRA*</text><text x="825" y="367" text-anchor="end" fill="#a8f1bb" class="num" id="net">R$ 0</text>
+  </g></g>
+  <text x="540" y="1500" text-anchor="middle" fill="#78766f" font-size="23">* Antes de outros custos, tributos e remuneração.</text>
+</g>
+<g id="s3" visibility="hidden"><rect width="1080" height="1920" fill="url(#nightG)"/>
+  <g transform="translate(80,265)"><text class="minor" fill="#d7b068">ETAPA 03 / O CRESCIMENTO</text><text class="heading" y="105">REPETIR.</text><text class="heading" y="198">CONTROLAR.</text><text class="heading" y="291" fill="#d5aa51">REINVESTIR.</text></g>
+  <g transform="translate(200,800)"><g id="pathOne"><circle r="95" fill="#213c52" stroke="#7ebec1" stroke-width="6"/><path d="M-44 -5l40 42 55-77" fill="none" stroke="#7af0b8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><text y="150" x="0" text-anchor="middle" fill="#e3efff" font-size="34" font-weight="bold">CLIENTES</text></g></g>
+  <g transform="translate(540,800)"><g id="pathTwo"><circle r="95" fill="#213c52" stroke="#7ebec1" stroke-width="6"/><path d="M-50 30h100v-65H-50zM-31 -8H32" fill="none" stroke="#d5aa51" stroke-width="12" stroke-linecap="round"/><text y="150" x="0" text-anchor="middle" fill="#e3efff" font-size="34" font-weight="bold">CUSTOS</text></g></g>
+  <g transform="translate(880,800)"><g id="pathThree"><circle r="95" fill="#213c52" stroke="#7ebec1" stroke-width="6"/><path d="M-55 35L0 -55L55 35M-29 35V-2H29V35" fill="none" stroke="#75daa7" stroke-width="11" stroke-linecap="round"/><text y="150" x="0" text-anchor="middle" fill="#e3efff" font-size="34" font-weight="bold">RESERVA</text></g></g>
+  <path id="growPath" d="M130 1200Q350 1240 520 1080T930 1090" fill="none" stroke="#cfad58" stroke-width="18" stroke-linecap="round" stroke-dasharray="1200" stroke-dashoffset="1200"/><text id="growCaption" x="540" y="1390" text-anchor="middle" fill="#e8edf5" font-size="44" font-weight="bold">CRESCER COM RESPONSABILIDADE</text>
+</g>
+<g id="s4" visibility="hidden"><rect width="1080" height="1920" fill="url(#nightG)"/>
+  <g transform="translate(540,600)"><g id="finalPlate"><circle r="145" fill="#1b3144" stroke="#d8b66b" stroke-width="7"/><path d="M-69 15L-11 60L70 -53" fill="none" stroke="#79d5a7" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/><text x="0" y="270" text-anchor="middle" font-size="70" font-weight="900" fill="#f9f8ee">VENDER É O COMEÇO.</text><text x="0" y="360" text-anchor="middle" font-size="69" font-weight="900" fill="#d9ae53">ENTENDER O LUCRO</text><text x="0" y="447" text-anchor="middle" font-size="67" font-weight="900" fill="#f9f8ee">MUDA O JOGO.</text></g></g>
+  <text x="540" y="1445" font-size="28" text-anchor="middle" fill="#bacbd5">EXEMPLOS PARA FINS DIDÁTICOS</text>
+</g>
+<!-- Captions live inside the exported SVG -->
+<g id="lowerThird"><rect x="60" y="1560" width="960" height="172" rx="26" fill="#07121f" fill-opacity=".86"/><text id="caption1" x="540" y="1620" text-anchor="middle" class="caption">Uma venda grande não é lucro.</text><text id="caption2" x="540" y="1682" text-anchor="middle" class="caption" fill="#f6f6f6"></text></g>
+</svg></div>
+<div class="controls"><button id="play">▶ Reproduzir</button><input id="scrub" type="range" min="0" max="42" step="0.01" value="0" aria-label="Controle de tempo"/><output id="time">00:00 / 00:42</output><button id="export">Exportar .webm</button></div>
+<div class="note" id="status">Storytelling 2D — demonstração original de 42 segundos, com exemplos financeiros ilustrativos. Sem narração: preparada para receber MP3 e marcas de palavras.</div></main>
+<script>
+'use strict';
+const DURATION=42, FPS=30, stage=document.getElementById('stage');
+const scenes=[0,1,2,3,4].map(n=>document.getElementById('s'+n));
+const $=id=>document.getElementById(id), clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const ease=(x)=>{x=clamp(x);return x*x*(3-2*x)};
+const fade=(t,start,end,appear=.35,disappear=.3)=>ease((t-start)/appear)*(1-ease((t-(end-disappear))/disappear));
+const entrance=(t,start,d=.55)=>ease((t-start)/d);
+const setAlpha=(id,a)=>$(id).setAttribute('opacity',String(clamp(a)));
+const setShift=(id,x,y=0,scale=1)=>$(id).setAttribute('transform',`translate(${x},${y}) scale(${scale})`);
+const money=n=>'R$ '+Math.round(n).toLocaleString('pt-BR');
+function buildHen(x,y,s=1){return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="0" cy="8" rx="39" ry="31" fill="#fffaf0" stroke="#213e3c" stroke-width="4"/><circle cx="28" cy="-22" r="25" fill="#fffaf0" stroke="#213e3c" stroke-width="4"/><path d="M48 -24L69 -16L48 -4" fill="#e3a241"/><path d="M17 -48L25 -69L35 -48L47 -67L49 -40" fill="#d45d52"/><circle cx="37" cy="-27" r="4"/><path d="M-22 34v17m36 -17v17" stroke="#e3a241" stroke-width="6"/><path d="M-38 -3l-22-21m21 27l-29-9" stroke="#fffaf0" stroke-width="10" stroke-linecap="round"/></g>`}
+$('henGroup').innerHTML=Array.from({length:20},(_,i)=>buildHen((i%5)*118,(Math.floor(i/5))*128,.74).replace('<g transform=',`<g class="hen" data-idx="${i}" transform=`)).join('');
+$('eggGrid').innerHTML=Array.from({length:20},(_,i)=>`<g class="egg" data-idx="${i}" transform="translate(${(i%5-2)*114} ${Math.floor(i/5)*98})"><ellipse rx="27" ry="36" fill="#efcd87" stroke="#ad8452" stroke-width="3"/><ellipse cx="-8" cy="-14" rx="7" ry="13" fill="#fff6da" opacity=".48"/></g>`).join('');
+const hens=[...document.querySelectorAll('.hen')], eggs=[...document.querySelectorAll('.egg')];
+const captions=[
+[0,3.5,'Dois vendedores podem vender','o mesmo produto...'],
+[3.5,8,'...e terminar o mês','com resultados diferentes.'],
+[8,12,'Tudo começa com uma','granja e algumas galinhas.'],
+[12,17,'Mais produção ajuda, mas','não garante mais lucro.'],
+[17,22,'Veja um exemplo simples:','dinheiro que entra e sai.'],
+[22,27,'Faturamento menos custos','não é sempre lucro final.'],
+[27,32,'O crescimento exige','clientes e controle.'],
+[32,36,'Guardar uma margem ajuda','a enfrentar imprevistos.'],
+[36,42,'Vender é o começo.','Entender o lucro muda o jogo.']
+];
+let current=0,playing=false,last=0,raf=0,gsapDriver=null;
+function renderAt(raw){let t=clamp(raw,0,DURATION);current=t;
+ const times=[[0,8],[8,17],[17,27],[27,36],[36,42]];
+ scenes.forEach((sc,i)=>{const [a,b]=times[i];const visible=t>=a&&t<(i===4?b+.001:b);sc.setAttribute('visibility',visible?'visible':'hidden'); sc.setAttribute('opacity',visible?'1':'0')});
+ const cap=captions.find(c=>t>=c[0]&&t<c[1])||captions[captions.length-1];$('caption1').textContent=cap[2];$('caption2').textContent=cap[3];
+ const capAlpha=Math.min(1,entrance(t,cap[0],.24)+.02);setAlpha('lowerThird',capAlpha);
+ setAlpha('hookGroup',entrance(t,.1,.9));setShift('hookGroup',0,Math.round(25*(1-entrance(t,.1,.9))));
+ setShift('vendorLeft',0,8*Math.sin(t*2.4),1);setShift('vendorRight',0,8*Math.sin(t*2.2+.7),1);
+ setAlpha('compareMark',entrance(t,3,.5));
+ const count=(t<12)?5:t<15?Math.min(20,5+Math.floor((t-12)*5)):20;
+ $('henCountLabel').textContent=count+' GALINHAS';
+ hens.forEach((h,i)=>{const alpha=entrance(t,8.35+i*.12,.36)*(i<count?1:0);h.setAttribute('opacity',clamp(alpha));});
+ eggs.forEach((e,i)=>e.setAttribute('opacity',entrance(t,17.4+i*.06,.38)));
+ setAlpha('calcTitle',entrance(t,17,.6));setAlpha('priceBlocks',entrance(t,19,.7));
+ const p=entrance(t,20,.95),q=entrance(t,22,.9),r=entrance(t,24,.9);$('revenue').textContent=money(400*p);$('costs').textContent='− '+money(220*q);$('net').textContent=money(180*r);
+ ["pathOne","pathTwo","pathThree"].forEach((id,i)=>setAlpha(id,entrance(t,27.5+i*1.3,.65)));
+ $('growPath').setAttribute('stroke-dashoffset',String(1200*(1-entrance(t,32.2,2.2))));setAlpha('growCaption',entrance(t,33,.6));
+ const f=entrance(t,36,.7);setShift('finalPlate',0,(1-f)*55,.9+.1*f);setAlpha('finalPlate',f);
+ $('scrub').value=String(t);const sec=Math.floor(t),mm=String(Math.floor(sec/60)).padStart(2,'0'),ss=String(sec%60).padStart(2,'0');$('time').textContent=mm+':'+ss+' / 00:42';
+}
+window.storytelling={seek:renderAt,duration:DURATION,stage};
+const useGsap=!!(window.gsap&&window.gsap.timeline);
+if(useGsap){const proxy={t:0};gsapDriver=gsap.timeline({paused:true});gsapDriver.to(proxy,{t:DURATION,duration:DURATION,ease:'none',onUpdate:()=>renderAt(proxy.t)});}
+function pause(){playing=false;$('play').textContent='▶ Reproduzir';if(gsapDriver)gsapDriver.pause();cancelAnimationFrame(raf)}
+function play(){if(current>=DURATION)renderAt(0);playing=true;$('play').textContent='⏸ Pausar';if(gsapDriver){gsapDriver.seek(current).play();return}last=performance.now();const tick=now=>{if(!playing)return;const dt=Math.min(.1,(now-last)/1000);last=now;renderAt(current+dt);if(current>=DURATION){pause();return}raf=requestAnimationFrame(tick)};raf=requestAnimationFrame(tick)}
+$('play').onclick=()=>playing?pause():play();$('scrub').oninput=e=>{const was=playing;pause();renderAt(Number(e.target.value));if(was)play()};
+async function exportVideo(){pause();const btn=$('export'),note=$('status');btn.disabled=true;btn.textContent='Preparando...';
+ try{if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream)throw new Error('Navegador sem MediaRecorder/captureStream');
+ const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d',{alpha:false});const stream=canvas.captureStream(30);
+ const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(x=>MediaRecorder.isTypeSupported(x));if(!mime)throw new Error('Codec WebM não disponível');
+ const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:5200000});const blobs=[];rec.ondataavailable=e=>{if(e.data.size)blobs.push(e.data)};
+ const finished=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=e=>reject(e.error||new Error('Erro de gravação'))});rec.start(1000);
+ const serializer=new XMLSerializer();let start=performance.now();
+ async function frame(){const seconds=Math.min(DURATION,(performance.now()-start)/1000);renderAt(seconds);const xml=serializer.serializeToString(stage);const url=URL.createObjectURL(new Blob([xml],{type:'image/svg+xml;charset=utf-8'}));const img=new Image();try{await new Promise((ok,fail)=>{img.onload=ok;img.onerror=fail;img.src=url});ctx.drawImage(img,0,0,1080,1920);}finally{URL.revokeObjectURL(url)}
+ btn.textContent='Gravando '+Math.round(seconds/DURATION*100)+'%';if(seconds<DURATION)await new Promise(ok=>requestAnimationFrame(ok));return seconds<DURATION;}
+ let remaining=true;while(remaining)remaining=await frame();await new Promise(ok=>setTimeout(ok,250));rec.stop();await finished;const blob=new Blob(blobs,{type:mime});const a=document.createElement('a');const obj=URL.createObjectURL(blob);a.href=obj;a.download='CrieSeuVideo_Storytelling2D_Ovos_42s.webm';a.click();setTimeout(()=>URL.revokeObjectURL(obj),3000);note.textContent='Exportação concluída. Este protótipo não contém narração; WebM gravado em tempo real.';
+ }catch(e){note.textContent='Não foi possível exportar: '+e.message;}finally{btn.disabled=false;btn.textContent='Exportar .webm';renderAt(0)}
+}
+$('export').onclick=exportVideo;renderAt(0);
+</script></body></html>

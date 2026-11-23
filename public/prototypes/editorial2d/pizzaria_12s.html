@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CrieSeuVideo | Cinema Editorial 2D — Simulação 12s</title>
+<style>
+:root {color-scheme:dark; --gold:#C89B3C;--ink:#121110;--cream:#F3EFE6}
+*{box-sizing:border-box}body{margin:0;background:#101216;color:#edece9;font:14px/1.4 Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+.app{min-height:100vh;display:grid;grid-template-columns:minmax(270px,460px) minmax(240px,380px);align-items:center;justify-content:center;gap:26px;padding:22px}
+.stage-outer{width:min(100%,430px);aspect-ratio:9/16;box-shadow:0 18px 60px #0009;border:1px solid #3a3a3a;overflow:hidden;border-radius:14px;background:#f3efe6}
+svg{display:block;width:100%;height:100%} .panel{padding:18px;background:#1b1e23;border:1px solid #36383d;border-radius:16px;display:grid;gap:16px}
+h1{font-size:23px;line-height:1.16;letter-spacing:-.04em;margin:0} .sub{color:#acaeb4;font-size:12px;margin-top:5px}
+.controls{display:flex;flex-wrap:wrap;gap:8px}button,.file-label{border-radius:10px;padding:10px 12px;background:#30343b;border:1px solid #53565d;color:white;cursor:pointer;font-weight:600;font-size:12px}
+button.primary{background:var(--gold);color:#16130c;border-color:var(--gold)}button:disabled{opacity:.35;cursor:not-allowed}
+#seek{width:100%;accent-color:var(--gold)}.time{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;color:#dadad7}.note{font-size:12px;color:#b7bbc0;line-height:1.5}.status{font-size:11px;color:#8fdfab}.row{display:grid;gap:6px}.file-label{display:inline-block}input[type=file]{display:none}.hint{color:#9a9da6;font-size:11px}a{color:#eac581}
+@media(max-width:760px){.app{grid-template-columns:1fr;justify-items:center;gap:16px;padding:12px}.panel{max-width:460px;width:100%}.stage-outer{width:min(100%,360px)}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <div class="stage-outer">
+  <svg id="stage" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Simulação editorial: 500 clientes, 250 pedidos extras e 20 mil reais por mês">
+    <style><![CDATA[
+      .titleText{font-family:Inter,Arial,sans-serif;fill:#121110;font-weight:850;letter-spacing:-1px}
+      .smallCaps{font-family:Inter,Arial,sans-serif;fill:#6F6A61;font-weight:700;letter-spacing:3px}
+      .meta{font-family:Inter,Arial,sans-serif;fill:#6F6A61;letter-spacing:5px;font-weight:700}
+      .metric{font-family:Inter,Arial,sans-serif;fill:#121110;font-weight:900;letter-spacing:-1px}
+      .serif{font-family:Georgia,'Times New Roman',serif;fill:#121110;font-weight:700}
+      .gold{fill:#C89B3C}
+    ]]></style>
+    <defs>
+      <radialGradient id="bg" cx="50%" cy="45%" r="78%"><stop offset="45%" stop-color="#F4F1E8"/><stop offset="100%" stop-color="#DDD7C7"/></radialGradient>
+      <pattern id="texture" width="30" height="30" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r="0.55" fill="#121110" opacity=".065"/></pattern>
+      <filter id="warmGlow"><feGaussianBlur stdDeviation="12" /></filter>
+    </defs>
+    <rect width="1080" height="1920" fill="url(#bg)"/>
+    <rect width="1080" height="1920" fill="url(#texture)"/>
+    <path d="M75 360 H1005" stroke="#c1b8a9" stroke-width="2" opacity=".45"/>
+    <text id="supertitle" x="78" y="254" class="meta" font-size="24">SIMULAÇÃO</text>
+    <g id="header"><text x="540" y="327" text-anchor="middle" class="titleText" font-size="47">AGORA A CONTA.</text></g>
+    <g id="matrixStage">
+      <g id="dotBase"></g><g id="dotExtra"></g>
+      <g id="left500"><text x="244" y="595" class="metric" text-anchor="end" font-size="72">500</text><text x="244" y="630" text-anchor="end" class="smallCaps" font-size="22">CLIENTES</text></g>
+      <g id="left1"><text x="244" y="738" text-anchor="end" class="metric" font-size="33">1×/MÊS</text></g>
+      <g id="leftTicket"><text x="244" y="839" text-anchor="end" class="smallCaps" font-size="19" letter-spacing="1.5">TICKET</text><text x="244" y="875" text-anchor="end" class="metric" font-size="39">R$ 80</text></g>
+      <g id="right15"><text x="810" y="655" text-anchor="start" class="metric" font-size="70">×1,5</text><text x="810" y="694" text-anchor="start" class="smallCaps" font-size="19">PEDIDOS / MÊS</text></g>
+      <g id="right250"><text x="810" y="925" text-anchor="start" class="metric" font-size="74" fill="#C89B3C">+250</text><path d="M835 946 H960" stroke="#C89B3C" stroke-width="6"/><text x="810" y="985" text-anchor="start" class="smallCaps" font-size="21">PEDIDOS</text></g>
+    </g>
+    <g id="resultStage">
+      <circle cx="540" cy="700" r="230" fill="#C89B3C" opacity=".14" filter="url(#warmGlow)"/>
+      <text id="count" x="540" y="618" text-anchor="middle" class="metric" font-size="112" textLength="820" lengthAdjust="spacingAndGlyphs">+R$ 0</text>
+      <path id="goldBar" d="M140 664 H940" stroke="#C89B3C" stroke-width="13" stroke-linecap="round"/>
+      <text id="monthly" x="540" y="730" text-anchor="middle" class="smallCaps" font-size="30">A MAIS POR MÊS</text>
+      <g transform="translate(400 860)"><g id="ovenIcon" fill="none" stroke="#121110" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+        <path pathLength="100" d="M6 240H274"/><path pathLength="100" d="M25 235V100Q140 -10 255 100V235"/><path pathLength="100" d="M172 40V-2H220V68"/><path pathLength="100" d="M75 225V155Q140 90 205 155V225"/><path pathLength="100" d="M106 208L171 160M167 207L111 159"/>
+      </g></g>
+      <text id="ovenLabel" x="540" y="1182" text-anchor="middle" class="smallCaps" font-size="27">O MESMO FORNO</text>
+    </g>
+    <g id="captionLayer"><rect id="captionMark" x="260" y="1422" width="560" height="78" rx="8" fill="#DAB85F" opacity=".60"/>
+      <text id="caption" x="540" y="1480" text-anchor="middle" class="serif" font-size="65">Agora a conta.</text>
+    </g>
+    <path d="M80 1692 H1000" stroke="#b9b1a4" stroke-width="2" opacity=".40"/>
+    <text x="540" y="1760" font-size="19" text-anchor="middle" class="meta">CRIESEUVIDEO  •  EDITORIAL 2D</text>
+  </svg>
+  </div>
+  <div class="panel">
+    <div><div class="sub" style="color:#C89B3C;font-weight:700;margin:0 0 6px">PROTÓTIPO EDITORIAL • 12 SEGUNDOS</div>
+      <h1>A conta de uma pizzaria</h1><div class="sub">SceneSpec + componentes 2D reutilizáveis • viewport 1080 × 1920</div></div>
+    <div class="row"><div class="time"><span id="now">00:00.00</span><span>00:12.00</span></div><input id="seek" type="range" min="0" max="12" step="0.001" value="0" aria-label="Progresso do vídeo"/></div>
+    <div class="controls"><button class="primary" id="play">▶ Reproduzir</button><button id="restart">↺ Reiniciar</button><button id="export">⬇ Exportar .webm</button></div>
+    <div class="row"><label for="narration" class="file-label">🎙 Carregar narração (opcional)</label><input type="file" accept="audio/*" id="narration"/><span id="audioName" class="hint">Sem áudio: relógio interno de 12s. Os tempos do Gemini são preliminares.</span></div>
+    <div class="status" id="status">Pronto para testar • offline com motor determinístico; GSAP via CDN quando disponível</div>
+    <div class="note">O vídeo demonstra 500 clientes fazendo um pedido mensal de R$ 80. Se passarem a fazer 1,5 pedido/mês, são <b>250 pedidos adicionais × R$ 80 = R$ 20.000 a mais em faturamento bruto</b>, não lucro. Não inclui narração original nem garante esse resultado a uma pizzaria real.</div>
+  </div>
+</div>
+<script>
+(()=>{'use strict';
+// Cena declarativa. Os tempos são hipotéticos até recebermos a narração original e words.json.
+const SceneSpec={project:{preset:'editorial_2d_v1',resolution:[1080,1920],fps:30,duration:12,safeArea:{top:180,bottom:260,left:72,right:110}},
+  scenes:[{id:'pizzaria-conta',layout:'split_metrics_center_stage',elements:[
+    {component:'DotMatrix',id:'base',props:{cols:25,rows:20,color:'#121110'},enter:{at:1,duration:.55}},
+    {component:'DotMatrix',id:'extra',props:{cols:25,rows:10,color:'#C89B3C'},enter:{at:6.8,duration:.85}},
+    {component:'MetricStackItem',id:'clients',enter:{at:1,duration:.35}},
+    {component:'MetricStackItem',id:'times',enter:{at:2.8,duration:.3}},
+    {component:'MetricStackItem',id:'ticket',enter:{at:3.8,duration:.3}},
+    {component:'MetricStackItem',id:'ratio',enter:{at:6.2,duration:.3}},
+    {component:'MetricStackItem',id:'orders',enter:{at:6.9,duration:.3}},
+    {component:'AnimatedCounter',id:'extraRevenue',enter:{at:9.5,duration:.95},props:{from:0,to:20000}},
+    {component:'VectorDrawIcon',id:'oven',enter:{at:11.3,duration:.7}},
+    {component:'EditorialSerifCaption',id:'caption'}]}]};
+window.SceneSpec=SceneSpec;
+const $=id=>document.getElementById(id); const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const out=x=>1-Math.pow(1-clamp(x),3), inC=x=>Math.pow(clamp(x),3);
+const ease=(t,start,dur,kind='out')=>(kind==='in'?inC:out)((t-start)/dur);
+const fadeOut=(t,start,dur)=>1-ease(t,start,dur,'in');
+function setVis(el,a,shift=0){el.style.opacity=Math.max(0,Math.min(1,a)).toFixed(6);el.style.transform=`translate(0px,${shift.toFixed(3)}px)`;el.style.visibility=a<=0?'hidden':'visible';}
+function wrapRow(parent,i,cols,startY,color){const ns='http://www.w3.org/2000/svg';const row=document.createElementNS(ns,'g');row.setAttribute('class','dotsRow');row.dataset.index=i;for(let x=0;x<cols;x++){let c=document.createElementNS(ns,'circle');c.setAttribute('cx',String(294+x*20));c.setAttribute('cy',String(startY+i*20));c.setAttribute('r','5.2');c.setAttribute('fill',color);row.appendChild(c);}parent.appendChild(row);return row;}
+const blackRows=Array.from({length:20},(_,i)=>wrapRow($('dotBase'),i,25,425,'#121110'));
+const goldRows=Array.from({length:10},(_,i)=>wrapRow($('dotExtra'),i,25,845,'#C89B3C'));
+const ovenPaths=[...$('ovenIcon').querySelectorAll('path')];for(const p of ovenPaths){p.style.strokeDasharray='100';p.style.strokeDashoffset='100';}
+const captions=[
+  {at:0,until:1.65,text:'Agora a conta.',w:520},
+  {at:1.65,until:3.3,text:'500 clientes por mês',w:690},
+  {at:3.3,until:5.0,text:'ticket de R$ 80',w:620},
+  {at:5.0,until:6.8,text:'1 vez e meia',w:520},
+  {at:6.8,until:9.2,text:'+250 pedidos',w:550},
+  {at:9.5,until:10.8,text:'+R$ 20.000',w:610},
+  {at:10.8,until:11.3,text:'a mais por mês',w:620},
+  {at:11.3,until:12.05,text:'com o mesmo forno',w:690}
+];
+let T=0,playing=false,lastStamp=0,audio=null,audioURL=null,recorder=null,exporting=false;
+// GSAP master clock is present when CDN is available; pure renderer remains offline deterministic.
+const masterTimeline=window.gsap?gsap.timeline({paused:true}):null;
+if(masterTimeline)masterTimeline.to({v:0},{v:1,duration:12,ease:'none'});
+window.masterTimeline=masterTimeline;
+const setLocal=(id,t,at,dur,shift=13)=>{let a=ease(t,at,dur)*fadeOut(t,9.2,.26);setVis($(id),a,(1-a)*shift);};
+const fmt=s=>`00:${s.toFixed(2).padStart(5,'0')}`;
+function render(raw){let t=T=clamp(raw,0,12); if(masterTimeline)masterTimeline.seek(t,true);
+  setVis($('supertitle'),ease(t,.0,.4));
+  let hs=ease(t,0,.35)*fadeOut(t,9.2,.26);setVis($('header'),hs,9*(1-hs));
+  const matOut=fadeOut(t,9.2,.26);setVis($('matrixStage'),matOut);
+  blackRows.forEach((el,i)=>{let a=ease(t,1+i*.025,.30)*matOut;setVis(el,a,-9*(1-a));});
+  goldRows.forEach((el,i)=>{let a=ease(t,6.8+i*.045,.37)*matOut;setVis(el,a,-11*(1-a));});
+  setLocal('left500',t,1,.38);setLocal('left1',t,2.8,.27);setLocal('leftTicket',t,3.8,.28);
+  setLocal('right15',t,6.2,.30);setLocal('right250',t,6.85,.34);
+  let result=ease(t,9.5,.35);setVis($('resultStage'),result,10*(1-result));
+  const value=Math.round(20000*ease(t,9.5,.95));$('count').textContent='+R$ '+value.toLocaleString('pt-BR');
+  $('goldBar').style.strokeDasharray='820';$('goldBar').style.strokeDashoffset=String(820*(1-ease(t,9.7,.5)));
+  setVis($('monthly'),ease(t,10.8,.28));setVis($('ovenLabel'),ease(t,11.72,.18));
+  ovenPaths.forEach((el,i)=>el.style.strokeDashoffset=String(100*(1-ease(t,11.3+i*.055,.45))));
+  const cap=captions.find(x=>t>=x.at&&t<x.until);
+  const capA=cap?Math.min(ease(t,cap.at,.21),fadeOut(t,cap.until-.18,.18)):0;
+  $('caption').textContent=cap?cap.text:'';
+  setVis($('captionLayer'),capA,5*(1-capA));
+  $('captionMark').setAttribute('x',String(540-(cap?.w||520)/2));$('captionMark').setAttribute('width',String(cap?.w||520));
+  $('captionMark').style.transformOrigin='540px 1460px';$('captionMark').style.transform=`scaleX(${ease(t,cap?.at||0,.27).toFixed(4)})`;
+  $('now').textContent=fmt(t);$('seek').value=t.toFixed(3);
+  document.documentElement.dataset.frameTime=t.toFixed(3);
+}
+window.renderSceneAt=render;
+function pause(){playing=false;$('play').textContent='▶ Reproduzir';if(audio)audio.pause();}
+function raf(now){if(playing&&!exporting){if(audio&&audio.readyState>=2){render(Math.min(12,audio.currentTime));if(audio.currentTime>=12)pause();}else{if(lastStamp){render(T+(now-lastStamp)/1000)} if(T>=12)pause();}}
+  lastStamp=now;requestAnimationFrame(raf);}
+requestAnimationFrame(raf);
+$('play').onclick=()=>{if(playing){pause();return;}if(T>=11.999)render(0);playing=true;lastStamp=0;$('play').textContent='Ⅱ Pausar';if(audio){audio.currentTime=T;audio.play().catch(()=>{});}};
+$('restart').onclick=()=>{pause();render(0);if(audio)audio.currentTime=0;};
+$('seek').oninput=e=>{render(Number(e.target.value));if(audio)audio.currentTime=T;};
+$('narration').onchange=e=>{const file=e.target.files?.[0];if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);if(!audio)audio=new Audio();audio.src=audioURL;audio.preload='auto';audio.load();$('audioName').textContent=`Carregado: ${file.name} · Para sincronia exata, alinhe words.json.`;};
+async function exportWebm(){if(exporting)return;pause();exporting=true;$('export').disabled=true;$('status').textContent='Exportando 1080 × 1920 em 30 fps…';
+ let canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;let ctx=canvas.getContext('2d',{alpha:false});let stream=canvas.captureStream(30);let format=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(x=>MediaRecorder.isTypeSupported(x));
+ if(!format){$('status').textContent='Navegador não suporta exportação WebM.';$('export').disabled=false;exporting=false;return;}
+ let mr;let chunks=[];let actx=null;try{
+  if(audio){actx=new (window.AudioContext||window.webkitAudioContext)();let dest=actx.createMediaStreamDestination();let src=actx.createMediaElementSource(audio);src.connect(dest);src.connect(actx.destination);for(const track of dest.stream.getAudioTracks())stream.addTrack(track);}
+  mr=new MediaRecorder(stream,{mimeType:format,videoBitsPerSecond:9_000_000});mr.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  let complete=new Promise((resolve,reject)=>{mr.onstop=resolve;mr.onerror=reject;});mr.start(300);
+  const draw=async(t)=>{render(t);const clone=$('stage').cloneNode(true);clone.setAttribute('width','1080');clone.setAttribute('height','1920');clone.querySelectorAll('#dotBase circle,#dotExtra circle').forEach(()=>{});const xml=new XMLSerializer().serializeToString(clone);let blob=new Blob([xml],{type:'image/svg+xml;charset=utf-8'});let url=URL.createObjectURL(blob);let img=new Image();try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});ctx.fillStyle='#f3efe6';ctx.fillRect(0,0,1080,1920);ctx.drawImage(img,0,0,1080,1920)}finally{URL.revokeObjectURL(url)}};
+  render(0);if(audio){audio.currentTime=0;await audio.play().catch(()=>{});}
+  let start=performance.now();let last=-1;
+  await new Promise(resolve=>{const loop=async()=>{let elapsed=Math.min(12,(performance.now()-start)/1000);let frame=Math.min(360,Math.floor(elapsed*30));if(frame!==last){last=frame;await draw(frame/30);$('status').textContent=`Exportando: ${(100*elapsed/12).toFixed(0)}%`;}if(elapsed>=12){resolve();return;}requestAnimationFrame(loop)};requestAnimationFrame(loop)});
+  if(audio)audio.pause();mr.stop();await complete;
+  let video=new Blob(chunks,{type:format});let url=URL.createObjectURL(video);let a=document.createElement('a');a.href=url;a.download='crieseuvideo_pizzaria_editorial_12s.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+  $('status').textContent=`WebM exportado (${(video.size/1048576).toFixed(1)} MB). Verifique áudio e compatibilidade.`;
+ }catch(err){$('status').textContent='Falha na exportação: '+(err.message||err);console.error(err);}
+ finally{if(mr&&mr.state!=='inactive')mr.stop();stream.getTracks().forEach(t=>t.stop());if(actx)actx.close();$('export').disabled=false;exporting=false;render(0);}
+}
+$('export').onclick=exportWebm;
+render(0);
+})();
+</script>
+</body></html>

@@ -1,0 +1,51 @@
+name: Cinema 2D visual QA (screenshots, no AI credits)
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/editorial-2d-scenespec-v1-20261123]
+permissions:
+  contents: read
+concurrency:
+  group: editorial2d-visual-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  render-and-inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Unit tests, build and types
+        run: |
+          bun run test
+          bun run build
+          bunx tsc --noEmit
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Serve local site with no secrets
+        run: |
+          mkdir -p tmp/editorial2d-visual-qa
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort > tmp/editorial2d-visual-qa/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/cinema-2d >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 tmp/editorial2d-visual-qa/vite.log
+          exit 1
+      - name: Capture timeline frames and check layout
+        run: bun scripts/editorial2d-visual-qa.mjs
+      - name: Keep screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinema-2d-frames-for-vision-review
+          path: tmp/editorial2d-visual-qa/
+          retention-days: 7
+          if-no-files-found: warn

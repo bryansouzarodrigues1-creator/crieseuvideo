@@ -566,6 +566,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         <div className="production-brand"><Clapperboard /><strong>CrieSeuVideo <span>Studio</span></strong></div>
         <div className="explainer-nav-links">
           <Button variant="ghost" size="sm" onClick={() => setLibrary(true)}><FolderOpen />Meus projetos</Button>
+          <a href="/cinema-2d" className="native-3d-nav-link" aria-label="Abrir estúdio Cinema 2D">🎬 Cinema 2D <span>novo</span></a>
           <Button variant="ghost" size="sm" onClick={onOpenEditor}>Editor de cenas</Button>
           <Button variant="ghost" size="sm" onClick={onOpenVideo}><Film />Vídeo por IA</Button>
           <a href="/motor-3d" className="native-3d-nav-link" aria-label="Abrir motor 3D experimental">
