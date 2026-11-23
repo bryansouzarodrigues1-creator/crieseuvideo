@@ -1,0 +1,54 @@
+name: One-shot Gemini Vision test for Cinema 2D
+on:
+  push:
+    branches: [feature/editorial-2d-scenespec-v1-20261123]
+    paths:
+      - '.github/workflows/editorial2d-gemini-once.yml'
+permissions:
+  contents: read
+jobs:
+  gemini-once:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      GEMINI_TEST_MODEL: ${{ vars.GEMINI_AI_MODEL || 'gemini-3.8-flash' }}
+      GEMINI_TEST_API_KEY: ${{ secrets.FREEFORM_3D_GEMINI_API_KEY || secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify unit tests, build and TypeScript
+        run: |
+          bun run test
+          bun run build
+          bunx tsc --noEmit
+      - name: Install browser
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start local Cinema 2D renderer
+        run: |
+          mkdir -p tmp/editorial2d-visual-qa tmp/editorial2d-gemini
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/editorial2d-visual-qa/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/cinema-2d >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -60 tmp/editorial2d-visual-qa/vite.log
+          exit 1
+      - name: Capture real frames without any model calls
+        run: bun scripts/editorial2d-visual-qa.mjs
+      - name: Send exactly three images to configured Gemini (no retries/fallback)
+        run: bun scripts/editorial2d-gemini-vision-probe.mjs
+      - name: Archive screenshots and Gemini diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-cinema2d-one-shot-evidence
+          path: |
+            tmp/editorial2d-visual-qa/
+            tmp/editorial2d-gemini/
+          retention-days: 7
+          if-no-files-found: warn
