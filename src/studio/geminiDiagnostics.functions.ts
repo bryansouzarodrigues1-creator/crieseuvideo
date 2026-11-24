@@ -22,7 +22,7 @@ export type GeminiModelStatus = {
 };
 
 const input=z.object({
-  geminiModel:z.enum(['default','gemini-3.6-flash','gemini-3.8-flash'])
+  geminiModel:z.enum(['default','gemini-3.5-flash-lite','gemini-3.6-flash','gemini-3.8-flash'])
 }).strict();
 
 export const checkGeminiModelStatus=createServerFn({method:'POST'})
@@ -113,7 +113,7 @@ export const probeGeminiInference=createServerFn({method:'POST'})
           headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
           body:JSON.stringify({
             contents:[{role:'user',parts:[{text:'Responda somente OK.'}]}],
-            generationConfig:{maxOutputTokens:80,thinkingConfig:{thinkingLevel:'low'}},
+            generationConfig:{maxOutputTokens:80,thinkingConfig:{thinkingLevel:model==='gemini-3.5-flash-lite'?'minimal':'low'}},
           }),
           signal:AbortSignal.timeout(25000),
         }
