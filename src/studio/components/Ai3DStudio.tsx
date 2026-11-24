@@ -176,7 +176,10 @@ export default function Ai3DStudio(){
       });
       setClip(result.clip);setUsedProvider(result.provider);
     }catch(e){
-      setError('A IA não conseguiu construir uma cena 3D válida: '+(e instanceof Error?e.message:String(e)));
+      const message=e instanceof Error?e.message:String(e);
+      setError(/HTTP 5xx|serviço indisponível|falha temporária do serviço/i.test(message)
+        ?'O Gemini não conseguiu atender a chamada (erro HTTP 5xx). A cena não foi entregue ao motor. Você pode verificar a conexão sem gerar vídeo ou escolher outro modelo manualmente. '+message
+        :'A IA não conseguiu construir uma cena 3D válida: '+message);
     }finally{setBusy(false);}
   };
   const seek=(t:number)=>{
