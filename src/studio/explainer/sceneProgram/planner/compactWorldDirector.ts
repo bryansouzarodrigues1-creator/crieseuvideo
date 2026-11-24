@@ -97,22 +97,19 @@ function parsePlan(raw:unknown):Plan {
       at:vec(item.at,'posição'),size:sized(item.size,'dimensões'),
       color:hex(item.color,'cor do objeto'),details};
   });
-  // Backwards compatible with old single-action clips. New AI-directed clips
-  // can show distinct events in consecutive narration segments. Require
-  // different targets to avoid contradictory animation tracks for one node.
+  // Consecutive story beats may act on the SAME persistent object: lift,
+  // transport and put down must never spawn a duplicate cargo or teleport it.
+  // The compiler merges those actions into one channel track per object.
   if(raw.action!==undefined && raw.actions!==undefined)
     fail('Use action ou actions, nunca os dois ao mesmo tempo.');
   const rawActions=raw.actions===undefined?[raw.action]:raw.actions;
   if(!Array.isArray(rawActions)||rawActions.length<1||rawActions.length>3)
     fail('A cena deve conter de uma a três ações verificáveis.');
-  const usedTargets=new Set<string>();
   const actions=(rawActions as unknown[]).map((rawAction:unknown,i:number):Action=>{
     if(!isObject(rawAction))return fail('A ação '+(i+1)+' não é um objeto JSON.');
     keys(rawAction,['target','kind','delta','sourceId'],'ação');
     const target=id(rawAction.target,'alvo');
     if(!seen.has(target))fail('A ação deve mover um dos objetos presentes na cena.');
-    if(usedTargets.has(target))fail('Duas ações não podem comandar o mesmo objeto simultaneamente neste motor.');
-    usedTargets.add(target);
     const actionKind=String(rawAction.kind);
     if(!actionKinds.includes(actionKind))fail('Ação de animação desconhecida.');
     const delta=vec(rawAction.delta,'deslocamento',-18,18);
@@ -121,9 +118,6 @@ function parsePlan(raw:unknown):Plan {
        distance>23)fail('A ação precisa produzir deslocamento ou rotação perceptível.');
     if(actionKind==='lift'&&delta[1]<.7||actionKind==='lower'&&delta[1]>-.7)
       fail('A carga deve subir ou descer na direção esperada.');
-    if(actionKind!=='rotate'&&actionKind!=='open'&&actionKind!=='lower'&&
-       entities.find(e=>e.id===target)!.at[1]+delta[1]<-.4)
-      fail('O objeto atravessaria o piso.');
     return {target,kind:actionKind as ActionKind,delta,
       ...(rawAction.sourceId===undefined?{}:{sourceId:id(rawAction.sourceId,'frase da ação')})};
   });
@@ -154,7 +148,7 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     `actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"ID de uma frase existente",target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}. IDs disponíveis: ${allowedSourceIds}.`, 
     'sourceId indica a frase EXATA em que começa o movimento. Se a primeira frase só apresenta o problema, mostre a falha antes da solução; use os capítulos seguintes quando existirem. Em uma única frase, use somente o seu único sourceId. Ordem crescente.',
     'Quando a história tiver problema, solução e resultado, use 2 ou 3 ações com ALVOS DIFERENTES: faça a solução acontecer fisicamente e mostre sua consequência. Não entregue um único objeto girando sem explicar a história.',
-    'Cada alvo só pode aparecer uma vez em actions nesta versão. Deslocamento >= 0.7 m ou rotação >= 0.45 rad; <= 18 m por eixo.',
+    'Pode usar o MESMO target em ações consecutivas, em sourceIds crescentes: ex. carga sobe, avança e desce. O motor preserva sua posição. Deslocamento >= 0.7 m ou rotação >= 0.45 rad.',
     'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover a construção inteira se o roteiro trata de um portão: crie uma entidade gate independente da garagem e use lift para o portão que sobe, drive apenas quando a passagem estiver livre.',
     'Inclua a máquina que aciona a carga e a própria carga como entidades distintas; a posição inicial deve estar próxima da máquina.',
     'Não repita citações do roteiro dentro do JSON: elas serão preservadas pelo servidor.',
