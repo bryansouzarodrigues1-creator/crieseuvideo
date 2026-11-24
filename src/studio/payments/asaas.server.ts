@@ -10,10 +10,8 @@ function sandboxConfig() {
    throw new Error('Checkout Pix desativado. Ative somente após homologação no Sandbox.');
  }
  const apiKey = process.env['ASAAS_API_KEY'];
- const pixKey = process.env['ASAAS_PIX_ADDRESS_KEY'];
- const webhookToken = process.env['ASAAS_WEBHOOK_TOKEN'];
- if (!apiKey || !pixKey || !webhookToken) throw new Error('Configuração Asaas Sandbox incompleta.');
- return { apiKey, pixKey };
+ if (!apiKey) throw new Error('API Key do Asaas Sandbox não configurada.');
+ return { apiKey };
 }
 async function asaasRequest(path: string, init?: RequestInit): Promise<unknown> {
  const { apiKey } = sandboxConfig();
@@ -30,8 +28,43 @@ async function asaasRequest(path: string, init?: RequestInit): Promise<unknown> 
  if (!response.ok) throw new Error('Asaas Sandbox respondeu HTTP ' + response.status);
  return response.json();
 }
+
+/**
+ * Reuse an already active receiving Pix key. Never create a new DICT key
+ * automatically and never guess which key to use when multiple are active.
+ * An operator may still pin ASAAS_PIX_ADDRESS_KEY as a server secret.
+ */
+export async function findUniqueActivePixKeySandbox(): Promise<string> {
+ const res = await asaasRequest('/pix/addressKeys?status=ACTIVE&limit=100') as {
+   data?: Array<{ key?: unknown; status?: unknown }>;
+   hasMore?: boolean;
+ };
+ const keys = (res.data ?? [])
+   .filter((entry) => entry.status === 'ACTIVE' && typeof entry.key === 'string' && entry.key.length > 5);
+ if (!Array.isArray(res.data) || res.hasMore || keys.length !== 1) {
+   throw new Error('O Asaas Sandbox precisa ter exatamente uma chave Pix ativa, ou configure ASAAS_PIX_ADDRESS_KEY explicitamente.');
+ }
+ return keys[0].key as string;
+}
+
+/**
+ * Independent reconciliation when a webhook has not been configured yet.
+ * Never trust status supplied by the browser or a webhook body.
+ */
+export async function listStaticPixPaymentIdsSandbox(qrId: string): Promise<string[]> {
+ if (!/^[A-Za-z0-9_-]{4,150}$/.test(qrId)) throw new Error('Identificador de QR inválido.');
+ const body = await asaasRequest('/payments?pixQrCodeId=' + encodeURIComponent(qrId) + '&limit=20') as {
+   data?: Array<{ id?: unknown }>;
+   hasMore?: boolean;
+ };
+ if (!Array.isArray(body.data) || body.hasMore) throw new Error('Resposta de pagamentos incompleta.');
+ return body.data.map(p => p.id).filter((id): id is string =>
+   typeof id === 'string' && /^pay_[A-Za-z0-9_-]{4,100}$/.test(id));
+}
+
 export async function createStaticPixSandbox(orderId: string): Promise<{ id: string; payload: string }> {
- const { pixKey } = sandboxConfig();
+ sandboxConfig();
+ const pixKey = process.env['ASAAS_PIX_ADDRESS_KEY'] || await findUniqueActivePixKeySandbox();
  const preview = previewStaticPix('intro-2d', orderId, pixKey);
  const body = await asaasRequest(preview.endpoint, {
    method: preview.method,
