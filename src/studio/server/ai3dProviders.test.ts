@@ -67,7 +67,7 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
   });
   it('selects Gemini 3.5 Flash-Lite only when explicitly requested',async()=>{
     process.env.GEMINI_API_KEY='dummy-test-secret';
-    const fetchMock=vi.fn(async()=>new Response('',{status:503}));
+    const fetchMock=vi.fn(async(_url:string|URL|Request)=>new Response('',{status:503}));
     vi.stubGlobal('fetch',fetchMock);
     const problem=await ask3DWorldAi('scene','gemini',undefined,undefined,'gemini-3.5-flash-lite').catch(e=>e);
     expect(problem).toBeInstanceOf(Ai3DProviderError);
