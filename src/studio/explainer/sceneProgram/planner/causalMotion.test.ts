@@ -13,12 +13,12 @@ const factory=()=>({
  version:1,setting:'industrial',background:'#C5DCEB',
  entities:[
   {id:'crane',name:'Guindaste com carrinho móvel',kind:'crane',at:[-2,0,0],size:[7,9,3],color:'#D6A442'},
-  {id:'load',name:'A mesma caixa do começo ao fim',kind:'cargo',at:[1,1,0],size:[1.5,1,1],color:'#C9B394'},
-  {id:'landing',name:'Plataforma elevada de recebimento',kind:'platform',at:[2.2,0,0],size:[3.2,1,3],color:'#8199A2'},
+  {id:'load',name:'A mesma caixa do começo ao fim',kind:'cargo',at:[0,1,0],size:[1.5,1,1],color:'#C9B394'},
+  {id:'landing',name:'Plataforma elevada de recebimento',kind:'platform',at:[2.2,0,0],size:[2.4,1,2.8],color:'#8199A2'},
  ],
  actions:[
   {sourceId:'s1',target:'load',kind:'lift',delta:[0,3,0]},
-  {sourceId:'s2',target:'load',kind:'move',delta:[1.2,0,0]},
+  {sourceId:'s2',target:'load',kind:'move',delta:[2.2,0,0]},
   {sourceId:'s3',target:'load',kind:'lower',delta:[0,-3,0],onto:'landing'},
  ]
 });
@@ -34,7 +34,7 @@ describe('3D causal motion: one persistent cargo, three story beats',()=>{
   const begin=get(0,'load'),up=get(3.99,'load');
   const carried=get(7.99,'load'),end=get(12,'load');
   expect(end[1]+.02).toBeCloseTo(1,1); // cargo base meets the actual deck
-  expect(begin).toEqual([1,1,0]);
+  expect(begin).toEqual([0,1,0]);
   expect(up[1]-begin[1]).toBeGreaterThan(2.8);
   expect(carried[0]-up[0]).toBeGreaterThan(1.1);
   expect(carried[1]).toBeCloseTo(up[1],2);
