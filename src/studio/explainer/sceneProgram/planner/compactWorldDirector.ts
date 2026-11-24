@@ -427,7 +427,7 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
   const rigCargo=crane&&cargoIds.length?objects.find(e=>e.id===cargoIds[0]):undefined;
   // Calculate rope and hook geometry from the ACTUAL persistent cargo world position.
   const rig=(pos:Vec)=>{
-    if(!crane||!rigCargo)fail('Guindaste ou carga ausente.');
+    if(!crane||!rigCargo)return fail('Guindaste ou carga ausente.');
     const x=pos[0]-crane.at[0],z=pos[2]-crane.at[2],h=crane.size[1];
     if(x< -crane.size[0]*.35-.08||x>crane.size[0]*.65+.08||
        Math.abs(z)>Math.max(.65,crane.size[2]*.65))
