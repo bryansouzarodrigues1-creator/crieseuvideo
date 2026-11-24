@@ -13,11 +13,11 @@ const factory=()=>({
  version:1,setting:'industrial',background:'#C5DCEB',
  entities:[
   {id:'crane',name:'Guindaste com carrinho móvel',kind:'crane',at:[-2,0,0],size:[7,9,3],color:'#D6A442'},
-  {id:'load',name:'A mesma caixa do começo ao fim',kind:'cargo',at:[0,1,0],size:[1.5,1,1],color:'#C9B394'},
+  {id:'load',name:'A mesma caixa do começo ao fim',kind:'cargo',at:[0,0,0],size:[1.5,1,1],color:'#C9B394'},
   {id:'landing',name:'Plataforma elevada de recebimento',kind:'platform',at:[2.2,0,0],size:[2.4,1,2.8],color:'#8199A2'},
  ],
  actions:[
-  {sourceId:'s1',target:'load',kind:'lift',delta:[0,3,0]},
+  {sourceId:'s1',target:'load',kind:'lift',delta:[0,4,0]},
   {sourceId:'s2',target:'load',kind:'move',delta:[2.2,0,0]},
   {sourceId:'s3',target:'load',kind:'lower',delta:[0,-3,0],onto:'landing'},
  ]
@@ -34,12 +34,12 @@ describe('3D causal motion: one persistent cargo, three story beats',()=>{
   const begin=get(0,'load'),up=get(3.99,'load');
   const carried=get(7.99,'load'),end=get(12,'load');
   expect(end[1]+.02).toBeCloseTo(1,1); // cargo base meets the actual deck
-  expect(begin).toEqual([0,1,0]);
+  expect(begin).toEqual([0,0,0]); // starts on the actual ground
   expect(up[1]-begin[1]).toBeGreaterThan(2.8);
   expect(carried[0]-up[0]).toBeGreaterThan(1.1);
   expect(carried[1]).toBeCloseTo(up[1],2);
   expect(end[0]).toBeCloseTo(carried[0],2);
-  expect(end[1]).toBeCloseTo(begin[1],2);
+  expect(end[1]).toBeCloseTo(1,2); // ends on the elevated platform
   for(const cut of [4,8]){
    const before=get(cut-.001,'load'),after=get(cut+.001,'load');
    expect(Math.hypot(...before.map((v,i)=>v-after[i]))).toBeLessThan(.015);
@@ -75,7 +75,8 @@ describe('3D causal motion: one persistent cargo, three story beats',()=>{
   const raised=sampler.sample(3.99).get('crane-cable')!.scale[1];
   const lowered=sampler.sample(12).get('crane-cable')!.scale[1];
   expect(raised).toBeLessThan(first);
-  expect(lowered).toBeCloseTo(first,2);
+  expect(lowered).toBeGreaterThan(raised);
+  expect(lowered).toBeLessThan(first); // raised platform needs less rope than ground
   // Camera must show the machine AND the cargo, not crop out the crane.
   expect(clip.program.shots.map(s=>s.subjects))
    .toEqual([['crane','load','landing'],['crane','load','landing'],['crane','load','landing']]);
