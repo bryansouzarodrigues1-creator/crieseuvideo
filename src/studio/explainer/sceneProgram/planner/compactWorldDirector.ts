@@ -395,52 +395,93 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     previousChapter=chapter;
     return chapter;
   });
-  const tracks:Record<string,unknown>[]=[];
+  type Channel='position'|'rotation'|'scale';
+  type Key={sourceId:string;phase:number;value:Vec};
+  type Assembled={node:string;channel:Channel;interpolation:'smooth';keys:Key[];last:Vec};
+  const curves=new Map<string,Assembled>();
+  const spread=input.actions.length===1&&!input.actions[0].sourceId;
+  // Merge all beats for the same object/channel into one continuous track.
+  const segment=(node:string,channel:Channel,chapter:number,from:Vec,to:Vec)=>{
+    const key=node+'/'+channel,old=curves.get(key);
+    if(!old){
+      curves.set(key,{node,channel,interpolation:'smooth',
+        keys:spread?frames(sourceIds,from,to):actionFrames(sourceIds,chapter,from,to),last:to});
+      return;
+    }
+    if(Math.hypot(...from.map((v,i)=>v-old.last[i]))>.002)
+      fail('A ação perdeu a posição do objeto entre capítulos: '+node);
+    old.keys.pop(); // remove previous end-of-film hold before appending a new beat
+    const sourceId=sourceIds[chapter],lastId=sourceIds[sourceIds.length-1];
+    old.keys.push(
+      {sourceId,phase:0,value:from},{sourceId,phase:.14,value:from},
+      {sourceId,phase:.90,value:to},{sourceId:lastId,phase:1,value:to});
+    old.last=to;
+  };
+  const positionState=new Map<string,Vec>(),rotationState=new Map<string,Vec>();
+  const wheelState=new Map<string,number>();
+  const crane=objects.find(e=>e.kind==='crane');
+  const cargoIds=[...new Set(input.actions.filter(a=>
+    objects.some(e=>e.id===a.target&&e.kind==='cargo')).map(a=>a.target))];
+  if(crane&&cargoIds.length>1)
+    fail('Um guindaste precisa acompanhar uma carga de cada vez.');
+  const rigCargo=crane&&cargoIds.length?objects.find(e=>e.id===cargoIds[0]):undefined;
+  // Calculate rope and hook geometry from the ACTUAL persistent cargo world position.
+  const rig=(pos:Vec)=>{
+    if(!crane||!rigCargo)fail('Guindaste ou carga ausente.');
+    const x=pos[0]-crane.at[0],z=pos[2]-crane.at[2],h=crane.size[1];
+    if(x< -crane.size[0]*.35-.08||x>crane.size[0]*.65+.08||
+       Math.abs(z)>Math.max(.65,crane.size[2]*.65))
+      fail('Carga fora do alcance do braço do guindaste.');
+    const hookY=pos[1]+rigCargo.size[1]+.12-crane.at[1];
+    const rope=h*.90-hookY;
+    if(rope<.22||rope>h*.92)
+      fail('O gancho e o cabo ultrapassariam o alcance vertical da grua.');
+    return {
+      trolley:[round(x),round(h*.90),round(z)] as Vec,
+      hook:[round(x),round(hookY),round(z)] as Vec,
+      cable:[round(x),round(hookY+rope/2),round(z)] as Vec,
+      scale:[1,round(rope/(h*.65)),1] as Vec,
+    };
+  };
+  let winchAngle=0;
   for(const [index,action] of input.actions.entries()){
-    const chapter=chapters[index];
-    const target=objects.find(o=>o.id===action.target)!;
-    const rotating=action.kind==='rotate'||action.kind==='open';
-    const from:Vec=rotating?[0,0,0]:target.at;
-    const to:Vec=from.map((v,i)=>round(v+action.delta[i])) as Vec;
-    const eventKeys=(from:Vec,to:Vec)=>input.actions.length===1&&!action.sourceId
-      ?frames(sourceIds,from,to)
-      :actionFrames(sourceIds,chapter,from,to);
-    tracks.push({
-      node:action.target,channel:rotating?'rotation':'position',
-      interpolation:'smooth',keys:eventKeys(from,to),
-    });
-    const isVehicle=(target.kind==='vehicle'||target.kind==='motorcycle')&&!rotating;
-    if(isVehicle){
+    const chapter=chapters[index],target=objects.find(e=>e.id===action.target)!;
+    const rotate=action.kind==='rotate'||action.kind==='open';
+    const state=rotate?rotationState:positionState;
+    const from:Vec=state.get(target.id)??(rotate?[0,0,0]:[...target.at] as Vec);
+    const to=from.map((v,i)=>round(v+action.delta[i])) as Vec;
+    if(!rotate&&to[1]<-.05)fail('A carga atravessaria o piso nesta etapa.');
+    segment(target.id,rotate?'rotation':'position',chapter,from,to);
+    state.set(target.id,to);
+
+    if(!rotate&&(target.kind==='vehicle'||target.kind==='motorcycle')){
       const distance=Math.hypot(action.delta[0],action.delta[2]);
-      const radius=target.kind==='motorcycle'
-        ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
-        :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
-      const theta=round(distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
-      for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb'])){
-        tracks.push({node:target.id+'-wheel'+side,channel:'rotation',
-          interpolation:'smooth',keys:eventKeys([0,0,0],[0,0,theta])});
+      if(distance>.01){
+        const radius=target.kind==='motorcycle'
+          ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
+          :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
+        const prev=wheelState.get(target.id)??0;
+        const next=round(prev+distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
+        for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb']))
+          segment(target.id+'-wheel'+side,'rotation',chapter,[0,0,prev],[0,0,next]);
+        wheelState.set(target.id,next);
       }
     }
-    // Mechanically coupled drum, cable and hook follow the actual load,
-    // with the same chapter timing, instead of spinning independently.
-    const crane=objects.find(o=>o.kind==='crane');
-    if(crane && target.kind==='cargo' && Math.abs(action.delta[1])>.7){
-      const radius=.30;
-      tracks.push({node:crane.id+'-winch',channel:'rotation',
-        interpolation:'smooth',
-        keys:eventKeys([0,0,0],[0,0,round(action.delta[1]/radius)])});
-      const initialLen=crane.size[1]*.65;
-      const nextLen=Math.max(.2,initialLen-action.delta[1]);
-      tracks.push({node:crane.id+'-cable',channel:'scale',interpolation:'smooth',
-        keys:eventKeys([1,1,1],[1,round(nextLen/initialLen),1])});
-      tracks.push({node:crane.id+'-cable',channel:'position',interpolation:'smooth',
-        keys:eventKeys([crane.size[0]*.40,crane.size[1]*.56,0],
-          [crane.size[0]*.40,round(crane.size[1]*.56+action.delta[1]*.5),0])});
-      tracks.push({node:crane.id+'-hook',channel:'position',interpolation:'smooth',
-        keys:eventKeys([crane.size[0]*.40,crane.size[1]*.21,0],
-          [crane.size[0]*.40,round(crane.size[1]*.21+action.delta[1]),0])});
+    if(crane&&rigCargo&&target.id===rigCargo.id&&!rotate){
+      const before=rig(from),after=rig(to);
+      segment(crane.id+'-trolley','position',chapter,before.trolley,after.trolley);
+      segment(crane.id+'-hook','position',chapter,before.hook,after.hook);
+      segment(crane.id+'-cable','position',chapter,before.cable,after.cable);
+      segment(crane.id+'-cable','scale',chapter,before.scale,after.scale);
+      const nextAngle=round(winchAngle+action.delta[1]/.30);
+      segment(crane.id+'-winch','rotation',chapter,[0,0,winchAngle],[0,0,nextAngle]);
+      winchAngle=nextAngle;
     }
   }
+  const tracks:Record<string,unknown>[]=[...curves.values()].map(t=>({
+    node:t.node,channel:t.channel,interpolation:t.interpolation,keys:t.keys
+  }));
+
   // Each narrative chapter follows the action authored for that chapter.
   // If there are fewer actions than sentences, hold the final subject.
   const subjectFor=(i:number)=>{
@@ -453,7 +494,9 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     sceneProgram:{
       version:1,background:input.background,nodes:[],tracks,
       shots:sourceIds.map((s,i)=>camera(s,
-        i===0?[...new Set([objects[0].id,subjectFor(i)])]:[subjectFor(i)],i)),
+        crane&&rigCargo&&subjectFor(i)===rigCargo.id
+          ?[crane.id,rigCargo.id]
+          :i===0?[...new Set([objects[0].id,subjectFor(i)])]:[subjectFor(i)],i)),
       contacts:[]
     },
     worldBlueprints:{
