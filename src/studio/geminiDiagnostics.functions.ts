@@ -22,7 +22,7 @@ export type GeminiModelStatus = {
 };
 
 const input=z.object({
-  geminiModel:z.enum(['default','gemini-3.6-flash','gemini-3.8-flash'])
+  geminiModel:z.enum(['default','gemini-3.5-flash-lite','gemini-3.6-flash','gemini-3.8-flash'])
 }).strict();
 
 export const checkGeminiModelStatus=createServerFn({method:'POST'})
@@ -97,11 +97,12 @@ export const probeGeminiInference=createServerFn({method:'POST'})
     if(!key)return {model,status:'not_configured',note:'GEMINI_API_KEY ausente no servidor.'};
     const user=context.userId;
     const now=Date.now();
-    const last=userProbeTimes.get(user)??0;
+    const probeKey=user+':'+model;
+    const last=userProbeTimes.get(probeKey)??0;
     if(now-last<PROBE_COOLDOWN_MS)
       return {model,status:'rate_limited',
-        note:'O teste mínimo já foi solicitado recentemente. Aguarde 15 minutos para evitar gastar tokens repetidos.'};
-    userProbeTimes.set(user,now);
+        note:'Este modelo já foi testado recentemente. Aguarde 15 minutos para repetir no mesmo modelo sem gastar tokens desnecessários.'};
+    userProbeTimes.set(probeKey,now);
     if(userProbeTimes.size>2000)userProbeTimes.clear();
     const started=Date.now();
     try{
@@ -113,7 +114,7 @@ export const probeGeminiInference=createServerFn({method:'POST'})
           headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
           body:JSON.stringify({
             contents:[{role:'user',parts:[{text:'Responda somente OK.'}]}],
-            generationConfig:{maxOutputTokens:80,thinkingConfig:{thinkingLevel:'low'}},
+            generationConfig:{maxOutputTokens:80,thinkingConfig:{thinkingLevel:model==='gemini-3.5-flash-lite'?'minimal':'low'}},
           }),
           signal:AbortSignal.timeout(25000),
         }

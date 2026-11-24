@@ -263,6 +263,7 @@ export default function Ai3DStudio(){
             onChange={e=>{setGeminiModel(e.target.value as GeminiModelChoice);setModelStatus(null);setProbeStatus(null);}}
             disabled={busy||checkingModel}>
             <option value="default">Padrão configurado no servidor</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite · econômico (teste)</option>
             <option value="gemini-3.6-flash">Gemini 3.6 Flash · alternativa manual</option>
             <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
           </select>
@@ -301,7 +302,7 @@ export default function Ai3DStudio(){
           <p style={{fontSize:12,lineHeight:1.6,color:'#abc1d1',marginTop:10}}>
             O diagnóstico apenas consulta o catálogo Google, sem gastar tokens de geração.
             Erros 500/503 no momento de gerar podem ocorrer mesmo com o modelo acessível.
-            Escolher outra versão não dispara uma geração automaticamente.
+            Escolher outra versão não dispara uma geração automaticamente. Flash-Lite é menos potente para cenas complexas; teste a conexão antes de gerar um vídeo.
           </p>
         </div>}
         <p className="native-3d-small" role="note">Ao clicar em Gerar cena 3D, você solicita uma geração que pode consumir créditos mesmo que falhe. No modo Automático, até dois provedores podem ser consultados.</p>
