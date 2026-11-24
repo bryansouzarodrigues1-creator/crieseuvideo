@@ -218,12 +218,15 @@ describe('compact model-authored 3D worlds (no real AI calls)',()=>{
       {...scene.actions[1],sourceId:'s3'}
     ]},threeSource)).toThrow(/frase que não existe/);
   });
-  it('rejects overlapping targets and more action events than narrated chapters',()=>{
-    const duplicate={...crane,action:undefined,actions:[
+  it('accepts the same target across chapters and rejects more actions than narrated beats',()=>{
+    const continuous={...crane,action:undefined,actions:[
       {target:'load',kind:'lift',delta:[0,3,0]},
-      {target:'load',kind:'move',delta:[2,0,0]}
+      {target:'load',kind:'move',delta:[1,0,0]}
     ]};
-    expect(()=>compileCompactWorld(duplicate,sources)).toThrow(/mesmo objeto/);
+    const moved=compileCompactWorld(continuous,sources);
+    expect(moved.program.tracks.filter(t=>t.node==='load'&&t.channel==='position')).toHaveLength(1);
+    expect(compileSceneProgram(moved.program,moved.sources).sample(8).get('load')!.position[0])
+      .toBeCloseTo(2);
     const extra={...vehicle,action:undefined,actions:[
       {target:'motorbike',kind:'drive',delta:[5,0,0]},
       {target:'street',kind:'rotate',delta:[0,0,1]},
