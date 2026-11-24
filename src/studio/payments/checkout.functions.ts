@@ -133,3 +133,14 @@ export const verifyMyPixSandboxPayment = createServerFn({ method: 'POST' })
   }
   return { state: 'pending' as const };
  });
+
+/**
+ * Test-only read-only provider check. No checkout or Pix key needed.
+ * Returns no account or credential data.
+ */
+export const checkAsaasSandboxConnection = createServerFn({ method: 'POST' })
+ .middleware([requireSupabaseAuth])
+ .handler(async () => {
+   const { probeAsaasSandboxCredential } = await import('./asaas.server');
+   return probeAsaasSandboxCredential();
+ });
