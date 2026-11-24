@@ -10,7 +10,7 @@ const input=z.object({
   script:z.string().min(45).max(750),
   provider:z.enum(['auto','gemini','lovable']),
   confirmCost:z.literal(true),
-  geminiModel:z.enum(['default','gemini-3.6-flash','gemini-3.8-flash']).default('default'),
+  geminiModel:z.enum(['default','gemini-3.5-flash-lite','gemini-3.6-flash','gemini-3.8-flash']).default('default'),
 }).strict();
 
 // A first-line safeguard only; it does not replace durable DB quotas for
