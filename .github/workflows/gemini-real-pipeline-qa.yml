@@ -1,0 +1,78 @@
+name: Gemini real API -> CrieSeuVideo 3D smoke test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/gemini-real-pipeline-qa.yml'
+      - 'scripts/gemini-live-smoke.mts'
+      - 'scripts/gemini-live-browser-qa.mjs'
+      - 'src/studio/server/ai3dSchema.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gemini-real-one-request-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gemini-real-one-call:
+    # Never expose repository secrets to a forked PR. Only this internal branch.
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'engine/continuous-object-actions-20261124')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 23
+    env:
+      CI: 'true'
+      GEMINI_AI_MODEL: gemini-3.8-flash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked packages
+        run: bun install --frozen-lockfile
+      - name: Verify prompt and structured-schema compatibility (mock only)
+        run: bunx vitest run src/studio/server/geminiWorldContract.test.ts
+      - name: One LIVE Gemini request (only if a GitHub Actions secret exists)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bun scripts/gemini-live-smoke.mts
+      - name: Chromium for real Three.js and video export (if a model responded)
+        if: success()
+        run: |
+          if [ -f tmp/gemini-live-3d/scene-plan.json ]; then
+            bun add --no-save playwright@1.57.0
+            bunx playwright install chromium
+          else
+            echo 'SKIP: no live Gemini plan was produced; no fake renderer output.'
+          fi
+      - name: Start the actual studio browser test server
+        if: success()
+        run: |
+          if [ -f tmp/gemini-live-3d/scene-plan.json ]; then
+            bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/gemini-live-3d/vite.log 2>&1 &
+            for i in $(seq 1 80); do
+              if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+              sleep 1
+            done
+            tail -80 tmp/gemini-live-3d/vite.log
+            exit 1
+          else
+            echo 'SKIP: no live Gemini plan.'
+          fi
+      - name: Render REAL Gemini plan (portrait screenshots and optional MP4/WebM)
+        if: success()
+        run: |
+          if [ -f tmp/gemini-live-3d/scene-plan.json ]; then
+            bun scripts/gemini-live-browser-qa.mjs
+          else
+            echo 'SKIP: missing live Gemini result. No substituted demo video.'
+          fi
+      - name: Archive provider summary, screenshots and real video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-real-crieseuvideo-smoke
+          path: tmp/gemini-live-3d/
+          retention-days: 7
+          if-no-files-found: warn

@@ -11,12 +11,12 @@ import type {SourceBrief} from './aiWorldDirector';
 
 type Vec=[number,number,number];
 export type SceneSetting='city'|'industrial'|'coast'|'forest'|'interior'|'desert';
-export type EntityKind='building'|'crane'|'machine'|'vehicle'|'motorcycle'|'boat'|'cargo'|'gate'|'tree'|'custom';
+export type EntityKind='building'|'crane'|'machine'|'vehicle'|'motorcycle'|'boat'|'cargo'|'gate'|'platform'|'tree'|'custom';
 type ActionKind='move'|'lift'|'lower'|'drive'|'sail'|'rotate'|'open';
 type Shape='box'|'sphere'|'cylinder'|'cone'|'torus';
 type Detail={id:string;shape:Shape;size:number[];at:Vec;color?:string};
 type Entity={id:string;name:string;kind:EntityKind;at:Vec;size:Vec;color:string;details?:Detail[]};
-type Action={target:string;kind:ActionKind;delta:Vec;sourceId?:string};
+type Action={target:string;kind:ActionKind;delta:Vec;sourceId?:string;onto?:string};
 type Plan={version:1;setting:SceneSetting;background:string;entities:Entity[];actions:Action[]};
 export class CompactWorldError extends Error {
   readonly code='invalid_compact_3d_world';
@@ -48,7 +48,7 @@ const sized=(x:unknown,context:string):Vec=>{
   const r=vec(x,context,.25,24);
   return r;
 };
-const kindAllowed=['building','crane','machine','vehicle','motorcycle','boat','cargo','gate','tree','custom'];
+const kindAllowed=['building','crane','machine','vehicle','motorcycle','boat','cargo','gate','platform','tree','custom'];
 const settings=['city','industrial','coast','forest','interior','desert'];
 const actionKinds=['move','lift','lower','drive','sail','rotate','open'];
 
@@ -97,22 +97,19 @@ function parsePlan(raw:unknown):Plan {
       at:vec(item.at,'posição'),size:sized(item.size,'dimensões'),
       color:hex(item.color,'cor do objeto'),details};
   });
-  // Backwards compatible with old single-action clips. New AI-directed clips
-  // can show distinct events in consecutive narration segments. Require
-  // different targets to avoid contradictory animation tracks for one node.
+  // Consecutive story beats may act on the SAME persistent object: lift,
+  // transport and put down must never spawn a duplicate cargo or teleport it.
+  // The compiler merges those actions into one channel track per object.
   if(raw.action!==undefined && raw.actions!==undefined)
     fail('Use action ou actions, nunca os dois ao mesmo tempo.');
   const rawActions=raw.actions===undefined?[raw.action]:raw.actions;
   if(!Array.isArray(rawActions)||rawActions.length<1||rawActions.length>3)
     fail('A cena deve conter de uma a três ações verificáveis.');
-  const usedTargets=new Set<string>();
   const actions=(rawActions as unknown[]).map((rawAction:unknown,i:number):Action=>{
     if(!isObject(rawAction))return fail('A ação '+(i+1)+' não é um objeto JSON.');
-    keys(rawAction,['target','kind','delta','sourceId'],'ação');
+    keys(rawAction,['target','kind','delta','sourceId','onto'],'ação');
     const target=id(rawAction.target,'alvo');
     if(!seen.has(target))fail('A ação deve mover um dos objetos presentes na cena.');
-    if(usedTargets.has(target))fail('Duas ações não podem comandar o mesmo objeto simultaneamente neste motor.');
-    usedTargets.add(target);
     const actionKind=String(rawAction.kind);
     if(!actionKinds.includes(actionKind))fail('Ação de animação desconhecida.');
     const delta=vec(rawAction.delta,'deslocamento',-18,18);
@@ -121,10 +118,16 @@ function parsePlan(raw:unknown):Plan {
        distance>23)fail('A ação precisa produzir deslocamento ou rotação perceptível.');
     if(actionKind==='lift'&&delta[1]<.7||actionKind==='lower'&&delta[1]>-.7)
       fail('A carga deve subir ou descer na direção esperada.');
-    if(actionKind!=='rotate'&&actionKind!=='open'&&actionKind!=='lower'&&
-       entities.find(e=>e.id===target)!.at[1]+delta[1]<-.4)
-      fail('O objeto atravessaria o piso.');
+    const onto=rawAction.onto===undefined?undefined:id(rawAction.onto,'destino da entrega');
+    if(onto!==undefined){
+      if(actionKind!=='lower'||entities.find(e=>e.id===target)?.kind!=='cargo')
+        fail('A entrega em plataforma só pode ser declarada para uma carga durante a descida.');
+      const platform=entities.find(e=>e.id===onto);
+      if(!platform||platform.kind!=='platform')
+        fail('O destino da carga precisa ser uma plataforma presente no cenário.');
+    }
     return {target,kind:actionKind as ActionKind,delta,
+      ...(onto===undefined?{}:{onto}),
       ...(rawAction.sourceId===undefined?{}:{sourceId:id(rawAction.sourceId,'frase da ação')})};
   });
   return {version:1,setting:raw.setting as SceneSetting,
@@ -149,14 +152,15 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     `],"actions":[{"sourceId":"${exampleSourceId}","target":"veiculo","kind":"drive","delta":[5,0,0]}]}`, 
     'setting: city, industrial, coast, forest, interior, desert. Escolha pelo roteiro; background é hexadecimal #RRGGBB.',
     'entities: de 2 a 7 objetos REAIS do roteiro. Cada objeto {id,name,kind,at:[x,y,z],size:[largura,altura,profundidade],color:"#RRGGBB"}.',
-    'kind: building para construções, crane para gruas/guindastes, machine para motores/máquinas, vehicle para carros/caminhões, motorcycle EXCLUSIVAMENTE para motos de duas rodas, boat para navios/barcos, cargo para caixas/cargas, gate para PORTÕES de garagem ou grades deslizantes, tree para árvores, custom para qualquer coisa diferente.',
+    'kind: building para construções, crane para guindastes, machine para máquinas, vehicle para carros, motorcycle para motos, boat para barcos, cargo para cargas, gate para PORTÕES, platform para plataforma de entrega elevada, tree para árvores, custom para objetos novos.',
     'kind custom DEVE ter details:[{id,shape:"box"|"sphere"|"cylinder"|"cone"|"torus",size:[dimensões corretas],at:[x,y,z],color:"#RRGGBB"},...], de 3 a 12 partes distintas, todas locais ao objeto.',
-    `actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"ID de uma frase existente",target:"id presente",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz]}. IDs disponíveis: ${allowedSourceIds}.`, 
+    `actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"ID de frase",target:"id",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz], onto?:"id_de_platform" (só lower em cargo)}. IDs disponíveis: ${allowedSourceIds}.`, 
     'sourceId indica a frase EXATA em que começa o movimento. Se a primeira frase só apresenta o problema, mostre a falha antes da solução; use os capítulos seguintes quando existirem. Em uma única frase, use somente o seu único sourceId. Ordem crescente.',
-    'Quando a história tiver problema, solução e resultado, use 2 ou 3 ações com ALVOS DIFERENTES: faça a solução acontecer fisicamente e mostre sua consequência. Não entregue um único objeto girando sem explicar a história.',
-    'Cada alvo só pode aparecer uma vez em actions nesta versão. Deslocamento >= 0.7 m ou rotação >= 0.45 rad; <= 18 m por eixo.',
+    'Quando houver problema, solução e resultado, escreva 2 ou 3 ações causais com o MESMO objeto se necessário (ex.: a carga sobe, avança e desce). Use sourceIds em ordem, com continuidade física e sem inventar novas cargas. Não entregue só rotação decorativa.',
+    'Pode usar o MESMO target em ações consecutivas, em sourceIds crescentes: ex. carga sobe, avança e desce. O motor preserva sua posição. Deslocamento >= 0.7 m ou rotação >= 0.45 rad.',
     'Para lift a altura dy tem que ser POSITIVA; lower é NEGATIVA. NUNCA mover a construção inteira se o roteiro trata de um portão: crie uma entidade gate independente da garagem e use lift para o portão que sobe, drive apenas quando a passagem estiver livre.',
     'Inclua a máquina que aciona a carga e a própria carga como entidades distintas; a posição inicial deve estar próxima da máquina.',
+    'Se o roteiro disser que uma carga é depositada numa PLATAFORMA, inclua uma entidade kind:platform (size = altura total do piso) e na ação lower acrescente onto:"id_da_plataforma". Final da carga deve repousar sobre o topo, e o centro deve ficar dentro da superfície.',
     'Não repita citações do roteiro dentro do JSON: elas serão preservadas pelo servidor.',
     'Escolha dimensões realistas entre 0.25 e 24 metros. Evite sobrepor objetos ou deixar o objeto principal atrás de uma parede.',
     'Cores, posição e classe devem corresponder ao pedido, sem escolher o exemplo de veículo quando não houver veículo.',
@@ -199,7 +203,7 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
       box('balcony','sacadas',[w*.65,.12,.32],[0,h*.53,d*.59],bright),
     ];
   }else if(e.kind==='crane'){
-    features=['base','coluna','braco','cabine','tambor','cabo','gancho'];
+    features=['base','coluna','braco','cabine','tambor','cabo','gancho','carrinho'];
     parts=[
       box('foundation','base',[w*.72,.36,d*.74],[0,.18,0],dark),
       box('mast','coluna',[.40,h*.92,.42],[0,h*.46,0],c),
@@ -207,6 +211,9 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
       box('cab','cabine',[w*.23,h*.17,d*.55],[-w*.15,h*.62,0],shade(c,.10)),
       group('winch',[0,h*.76,0]),
       cylinder('spool','tambor',[.30,.30,.46],[0,0,0],'#AAB5C0',{parent:'winch',rotation:[Math.PI/2,0,0]}),
+      // The trolley is a real part of the rig: the rope follows cargo along
+      // the jib instead of floating at the original hook coordinate.
+      box('trolley','carrinho',[.48,.32,.48],[w*.40,h*.90,0],'#48525A'),
       box('cable','cabo',[.06,h*.65,.06],[w*.40,h*.56,0],'#39434B'),
       cylinder('hook','gancho',[.15,.20,.16],[w*.40,h*.21,0],'#D7AB4F'),
     ];
@@ -305,6 +312,22 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
         [-w*.40,h*.27,panelDepth*.56],'#B7C1C4',
         {repeat:{count:6,step:[0,h*.11,0],seed:4}}),
     ];
+  }else if(e.kind==='platform'){
+    // Top face is exactly at entity.at.y + entity.size.y. This known surface
+    // supports deterministic physical delivery QA, not a floating visual cue.
+    const legY=Math.max(.12,h-.14);
+    features=['tablado','pilares','travessas','marcacao','apoio'];
+    parts=[
+      box('deck','tablado',[w,.20,d],[0,h-.10,0],c),
+      box('leg-fl','pilares',[.20,legY,.20],[-w*.42,legY/2,-d*.42],dark),
+      box('leg-fr','pilares',[.20,legY,.20],[w*.42,legY/2,-d*.42],dark),
+      box('leg-bl','pilares',[.20,legY,.20],[-w*.42,legY/2,d*.42],dark),
+      box('leg-br','pilares',[.20,legY,.20],[w*.42,legY/2,d*.42],dark),
+      box('beam-left','travessas',[.13,.20,d*.82],[-w*.42,h*.65,0],dark),
+      box('beam-right','travessas',[.13,.20,d*.82],[w*.42,h*.65,0],dark),
+      box('stripe','marcacao',[w*.72,.025,.09],[0,h+.016,d*.32],bright),
+      box('mat','apoio',[w*.56,.02,d*.56],[0,h+.01,0],shade(c,.08)),
+    ];
   }else if(e.kind==='cargo'){
     features=['volume','cintas','etiqueta','fechos','alcas'];
     parts=[
@@ -332,9 +355,14 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
     e.kind==='crane'||e.kind==='machine'?'mechanism':'prop',
     name:e.name,position:e.at,features,parts};
 }
-const camera=(sourceId:string,subjects:string[],index:number)=>
-  ({sourceId,subjects,azimuth:.30+index*.33,endAzimuth:.42+index*.33,
-    elevation:.17+index*.04,distance:1.12-index*.03});
+const camera=(sourceId:string,subjects:string[],index:number,stable=false)=>
+  ({sourceId,subjects,
+    // Multi-step mechanisms should stay in one spatial reference frame.
+    // A new angle per narration sentence falsely suggests the crane moved.
+    azimuth:stable?.39:.30+index*.33,
+    endAzimuth:stable?.39:.42+index*.33,
+    elevation:stable?.22:.17+index*.04,
+    distance:stable?1.19:1.12-index*.03});
 const round=(n:number)=>Math.round(n*1000)/1000;
 function frames(sourceIds:string[],from:Vec,to:Vec) {
   const n=sourceIds.length,points:{sourceId:string;phase:number;value:Vec}[]=[];
@@ -398,52 +426,106 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     previousChapter=chapter;
     return chapter;
   });
-  const tracks:Record<string,unknown>[]=[];
+  type Channel='position'|'rotation'|'scale';
+  type Key={sourceId:string;phase:number;value:Vec};
+  type Assembled={node:string;channel:Channel;interpolation:'smooth';keys:Key[];last:Vec};
+  const curves=new Map<string,Assembled>();
+  const spread=input.actions.length===1&&!input.actions[0].sourceId;
+  // Merge all beats for the same object/channel into one continuous track.
+  const segment=(node:string,channel:Channel,chapter:number,from:Vec,to:Vec)=>{
+    const key=node+'/'+channel,old=curves.get(key);
+    if(!old){
+      curves.set(key,{node,channel,interpolation:'smooth',
+        keys:spread?frames(sourceIds,from,to):actionFrames(sourceIds,chapter,from,to),last:to});
+      return;
+    }
+    if(Math.hypot(...from.map((v,i)=>v-old.last[i]))>.002)
+      fail('A ação perdeu a posição do objeto entre capítulos: '+node);
+    old.keys.pop(); // remove previous end-of-film hold before appending a new beat
+    const sourceId=sourceIds[chapter],lastId=sourceIds[sourceIds.length-1];
+    old.keys.push(
+      {sourceId,phase:0,value:from},{sourceId,phase:.14,value:from},
+      {sourceId,phase:.90,value:to},{sourceId:lastId,phase:1,value:to});
+    old.last=to;
+  };
+  const positionState=new Map<string,Vec>(),rotationState=new Map<string,Vec>();
+  const wheelState=new Map<string,number>();
+  const crane=objects.find(e=>e.kind==='crane');
+  const cargoIds=[...new Set(input.actions.filter(a=>
+    objects.some(e=>e.id===a.target&&e.kind==='cargo')).map(a=>a.target))];
+  if(crane&&cargoIds.length>1)
+    fail('Um guindaste precisa acompanhar uma carga de cada vez.');
+  const rigCargo=crane&&cargoIds.length?objects.find(e=>e.id===cargoIds[0]):undefined;
+  // Calculate rope and hook geometry from the ACTUAL persistent cargo world position.
+  const rig=(pos:Vec)=>{
+    if(!crane||!rigCargo)return fail('Guindaste ou carga ausente.');
+    const x=pos[0]-crane.at[0],z=pos[2]-crane.at[2],h=crane.size[1];
+    if(x< -crane.size[0]*.35-.08||x>crane.size[0]*.65+.08||
+       Math.abs(z)>Math.max(.65,crane.size[2]*.65))
+      fail('Carga fora do alcance do braço do guindaste.');
+    const hookY=pos[1]+rigCargo.size[1]+.12-crane.at[1];
+    const rope=h*.90-hookY;
+    if(rope<.22||rope>h*.92)
+      fail('O gancho e o cabo ultrapassariam o alcance vertical da grua.');
+    return {
+      trolley:[round(x),round(h*.90),round(z)] as Vec,
+      hook:[round(x),round(hookY),round(z)] as Vec,
+      cable:[round(x),round(hookY+rope/2),round(z)] as Vec,
+      scale:[1,round(rope/(h*.65)),1] as Vec,
+    };
+  };
+  let winchAngle=0;
   for(const [index,action] of input.actions.entries()){
-    const chapter=chapters[index];
-    const target=objects.find(o=>o.id===action.target)!;
-    const rotating=action.kind==='rotate'||action.kind==='open';
-    const from:Vec=rotating?[0,0,0]:target.at;
-    const to:Vec=from.map((v,i)=>round(v+action.delta[i])) as Vec;
-    const eventKeys=(from:Vec,to:Vec)=>input.actions.length===1&&!action.sourceId
-      ?frames(sourceIds,from,to)
-      :actionFrames(sourceIds,chapter,from,to);
-    tracks.push({
-      node:action.target,channel:rotating?'rotation':'position',
-      interpolation:'smooth',keys:eventKeys(from,to),
-    });
-    const isVehicle=(target.kind==='vehicle'||target.kind==='motorcycle')&&!rotating;
-    if(isVehicle){
+    const chapter=chapters[index],target=objects.find(e=>e.id===action.target)!;
+    const rotate=action.kind==='rotate'||action.kind==='open';
+    const state=rotate?rotationState:positionState;
+    const from:Vec=state.get(target.id)??(rotate?[0,0,0]:[...target.at] as Vec);
+    const to=from.map((v,i)=>round(v+action.delta[i])) as Vec;
+    if(!rotate&&to[1]<-.05)fail('A carga atravessaria o piso nesta etapa.');
+    // Landing must be a genuine resting pose on a visible solid, not an
+    // arbitrary endpoint in empty space with a decorative platform nearby.
+    if(action.onto){
+      const support=objects.find(e=>e.id===action.onto)!;
+      const cargoBottom=to[1]+target.size[1]*.02;
+      const surface=support.at[1]+support.size[1];
+      if(Math.abs(cargoBottom-surface)>.065)
+        fail('A carga não encostou na superfície da plataforma ao terminar a descida.');
+      const dx=Math.abs(to[0]-support.at[0]), dz=Math.abs(to[2]-support.at[2]);
+      if(dx+target.size[0]*.4>support.size[0]*.5||
+         dz+target.size[2]*.4>support.size[2]*.5)
+        fail('A carga ficou fora da área útil da plataforma.');
+    }
+    segment(target.id,rotate?'rotation':'position',chapter,from,to);
+    state.set(target.id,to);
+
+    if(!rotate&&(target.kind==='vehicle'||target.kind==='motorcycle')){
       const distance=Math.hypot(action.delta[0],action.delta[2]);
-      const radius=target.kind==='motorcycle'
-        ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
-        :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
-      const theta=round(distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
-      for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb'])){
-        tracks.push({node:target.id+'-wheel'+side,channel:'rotation',
-          interpolation:'smooth',keys:eventKeys([0,0,0],[0,0,theta])});
+      if(distance>.01){
+        const radius=target.kind==='motorcycle'
+          ?Math.max(.24,Math.min(target.size[0]*.14,target.size[2]*.25))
+          :Math.max(.19,Math.min(target.size[0],target.size[2])*.18);
+        const prev=wheelState.get(target.id)??0;
+        const next=round(prev+distance/radius*(action.delta[0]+action.delta[2]<0?-1:1));
+        for(const side of (target.kind==='motorcycle'?['rear','front']:['lf','rf','lb','rb']))
+          segment(target.id+'-wheel'+side,'rotation',chapter,[0,0,prev],[0,0,next]);
+        wheelState.set(target.id,next);
       }
     }
-    // Mechanically coupled drum, cable and hook follow the actual load,
-    // with the same chapter timing, instead of spinning independently.
-    const crane=objects.find(o=>o.kind==='crane');
-    if(crane && target.kind==='cargo' && Math.abs(action.delta[1])>.7){
-      const radius=.30;
-      tracks.push({node:crane.id+'-winch',channel:'rotation',
-        interpolation:'smooth',
-        keys:eventKeys([0,0,0],[0,0,round(action.delta[1]/radius)])});
-      const initialLen=crane.size[1]*.65;
-      const nextLen=Math.max(.2,initialLen-action.delta[1]);
-      tracks.push({node:crane.id+'-cable',channel:'scale',interpolation:'smooth',
-        keys:eventKeys([1,1,1],[1,round(nextLen/initialLen),1])});
-      tracks.push({node:crane.id+'-cable',channel:'position',interpolation:'smooth',
-        keys:eventKeys([crane.size[0]*.40,crane.size[1]*.56,0],
-          [crane.size[0]*.40,round(crane.size[1]*.56+action.delta[1]*.5),0])});
-      tracks.push({node:crane.id+'-hook',channel:'position',interpolation:'smooth',
-        keys:eventKeys([crane.size[0]*.40,crane.size[1]*.21,0],
-          [crane.size[0]*.40,round(crane.size[1]*.21+action.delta[1]),0])});
+    if(crane&&rigCargo&&target.id===rigCargo.id&&!rotate){
+      const before=rig(from),after=rig(to);
+      segment(crane.id+'-trolley','position',chapter,before.trolley,after.trolley);
+      segment(crane.id+'-hook','position',chapter,before.hook,after.hook);
+      segment(crane.id+'-cable','position',chapter,before.cable,after.cable);
+      segment(crane.id+'-cable','scale',chapter,before.scale,after.scale);
+      const nextAngle=round(winchAngle+action.delta[1]/.30);
+      segment(crane.id+'-winch','rotation',chapter,[0,0,winchAngle],[0,0,nextAngle]);
+      winchAngle=nextAngle;
     }
   }
+  const tracks:Record<string,unknown>[]=[...curves.values()].map(t=>({
+    node:t.node,channel:t.channel,interpolation:t.interpolation,keys:t.keys
+  }));
+
   // Each narrative chapter follows the action authored for that chapter.
   // If there are fewer actions than sentences, hold the final subject.
   const subjectFor=(i:number)=>{
@@ -456,7 +538,10 @@ export function compileCompactWorld(raw:unknown,sources:readonly SourceBrief[]):
     sceneProgram:{
       version:1,background:input.background,nodes:[],tracks,
       shots:sourceIds.map((s,i)=>camera(s,
-        i===0?[...new Set([objects[0].id,subjectFor(i)])]:[subjectFor(i)],i)),
+        crane&&rigCargo&&subjectFor(i)===rigCargo.id
+          ?[crane.id,rigCargo.id,...new Set(input.actions.filter(a=>a.onto).map(a=>a.onto!))]
+          :i===0?[...new Set([objects[0].id,subjectFor(i)])]:[subjectFor(i)],
+        i,Boolean(crane&&rigCargo&&subjectFor(i)===rigCargo.id))),
       contacts:[]
     },
     worldBlueprints:{

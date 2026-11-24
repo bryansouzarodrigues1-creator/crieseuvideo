@@ -42,6 +42,8 @@ jobs:
           exit 1
       - name: Render three moving WebGL worlds and compare frames
         run: bun scripts/compact-ai-world-browser-qa.mjs
+      - name: Render 12-second causal crane scene (portrait and landscape)
+        run: bun scripts/causal-motion-browser-qa.mjs
       - name: Archive visual QA frames
         if: always()
         uses: actions/upload-artifact@v4
