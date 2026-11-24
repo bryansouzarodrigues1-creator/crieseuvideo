@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ArrowRight, ArrowUpRight, CalendarDays, Check, Clock3, Film, LockKeyhole, Play, Sparkles, Users, WandSparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import '../launch.css';
 
@@ -32,7 +32,7 @@ export const Route = createFileRoute('/')({
   component: LaunchLanding,
 });
 
-function GroupButton({secondary=false, children}: {secondary?:boolean,children:React.ReactNode}) {
+function GroupButton({secondary=false, children}: {secondary?:boolean,children:ReactNode}) {
   return <a
     href={GROUP_URL}
     target="_blank"
