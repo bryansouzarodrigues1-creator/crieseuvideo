@@ -8,6 +8,7 @@ import '@lovable.dev/cloud-auth-js/styles.css';
 import {generateAi3DWorld} from '../ai3d.functions';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
+import {auditShotVisibilitySequence} from '../explainer/sceneProgram/shotVisibilityAudit';
 import type {AiWorldProvider} from '../explainer/sceneProgram/planner/aiWorldDirector';
 import {takeAi3DHandoff} from '../explainer/ai3dHandoff';
 
@@ -28,6 +29,7 @@ export default function Ai3DStudio(){
   const [lite,setLite]=useState(true);
   const [landscape,setLandscape]=useState(false);
   const [handoffNotice,setHandoffNotice]=useState('');
+  const [shotQa,setShotQa]=useState<ReturnType<typeof auditShotVisibilitySequence>|null>(null);
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const rendererRef=useRef<THREE.WebGLRenderer|null>(null);
   const stageRef=useRef<SceneProgram3D|null>(null);
@@ -151,7 +153,7 @@ export default function Ai3DStudio(){
         data:{script,provider,confirmCost:true},
         headers:{Authorization:`Bearer ${session.access_token}`},
       });
-      setClip(result.clip);setUsedProvider(result.provider);
+      setClip(result.clip);setShotQa(null);setUsedProvider(result.provider);
     }catch(e){
       setError('A IA não conseguiu construir uma cena 3D válida: '+(e instanceof Error?e.message:String(e)));
     }finally{setBusy(false);}
@@ -162,6 +164,29 @@ export default function Ai3DStudio(){
     setTime(clockRef.current);
     try{drawRef.current(clockRef.current);}catch(e){setError(e instanceof Error?e.message:String(e));}
   };
+  /** Inspect real Three.js object bounds at three times in each story beat,
+   * without calling Gemini, Lovable or any paid endpoint. */
+  const verifyCamera=()=>{
+    const stage=stageRef.current;
+    if(!stage||!clip||busyExportRef.current||busy)return;
+    setPlaying(false);playingRef.current=false;setError('');
+    try{
+      setShotQa(auditShotVisibilitySequence(stage,landscape?16/9:9/16));
+    }catch(e){
+      setShotQa(null);
+      setError('A auditoria da câmera não pôde terminar: '+
+        (e instanceof Error?e.message:String(e)));
+    }finally{
+      // The audit seeks across the scene. Restore the user's visible position.
+      try{drawRef.current(clockRef.current);}catch{}
+    }
+  };
+  const qaIssues=shotQa?.flatMap(r=>r.issues.map(issue=>({
+    sourceId:r.sourceId,...issue
+  })))??[];
+  const qaUnique=[...new Map(qaIssues.map(issue=>
+    [issue.sourceId+'/'+issue.subjectId+'/'+issue.code,issue] as const)).values()];
+
   const exportClip=async()=>{
     const canvas=canvasRef.current;
     if(!canvas||!clip||busyExportRef.current)return;
@@ -245,6 +270,30 @@ export default function Ai3DStudio(){
           <strong>Gerado por {usedProvider==='lovable'?'IA do Lovable':'Gemini'}</strong>
           <span>{clip.audit.sceneNodes} nós · {clip.audit.objectCount} objetos · {clip.audit.sceneryRegions} regiões de cenário · {clip.program.shots.length} câmeras</span>
         </div>}
+        {clip&&<section style={{marginTop:14,padding:'14px 15px',border:'1px solid #6b4653',
+           borderRadius:12,background:'#1b1720',color:'#f2e9ed'}}
+           aria-label="Auditoria de câmera do motor 3D">
+          <button type="button" onClick={verifyCamera}
+            disabled={busy||exportProgress!==null}
+            style={{padding:'11px 14px',background:'#39232c',color:'#fff',border:'1px solid #a45e71',
+              borderRadius:9,fontWeight:800,cursor:'pointer'}}>
+            Verificar câmera e visibilidade (sem gastar IA)
+          </button>
+          {shotQa && <div role="status" style={{marginTop:12,fontSize:13,lineHeight:1.65}}>
+            <strong>{qaUnique.length===0
+              ?'Nenhum corte ou problema geométrico detectado nas amostras.'
+              :qaUnique.length+' possível(is) problema(s) de enquadramento.'}</strong>
+            <p style={{color:'#bdb0bd',fontSize:12,margin:'6px 0'}}>
+              {shotQa.length} quadros analisados. Isto é uma inspeção geométrica,
+              não uma aprovação artística nem verificação de movimentos humanos.
+            </p>
+            {qaUnique.length>0&&<ul style={{paddingLeft:18,margin:'8px 0 0'}}>
+              {qaUnique.slice(0,5).map(issue=><li key={issue.sourceId+'/'+issue.subjectId+'/'+issue.code}>
+                Cena {issue.sourceId}: {issue.suggestion}
+              </li>)}
+            </ul>}
+          </div>}
+        </section>}
         <div className="native-3d-actions">
           <button disabled={exportProgress!==null} onClick={()=>setLite(v=>!v)}>
             {lite?'Modo leve ativo':'Modo normal ativo'}
