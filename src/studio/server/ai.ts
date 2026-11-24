@@ -2,6 +2,8 @@
 // - "direction" (scene planning, the heavy job) always prefers Lovable AI.
 // - "light" (captions, storyboards) goes to Gemini direct when GEMINI_API_KEY exists, saving Lovable credits.
 // Either provider covers for the other when it fails (no credits, rate limit, outage). Returns null so callers use fallbacks.
+import {readGeminiErrorDiagnostic,formatGeminiCause} from './geminiFailure';
+import type {GeminiErrorDiagnostic} from './geminiFailure';
 export type AiTask = "direction" | "light";
 
 /** Only safe, nonsecret provider diagnoses travel to the browser. */
@@ -12,7 +14,7 @@ export type ProviderProblem =
   | 'truncated_response' | 'response_too_large'
   | 'invalid_request' | 'model_unavailable' | 'billing_required';
 export type Ai3DProvider = 'lovable' | 'gemini';
-export type ProviderFailure = { provider: Ai3DProvider; reason: ProviderProblem };
+export type ProviderFailure = { provider: Ai3DProvider; reason: ProviderProblem; diagnostic?:GeminiErrorDiagnostic };
 const safeProblem = (status:number):ProviderProblem => {
   if(status===400||status===422) return 'invalid_request';
   if(status===404) return 'model_unavailable';
@@ -46,7 +48,7 @@ export class Ai3DProviderError extends Error {
   readonly code = 'ai_3d_provider_failed';
   constructor(readonly failures:ProviderFailure[]){
     super('Não foi possível gerar a cena 3D. '+
-      failures.map(x=>(x.provider==='lovable'?'IA do Lovable':'Gemini')+': '+ptProblem[x.reason]).join('; ')+
+      failures.map(x=>(x.provider==='lovable'?'IA do Lovable':'Gemini')+': '+ptProblem[x.reason]+(x.diagnostic?' (HTTP '+x.diagnostic.httpStatus+'. '+formatGeminiCause(x.diagnostic)+')':'')).join('; ')+
       '. Confira a configuração ou selecione outro provedor. Nenhum vídeo de demonstração foi usado.');
     this.name='Ai3DProviderError';
   }
@@ -109,7 +111,7 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
 }
 
 async function askGemini(
-  prompt: string, onProblem?: (reason: ProviderProblem) => void,
+  prompt: string, onProblem?: (reason: ProviderProblem, diagnostic?:GeminiErrorDiagnostic) => void,
   responseSchema?:Record<string,unknown>,
   modelChoice:GeminiModelChoice='default'
 ): Promise<string | null> {
@@ -138,8 +140,10 @@ async function askGemini(
     );
     if (!res.ok) {
       // Quota exhausted (429) pauses this provider for the request; never switches to paid billing.
-      console.error(`Gemini direct failed with HTTP ${res.status} (check API configuration)`);
-      onProblem?.(safeProblem(res.status));
+      const diagnostic=await readGeminiErrorDiagnostic(res);
+      // Do not log sensitive provider response, request or user text.
+      console.error(`Gemini direct failed with HTTP ${res.status}, category ${diagnostic.cause}`);
+      onProblem?.(safeProblem(res.status),diagnostic.cause==='unknown'?undefined:diagnostic);
       return null;
     }
     const data = await res.json();
@@ -207,7 +211,8 @@ export async function ask3DWorldAi(
   const failures:ProviderFailure[]=[];
   for(const provider of order){
     let problem:ProviderProblem|undefined;
-    const mark=(reason:ProviderProblem)=>{problem=reason;};
+    let diagnostic:GeminiErrorDiagnostic|undefined;
+    const mark=(reason:ProviderProblem,details?:GeminiErrorDiagnostic)=>{problem=reason;diagnostic=details;};
     const text=provider==='lovable'
       ?await askLovable(prompt,LOVABLE_MODEL,mark)
       :await askGemini(prompt,mark,responseSchema,geminiModel);
@@ -228,7 +233,7 @@ export async function ask3DWorldAi(
       failures.push({provider,reason});
       continue;
     }
-    failures.push({provider,reason:text && text.length>480000?'response_too_large':problem??'invalid_response'});
+    failures.push({provider,reason:text && text.length>480000?'response_too_large':problem??'invalid_response',...(diagnostic?{diagnostic}:{})});
   }
   throw new Ai3DProviderError(failures);
 }
