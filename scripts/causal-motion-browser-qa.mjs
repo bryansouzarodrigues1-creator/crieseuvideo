@@ -35,6 +35,13 @@ try{
   const filename=label+'.png';
   const screenshot=await page.locator('#compact-qa-canvas').screenshot({path:path.join(out,filename)});
   const sha256=createHash('sha256').update(screenshot).digest('hex');
+  // Small JPG debug previews in CI logs allow an independent human review of
+  // the actual frames when artifact downloads are unavailable in a connector.
+  // Only synthetic test scenes, never user videos or private customer content.
+  if (['01-start','04-carrying','07-deposited'].includes(label)) {
+    const jpg=await page.locator('#compact-qa-canvas').screenshot({type:'jpeg',quality:40});
+    console.log('QA_FRAME_JPEG:'+label+':'+jpg.toString('base64'));
+  }
   return {seconds,width,height,sha256,nodes:result.nodes,tracks:result.tracks,
     visibility:result.visibility,bytes:screenshot.length,filename};
  };
