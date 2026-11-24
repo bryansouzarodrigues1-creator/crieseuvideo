@@ -36,7 +36,7 @@ export const startIntroPixSandbox = createServerFn({ method: 'POST' })
    }
    return { ok: false as const, error: 'Pedido em processamento. Consulte seu histórico antes de tentar novamente.', orderId: previous.id as string, pix: null };
   }
-  if (!process.env['ASAAS_API_KEY'] || !process.env['ASAAS_PIX_ADDRESS_KEY'] || !process.env['ASAAS_WEBHOOK_TOKEN']) {
+  if (!process.env['ASAAS_API_KEY']) {
    return { ok: false as const, error: 'Asaas Sandbox não configurado no servidor.', orderId: null, pix: null };
   }
   const { data: order, error: insertError } = await db.from('csv_payment_orders')
@@ -85,4 +85,51 @@ export const getMyVideoCredits = createServerFn({ method: 'GET' })
    .select('balance').eq('user_id', context.userId).maybeSingle();
   if (error) throw new Error('Erro ao consultar créditos.');
   return { balance: Number(data?.balance ?? 0) };
+ });
+
+/**
+ * Manual sandbox-only reconciliation while the Asaas webhook is not configured.
+ * The signed-in user can only inspect their own order. Credits are applied in
+ * a privileged, idempotent database transaction AFTER re-fetching provider data.
+ * Never enable outside a dedicated sandbox deployment.
+ */
+export const verifyMyPixSandboxPayment = createServerFn({ method: 'POST' })
+ .middleware([requireSupabaseAuth])
+ .inputValidator((value) => z.object({ orderId: z.string().uuid() }).parse(value))
+ .handler(async ({ data, context }) => {
+  if (process.env['ASAAS_CHECKOUT_ENABLED'] !== 'true' || process.env['ASAAS_ENV'] !== 'sandbox') {
+   return { state: 'disabled' as const };
+  }
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { listStaticPixPaymentIdsSandbox, fetchAsaasPaymentSandbox } = await import('./asaas.server');
+  const { matchesReceivedStaticPix } = await import('./asaasVerification');
+  const db = supabaseAdmin as unknown as SupabaseClient;
+  const { data: order, error } = await db.from('csv_payment_orders')
+   .select('id, user_id, state, provider_qr_id, amount_cents')
+   .eq('id', data.orderId).eq('user_id', context.userId).maybeSingle();
+  if (error) throw new Error('Falha ao consultar pedido');
+  if (!order) return { state: 'not_found' as const };
+  if (order.state === 'paid') return { state: 'paid' as const };
+  if (order.state !== 'pending' || typeof order.provider_qr_id !== 'string') {
+   return { state: 'pending' as const };
+  }
+  const ids = await listStaticPixPaymentIdsSandbox(order.provider_qr_id);
+  for (const id of ids) {
+   const payment = await fetchAsaasPaymentSandbox(id);
+   if (!matchesReceivedStaticPix(payment, order)) continue;
+   // Deterministic id for retry/deduplication; webhook can later arrive separately.
+   const { error: grantError } = await db.rpc('csv_apply_verified_payment', {
+    p_order_id: order.id,
+    p_provider_payment_id: payment.id,
+    p_event_id: 'poll_' + payment.id,
+   });
+   if (grantError) {
+    // A competing webhook may have settled the same order: re-read before failing.
+    const { data: settled } = await db.from('csv_payment_orders').select('state')
+     .eq('id', order.id).eq('user_id', context.userId).maybeSingle();
+    if (settled?.state !== 'paid') throw new Error('Falha ao registrar pagamento confirmado.');
+   }
+   return { state: 'paid' as const };
+  }
+  return { state: 'pending' as const };
  });
