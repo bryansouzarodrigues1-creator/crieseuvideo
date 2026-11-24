@@ -141,6 +141,9 @@ export const verifyMyPixSandboxPayment = createServerFn({ method: 'POST' })
 export const checkAsaasSandboxConnection = createServerFn({ method: 'POST' })
  .middleware([requireSupabaseAuth])
  .handler(async () => {
-   const { probeAsaasSandboxCredential } = await import('./asaas.server');
-   return probeAsaasSandboxCredential();
+   const { probeAsaasSandboxCredential, checkAsaasSandboxPixKeyReadiness } = await import('./asaas.server');
+   const connection = await probeAsaasSandboxCredential();
+   if (!connection.ok) return { ...connection, pixKeys: 'unavailable' as const };
+   const pixKeys = await checkAsaasSandboxPixKeyReadiness();
+   return { ok: true as const, pixKeys };
  });
