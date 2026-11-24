@@ -32,46 +32,16 @@ try{
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:4198/',{waitUntil:'domcontentloaded',timeout:60000});
  const setup=await page.evaluate(async({plan,syntheticScript})=>{
-   const [THREE,mod,script,Stage,qa]=await Promise.all([
-     import('three'),
-     import('/src/studio/explainer/sceneProgram/planner/compactWorldDirector.ts'),
-     import('/src/studio/explainer/sceneProgram/planner/sceneScript.ts'),
-     import('/src/studio/explainer/sceneProgram/stage3d.ts'),
-     import('/src/studio/explainer/sceneProgram/shotVisibilityAudit.ts'),
-   ]);
-   const source=script.sourceBriefsFromScript(syntheticScript);
-   const clip=mod.compileCompactWorld(plan,source);
-   const canvas=document.createElement('canvas');
-   canvas.id='gemini-live-canvas';
-   canvas.width=360;canvas.height=640;
-   document.body.appendChild(canvas);
-   const renderer=new THREE.WebGLRenderer({
-     canvas,antialias:false,preserveDrawingBuffer:true,powerPreference:'low-power'
-   });
-   renderer.setSize(360,640,false);
-   renderer.setPixelRatio(1);
-   renderer.outputColorSpace=THREE.SRGBColorSpace;
-   const stage=new Stage.SceneProgram3D(clip.program,clip.sources);
-   const audit=qa.auditShotVisibilitySequence(stage,9/16);
-   window.__geminiMotorQA={stage,renderer,canvas,clip};
-   stage.render(renderer,0,360,640);
-   return{
-     seconds:clip.duration,
-     entities:clip.audit.objectCount,
-     nodes:clip.program.nodes.length,
-     camera:audit,
-     hardIssues:audit.flatMap(x=>x.issues).filter(i=>[
-       'subject_offscreen','subject_missing_geometry'
-     ].includes(i.code)),
-   };
+   const qa=await import('/src/studio/explainer/sceneProgram/planner/geminiLiveBrowserLab.ts');
+   return qa.installGeminiLiveQaScene(plan,syntheticScript);
  },{plan,syntheticScript});
  assert.ok(setup.nodes>=12,'Gemini produced an almost empty world');
  assert.ok(setup.camera.length>=3,'Camera QA did not run');
  for(const [time,label] of [[0,'01-first'],[2,'02-pickup'],[5,'03-transfer'],[8,'04-lowering'],[11.8,'05-last']]){
    if(time>=setup.seconds)continue;
-   await page.evaluate(t=>{
-     const {stage,renderer}=window.__geminiMotorQA;
-     stage.render(renderer,t,360,640);
+   await page.evaluate(async t=>{
+     const qa=await import('/src/studio/explainer/sceneProgram/planner/geminiLiveBrowserLab.ts');
+     qa.renderGeminiQaFrame(t);
    },time);
    const target=path.join(dir,label+'.png');
    await page.locator('#gemini-live-canvas').screenshot({path:target});
@@ -81,11 +51,12 @@ try{
  try{
    const downloadPromise=page.waitForEvent('download',{timeout:210000});
    const encoded=await page.evaluate(async()=>{
-     const {stage,renderer,canvas,clip}=window.__geminiMotorQA;
+     const qa=await import('/src/studio/explainer/sceneProgram/planner/geminiLiveBrowserLab.ts');
+     const {canvas,duration}=qa.getGeminiQaState();
      const exporter=await import('/src/studio/utils/deterministic3dExport.ts');
      const result=await exporter.encodeFixedFrame3DClip({
-       canvas,durationSeconds:clip.duration,fps:12,
-       renderFrame:t=>stage.render(renderer,t,360,640),
+       canvas,durationSeconds:duration,fps:12,
+       renderFrame:t=>qa.renderGeminiQaFrame(t),
      });
      const filename='gemini-motor-3d-real.'+result.filenameExtension;
      const url=URL.createObjectURL(result.blob);
