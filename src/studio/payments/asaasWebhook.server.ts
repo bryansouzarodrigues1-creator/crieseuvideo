@@ -37,7 +37,7 @@ export async function handleAsaasWebhook(request: Request): Promise<Response> {
   // Other statuses (including refunds) need a separate dedicated policy.
   return Response.json({ ok: true, ignored: true });
  }
- if (typeof event.id !== 'string' || !/^[A-Za-z0-9_-]{5,160}$/.test(event.id) ||
+ if (typeof event.id !== 'string' || !event.id.startsWith('evt_') || event.id.length > 200 || event.id.length < 5 ||
      typeof event.payment?.id !== 'string' || !/^pay_[A-Za-z0-9_-]{4,100}$/.test(event.payment.id)) {
   return Response.json({ error: 'invalid_event' }, { status: 400 });
  }
@@ -60,8 +60,13 @@ export async function handleAsaasWebhook(request: Request): Promise<Response> {
   }
   // An atomic SQL transaction deduplicates by payment ID + event ID + order
   // and writes the paid status, ledger entry and +3 wallet balance together.
+  // Asaas IDs may contain '&'. Hash the ID to a stable safe identifier accepted
+  // by the database RPC (without changing the original provider event semantics).
+  const rawEventBytes = new TextEncoder().encode(event.id);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', rawEventBytes));
+  const eventKey = 'evt_' + Array.from(digest, b => b.toString(16).padStart(2, '0')).join('');
   const { data: applied, error: rpcError } = await db.rpc('csv_apply_verified_payment', {
-   p_order_id: order.id, p_provider_payment_id: payment.id, p_event_id: event.id,
+   p_order_id: order.id, p_provider_payment_id: payment.id, p_event_id: eventKey,
   });
   if (rpcError) throw rpcError;
   return Response.json({ ok: true, result: applied });
