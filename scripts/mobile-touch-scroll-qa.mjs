@@ -54,12 +54,14 @@ async function assertSwipe(label,x,start,end,selector){
 try{
   const base='http://127.0.0.1:4198';
   await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
-  await page.getByRole('heading',{name:'Cenário 3D criado pelo Gemini ou Lovable'}).waitFor({timeout:60000});
-  assert.equal((await metrics()).overflowY,'auto','Global body must not be overflow:hidden');
-  assert.equal(await page.locator('.production-workspace').evaluate(
-    el=>getComputedStyle(el).overflowY), 'auto','Home must have an internal scrollport');
-  await assertSwipe('home editor vertical swipe',195,725,265,'.production-workspace');
-  await page.screenshot({path:path.join(out,'01-home-scrolled-on-android.png')});
+  await page.getByRole('heading',{name:/Sua ideia pode virar um vídeo animado/i}).waitFor({timeout:60000});
+  // Public launch landing is a vertically scrolling document; the old
+  // production editor remains accessible separately after Google sign-in.
+  assert.ok((await metrics()).overflowY!=='hidden','Landing should not disable body scrolling');
+  await assertSwipe('launch landing native vertical swipe',195,725,265);
+  assert.ok(await page.getByRole('link',{name:/Entrar no grupo de lançamento/i}).count()>0,
+    'Mobile visitors must be able to enter the WhatsApp launch group');
+  await page.screenshot({path:path.join(out,'01-home-launch-scrolled-on-android.png')});
 
   await page.goto(base+'/motor-3d',{waitUntil:'domcontentloaded',timeout:60000});
   await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
