@@ -27,11 +27,16 @@ try{
   assert.equal(result.seconds,12,'Expected three ordered 4s beats');
   assert.ok(result.nodes>15,'No meaningful rig or scene');
   assert.ok(result.tracks>=6,'Cargo, hook, cable, trolley and winch tracks missing');
+  assert.ok(result.visibility?.subjects?.length>=2,'No subject-level camera audit');
+  const invalid=result.visibility.issues.filter(issue=>
+    ['subject_offscreen','subject_missing_geometry'].includes(issue.code));
+  assert.deepEqual(invalid,[],'The camera cropped or lost a story subject: '+JSON.stringify(invalid));
   assert.ok(result.pixels>11000,'Empty WebGL scene');
   const filename=label+'.png';
   const screenshot=await page.locator('#compact-qa-canvas').screenshot({path:path.join(out,filename)});
   const sha256=createHash('sha256').update(screenshot).digest('hex');
-  return {seconds,width,height,sha256,nodes:result.nodes,tracks:result.tracks,bytes:screenshot.length,filename};
+  return {seconds,width,height,sha256,nodes:result.nodes,tracks:result.tracks,
+    visibility:result.visibility,bytes:screenshot.length,filename};
  };
  const result=[];
  for(const [t,label] of [[0,'01-start'],[2,'02-lifting'],[3.8,'03-raised'],[5.6,'04-carrying'],[7.8,'05-across'],[9.7,'06-lowering'],[11.9,'07-deposited']]){
