@@ -32,7 +32,7 @@ const ptProblem:Record<ProviderProblem,string> = {
   unauthorized:'chave rejeitada (401)',
   quota:'cota ou limite de chamadas atingido (429)',
   forbidden:'acesso ao modelo não autorizado (403)',
-  service_unavailable:'serviço indisponível (5xx)',
+  service_unavailable:'falha temporária do serviço do provedor (HTTP 5xx); tente mais tarde ou selecione manualmente outro modelo',
   timeout:'tempo de resposta esgotado',
   network:'falha de comunicação com o provedor',
   empty_response:'a IA respondeu sem conteúdo',
@@ -58,6 +58,10 @@ const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash";
 // New API projects can receive 404 for legacy Gemini 2.5 Flash even when
 // models.get lists it. Prefer a current model; allow server-side override.
 const GEMINI_MODEL = process.env.GEMINI_AI_MODEL || "gemini-3.8-flash";
+ // Explicit user choices, never arbitrary provider paths or URLs.
+ export type GeminiModelChoice = 'default'|'gemini-3.6-flash'|'gemini-3.8-flash';
+ export const resolveGeminiModel=(choice:GeminiModelChoice='default'):string =>
+   choice==='default'?GEMINI_MODEL:choice;
 
 async function askLovable(prompt: string, model: string, onProblem?: (reason: ProviderProblem) => void): Promise<string | null> {
   const key = process.env.LOVABLE_API_KEY;
@@ -106,7 +110,8 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
 
 async function askGemini(
   prompt: string, onProblem?: (reason: ProviderProblem) => void,
-  responseSchema?:Record<string,unknown>
+  responseSchema?:Record<string,unknown>,
+  modelChoice:GeminiModelChoice='default'
 ): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key){onProblem?.('not_configured');return null;}
@@ -114,7 +119,7 @@ async function askGemini(
   const t = setTimeout(() => ctrl.abort(), 60000);
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(resolveGeminiModel(modelChoice))}:generateContent`,
       {
         method: "POST",
         signal: ctrl.signal,
@@ -193,7 +198,8 @@ export async function ask3DWorldAi(
   prompt:string,
   preferred:'auto'|'gemini'|'lovable'='auto',
   isValid?:(content:string)=>Ai3DValidation,
-  responseSchema?:Record<string,unknown>
+  responseSchema?:Record<string,unknown>,
+  geminiModel:GeminiModelChoice='default'
 ):Promise<{provider:'gemini'|'lovable';text:string}|null> {
   const order:Ai3DProvider[]=preferred==='auto'
     ? providerOrder('direction',!!process.env.GEMINI_API_KEY)
@@ -204,7 +210,7 @@ export async function ask3DWorldAi(
     const mark=(reason:ProviderProblem)=>{problem=reason;};
     const text=provider==='lovable'
       ?await askLovable(prompt,LOVABLE_MODEL,mark)
-      :await askGemini(prompt,mark,responseSchema);
+      :await askGemini(prompt,mark,responseSchema,geminiModel);
     if(text && text.length<=480000){
       // An HTTP 200 with broken scene geometry is not a successful 3D video.
       // In auto mode, allow one alternative provider, never an unbounded retry.

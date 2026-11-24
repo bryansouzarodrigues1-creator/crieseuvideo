@@ -10,6 +10,7 @@ const input=z.object({
   script:z.string().min(45).max(750),
   provider:z.enum(['auto','gemini','lovable']),
   confirmCost:z.literal(true),
+  geminiModel:z.enum(['default','gemini-3.6-flash','gemini-3.8-flash']).default('default'),
 }).strict();
 
 // A first-line safeguard only; it does not replace durable DB quotas for
@@ -49,7 +50,7 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
           // No raw model responses, prompts or secrets in logs/errors.
           return {accepted:false,reason:'invalid_scene'} as const;
         }
-      },schema);
+      },schema,data.geminiModel);
       if(!answer)throw new Error('Os provedores não entregaram uma cena 3D válida.');
       const raw=parseAi3DScene(answer.text);
       if(!raw)throw new Error('A IA não devolveu JSON válido.');

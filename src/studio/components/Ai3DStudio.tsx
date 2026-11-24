@@ -6,6 +6,8 @@ import {supabase} from '@/integrations/supabase/client';
 import {lovable} from '@/integrations/lovable';
 import '@lovable.dev/cloud-auth-js/styles.css';
 import {generateAi3DWorld} from '../ai3d.functions';
+import {checkGeminiModelStatus,type GeminiModelStatus} from '../geminiDiagnostics.functions';
+import type {GeminiModelChoice} from '../server/ai';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
 import type {AiWorldProvider} from '../explainer/sceneProgram/planner/aiWorldDirector';
@@ -17,6 +19,9 @@ const FPS=24;
 export default function Ai3DStudio(){
   const [script,setScript]=useState(SAMPLE);
   const [provider,setProvider]=useState<AiWorldProvider>('gemini');
+  const [geminiModel,setGeminiModel]=useState<GeminiModelChoice>('default');
+  const [modelStatus,setModelStatus]=useState<GeminiModelStatus|null>(null);
+  const [checkingModel,setCheckingModel]=useState(false);
   const [userId,setUserId]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [clip,setClip]=useState<ComplexWorldClip|null>(null);
@@ -37,6 +42,7 @@ export default function Ai3DStudio(){
   const busyExportRef=useRef(false);
   const abortRef=useRef<AbortController|null>(null);
   const send=useServerFn(generateAi3DWorld);
+  const checkModel=useServerFn(checkGeminiModelStatus);
   const duration=clip?.duration??0;
 
   useEffect(()=>{
@@ -138,6 +144,23 @@ export default function Ai3DStudio(){
       if(r.error)setError(r.error.message);
     }catch(e){setError(e instanceof Error?e.message:'Não foi possível entrar.');}
   };
+  const diagnoseModel=async()=>{
+    if(checkingModel||busy||!userId)return;
+    setCheckingModel(true);setModelStatus(null);
+    try{
+      const {data:{session},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!session?.access_token)
+        throw new Error('Entre com sua conta antes de verificar a conexão.');
+      const status=await checkModel({
+        data:{geminiModel},
+        headers:{Authorization:`Bearer ${session.access_token}`},
+      });
+      setModelStatus(status);
+    }catch{
+      setModelStatus({model:'não identificado',status:'network_error',
+        note:'O diagnóstico não pôde ser concluído. Confira a sessão e a conexão do site.'});
+    }finally{setCheckingModel(false);}
+  };
   const generate=async()=>{
     if(busy||busyExportRef.current||!userId)return;
     setError('');setPlaying(false);setBusy(true);
@@ -148,12 +171,15 @@ export default function Ai3DStudio(){
       if(sessionError||!session?.access_token)
         throw new Error('Sua sessão expirou. Entre novamente antes de gerar.');
       const result=await send({
-        data:{script,provider,confirmCost:true},
+        data:{script,provider,confirmCost:true,geminiModel},
         headers:{Authorization:`Bearer ${session.access_token}`},
       });
       setClip(result.clip);setUsedProvider(result.provider);
     }catch(e){
-      setError('A IA não conseguiu construir uma cena 3D válida: '+(e instanceof Error?e.message:String(e)));
+      const message=e instanceof Error?e.message:String(e);
+      setError(/HTTP 5xx|serviço indisponível|falha temporária do serviço/i.test(message)
+        ?'O Gemini não conseguiu atender a chamada (erro HTTP 5xx). A cena não foi entregue ao motor. Você pode verificar a conexão sem gerar vídeo ou escolher outro modelo manualmente. '+message
+        :'A IA não conseguiu construir uma cena 3D válida: '+message);
     }finally{setBusy(false);}
   };
   const seek=(t:number)=>{
@@ -211,6 +237,33 @@ export default function Ai3DStudio(){
           <option value="gemini">Gemini direto</option>
           <option value="lovable">IA do Lovable</option>
         </select>
+        {provider!=='lovable'&&<div style={{margin:'12px 0 16px',padding:'14px',
+          border:'1px solid #3e566c',borderRadius:12,background:'#101e2d'}}>
+          <label htmlFor="ai3d-gemini-model" style={{display:'block',fontWeight:800,marginBottom:8}}>Modelo Gemini</label>
+          <select id="ai3d-gemini-model" value={geminiModel}
+            onChange={e=>{setGeminiModel(e.target.value as GeminiModelChoice);setModelStatus(null);}}
+            disabled={busy||checkingModel}>
+            <option value="default">Padrão configurado no servidor</option>
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash · alternativa manual</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+          </select>
+          <button type="button" onClick={()=>void diagnoseModel()}
+            disabled={busy||checkingModel||!userId}
+            style={{marginTop:10,padding:'10px 13px',border:'1px solid #7791a5',
+              borderRadius:9,background:'#253c4e',color:'#f3fbff',fontWeight:800}}>
+            {checkingModel?'Consultando modelo…':'Verificar conexão (sem gerar vídeo)'}
+          </button>
+          {modelStatus&&<p role="status" style={{marginTop:10,fontSize:13,lineHeight:1.6,
+            color:modelStatus.status==='available'?'#b0edc7':'#ffc8b5'}}>
+            <strong>{modelStatus.model}</strong>: {modelStatus.note}
+            {typeof modelStatus.httpStatus==='number'?' · HTTP '+modelStatus.httpStatus:''}
+          </p>}
+          <p style={{fontSize:12,lineHeight:1.6,color:'#abc1d1',marginTop:10}}>
+            O diagnóstico apenas consulta o catálogo Google, sem gastar tokens de geração.
+            Erros 500/503 no momento de gerar podem ocorrer mesmo com o modelo acessível.
+            Escolher outra versão não dispara uma geração automaticamente.
+          </p>
+        </div>}
         <p className="native-3d-small" role="note">Ao clicar em Gerar cena 3D, você solicita uma geração que pode consumir créditos mesmo que falhe. No modo Automático, até dois provedores podem ser consultados.</p>
         {userId?
           <button type="button" className="ai3d-generate" disabled={busy||!!exportProgress} onClick={()=>void generate()}>
