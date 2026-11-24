@@ -10,6 +10,8 @@ import {z} from 'zod';
 import {requireSupabaseAuth} from '@/integrations/supabase/auth-middleware';
 import {resolveGeminiModel} from './server/ai';
 import type {GeminiModelChoice} from './server/ai';
+import {formatGeminiCause,readGeminiErrorDiagnostic} from './server/geminiFailure';
+import type {GeminiErrorCause} from './server/geminiFailure';
 
 export type GeminiModelStatus = {
   model:string;
@@ -64,4 +66,79 @@ export const checkGeminiModelStatus=createServerFn({method:'POST'})
       return{model,status:e instanceof Error&&e.name==='AbortError'?'timeout':'network_error',
         note:'Não foi possível consultar os metadados do modelo. Nenhuma geração foi iniciada.'};
     }finally{clearTimeout(timer);}
+  });
+
+
+/** Explicit, ONE tiny content-generation call to isolate actual inference
+ * availability from harmless metadata listing. It may consume input/output
+ * tokens. No automatic retry, no failover or production video generation. */
+export type GeminiInferenceProbe = {
+  model:string;
+  status:'success'|'not_configured'|'rate_limited'|'busy'|'failed'|'timeout'|'network_error';
+  httpStatus?:number;
+  cause?:GeminiErrorCause;
+  durationMs?:number;
+  tokenUsage?:number;
+  note:string;
+};
+
+const userProbeTimes=new Map<string,number>();
+const PROBE_COOLDOWN_MS=15*60*1000;
+
+export const probeGeminiInference=createServerFn({method:'POST'})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data)=>input.parse(data))
+  .handler(async({data,context}):Promise<GeminiInferenceProbe>=>{
+    setResponseHeader('Cache-Control','private, no-store');
+    const model=resolveGeminiModel(data.geminiModel as GeminiModelChoice);
+    if(!/^[a-zA-Z0-9_.-]{1,100}$/.test(model))
+      return {model:'inválido',status:'failed',note:'Modelo inválido no servidor.'};
+    const key=process.env.GEMINI_API_KEY;
+    if(!key)return {model,status:'not_configured',note:'GEMINI_API_KEY ausente no servidor.'};
+    const user=context.userId;
+    const now=Date.now();
+    const last=userProbeTimes.get(user)??0;
+    if(now-last<PROBE_COOLDOWN_MS)
+      return {model,status:'rate_limited',
+        note:'O teste mínimo já foi solicitado recentemente. Aguarde 15 minutos para evitar gastar tokens repetidos.'};
+    userProbeTimes.set(user,now);
+    if(userProbeTimes.size>2000)userProbeTimes.clear();
+    const started=Date.now();
+    try{
+      // Same Developer API base URL and server key as the full 3D call;
+      // deliberately EXCLUDES the 3D schema/long prompt to isolate the fault.
+      const res=await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{
+          method:'POST',
+          headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
+          body:JSON.stringify({
+            contents:[{role:'user',parts:[{text:'Responda somente OK.'}]}],
+            generationConfig:{maxOutputTokens:80,thinkingConfig:{thinkingLevel:'low'}},
+          }),
+          signal:AbortSignal.timeout(25000),
+        }
+      );
+      const durationMs=Date.now()-started;
+      if(!res.ok){
+        const problem=await readGeminiErrorDiagnostic(res);
+        return {model,status:'failed',httpStatus:res.status,durationMs,cause:problem.cause,
+          note:formatGeminiCause(problem)+
+          ' O erro ocorreu em uma chamada mínima, SEM o roteiro ou JSON do nosso motor.'};
+      }
+      // Read only usage metadata; never return the raw model's text.
+      const raw:unknown=await res.json();
+      const usage=raw&&typeof raw==='object'&&'usageMetadata' in raw
+        ?(raw as {usageMetadata?:{totalTokenCount?:unknown}}).usageMetadata?.totalTokenCount
+        :undefined;
+      return {model,status:'success',httpStatus:200,durationMs,
+        ...(typeof usage==='number'&&Number.isFinite(usage)?{tokenUsage:usage}:{}),
+        note:'A geração mínima funcionou. O próximo problema, caso a cena 3D falhe, está ligado ao tamanho da chamada, à configuração estruturada ou à capacidade do modelo sob carga.'};
+    }catch(e){
+      const timedOut=e instanceof Error&&
+        (e.name==='TimeoutError'||e.name==='AbortError');
+      return {model,status:timedOut?'timeout':'network_error',durationMs:Date.now()-started,
+        note:timedOut
+          ?'A API não respondeu à chamada mínima em 25 segundos.'
+          :'O servidor não conseguiu completar a comunicação com a API.'};
+    }
   });
