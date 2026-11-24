@@ -152,7 +152,7 @@ export function compactWorldPrompt(sources:readonly SourceBrief[]):string{
     `],"actions":[{"sourceId":"${exampleSourceId}","target":"veiculo","kind":"drive","delta":[5,0,0]}]}`, 
     'setting: city, industrial, coast, forest, interior, desert. Escolha pelo roteiro; background é hexadecimal #RRGGBB.',
     'entities: de 2 a 7 objetos REAIS do roteiro. Cada objeto {id,name,kind,at:[x,y,z],size:[largura,altura,profundidade],color:"#RRGGBB"}.',
-    'kind: building para construções, crane para guindastes, machine para máquinas, vehicle para carros, motorcycle para motos, boat para barcos, cargo para cargas, gate para portões, platform para plataforma de entrega elevada, tree para árvores, custom para objetos novos.',
+    'kind: building para construções, crane para guindastes, machine para máquinas, vehicle para carros, motorcycle para motos, boat para barcos, cargo para cargas, gate para PORTÕES, platform para plataforma de entrega elevada, tree para árvores, custom para objetos novos.',
     'kind custom DEVE ter details:[{id,shape:"box"|"sphere"|"cylinder"|"cone"|"torus",size:[dimensões corretas],at:[x,y,z],color:"#RRGGBB"},...], de 3 a 12 partes distintas, todas locais ao objeto.',
     `actions: de 1 a 3 ações EM ORDEM. Cada {sourceId:"ID de frase",target:"id",kind:"move"|"lift"|"lower"|"drive"|"sail"|"rotate"|"open",delta:[dx,dy,dz], onto?:"id_de_platform" (só lower em cargo)}. IDs disponíveis: ${allowedSourceIds}.`, 
     'sourceId indica a frase EXATA em que começa o movimento. Se a primeira frase só apresenta o problema, mostre a falha antes da solução; use os capítulos seguintes quando existirem. Em uma única frase, use somente o seu único sourceId. Ordem crescente.',
