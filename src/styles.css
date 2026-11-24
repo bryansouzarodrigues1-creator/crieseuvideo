@@ -559,3 +559,7 @@ body { min-height: 100%; -webkit-overflow-scrolling: touch; }
   .inline-ai3d-player .native-3d-controls {gap:6px;flex-wrap:wrap;}
   .explainer-advanced-settings {padding:8px 0 4px;}
 }
+
+#lovable-badge {
+  display: none !important;
+}
