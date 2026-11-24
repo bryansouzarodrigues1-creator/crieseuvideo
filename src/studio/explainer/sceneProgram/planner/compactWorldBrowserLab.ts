@@ -27,11 +27,11 @@ const data={
     version:1,setting:'industrial',background:'#C1D8E8',
     entities:[
       {id:'crane',name:'Guindaste com carrinho suspenso',kind:'crane',at:[-2,0,0],size:[7,9,3],color:'#E5A944'},
-      {id:'load',name:'Carga única em três operações',kind:'cargo',at:[0,1,0],size:[1.5,1,1],color:'#AC825D'},
+      {id:'load',name:'Carga única em três operações',kind:'cargo',at:[0,0,0],size:[1.5,1,1],color:'#AC825D'},
       {id:'landing',name:'Plataforma elevada de recebimento',kind:'platform',at:[2.2,0,0],size:[2.4,1,2.8],color:'#839BA3'},
     ],
     actions:[
-      {sourceId:'s1',target:'load',kind:'lift',delta:[0,3,0]},
+      {sourceId:'s1',target:'load',kind:'lift',delta:[0,4,0]},
       {sourceId:'s2',target:'load',kind:'move',delta:[2.2,0,0]},
       {sourceId:'s3',target:'load',kind:'lower',delta:[0,-3,0],onto:'landing'},
     ],
