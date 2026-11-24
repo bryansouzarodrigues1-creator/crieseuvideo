@@ -64,3 +64,36 @@ Foi incluída a função `probeAsaasSandboxCredential()` em `src/studio/payments
 - https://docs.asaas.com/reference/consultar-situacao-cadastral-da-conta
 
 **Bloqueador atual**: Somente a chave API foi informada como cadastrada. Ainda não há confirmação da chave Pix, do token de webhook nem de um ambiente com PR #107 implantado. O sistema de consumo de créditos na geração/exportação 2D e os fluxos de estorno também seguem pendentes. Não liberar compras reais.
+
+
+## Atualização: homologação com a única API Key já cadastrada
+
+Esta revisão não altera o site publicado nem os Secrets. A API Key existente é suficiente para uma **sondagem de conectividade** no endpoint interno `checkAsaasSandboxConnection`: o browser chama `/teste-pix` com sessão Supabase válida e o servidor faz apenas `GET /v3/myAccount/status/` no Asaas Sandbox (sem cobrança). O teste de credencial funciona mesmo se `ASAAS_ENV` ainda não estiver definido, mas falha se a variável indicar um ambiente não Sandbox.
+
+**Para criar um QR estático com menos configurações:** o backend tenta usar `ASAAS_PIX_ADDRESS_KEY` se configurada. Se não existir, consulta `GET /v3/pix/addressKeys?status=ACTIVE&limit=100` e só escolhe automaticamente **quando houver exatamente uma chave Pix ativa**. Em caso de zero ou várias chaves, não faz escolha nem cria chave bancária automaticamente; o operador deve selecionar uma chave Pix no backend ou cadastrar uma no Asaas Sandbox. A criação de QR estático é `POST /v3/pix/qrCodes/static` com valor R$ 1,00, `allowsMultiplePayments=false` e `expirationSeconds=900`.
+
+**Sem webhook no primeiro teste:** a rota protegida `verifyMyPixSandboxPayment` consulta os pagamentos reais do QR diretamente na API Sandbox via `GET /v3/payments?pixQrCodeId=...`, reconsulta o pagamento por ID, confere `RECEIVED`, `PIX`, valor e QR exatos e usa a RPC privilegiada de forma atômica e idempotente para liberar 3 créditos. Nenhum status fornecido pelo navegador é confiável. Esse polling manual serve **somente na homologação**; configure o `ASAAS_WEBHOOK_TOKEN` e Webhooks para o fluxo definitivo.
+
+### Configurações de ativação Sandbox
+
+- `ASAAS_API_KEY`: já informada como salva manualmente pelo usuário, ainda não testada por conexão autenticada.
+- `ASAAS_ENV=sandbox`: exigida no backend para criação/consulta de pagamentos de teste.
+- `ASAAS_CHECKOUT_ENABLED=true`: chave de habilitação intencional **somente para implantação isolada de homologação**. Nunca habilitar no site público antes do teste ponta a ponta.
+- `ASAAS_PIX_ADDRESS_KEY`: opcional se existir exatamente **uma** chave Pix ativa no Asaas Sandbox; recomendável configurar de forma explícita quando houver várias.
+- `ASAAS_WEBHOOK_TOKEN`: não é necessário para testar a **conciliação manual** no Sandbox, mas é obrigatório antes de cadastrar e usar o webhook no Asaas.
+
+A tela `/teste-pix` mostra a checagem de conectividade para usuários logados mesmo com checkout desativado; permanece bloqueado o botão de criar Pix enquanto `VITE_ASAAS_SANDBOX_DEMO` não estiver configurado. Esta variável pública controla **apenas a apresentação da tela**, não autoriza operações financeiras, que dependem exclusivamente do backend.
+
+### Limites importantes
+
+- Ainda não há teste de Pix end-to-end no Asaas com a chave configurada. CI simula a API com mocks e não faz chamadas reais.
+- A liberação de créditos **não significa** que a geração de vídeos já está descontando saldo. Não vender em produção até integrar consumo atômico de créditos e processos de estorno.
+- Ao criar uma cobrança dinâmica em vez do QR estático, o Asaas exige criar um cliente com CPF/CNPJ; não é possível assumir que o CPF da conta Asaas é o CPF do comprador. Portanto, esta revisão mantém o QR **estático**.
+- Para simular pagamento de QR entre contas Sandbox, a documentação Asaas pede uma segunda conta Sandbox com saldo, autenticação própria e chave Pix cadastrada na conta recebedora. Não enviar credenciais no chat.
+
+Fontes oficiais:
+- https://docs.asaas.com/reference/listar-chaves
+- https://docs.asaas.com/reference/criar-qrcode-estatico
+- https://docs.asaas.com/reference/criar-novo-cliente
+- https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook
+- https://docs.asaas.com/docs/testar-pagamento-de-qrcodes-pix
