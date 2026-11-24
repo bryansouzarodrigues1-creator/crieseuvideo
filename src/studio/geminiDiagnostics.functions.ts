@@ -130,6 +130,22 @@ export const probeGeminiInference=createServerFn({method:'POST'})
       const usage=raw&&typeof raw==='object'&&'usageMetadata' in raw
         ?(raw as {usageMetadata?:{totalTokenCount?:unknown}}).usageMetadata?.totalTokenCount
         :undefined;
+      // HTTP 200 is not enough: thinking models can finish with MAX_TOKENS
+      // before producing any visible output. Do not report a false success.
+      const first=raw&&typeof raw==='object'&&'candidates' in raw
+        ?(raw as {candidates?:Array<{finishReason?:unknown;content?:{parts?:Array<{text?:unknown}>}}>}).candidates?.[0]
+        :undefined;
+      const output=first?.content?.parts
+        ?.filter(part=>typeof part.text==='string')
+        .map(part=>String(part.text)).join('').trim()??'';
+      const hasVisibleAnswer=/^OK[.\s!]*$/i.test(output);
+      if(!hasVisibleAnswer) return {
+        model,status:'failed',httpStatus:200,durationMs,
+        ...(typeof usage==='number'&&Number.isFinite(usage)?{tokenUsage:usage}:{}),
+        note:first?.finishReason==='MAX_TOKENS'
+          ?'O Google respondeu HTTP 200, mas o modelo esgotou os tokens de resposta sem produzir OK.'
+          :'O Google respondeu HTTP 200, mas não entregou a confirmação mínima OK. Verificar bloqueio ou resposta incompleta.'
+      };
       return {model,status:'success',httpStatus:200,durationMs,
         ...(typeof usage==='number'&&Number.isFinite(usage)?{tokenUsage:usage}:{}),
         note:'A geração mínima funcionou. O próximo problema, caso a cena 3D falhe, está ligado ao tamanho da chamada, à configuração estruturada ou à capacidade do modelo sob carga.'};
