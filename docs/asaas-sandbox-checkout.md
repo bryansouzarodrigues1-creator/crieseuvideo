@@ -97,3 +97,20 @@ Fontes oficiais:
 - https://docs.asaas.com/reference/criar-novo-cliente
 - https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook
 - https://docs.asaas.com/docs/testar-pagamento-de-qrcodes-pix
+
+
+## Prévia atual — teste de prontidão sem cobrar (24/11/2026)
+
+O novo botão **Verificar conexão Asaas Sandbox** em `/teste-pix` é seguro para o primeiro acesso: ele realiza no servidor apenas dois GETs:
+- `/v3/myAccount/status/`, que confirma a credencial Sandbox;
+- `/v3/pix/addressKeys?status=ACTIVE&limit=2`, que verifica **sem mostrar valores de chaves Pix** se existem 0, 1 ou várias chaves ativas.
+
+Não cria Pix, cliente, cobrança, chave Pix nem crédito. Com uma chave definida manualmente em `ASAAS_PIX_ADDRESS_KEY`, o diagnóstico informa apenas que existe uma configuração explícita no servidor.
+
+**Como visualizar:** abrir o editor do Lovable do projeto CrieSeuVideo, selecionar a branch GitHub `experiment/free-trial-google-quota-20261123` e abrir o Preview dessa branch. Entrar com Google em `/teste-gratis`, navegar para `/teste-pix` e tocar em **Verificar conexão Asaas Sandbox**. A rota não está no site publicado da main. Nenhuma flag de checkout é exigida para este teste somente de leitura; a API key pré-existente é necessária.
+
+Se a API estiver conectada mas o diagnóstico indicar **nenhuma chave Pix ativa**, cadastrar uma EVP no painel **Sandbox Asaas** ou pela documentação oficial (não criar automaticamente sem consentimento). Se houver **várias chaves ativas**, selecionar uma como `ASAAS_PIX_ADDRESS_KEY` em Secrets. Não é necessário gerar outra API key.
+
+**Cuidado:** para fazer o teste de pagamento entre contas será necessária uma segunda conta Sandbox pagadora, com credencial própria e saldo simulado, conforme o guia oficial: https://docs.asaas.com/docs/testar-pagamento-de-qrcodes-pix. Somente depois da leitura bem-sucedida e em implantação isolada, habilitar `ASAAS_ENV=sandbox`, `ASAAS_CHECKOUT_ENABLED=true` e `VITE_ASAAS_SANDBOX_DEMO=true`. Nunca habilitar esse checkout na main publicada sem integração completa de consumo de créditos e estornos.
+
+O Lovable MCP de publicação publica o **projeto principal**, não uma branch arbitrária, portanto a prévia experimental deve ser selecionada no editor e não publicada como produção.
