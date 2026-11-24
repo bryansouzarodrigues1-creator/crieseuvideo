@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createStaticPixSandbox, findUniqueActivePixKeySandbox, listStaticPixPaymentIdsSandbox } from './asaas.server';
+import { createStaticPixSandbox, findUniqueActivePixKeySandbox, listStaticPixPaymentIdsSandbox, checkAsaasSandboxPixKeyReadiness } from './asaas.server';
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
@@ -51,4 +51,37 @@ describe('Asaas Sandbox single-API-key compatibility', () => {
   expect(await listStaticPixPaymentIdsSandbox('qr_test_001')).toEqual(['pay_abc12345']);
   expect(spy.mock.calls[0][0]).toContain('/payments?pixQrCodeId=qr_test_001');
  });
+ it('reports exactly one active Pix key without returning any key value', async () => {
+  sandbox();
+  const spy=vi.fn().mockResolvedValue(ok({data:[{key:'123e4567-e89b-12d3-a456-426614174000',status:'ACTIVE'}],hasMore:false}));
+  vi.stubGlobal('fetch',spy);
+  expect(await checkAsaasSandboxPixKeyReadiness()).toBe('one_active');
+  expect(spy.mock.calls[0][0]).toContain('?status=ACTIVE&limit=2');
+  expect(spy.mock.calls[0][1].method).toBe('GET');
+  expect(spy.mock.calls[0][1].body).toBeUndefined();
+ });
+ it('reports a missing active Pix key without creating one', async () => {
+  sandbox();
+  const spy=vi.fn().mockResolvedValue(ok({data:[],hasMore:false}));
+  vi.stubGlobal('fetch',spy);
+  expect(await checkAsaasSandboxPixKeyReadiness()).toBe('no_active');
+  expect(spy).toHaveBeenCalledTimes(1);
+ });
+ it('detects ambiguous active Pix key selection safely', async () => {
+  sandbox();
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(ok({data:[{key:'abc_123456',status:'ACTIVE'},{key:'def_123456',status:'ACTIVE'}],hasMore:false})));
+  expect(await checkAsaasSandboxPixKeyReadiness()).toBe('multiple_active');
+ });
+ it('handles an explicit server Pix key without exposing its value', async () => {
+  sandbox(); vi.stubEnv('ASAAS_PIX_ADDRESS_KEY','server-secret-value');
+  const spy=vi.fn();vi.stubGlobal('fetch',spy);
+  expect(await checkAsaasSandboxPixKeyReadiness()).toBe('configured');
+  expect(spy).not.toHaveBeenCalled();
+ });
+ it('fails closed on unavailable Asaas readiness response', async () => {
+  sandbox();
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:false,status:429}));
+  expect(await checkAsaasSandboxPixKeyReadiness()).toBe('unavailable');
+ });
+
 });
