@@ -6,7 +6,7 @@ import {supabase} from '@/integrations/supabase/client';
 import {lovable} from '@/integrations/lovable';
 import '@lovable.dev/cloud-auth-js/styles.css';
 import {generateAi3DWorld} from '../ai3d.functions';
-import {checkGeminiModelStatus,type GeminiModelStatus} from '../geminiDiagnostics.functions';
+import {checkGeminiModelStatus,probeGeminiInference,type GeminiModelStatus,type GeminiInferenceProbe} from '../geminiDiagnostics.functions';
 import type {GeminiModelChoice} from '../server/ai';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
@@ -22,6 +22,8 @@ export default function Ai3DStudio(){
   const [geminiModel,setGeminiModel]=useState<GeminiModelChoice>('default');
   const [modelStatus,setModelStatus]=useState<GeminiModelStatus|null>(null);
   const [checkingModel,setCheckingModel]=useState(false);
+  const [probeStatus,setProbeStatus]=useState<GeminiInferenceProbe|null>(null);
+  const [probing,setProbing]=useState(false);
   const [userId,setUserId]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [clip,setClip]=useState<ComplexWorldClip|null>(null);
@@ -43,6 +45,7 @@ export default function Ai3DStudio(){
   const abortRef=useRef<AbortController|null>(null);
   const send=useServerFn(generateAi3DWorld);
   const checkModel=useServerFn(checkGeminiModelStatus);
+  const runProbe=useServerFn(probeGeminiInference);
   const duration=clip?.duration??0;
 
   useEffect(()=>{
@@ -161,6 +164,22 @@ export default function Ai3DStudio(){
         note:'O diagnóstico não pôde ser concluído. Confira a sessão e a conexão do site.'});
     }finally{setCheckingModel(false);}
   };
+  const testMinimalInference=async()=>{
+    if(probing||busy||!userId)return;
+    setProbing(true);setProbeStatus(null);
+    try{
+      const {data:{session},error:authError}=await supabase.auth.getSession();
+      if(authError||!session?.access_token)throw Error('Sessão expirada');
+      const result=await runProbe({
+        data:{geminiModel},
+        headers:{Authorization:`Bearer ${session.access_token}`},
+      });
+      setProbeStatus(result);
+    }catch{
+      setProbeStatus({model:geminiModel,status:'network_error',
+        note:'Não foi possível executar o teste mínimo autenticado. Verifique a sessão.'});
+    }finally{setProbing(false);}
+  };
   const generate=async()=>{
     if(busy||busyExportRef.current||!userId)return;
     setError('');setPlaying(false);setBusy(true);
@@ -241,7 +260,7 @@ export default function Ai3DStudio(){
           border:'1px solid #3e566c',borderRadius:12,background:'#101e2d'}}>
           <label htmlFor="ai3d-gemini-model" style={{display:'block',fontWeight:800,marginBottom:8}}>Modelo Gemini</label>
           <select id="ai3d-gemini-model" value={geminiModel}
-            onChange={e=>{setGeminiModel(e.target.value as GeminiModelChoice);setModelStatus(null);}}
+            onChange={e=>{setGeminiModel(e.target.value as GeminiModelChoice);setModelStatus(null);setProbeStatus(null);}}
             disabled={busy||checkingModel}>
             <option value="default">Padrão configurado no servidor</option>
             <option value="gemini-3.6-flash">Gemini 3.6 Flash · alternativa manual</option>
@@ -253,6 +272,27 @@ export default function Ai3DStudio(){
               borderRadius:9,background:'#253c4e',color:'#f3fbff',fontWeight:800}}>
             {checkingModel?'Consultando modelo…':'Verificar conexão (sem gerar vídeo)'}
           </button>
+          <button type="button" onClick={()=>void testMinimalInference()}
+            disabled={busy||checkingModel||probing||!userId}
+            style={{display:'block',marginTop:12,padding:'11px 13px',
+              border:'1px solid #ec8491',borderRadius:9,
+              background:'#4a222d',color:'#fff',fontWeight:800}}>
+            {probing?'Testando geração mínima…':'Testar geração mínima (usa poucos tokens)'}
+          </button>
+          <p style={{fontSize:12,lineHeight:1.6,color:'#e0bfcb',margin:'7px 0'}}>
+            Envia somente a frase “Responda OK” com uma única chamada à API Google.
+            Não produz vídeo nem tenta novamente; pode consumir tokens da sua cota.
+          </p>
+          {probeStatus&&<p role="status" style={{padding:'12px',borderRadius:8,
+            background:probeStatus.status==='success'?'#173d2e':'#4b232e',
+            color:'#fff',fontSize:13,lineHeight:1.6}}>
+            <strong>{probeStatus.status==='success'?'Teste mínimo passou':'Teste mínimo não passou'}</strong>
+            {' · '+probeStatus.model}
+            {typeof probeStatus.httpStatus==='number'?' · HTTP '+probeStatus.httpStatus:''}
+            {typeof probeStatus.durationMs==='number'?' · '+(probeStatus.durationMs/1000).toFixed(1)+'s':''}
+            {typeof probeStatus.tokenUsage==='number'?' · '+probeStatus.tokenUsage+' tokens':''}
+            <span style={{display:'block',marginTop:4}}>{probeStatus.note}</span>
+          </p>}
           {modelStatus&&<p role="status" style={{marginTop:10,fontSize:13,lineHeight:1.6,
             color:modelStatus.status==='available'?'#b0edc7':'#ffc8b5'}}>
             <strong>{modelStatus.model}</strong>: {modelStatus.note}
