@@ -55,6 +55,24 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     expect(String(fetched.mock.calls[0][0])).toContain('gemini-3.8-flash:generateContent');
     expect(fetched).toHaveBeenCalledTimes(1);
   });
+  it('uses the explicitly selected Gemini 3.6 Flash after a 5xx with zero automatic retries',async()=>{
+    process.env.GEMINI_API_KEY='dummy-secret-for-test-only';
+    const fetched=vi.fn(async (url:string|URL|Request)=>new Response('',{status:503}));
+    vi.stubGlobal('fetch',fetched);
+    const problem=await ask3DWorldAi('scene','gemini',undefined,undefined,'gemini-3.6-flash').catch(e=>e);
+    expect(problem).toBeInstanceOf(Ai3DProviderError);
+    expect(problem.failures).toEqual([{provider:'gemini',reason:'service_unavailable'}]);
+    expect(String(fetched.mock.calls[0][0])).toContain('/models/gemini-3.6-flash:generateContent');
+    expect(fetched).toHaveBeenCalledTimes(1);
+  });
+  it('does not automatically swap Gemini models when Google returns HTTP 500',async()=>{
+    process.env.GEMINI_API_KEY='dummy-secret';
+    const fetched=vi.fn(async()=>new Response('',{status:500}));
+    vi.stubGlobal('fetch',fetched);
+    const error=await ask3DWorldAi('scene','gemini',undefined,undefined,'gemini-3.8-flash').catch(e=>e);
+    expect(error.failures).toEqual([{provider:'gemini',reason:'service_unavailable'}]);
+    expect(fetched).toHaveBeenCalledTimes(1);
+  });
   it('reports a Gemini quota response clearly',async()=>{
     process.env.GEMINI_API_KEY='dummy-key';
     vi.stubGlobal('fetch',vi.fn(async()=>new Response('{}',{status:429})));
