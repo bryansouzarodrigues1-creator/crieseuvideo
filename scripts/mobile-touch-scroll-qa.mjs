@@ -54,7 +54,7 @@ async function assertSwipe(label,x,start,end,selector){
 try{
   const base='http://127.0.0.1:4198';
   await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
-  await page.getByRole('heading',{name:/Sua ideia pode virar um vídeo animado/i}).waitFor({timeout:60000});
+  await page.getByRole('heading',{name:/Sua ideia merece virar vídeo/i}).waitFor({timeout:60000});
   // Public launch landing is a vertically scrolling document; the old
   // production editor remains accessible separately after Google sign-in.
   assert.ok((await metrics()).overflowY!=='hidden','Landing should not disable body scrolling');
