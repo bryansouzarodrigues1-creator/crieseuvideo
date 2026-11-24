@@ -37,7 +37,7 @@ try {
   page.on('request', request => {
     if (/ai.gateway.lovable.dev|generativelanguage.googleapis.com/.test(request.url())) providerRequests++;
   });
-  await page.goto(base + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto(base + '/laboratorio', { waitUntil: 'domcontentloaded', timeout: 60000 });
   // A short prompt must never leave the main button mysteriously disabled.
   await page.locator('#ex-script').fill('Crie um lovable');
   const create=page.getByRole('button',{name:/Criar cena 3D pela IA/});
