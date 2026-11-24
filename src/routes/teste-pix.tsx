@@ -30,7 +30,13 @@ function SandboxPixPage() {
   try {
    const headers = await sessionHeaders();
    const status = await checkConnection({ headers });
-   setConnectionResult(status.ok ? 'Conexão Sandbox confirmada. Nenhuma cobrança criada.' :
+   setConnectionResult(status.ok ? (
+    status.pixKeys === 'one_active' ? 'API conectada. Uma chave Pix ativa pronta para teste.' :
+    status.pixKeys === 'configured' ? 'API conectada. Chave Pix definida no servidor.' :
+    status.pixKeys === 'no_active' ? 'API conectada, mas falta cadastrar uma chave Pix ativa na conta Sandbox.' :
+    status.pixKeys === 'multiple_active' ? 'API conectada. Há várias chaves Pix; selecione uma no servidor antes do QR.' :
+    'API conectada, mas não foi possível consultar as chaves Pix.'
+   ) :
     status.reason === 'key_missing' ? 'A chave ASAAS_API_KEY não foi encontrada neste servidor.' :
     status.reason === 'unauthorized' ? 'A API respondeu 401/403. Confira a chave de homologação.' :
     status.reason === 'wrong_environment' ? 'Este servidor não está configurado para o Sandbox.' :
