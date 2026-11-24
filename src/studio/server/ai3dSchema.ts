@@ -34,7 +34,7 @@ export function gemini3DResponseSchema(sourceIds:readonly string[]) {
           type:'OBJECT',
           properties:{
             id:{type:'STRING'},name:{type:'STRING'},
-            kind:{type:'STRING',enum:['building','crane','machine','vehicle','motorcycle','boat','cargo','gate','tree','custom']},
+            kind:{type:'STRING',enum:['building','crane','machine','vehicle','motorcycle','boat','cargo','gate','platform','tree','custom']},
             at:vec,size:vec,color:{type:'STRING'},
             details:{type:'ARRAY',minItems:3,maxItems:12,items:detail},
           },
@@ -49,6 +49,9 @@ export function gemini3DResponseSchema(sourceIds:readonly string[]) {
             sourceId:{type:'STRING',enum:[...sourceIds]},target:{type:'STRING'},
             kind:{type:'STRING',enum:['move','lift','lower','drive','sail','rotate','open']},
             delta:vec,
+            // Optional delivery anchor; the server compiler verifies kind,
+            // support surface height, and cargo alignment independently.
+            onto:{type:'STRING'},
           },
           required:['sourceId','target','kind','delta'],
         },
