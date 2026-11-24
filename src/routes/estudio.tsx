@@ -60,25 +60,25 @@ function StudioAccess() {
 
   return <main style={{
     minHeight:'100dvh', display:'grid', placeItems:'center', padding:20, fontFamily:'system-ui,sans-serif',
-    background:'radial-gradient(circle at 80% 5%, #343c86 0, #0b1122 54%, #070b14 100%)', color:'#f5f6ff',
+    background:'radial-gradient(circle at 80% 5%, #63222f 0, #1b1115 54%, #090909 100%)', color:'#f5f6ff',
   }}>
     <section style={{
-      maxWidth:450,width:'100%',background:'#17213a',border:'1px solid #394565',
+      maxWidth:450,width:'100%',background:'#1b1417',border:'1px solid #69404a',
       padding:'32px 25px',borderRadius:24,boxShadow:'0 20px 90px #0008',
     }}>
-      <a href="/" style={{fontSize:13,color:'#b1c2ff',textDecoration:'none'}}>← Voltar ao lançamento</a>
+      <a href="/" style={{fontSize:13,color:'#ff99a8',textDecoration:'none'}}>← Voltar ao lançamento</a>
       <h1 style={{fontSize:30,fontWeight:900,lineHeight:1.12,margin:'22px 0 10px'}}>Seu estúdio começa aqui.</h1>
-      <p style={{color:'#bac7df',lineHeight:1.6,fontSize:15}}>
+      <p style={{color:'#d0bfc3',lineHeight:1.6,fontSize:15}}>
         Faça login com o Google para entrar no ambiente experimental do CrieSeuVideo.
       </p>
       {status==='loading'
        ? <p role="status">Verificando sua conta…</p>
        : <button onClick={login} disabled={busy} type="button" style={{
            width:'100%',marginTop:18,padding:16,border:0,borderRadius:13,
-           background:'#f4f7ff',fontSize:15,fontWeight:800,color:'#17213a',cursor:'pointer'
+           background:'#f4f7ff',fontSize:15,fontWeight:800,color:'#241519',cursor:'pointer'
          }}>{busy?'Abrindo Google…':'Entrar com Google'}</button>}
       {error && <p role="alert" style={{color:'#fecaca',lineHeight:1.5}}>{error}</p>}
-      <p style={{fontSize:12,color:'#9daecc',lineHeight:1.6,marginTop:22}}>
+      <p style={{fontSize:12,color:'#ae9ca3',lineHeight:1.6,marginTop:22}}>
         O estúdio está em desenvolvimento. Acesso à conta não inclui compra, créditos ou promessa de renda.
       </p>
     </section>
