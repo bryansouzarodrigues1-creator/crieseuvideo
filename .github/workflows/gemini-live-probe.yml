@@ -1,0 +1,45 @@
+name: Gemini live minimal inference diagnostic
+on:
+  push:
+    branches: [diagnostics/gemini-live-probe-20261124]
+    paths: ['.github/workflows/gemini-live-probe.yml']
+  workflow_dispatch:
+permissions: {}
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: One Google request only; no Lovable calls
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error, sys
+          key = os.environ.get("GEMINI_API_KEY", "")
+          if not key:
+              print("BLOCKED: GEMINI_API_KEY is not configured in GitHub Actions. No request made.")
+              sys.exit(1)
+          model = "gemini-3.6-flash"
+          body = {"contents":[{"role":"user","parts":[{"text":"Responda somente OK."}]}],"generationConfig":{"maxOutputTokens":80,"thinkingConfig":{"thinkingLevel":"low"}}}
+          req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent", data=json.dumps(body).encode(), headers={"x-goog-api-key":key,"Content-Type":"application/json"}, method="POST")
+          print("Model:", model)
+          try:
+              with urllib.request.urlopen(req, timeout=25) as response:
+                  print("HTTP", response.status)
+                  result = json.load(response)
+              c = (result.get("candidates") or [{}])[0]
+              visible = "".join(p.get("text","") for p in c.get("content",{}).get("parts",[]) if not p.get("thought")).strip()
+              if visible.upper().rstrip(".!") == "OK":
+                  print("PASS: minimal inference returned OK.")
+              else:
+                  print("FAIL: no valid visible OK; finish reason:", c.get("finishReason") if c.get("finishReason") in ("MAX_TOKENS","STOP","SAFETY") else "OTHER")
+                  sys.exit(1)
+          except urllib.error.HTTPError as e:
+              print("FAIL: Google HTTP", e.code)
+              sys.exit(1)
+          except Exception:
+              print("FAIL: network, timeout or invalid response.")
+              sys.exit(1)
+          PY
