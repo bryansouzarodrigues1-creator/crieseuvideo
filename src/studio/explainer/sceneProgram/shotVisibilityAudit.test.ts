@@ -15,11 +15,11 @@ const spec = {
   background: '#C5DCEB',
   entities: [
     { id: 'crane', name: 'Guindaste alto no canteiro', kind: 'crane', at: [-2, 0, 0], size: [7, 9, 3], color: '#D6A442' },
-    { id: 'load', name: 'Carga única suspensa', kind: 'cargo', at: [0, 1, 0], size: [1.5, 1, 1], color: '#C9B394' },
+    { id: 'load', name: 'Carga única suspensa', kind: 'cargo', at: [0, 0, 0], size: [1.5, 1, 1], color: '#C9B394' },
     { id: 'landing', name: 'Plataforma elevada de recebimento', kind: 'platform', at: [2.2, 0, 0], size: [2.4, 1, 2.8], color: '#8199A2' },
   ],
   actions: [
-    { sourceId: 's1', target: 'load', kind: 'lift', delta: [0, 3, 0] },
+    { sourceId: 's1', target: 'load', kind: 'lift', delta: [0, 4, 0] },
     { sourceId: 's2', target: 'load', kind: 'move', delta: [2.2, 0, 0] },
     { sourceId: 's3', target: 'load', kind: 'lower', delta: [0, -3, 0], onto: 'landing' },
   ],
