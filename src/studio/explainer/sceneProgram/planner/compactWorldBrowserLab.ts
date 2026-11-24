@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import {compileCompactWorld} from './compactWorldDirector';
 import {SceneProgram3D} from '../stage3d';
+import {auditShotVisibilityAt} from '../shotVisibilityAudit';
 import {sourceBriefsFromScript} from './aiWorldDirector';
 
 const source=sourceBriefsFromScript(
@@ -69,7 +70,8 @@ export function showCompactWorldForQA(kind:keyof typeof data,seconds?:number,wid
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   stage=new SceneProgram3D(clip.program,clip.sources);
   stage.render(renderer,seconds??0,width,height);
-  return {kind,nodes:clip.program.nodes.length,objects:clip.audit.objectCount,
+  const visibility=auditShotVisibilityAt(stage,seconds??0,width/height);
+  return {kind,nodes:clip.program.nodes.length,objects:clip.audit.objectCount,visibility,
     parts:clip.audit.objectParts,tracks:clip.program.tracks.length,seconds:clip.duration,
     pixels:canvas.toDataURL('image/png').length,width,height};
 }
