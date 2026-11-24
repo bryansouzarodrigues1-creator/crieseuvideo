@@ -97,11 +97,12 @@ export const probeGeminiInference=createServerFn({method:'POST'})
     if(!key)return {model,status:'not_configured',note:'GEMINI_API_KEY ausente no servidor.'};
     const user=context.userId;
     const now=Date.now();
-    const last=userProbeTimes.get(user)??0;
+    const probeKey=user+':'+model;
+    const last=userProbeTimes.get(probeKey)??0;
     if(now-last<PROBE_COOLDOWN_MS)
       return {model,status:'rate_limited',
-        note:'O teste mínimo já foi solicitado recentemente. Aguarde 15 minutos para evitar gastar tokens repetidos.'};
-    userProbeTimes.set(user,now);
+        note:'Este modelo já foi testado recentemente. Aguarde 15 minutos para repetir no mesmo modelo sem gastar tokens desnecessários.'};
+    userProbeTimes.set(probeKey,now);
     if(userProbeTimes.size>2000)userProbeTimes.clear();
     const started=Date.now();
     try{
