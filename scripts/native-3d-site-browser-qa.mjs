@@ -16,11 +16,11 @@ try {
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
- await page.getByRole('heading',{name:/Sua ideia pode virar um vídeo animado/i}).waitFor({timeout:40000});
+ await page.getByRole('heading',{name:/Sua ideia merece virar vídeo/i}).waitFor({timeout:40000});
  const invite=page.getByRole('link',{name:/Entrar no grupo de lançamento/i}).first();
  assert.ok((await invite.getAttribute('href'))?.startsWith('https://chat.whatsapp.com/'),
    'Launch homepage should send visitors directly to the WhatsApp group');
- assert.ok(await page.getByRole('link',{name:/Entrar com Google/i}).count()>0,
+ assert.ok(await page.getByRole('link',{name:/Entrar \/ Criar conta|Abrir meu estúdio/i}).count()>0,
    'Launch homepage should expose account login without forcing it for WhatsApp');
  await page.screenshot({path:path.join(out,'01-home-launch-funnel.png')});
  // The 3D engine has its own direct route. Landing page must not display
