@@ -95,7 +95,7 @@ export async function fetchAsaasPaymentSandbox(paymentId: string): Promise<Verif
 export async function probeAsaasSandboxCredential(): Promise<
   { ok: true } | { ok: false; reason: 'wrong_environment' | 'key_missing' | 'unauthorized' | 'provider_unavailable' }
 > {
-  if (process.env['ASAAS_ENV'] !== 'sandbox') {
+  if (process.env['ASAAS_ENV'] && process.env['ASAAS_ENV'] !== 'sandbox') {
     return { ok: false, reason: 'wrong_environment' };
   }
   const apiKey = process.env['ASAAS_API_KEY'];
