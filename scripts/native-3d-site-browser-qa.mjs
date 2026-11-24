@@ -16,12 +16,16 @@ try {
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
- await page.getByText('CrieSeuVideo',{exact:false}).first().waitFor({timeout:60000});
- // Advanced SceneProgram3D is the default: do not expect the old Toon empty state.
- await page.getByRole('heading',{name:'Cenário 3D criado pelo Gemini ou Lovable'}).waitFor({timeout:40000});
- assert.equal(await page.getByText('Seu próximo vídeo começa aqui').count(),0);
- await page.screenshot({path:path.join(out,'01-home-without-old-auto-demo.png')});
- await page.getByRole('link',{name:/motor 3d/i}).first().click();
+ await page.getByRole('heading',{name:/Sua ideia pode virar um vídeo animado/i}).waitFor({timeout:40000});
+ const invite=page.getByRole('link',{name:/Entrar no grupo de lançamento/i}).first();
+ assert.ok((await invite.getAttribute('href'))?.startsWith('https://chat.whatsapp.com/'),
+   'Launch homepage should send visitors directly to the WhatsApp group');
+ assert.ok(await page.getByRole('link',{name:/Entrar com Google/i}).count()>0,
+   'Launch homepage should expose account login without forcing it for WhatsApp');
+ await page.screenshot({path:path.join(out,'01-home-launch-funnel.png')});
+ // The 3D engine has its own direct route. Landing page must not display
+ // the old editor, but existing engine QA should still run normally.
+ await page.goto(base+'/motor-3d',{waitUntil:'domcontentloaded',timeout:60000});
  await page.getByRole('heading',{name:/Motor 3D de verdade/}).waitFor({timeout:60000});
  const stage=page.locator('.native-3d-screen canvas');
  await stage.waitFor({state:'attached',timeout:60000});
