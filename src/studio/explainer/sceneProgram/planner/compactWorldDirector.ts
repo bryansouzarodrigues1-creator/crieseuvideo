@@ -193,7 +193,7 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
       box('balcony','sacadas',[w*.65,.12,.32],[0,h*.53,d*.59],bright),
     ];
   }else if(e.kind==='crane'){
-    features=['base','coluna','braco','cabine','tambor','cabo','gancho'];
+    features=['base','coluna','braco','cabine','tambor','cabo','gancho','carrinho'];
     parts=[
       box('foundation','base',[w*.72,.36,d*.74],[0,.18,0],dark),
       box('mast','coluna',[.40,h*.92,.42],[0,h*.46,0],c),
@@ -201,6 +201,9 @@ function buildObject(e:Entity,sourceId:string):Blueprint{
       box('cab','cabine',[w*.23,h*.17,d*.55],[-w*.15,h*.62,0],shade(c,.10)),
       group('winch',[0,h*.76,0]),
       cylinder('spool','tambor',[.30,.30,.46],[0,0,0],'#AAB5C0',{parent:'winch',rotation:[Math.PI/2,0,0]}),
+      // The trolley is a real part of the rig: the rope follows cargo along
+      // the jib instead of floating at the original hook coordinate.
+      box('trolley','carrinho',[.48,.32,.48],[w*.40,h*.90,0],'#48525A'),
       box('cable','cabo',[.06,h*.65,.06],[w*.40,h*.56,0],'#39434B'),
       cylinder('hook','gancho',[.15,.20,.16],[w*.40,h*.21,0],'#D7AB4F'),
     ];
