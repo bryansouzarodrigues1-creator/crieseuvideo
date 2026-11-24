@@ -61,7 +61,7 @@ const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash";
 // models.get lists it. Prefer a current model; allow server-side override.
 const GEMINI_MODEL = process.env.GEMINI_AI_MODEL || "gemini-3.8-flash";
  // Explicit user choices, never arbitrary provider paths or URLs.
- export type GeminiModelChoice = 'default'|'gemini-3.6-flash'|'gemini-3.8-flash';
+ export type GeminiModelChoice = 'default'|'gemini-3.5-flash-lite'|'gemini-3.6-flash'|'gemini-3.8-flash';
  export const resolveGeminiModel=(choice:GeminiModelChoice='default'):string =>
    choice==='default'?GEMINI_MODEL:choice;
 
