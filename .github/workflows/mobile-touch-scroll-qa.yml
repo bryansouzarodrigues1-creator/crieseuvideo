@@ -38,6 +38,8 @@ jobs:
           exit 1
       - name: Verify native finger swipes on home and WebGL canvas
         run: bun scripts/mobile-touch-scroll-qa.mjs
+      - name: Check launch conversion layout across phones and desktop
+        run: bun scripts/launch-funnel-browser-qa.mjs
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
