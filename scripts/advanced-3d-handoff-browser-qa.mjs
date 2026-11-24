@@ -15,7 +15,7 @@ try {
  page.on('request',r=>{
    if(/ai.gateway.lovable.dev|generativelanguage.googleapis.com/.test(r.url()))providerCalls++;
  });
- await page.goto(url+'/',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.goto(url+'/laboratorio',{waitUntil:'domcontentloaded',timeout:60000});
  const advanced=page.getByRole('button',{name:/3D Avançado \(IA\)/});
  await advanced.waitFor({timeout:60000});
  assert.equal(await advanced.getAttribute('aria-pressed'),'true');
@@ -61,7 +61,7 @@ try {
  assert.equal(providerCalls,0,'No paid provider call on loading');
  await page.screenshot({path:path.join(out,'01-main-inline-ai3d-mobile.png'),fullPage:true});
  await generate.click();
- assert.equal(new URL(page.url()).pathname,'/','The main Generate button redirected instead of running inside the editor');
+ assert.equal(new URL(page.url()).pathname,'/laboratorio','The main Generate button redirected instead of running inside the editor');
  await page.getByText(/Para criar cenários 3D, entre na sua conta/).waitFor({timeout:10000});
  assert.equal(providerCalls,0,'Unauthenticated click must not call a paid model');
  const canvas=page.locator('canvas[aria-label="Prévia da cena 3D gerada pela IA"]');
