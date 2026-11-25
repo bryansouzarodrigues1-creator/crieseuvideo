@@ -6,6 +6,7 @@ import {supabase} from '@/integrations/supabase/client';
 import {lovable} from '@/integrations/lovable';
 import '@lovable.dev/cloud-auth-js/styles.css';
 import {generateAi3DWorld} from '../ai3d.functions';
+import {reviewAi3DWorld} from '../ai3dReview.functions';
 import {checkGeminiModelStatus,probeGeminiInference,type GeminiModelStatus,type GeminiInferenceProbe} from '../geminiDiagnostics.functions';
 import type {GeminiModelChoice} from '../server/ai';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
@@ -29,6 +30,16 @@ export default function Ai3DStudio(){
   const [busy,setBusy]=useState(false);
   const [clip,setClip]=useState<ComplexWorldClip|null>(null);
   const [usedProvider,setUsedProvider]=useState('');
+  const [plan,setPlan]=useState<Record<string,unknown>|null>(null);
+  const [sceneScript,setSceneScript]=useState('');
+  const [autoReview,setAutoReview]=useState(false);
+  const [reviewPending,setReviewPending]=useState(false);
+  const [reviewed,setReviewed]=useState(false);
+  const [reviewing,setReviewing]=useState(false);
+  const [reviewNote,setReviewNote]=useState('');
+  const [reviewIssues,setReviewIssues]=useState<string[]>([]);
+  const [original,setOriginal]=useState<{clip:ComplexWorldClip;plan:Record<string,unknown>}|null>(null);
+  const reviewLock=useRef(false);
   const [error,setError]=useState('');
   const [playing,setPlaying]=useState(false);
   const [time,setTime]=useState(0);
@@ -46,6 +57,7 @@ export default function Ai3DStudio(){
   const busyExportRef=useRef(false);
   const abortRef=useRef<AbortController|null>(null);
   const send=useServerFn(generateAi3DWorld);
+  const sendReview=useServerFn(reviewAi3DWorld);
   const checkModel=useServerFn(checkGeminiModelStatus);
   const runProbe=useServerFn(probeGeminiInference);
   const duration=clip?.duration??0;
@@ -183,7 +195,7 @@ export default function Ai3DStudio(){
     }finally{setProbing(false);}
   };
   const generate=async()=>{
-    if(busy||busyExportRef.current||!userId)return;
+    if(busy||reviewLock.current||busyExportRef.current||!userId)return;
     setError('');setPlaying(false);setBusy(true);
     try{
       // The protected server function expects an Authorization Bearer header.
@@ -195,7 +207,8 @@ export default function Ai3DStudio(){
         data:{script,provider,confirmCost:true,geminiModel},
         headers:{Authorization:`Bearer ${session.access_token}`},
       });
-      setClip(result.clip);setShotQa(null);setUsedProvider(result.provider);
+      setClip(result.clip);setPlan(result.plan);setSceneScript(script);setShotQa(null);setUsedProvider(result.provider);
+      setOriginal(null);setReviewed(false);setReviewNote('');setReviewIssues([]);setReviewPending(autoReview);
     }catch(e){
       const message=e instanceof Error?e.message:String(e);
       setError(/HTTP 5xx|serviço indisponível|falha temporária do serviço/i.test(message)
@@ -203,8 +216,46 @@ export default function Ai3DStudio(){
         :'A IA não conseguiu construir uma cena 3D válida: '+message);
     }finally{setBusy(false);}
   };
+  const reviewVisual=async()=>{
+    const canvas=canvasRef.current,stage=stageRef.current;
+    if(!canvas||!stage||!clip||!plan||!userId||reviewLock.current||reviewed||busyExportRef.current)return;
+    reviewLock.current=true;setReviewing(true);setReviewed(true);setPlaying(false);playingRef.current=false;setError('');
+    setReviewNote('Gemini analisando quadros reais…');
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session?.access_token)throw Error('Sessão expirada.');
+      const times=Array.from({length:7},(_,i)=>Math.round((duration-.01)*i/6*100)/100);
+      const frames=times.map(t=>{
+        drawRef.current(t);
+        return {time:t,mimeType:'image/jpeg' as const,data:canvas.toDataURL('image/jpeg',.7).split(',')[1]};
+      });
+      drawRef.current(clockRef.current);
+      const result=await sendReview({data:{script:sceneScript,plan,frames,confirmCost:true},headers:{Authorization:`Bearer ${session.access_token}`}});
+      setReviewIssues(result.issues);
+      if(result.status==='corrected'){
+        // A separate deterministic camera check before replacing the visible scene.
+        const candidate=new SceneProgram3D(result.clip.program,result.clip.sources);
+        let after:number;
+        const hard=(s:SceneProgram3D)=>auditShotVisibilitySequence(s,landscape?16/9:9/16).flatMap(r=>r.issues).filter(i=>i.code==='subject_offscreen'||i.code==='subject_missing_geometry').length;
+        try{after=hard(candidate);}finally{candidate.dispose();}
+        const before=hard(stage);
+        if(after>before){setReviewNote('Correção rejeitada: piorou o enquadramento. Cena original preservada.');return;}
+        setOriginal({clip,plan});setClip(result.clip);setPlan(result.plan);setShotQa(null);
+        setReviewNote('Correção aplicada e validada pelo motor. Compare a nova prévia; a qualidade artística não é garantida.');
+      }else setReviewNote(result.reason);
+    }catch(e){setReviewNote((e instanceof Error?e.message:'Falha na revisão')+' A cena original foi preservada.');}
+    finally{
+      try{drawRef.current(clockRef.current);}catch{}
+      reviewLock.current=false;setReviewing(false);
+    }
+  };
+  useEffect(()=>{
+    if(reviewPending&&!busy&&clip&&plan&&stageRef.current){
+      setReviewPending(false);void reviewVisual();
+    }
+  },[reviewPending,busy,clip,plan]);
   const seek=(t:number)=>{
-    if(busyExportRef.current||!clip)return;
+    if(busyExportRef.current||reviewLock.current||!clip)return;
     clockRef.current=Math.max(0,Math.min(duration-.001,t));
     setTime(clockRef.current);
     try{drawRef.current(clockRef.current);}catch(e){setError(e instanceof Error?e.message:String(e));}
@@ -213,7 +264,7 @@ export default function Ai3DStudio(){
    * without calling Gemini, Lovable or any paid endpoint. */
   const verifyCamera=()=>{
     const stage=stageRef.current;
-    if(!stage||!clip||busyExportRef.current||busy)return;
+    if(!stage||!clip||busyExportRef.current||busy||reviewLock.current)return;
     setPlaying(false);playingRef.current=false;setError('');
     try{
       setShotQa(auditShotVisibilitySequence(stage,landscape?16/9:9/16));
@@ -234,7 +285,7 @@ export default function Ai3DStudio(){
 
   const exportClip=async()=>{
     const canvas=canvasRef.current;
-    if(!canvas||!clip||busyExportRef.current)return;
+    if(!canvas||!clip||busyExportRef.current||reviewLock.current)return;
     const ctrl=new AbortController();abortRef.current=ctrl;
     busyExportRef.current=true;setPlaying(false);playingRef.current=false;
     setError('');setExportProgress(0);
@@ -331,8 +382,9 @@ export default function Ai3DStudio(){
           </p>
         </div>}
         <p className="native-3d-small" role="note">Ao clicar em Gerar cena 3D, você solicita uma geração que pode consumir créditos mesmo que falhe. No modo Automático, até dois provedores podem ser consultados.</p>
+        <label style={{display:"flex",gap:8,alignItems:"center",margin:"10px 0"}}><input type="checkbox" checked={autoReview} disabled={busy||reviewing} onChange={e=>setAutoReview(e.target.checked)}/> Revisar e corrigir automaticamente com Gemini High (1 chamada adicional, pode consumir tokens)</label>
         {userId?
-          <button type="button" className="ai3d-generate" disabled={busy||!!exportProgress} onClick={()=>void generate()}>
+          <button type="button" className="ai3d-generate" disabled={busy||reviewing||exportProgress!==null} onClick={()=>void generate()}>
             {busy?<Loader2 size={18}/>:<Sparkles size={18}/>}
             {busy?'Planejando objetos, cenário e movimento…':'Gerar cena 3D pela IA (pode usar créditos)'}
           </button>:
@@ -353,11 +405,11 @@ export default function Ai3DStudio(){
           </div>}
         </div>
         <div className="native-3d-controls">
-          <button disabled={!clip||busy||exportProgress!==null} onClick={()=>{if(clockRef.current>=duration-.01)seek(0);setPlaying(v=>!v);}}>
+          <button disabled={!clip||busy||reviewing||exportProgress!==null} onClick={()=>{if(clockRef.current>=duration-.01)seek(0);setPlaying(v=>!v);}}>
             {playing?<Pause size={17}/>:<Play size={17}/>} {playing?'Pausar':'Reproduzir'}
           </button>
           <input type="range" aria-label="Linha do tempo 3D" min={0} max={duration||1} step={0.05} value={time}
-            disabled={!clip||exportProgress!==null} onChange={e=>{setPlaying(false);seek(Number(e.target.value));}}/>
+            disabled={!clip||reviewing||exportProgress!==null} onChange={e=>{setPlaying(false);seek(Number(e.target.value));}}/>
           <span className="native-3d-clock">{time.toFixed(1)} / {duration.toFixed(1)}s</span>
         </div>
         {clip&&<div className="native-3d-numbers">
@@ -368,7 +420,7 @@ export default function Ai3DStudio(){
            borderRadius:12,background:'#1b1720',color:'#f2e9ed'}}
            aria-label="Auditoria de câmera do motor 3D">
           <button type="button" onClick={verifyCamera}
-            disabled={busy||exportProgress!==null}
+            disabled={busy||reviewing||exportProgress!==null}
             style={{padding:'11px 14px',background:'#39232c',color:'#fff',border:'1px solid #a45e71',
               borderRadius:9,fontWeight:800,cursor:'pointer'}}>
             Verificar câmera e visibilidade (sem gastar IA)
@@ -388,16 +440,23 @@ export default function Ai3DStudio(){
             </ul>}
           </div>}
         </section>}
+        {clip&&plan&&<section aria-label="Revisão visual Gemini" style={{marginTop:14,padding:12,border:"1px solid #536b7b",borderRadius:12}}>
+          <button type="button" disabled={busy||reviewing||reviewed||exportProgress!==null||!userId} onClick={()=>void reviewVisual()}>{reviewing?"Analisando quadros…":"Revisar e corrigir com Gemini (1 chamada)"}</button>
+          <p className="native-3d-small">Envia sete quadros do vídeo e o plano ao Google. Uma tentativa por cena nesta sessão; sem Lovable nem repetição automática.</p>
+          {reviewNote&&<p role="status">{reviewNote}</p>}
+          {reviewIssues.length>0&&<ul>{reviewIssues.map((issue,i)=><li key={i}>{issue}</li>)}</ul>}
+          {original&&<button disabled={reviewing||exportProgress!==null} onClick={()=>{setClip(original.clip);setPlan(original.plan);setOriginal(null);setShotQa(null);setReviewNote("Versão original restaurada.");}}>Restaurar versão original</button>}
+        </section>}
         <div className="native-3d-actions">
-          <button disabled={exportProgress!==null} onClick={()=>setLite(v=>!v)}>
+          <button disabled={reviewing||exportProgress!==null} onClick={()=>setLite(v=>!v)}>
             {lite?'Modo leve ativo':'Modo normal ativo'}
           </button>
-          <button disabled={exportProgress!==null} onClick={()=>{setShotQa(null);setLandscape(v=>!v);}}>
+          <button disabled={reviewing||exportProgress!==null} onClick={()=>{setShotQa(null);setLandscape(v=>!v);}}>
             {landscape?'Vertical 9:16':'Horizontal 16:9'}
           </button>
           {exportProgress!==null?
             <button onClick={()=>abortRef.current?.abort()}>Cancelar exportação ({exportProgress}%)</button>:
-            <button className="native-3d-download" disabled={!clip||busy} onClick={()=>void exportClip()}>
+            <button className="native-3d-download" disabled={!clip||busy||reviewing} onClick={()=>void exportClip()}>
               <Download size={17}/> Baixar vídeo 3D
             </button>}
         </div>

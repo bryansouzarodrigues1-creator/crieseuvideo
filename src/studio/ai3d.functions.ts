@@ -57,6 +57,7 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
       const clip=compileCompactWorld(raw,sources);
       return {
         clip,
+        plan:raw,
         provider:answer.provider,
         duration:clip.duration,
         warning:'A IA definiu os objetos e as ações; o motor construiu as peças e as câmeras. A revisão visual e o áudio ainda precisam ser finalizados.',
