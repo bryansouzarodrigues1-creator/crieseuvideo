@@ -15,6 +15,11 @@
  */
 import { normalizeSceneProgram, SceneProgramError, type ProgramSource, type SceneProgram, type Vec3 } from '../score';
 import { EMOTIONS, POSE_NAMES, faceFor, handTargets, type Emotion, type PoseName } from './poses';
+import { DirectionError } from './errors';
+import { choreograph, isLocomotion, type Beat, type CliffWorld, type CompileReport, type LocomotionVerb } from './locomotion';
+
+export { DirectionError };
+export type { CliffWorld, CompileReport, LocomotionVerb };
 
 export type Window = readonly [number, number];
 export type Axis = 'x' | 'y' | 'z';
@@ -40,17 +45,24 @@ export type Verb =
   | { do: 'roll'; node: string; dx: number; radius: number; centerY: number; at?: Window }
   /** Sets the height of a unit-height box that grows from its base (bars). The cast position.y is the base. */
   | { do: 'rise'; node: string; height: number; at?: Window }
-  | { do: 'pose'; node: string; pose: PoseName; emotion?: Emotion; at?: Window };
+  | { do: 'pose'; node: string; pose: PoseName; emotion?: Emotion; at?: Window }
+  /**
+   * Actor choreography on the cliff world (needs `world`): the verb is the WHOLE sentence. The body, gait, holds and
+   * contact windows are computed from the measured actor, so no coordinates are written. Only the cast member "hero".
+   */
+  | ActorVerb;
+export type ActorVerb = { do: LocomotionVerb; node: string; from?: 'left' | 'right' | 'front' };
+const isActorVerb = (v: Verb): v is ActorVerb => isLocomotion(v.do);
 
 export interface SceneDirection {
   sourceId: string;
   shot: { subjects: string[]; azimuth: number; endAzimuth?: number; elevation: number; distance: number };
   verbs: Verb[];
 }
-export interface Direction { version: 1; background: string; cast: CastMember[]; scenes: SceneDirection[] }
-
-export class DirectionError extends Error {
-  constructor(message: string) { super(message); this.name = 'DirectionError'; }
+export interface Direction {
+  version: 1; background: string; cast: CastMember[]; scenes: SceneDirection[];
+  /** Optional world built from the engine's own measurements; required by the actor verbs (walk, climb, plant, celebrate, stand). */
+  world?: CliffWorld;
 }
 
 const HID: Vec3 = [.01, .01, .01], ONE: Vec3 = [1, 1, 1], ZERO: Vec3 = [0, 0, 0];
@@ -66,6 +78,10 @@ interface Track {
 interface Check { sourceId: string; node: string; channel: 'position' | 'rotation' | 'scale'; part?: string; startPhase: number; endPhase: number; threshold: number }
 
 export function compileDirection(direction: Direction, sources: ProgramSource[]): SceneProgram {
+  return compileDirectionDetailed(direction, sources).program;
+}
+
+export function compileDirectionDetailed(direction: Direction, sources: ProgramSource[]): { program: SceneProgram; report: CompileReport } {
   if (direction.version !== 1) throw new DirectionError('Versão de direção desconhecida.');
   if (direction.scenes.length !== sources.length || direction.scenes.some((s, i) => s.sourceId !== sources[i].sourceId))
     throw new DirectionError('A direção precisa ter exatamente uma cena por frase do roteiro, na mesma ordem.');
@@ -76,9 +92,30 @@ export function compileDirection(direction: Direction, sources: ProgramSource[])
     cast.set(member.id, member);
   }
   const first = sources[0].sourceId;
-  const nodes = direction.cast.map(({ hidden, ...rest }) => ({
-    contextSourceId: first, ...rest, ...(hidden ? { scale: HID } : {}),
-  }));
+
+  // Actor choreography: the hero's verbs are expanded into tracks/contacts/world nodes by the measured-body verbs.
+  const usesActorVerbs = direction.scenes.some((sc) => sc.verbs.some(isActorVerb));
+  let choreo: ReturnType<typeof choreograph> | undefined;
+  if (usesActorVerbs && !direction.world) throw new DirectionError('Os verbos de ator (walk, climb, plant, celebrate, stand) exigem "world".');
+  if (direction.world) {
+    const hero = cast.get('hero');
+    if (!hero || hero.kind !== 'actor' || typeof hero.color !== 'string')
+      throw new DirectionError('Com "world", o elenco precisa de um ator "hero" com color #RRGGBB.');
+    const beats: Beat[] = direction.scenes.map((scene) => {
+      const own = scene.verbs.filter(isActorVerb);
+      if (own.length > 1) throw new DirectionError(`A cena ${scene.sourceId} tem ${own.length} verbos de ator; use um só por frase.`);
+      const verb = own[0];
+      if (verb && verb.node !== 'hero') throw new DirectionError(`Verbos de ator só valem para "hero" (cena ${scene.sourceId}).`);
+      return { sourceId: scene.sourceId, verb: verb?.do ?? 'stand', ...(verb?.from ? { from: verb.from } : {}) };
+    });
+    choreo = choreograph(direction.world, hero.color, beats, sources);
+  }
+  const worldIds = new Set((choreo?.nodes ?? []).map((n) => n.id as string));
+  const castNodes = direction.cast.filter((m) => !choreo || m.id !== 'hero').map(({ hidden, ...rest }) => {
+    if (worldIds.has(rest.id)) throw new DirectionError(`O elenco usa "${rest.id}", nome reservado pelo mundo (${[...worldIds].slice(0, 6).join(', ')}…).`);
+    return { contextSourceId: first, ...rest, ...(hidden ? { scale: HID } : {}) };
+  });
+  const nodes: Record<string, unknown>[] = [...(choreo?.nodes ?? []), ...castNodes];
   const visibleScale = (m: CastMember): Vec3 => (m.scale as Vec3 | undefined) ?? ONE;
   const startOf = (m: CastMember, channel: 'position' | 'rotation' | 'scale'): Vec3 =>
     channel === 'scale' ? (m.hidden ? HID : visibleScale(m)) : ((m[channel] as Vec3 | undefined) ?? ZERO);
@@ -90,6 +127,8 @@ export function compileDirection(direction: Direction, sources: ProgramSource[])
   const track = (node: string, channel: string, part: string | undefined, interpolation: 'smooth' | 'linear', initial: Vec3): Track => {
     const key = `${node}|${channel}|${part ?? ''}`;
     let t = tracks.get(key);
+    if (choreo?.owned.has(`${node}|${channel}`))
+      throw new DirectionError(`"${node}" (${channel}) já é controlado pelos verbos de ator; não combine com outros verbos nessa propriedade.`);
     if (!t) { t = { node, channel, ...(part ? { part } : {}), interpolation, keys: [], current: initial, lastOrder: -1 }; tracks.set(key, t); }
     else if (t.interpolation !== interpolation)
       throw new DirectionError(`"${node}" mistura movimento suave e linear na mesma propriedade (${channel}${part ? '/' + part : ''}).`);
@@ -119,6 +158,7 @@ export function compileDirection(direction: Direction, sources: ProgramSource[])
   direction.scenes.forEach((scene, index) => {
     const { sourceId } = scene;
     for (const verb of scene.verbs) {
+      if (isActorVerb(verb)) continue; // expanded by the choreography above
       const at: Window = verb.at ?? [0, 1];
       if (!(at[0] >= 0 && at[1] <= 1 && at[1] - at[0] >= .01)) throw new DirectionError(`Janela inválida em "${verb.node}" (${sourceId}).`);
       const m = member(verb.node);
@@ -188,11 +228,16 @@ export function compileDirection(direction: Direction, sources: ProgramSource[])
   // The engine accepts at most 60 checks: keep the ones with the largest promised movement.
   const motionChecks = [...checks].sort((x, y) => y.threshold - x.threshold).slice(0, 60).map((c) => ({ ...c, kind: 'change' as const }));
   try {
-    return normalizeSceneProgram({
-      version: 1, background: direction.background, nodes,
-      tracks: [...tracks.values()].map(({ current: _c, lastOrder: _l, ...t }) => t),
-      shots, contacts: [], motionChecks,
+    const program = normalizeSceneProgram({
+      version: 1, background: choreo?.background ?? direction.background, nodes,
+      tracks: [...(choreo?.tracks ?? []), ...[...tracks.values()].map(({ current: _c, lastOrder: _l, ...t }) => t)],
+      shots, contacts: choreo?.contacts ?? [], motionChecks,
     }, sources);
+    const keys = program.tracks.reduce((n, t) => n + t.keys.length, 0);
+    return { program, report: {
+      seconds: choreo?.seconds ?? sources.map((src) => src.duration ?? 0), climb: choreo?.climb, warnings: choreo?.warnings ?? [],
+      trackKeys: keys, nodes: program.nodes.length, contacts: program.contacts.length,
+    } };
   } catch (error) {
     if (error instanceof SceneProgramError) throw new DirectionError('A direção gerou um programa inválido: ' + error.message);
     throw error;

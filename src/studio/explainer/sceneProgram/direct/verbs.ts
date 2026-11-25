@@ -4,6 +4,7 @@
  * All four limbs are authored for the WHOLE timeline (the engine holds a pose channel after its last key), so a verb
  * always starts from the pose the previous verb left behind: the continuity the raw-number prompt never achieved.
  */
+import { DirectionError } from "../direction/errors";
 import type { ProgramContact, ProgramKey, ProgramTrack, Vec3 } from "../score";
 
 export const ACTOR = {
@@ -30,12 +31,7 @@ export interface World {
   wallCenter: Vec3;
   summit: Vec3;
 }
-export class DirectionError extends Error {
-  readonly code = "invalid_semantic_plan";
-  constructor(message: string) {
-    super(message);
-  }
-}
+export { DirectionError };
 
 const TAU = Math.PI;
 export const rot = (yaw: number, x: number, z: number): [number, number] => [

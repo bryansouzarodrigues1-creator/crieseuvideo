@@ -211,6 +211,6 @@ export function createRouter(options: RouterOptions) {
       failures,
     };
   }
-  return { ask, cooldowns, quota };
+  return { ask, cooldowns, quota, budget: options.budget };
 }
 export type AiRouter = ReturnType<typeof createRouter>;

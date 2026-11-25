@@ -36,3 +36,9 @@ aprovados (passaram nos validadores do motor), reparos, falhas, latência p50/p9
 - Contadores de cota e pausas ficam na memória do processo; em serverless com várias instâncias, trocar por um `QuotaStore` persistente.
 - Os adaptadores foram testados com respostas simuladas no formato documentado de cada API; ainda falta uma execução real com chaves.
 - Esta camada ainda não está ligada ao `director.ts` da `main`; os pipelines existentes continuam com seus próprios helpers.
+
+
+## Atualização 2026-11-25 (integração)
+- `createBudget` / `router.budget`: orçamento por vídeo compartilhado entre todas as chamadas; ver `docs/integration-ai-engine.md`.
+- Truncamento em `thinking: high` mantém High e dobra o espaço de saída.
+- `billing: free | unverified | paid` por provedor; `AI_REQUIRE_VERIFIED_FREE=1`; `<PROVEDOR>_BILLING`.

@@ -35,8 +35,16 @@ Todo verbo tem uma janela `at: [de, até]` em fase 0..1 dentro da cena (padrão 
 ```ts
 const program = compileDirection(direction, sources);   // sources = frases com duração
 ```
-O formato é JSON puro de propósito: um modelo de linguagem pode escrever a direção em vez de curvas cruas.
-**Ainda não está ligado ao prompt do Gemini** (o prompt atual proíbe modelos externos); é o próximo passo.
+O formato é JSON puro de propósito: um modelo de linguagem escreve a direção em vez de curvas cruas.
+**Ligado ao roteador de IA** (`direction/viaRouter.ts`, `directViaRouter`): forma `full` = este elenco + verbos
+(com o catálogo de modelos aprovados no prompt); forma `compact` = só um verbo por frase. As duas passam pelo MESMO
+`compileDirectionDetailed`. Veja `docs/integration-ai-engine.md`.
+
+## 5b. Ator na montanha (verbos de ator)
+Com `world: { kind: 'cliff', height, mood }` e um ator de id `hero`, uma cena pode ter UM verbo de ator em `hero`:
+`walk` · `climb` · `plant` · `celebrate` · `stand`. O corpo, a passada, os apoios e as janelas de contato vêm dos
+verbos de corpo medido (`direct/verbs.ts`); ninguém escreve coordenadas. Os outros membros do elenco continuam usando os
+verbos de elenco na mesma direção. `hero` não aceita outros verbos (conflito é erro explicado).
 
 ## 6. Como saber se ficou bom
 `npx vitest run src/studio/explainer/sceneProgram` e, para olhar de verdade, renderizar quadros por cena
