@@ -1,0 +1,50 @@
+name: Crane mechanics and Gemini integration replay (no AI calls)
+on:
+  push:
+    branches: [fix/merge-crane-mechanics-gemini-20261124]
+    paths: ['.github/workflows/gemini-crane-mechanics-replay.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: gemini-live-crane-scene
+          run-id: 45517586991
+          github-token: ${{ github.token }}
+          path: tmp/gemini-live-proof
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run build
+      - run: bunx tsc --noEmit
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start local renderer
+        run: |
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort > /tmp/vite-replay.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 /tmp/vite-replay.log
+          exit 1
+      - name: Reject unreachable original and render QA-only corrected scene
+        run: bun scripts/gemini-crane-mechanics-replay.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-crane-mechanics-frames
+          path: tmp/gemini-crane-replay/
+          retention-days: 7
+          if-no-files-found: warn
