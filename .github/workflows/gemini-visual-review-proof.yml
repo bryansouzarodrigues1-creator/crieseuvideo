@@ -1,0 +1,53 @@
+name: Actual Gemini vision correction and corrected MP4
+on:
+  push:
+    branches: [feat/gemini-visual-repair-20261125]
+    paths: ['.github/workflows/gemini-visual-review-proof.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: gemini-actual-end-to-end-video
+          run-id: 45522530890
+          github-token: ${{ github.token }}
+          path: tmp/visual-before
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run build
+      - run: bunx tsc --noEmit
+      - name: One real Gemini multimodal correction on archived frames
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bun scripts/gemini-visual-review-live.mts
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start actual renderer
+        run: |
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort > /tmp/vite-vision.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 /tmp/vite-vision.log
+          exit 1
+      - name: Render corrected scene and export actual video
+        run: bun scripts/gemini-live-browser-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-vision-corrected-video
+          path: tmp/gemini-live-3d/
+          retention-days: 7
+          if-no-files-found: warn
