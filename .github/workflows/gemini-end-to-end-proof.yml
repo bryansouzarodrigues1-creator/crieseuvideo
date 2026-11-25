@@ -1,0 +1,45 @@
+name: End-to-end real Gemini to video (one call only)
+on:
+  push:
+    branches: [fix/merge-crane-mechanics-gemini-20261124]
+    paths: ['.github/workflows/gemini-end-to-end-proof.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Actual production planner, Gemini High, no fallback
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bun scripts/gemini-live-smoke.mts
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install chromium
+      - name: Start the actual studio
+        run: |
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort > /tmp/vite-live.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -80 /tmp/vite-live.log
+          exit 1
+      - name: Actual Three.js playback, camera audit and native video export
+        run: bun scripts/gemini-live-browser-qa.mjs
+      - name: Archive real result even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-actual-end-to-end-video
+          path: tmp/gemini-live-3d/
+          retention-days: 7
+          if-no-files-found: warn

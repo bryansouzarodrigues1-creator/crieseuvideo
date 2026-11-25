@@ -29,6 +29,8 @@ describe('LLM JSON contract for actual 3D motor',()=>{
     expect(three.properties.actions.items.properties.sourceId.enum).toEqual(['s1','s2','s3']);
     expect(JSON.stringify(three)).not.toMatch(/minItems|maxItems/);
     expect(three.properties.entities.items.properties.kind.enum).toContain('gate');
+    expect(three.properties.entities.items.properties.kind.enum).toContain('platform');
+    expect(three.properties.actions.items.properties.onto).toEqual({type:'STRING'});
     expect(()=>gemini3DResponseSchema(['s2','s2'])).toThrow(/IDs/);
   });
   it('accepts genuine 3D scene JSON with ordered portão → moto actions',()=>{
