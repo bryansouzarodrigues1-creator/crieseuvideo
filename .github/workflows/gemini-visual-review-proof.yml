@@ -24,7 +24,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test
       - run: bun run build
-      - run: bunx tsc --noEmit
+      - name: Verify serializable server types
+        run: bunx tsc --noEmit
       - name: One real Gemini multimodal correction on archived frames
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

@@ -207,7 +207,7 @@ export default function Ai3DStudio(){
         data:{script,provider,confirmCost:true,geminiModel},
         headers:{Authorization:`Bearer ${session.access_token}`},
       });
-      setClip(result.clip);setPlan(result.plan);setSceneScript(script);setShotQa(null);setUsedProvider(result.provider);
+      setClip(result.clip);setPlan(JSON.parse(result.planJson) as Record<string,unknown>);setSceneScript(script);setShotQa(null);setUsedProvider(result.provider);
       setOriginal(null);setReviewed(false);setReviewNote('');setReviewIssues([]);setReviewPending(autoReview);
     }catch(e){
       const message=e instanceof Error?e.message:String(e);
@@ -240,7 +240,7 @@ export default function Ai3DStudio(){
         try{after=hard(candidate);}finally{candidate.dispose();}
         const before=hard(stage);
         if(after>before){setReviewNote('Correção rejeitada: piorou o enquadramento. Cena original preservada.');return;}
-        setOriginal({clip,plan});setClip(result.clip);setPlan(result.plan);setShotQa(null);
+        setOriginal({clip,plan});setClip(result.clip);setPlan(JSON.parse(result.planJson) as Record<string,unknown>);setShotQa(null);
         setReviewNote('Correção aplicada e validada pelo motor. Compare a nova prévia; a qualidade artística não é garantida.');
       }else setReviewNote(result.reason);
     }catch(e){setReviewNote((e instanceof Error?e.message:'Falha na revisão')+' A cena original foi preservada.');}

@@ -11,5 +11,12 @@ export const reviewAi3DWorld=createServerFn({method:'POST'})
     if(last.size>=2000)for(const [id,t] of last)if(now-t>=60000)last.delete(id);
     if(last.size>=2000&&!last.has(user))throw Error('Revisão temporariamente ocupada.');
     last.set(user,now);inFlight.add(user);
-    try{return await reviewVisualScene(data);}finally{inFlight.delete(user);}
+    try{
+      const result=await reviewVisualScene(data);
+      if(result.status==='corrected'){
+        const {plan,...rest}=result;
+        return {...rest,planJson:JSON.stringify(plan)};
+      }
+      return result;
+    }finally{inFlight.delete(user);}
   });
