@@ -59,7 +59,7 @@ export class Ai3DProviderError extends Error {
 const LOVABLE_MODEL = process.env.LOVABLE_AI_MODEL || "google/gemini-3.7-flash"; // Override via project env only
 // New API projects can receive 404 for legacy Gemini 2.5 Flash even when
 // models.get lists it. Prefer a current model; allow server-side override.
-const GEMINI_MODEL = process.env.GEMINI_AI_MODEL || "gemini-3.8-flash";
+const GEMINI_MODEL = process.env.GEMINI_AI_MODEL || "gemini-3.6-flash";
  // Explicit user choices, never arbitrary provider paths or URLs.
  export type GeminiModelChoice = 'default'|'gemini-3.5-flash-lite'|'gemini-3.6-flash'|'gemini-3.8-flash';
  export const resolveGeminiModel=(choice:GeminiModelChoice='default'):string =>
@@ -115,13 +115,14 @@ async function askGemini(
   responseSchema?:Record<string,unknown>,
   modelChoice:GeminiModelChoice='default'
 ): Promise<string | null> {
+  const model = resolveGeminiModel(modelChoice);
   const key = process.env.GEMINI_API_KEY;
   if (!key){onProblem?.('not_configured');return null;}
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 60000);
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(resolveGeminiModel(modelChoice))}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
         method: "POST",
         signal: ctrl.signal,
@@ -133,7 +134,10 @@ async function askGemini(
           // IDs and geometry before the separate strict compiler checks.
           generationConfig: {
             responseMimeType: "application/json",
-            ...(responseSchema?{responseSchema}:{}),
+            ...(responseSchema?{responseSchema,
+              // High was verified against the real Gemini 3.6 Flash API.
+              ...(model==='gemini-3.6-flash'?{thinkingConfig:{thinkingLevel:'high'},maxOutputTokens:8192}:{})
+            }:{}),
           },
         }),
       },
@@ -153,7 +157,7 @@ async function askGemini(
     }
     const content=candidate?.content?.parts
       ?.filter((p:unknown):p is {text:string}=>
-        !!p&&typeof p==='object'&&typeof (p as {text?:unknown}).text==='string')
+        !!p&&typeof p==='object'&&!(p as {thought?:unknown}).thought&&typeof (p as {text?:unknown}).text==='string')
       .map((p:{text:string})=>p.text).join('') || null;
     if(!content) onProblem?.('empty_response');
     return content;

@@ -27,9 +27,7 @@ describe('LLM JSON contract for actual 3D motor',()=>{
     expect(single.properties.actions.items.properties.sourceId.enum).toEqual(['s1']);
     const three=gemini3DResponseSchema(sources.map(s=>s.sourceId));
     expect(three.properties.actions.items.properties.sourceId.enum).toEqual(['s1','s2','s3']);
-    expect(three.properties.actions.minItems).toBe(1);
-    expect(three.properties.actions.maxItems).toBe(3);
-    expect(three.properties.entities.minItems).toBe(2);
+    expect(JSON.stringify(three)).not.toMatch(/minItems|maxItems/);
     expect(three.properties.entities.items.properties.kind.enum).toContain('gate');
     expect(()=>gemini3DResponseSchema(['s2','s2'])).toThrow(/IDs/);
   });
@@ -41,6 +39,11 @@ describe('LLM JSON contract for actual 3D motor',()=>{
     expect(clip.program.shots).toHaveLength(3);
     expect(clip.program.tracks.some(t=>t.node==='gate')).toBe(true);
     expect(clip.program.tracks.some(t=>t.node==='bike')).toBe(true);
+  });
+  it('keeps array and vector limits in the strict compiler',()=>{
+    expect(()=>compileCompactWorld({...valid,entities:[]},sources)).toThrow();
+    expect(()=>compileCompactWorld({...valid,entities:valid.entities.map((e,i)=>i===0?{...e,at:[0,0]}:e)},sources)).toThrow();
+    expect(()=>compileCompactWorld({...valid,actions:[...valid.actions,...valid.actions]},sources)).toThrow();
   });
   it('unwraps only explicit single-key scene/plan JSON envelopes',()=>{
     for(const key of ['scene','plan','world']){

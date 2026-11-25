@@ -52,7 +52,7 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     expect(failure.failures).toEqual([{provider:'gemini',reason:'model_unavailable'}]);
     expect(failure.message).toContain('HTTP 404');
     expect(failure.message).not.toContain('secret provider diagnostic');
-    expect(String(fetched.mock.calls[0][0])).toContain('gemini-3.8-flash:generateContent');
+    expect(String(fetched.mock.calls[0][0])).toContain('gemini-3.6-flash:generateContent');
     expect(fetched).toHaveBeenCalledTimes(1);
   });
   it('uses the explicitly selected Gemini 3.6 Flash after a 5xx with zero automatic retries',async()=>{
@@ -129,14 +129,17 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     vi.stubGlobal('fetch',vi.fn(async(_url:unknown,init:RequestInit)=>{
       captured=JSON.parse(String(init.body));
       return Response.json({candidates:[{finishReason:'STOP',
-        content:{parts:[{text:JSON.stringify(modelScene)}]}}]});
+        content:{parts:[{text:'private reasoning',thought:true},{text:JSON.stringify(modelScene)}]}}]});
     }));
     const schema=gemini3DResponseSchema(['s1']);
     const result=await ask3DWorldAi('one-shot test','gemini',
-      txt=>({accepted:!!parseAi3DScene(txt)}),schema);
+      txt=>({accepted:!!parseAi3DScene(txt)}),schema,'gemini-3.6-flash');
     expect(result?.provider).toBe('gemini');
     expect((captured as any).generationConfig.responseMimeType).toBe('application/json');
     expect((captured as any).generationConfig.responseSchema).toEqual(schema);
+    expect((captured as any).generationConfig.thinkingConfig).toEqual({thinkingLevel:'high'});
+    expect((captured as any).generationConfig.maxOutputTokens).toBe(8192);
+    expect(JSON.stringify((captured as any).generationConfig.responseSchema)).not.toMatch(/minItems|maxItems/);
     expect((captured as any).generationConfig.responseSchema.properties.actions.items.properties.sourceId.enum)
       .toEqual(['s1']);
   });
