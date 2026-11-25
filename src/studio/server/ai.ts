@@ -11,7 +11,7 @@ export type ProviderProblem =
   | 'not_configured' | 'unauthorized' | 'quota' | 'forbidden'
   | 'service_unavailable' | 'timeout' | 'network'
   | 'empty_response' | 'invalid_response' | 'invalid_json' | 'invalid_scene'
-  | 'truncated_response' | 'response_too_large'
+  | 'truncated_response' | 'response_too_large' | 'blocked'
   | 'invalid_request' | 'model_unavailable' | 'billing_required';
 export type Ai3DProvider = 'lovable' | 'gemini';
 export type ProviderFailure = { provider: Ai3DProvider; reason: ProviderProblem; diagnostic?:GeminiErrorDiagnostic };
@@ -42,7 +42,8 @@ const ptProblem:Record<ProviderProblem,string> = {
   invalid_json:'a resposta não contém um JSON 3D legível',
   invalid_scene:'o JSON não respeitou as regras de objetos e movimentos do motor',
   truncated_response:'a resposta foi interrompida antes de terminar',
-  response_too_large:'a IA retornou uma resposta grande demais'
+  response_too_large:'a IA retornou uma resposta grande demais',
+  blocked:'a IA bloqueou a resposta por política de segurança; reescreva o trecho do roteiro e tente de novo'
 };
 export class Ai3DProviderError extends Error {
   readonly code = 'ai_3d_provider_failed';
@@ -148,12 +149,17 @@ async function askGemini(
     }
     const data = await res.json();
     const candidate=data.candidates?.[0];
+    // A blocked prompt/answer has no text; report it as such instead of a misleading "empty response".
+    if(data?.promptFeedback?.blockReason||['SAFETY','PROHIBITED_CONTENT','BLOCKLIST','SPII'].includes(candidate?.finishReason)){
+      onProblem?.('blocked');return null;
+    }
     if(candidate?.finishReason==='MAX_TOKENS'){
       onProblem?.('truncated_response');return null;
     }
+    // Never mix a model's visible "thought" parts into the JSON it answers with.
     const content=candidate?.content?.parts
       ?.filter((p:unknown):p is {text:string}=>
-        !!p&&typeof p==='object'&&typeof (p as {text?:unknown}).text==='string')
+        !!p&&typeof p==='object'&&typeof (p as {text?:unknown}).text==='string'&&!(p as {thought?:unknown}).thought)
       .map((p:{text:string})=>p.text).join('') || null;
     if(!content) onProblem?.('empty_response');
     return content;
