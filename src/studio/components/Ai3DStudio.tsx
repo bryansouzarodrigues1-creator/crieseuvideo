@@ -20,7 +20,7 @@ const FPS=24;
 export default function Ai3DStudio(){
   const [script,setScript]=useState(SAMPLE);
   const [provider,setProvider]=useState<AiWorldProvider>('gemini');
-  const [geminiModel,setGeminiModel]=useState<GeminiModelChoice>('default');
+  const [geminiModel,setGeminiModel]=useState<GeminiModelChoice>('gemini-3.6-flash');
   const [modelStatus,setModelStatus]=useState<GeminiModelStatus|null>(null);
   const [checkingModel,setCheckingModel]=useState(false);
   const [probeStatus,setProbeStatus]=useState<GeminiInferenceProbe|null>(null);
@@ -289,7 +289,7 @@ export default function Ai3DStudio(){
             disabled={busy||checkingModel}>
             <option value="default">Padrão configurado no servidor</option>
             <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite · econômico (teste)</option>
-            <option value="gemini-3.6-flash">Gemini 3.6 Flash · alternativa manual</option>
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash · High (recomendado)</option>
             <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
           </select>
           <button type="button" onClick={()=>void diagnoseModel()}
