@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import {Box,Download,Pause,Play,RotateCcw} from 'lucide-react';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
+import {loadProgramModels,type PreparedModel} from '../explainer/sceneProgram/modelAssets';
+import type {ApprovedModelId} from '../explainer/sceneProgram/modelRegistry';
 import {drawClipPresentation} from '../explainer/sceneProgram/presentation';
 
 /**
@@ -72,6 +74,7 @@ export function InlineAi3DPlayer({
     let raf=0;
     setError('');setTime(0);clockRef.current=0;
     playingRef.current=false;setPlaying(false);audioRef.current?.pause();
+    const build=(models:ReadonlyMap<ApprovedModelId,PreparedModel>)=>{
     try{
       const renderer=rendererRef.current??new THREE.WebGLRenderer({
         canvas,alpha:false,antialias:false,preserveDrawingBuffer:true,
@@ -83,7 +86,7 @@ export function InlineAi3DPlayer({
       renderer.outputColorSpace=THREE.SRGBColorSpace;
       renderer.shadowMap.enabled=!lite;
       stageRef.current?.dispose();
-      const stage=new SceneProgram3D(clip.program,clip.sources,new Map(),provider==='demo'?'technical':'toon');
+      const stage=new SceneProgram3D(clip.program,clip.sources,models,provider==='demo'?'technical':'toon');
       stageRef.current=stage;
       drawRef.current=(seconds:number)=>{
         stage.render(renderer,Math.max(0,Math.min(clip.duration-.001,seconds)),width,height);
@@ -134,6 +137,11 @@ export function InlineAi3DPlayer({
     }catch(e){
       setError('O motor 3D não conseguiu carregar esta cena: '+(e instanceof Error?e.message:String(e)));
     }
+    };
+    // Scenes without imported GLBs start synchronously, exactly as before.
+    if(!clip.program.nodes.some(n=>n.kind==='model'))build(new Map());
+    else loadProgramModels(clip.program).then(models=>{if(active)build(models);})
+      .catch(e=>{if(active)setError('Não consegui carregar os modelos 3D da cena: '+(e instanceof Error?e.message:String(e)));});
     return()=>{
       active=false;cancelAnimationFrame(rafRef.current);cancelAnimationFrame(raf);
       playingRef.current=false;drawRef.current=()=>{};

@@ -1,0 +1,28 @@
+[
+  {
+    "provider": "gemini",
+    "model": "gemini-3.6-flash",
+    "stories": 4,
+    "approved": 2,
+    "repairs": 0,
+    "providerFailures": 0,
+    "validationFailures": 2,
+    "latencies": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ],
+    "inputTokens": 4200,
+    "outputTokens": 600,
+    "problems": {
+      "plan: A parede de 3.0 m não cabe em 1.5 s de escalada: cada passo ": 1,
+      "plan: A parede de 3.0 m não cabe em 2.2 s de escalada: cada passo ": 1
+    },
+    "p50Ms": 0,
+    "p95Ms": 1,
+    "costPerApprovedUsd": null
+  }
+]

@@ -86,6 +86,8 @@ export class SceneProgram3D {
         const loaded = loadedModels.get(n.assetId!);
         if (!loaded) throw new SceneProgramError('O modelo 3D autorizado ainda não foi carregado. Aguarde a importação antes de renderizar.');
         const instance = instantiateModel(loaded);
+        for (const t of program.tracks) if (t.node === n.id && t.part && !instance.hasPart(t.part))
+          throw new SceneProgramError(`O modelo "${n.assetId}" não possui a peça interna "${t.part}" citada na animação.`, { node: n.id, part: t.part });
         this.importedModels.set(n.id, instance); root = instance.root;
       }
       else if (n.kind === 'group') root = new THREE.Group();
@@ -228,7 +230,11 @@ export class SceneProgram3D {
       position.array.set(data.positions); position.needsUpdate = true; mesh.geometry.computeVertexNormals(); mesh.geometry.computeBoundingSphere();
     }
     this.groundActorsOnTerrain();
-    for (const imported of this.importedModels.values()) imported.setTime(this.time);
+    for (const [id, imported] of this.importedModels) {
+      imported.setTime(this.time);
+      // After the mixer, so an authored part track is the final word. Rotation only: pivots live in each node's translation.
+      for (const [part, rotation] of Object.entries(this.states.get(id)?.parts ?? {})) imported.setPartRotation(part, rotation);
+    }
     this.scene.updateMatrixWorld(true);
     if (this.separateBodies()) { this.groundActorsOnTerrain(); this.scene.updateMatrixWorld(true); }
     for (const [id, actor] of this.actors) {

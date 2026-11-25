@@ -183,6 +183,20 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     const error=await ask3DWorldAi('test','gemini').catch(e=>e);
     expect(error.failures).toEqual([{provider:'gemini',reason:'truncated_response'}]);
   });
+  it('reports a safety block as blocked, not as an empty response',async()=>{
+    process.env.GEMINI_API_KEY='mock-gemini';
+    vi.stubGlobal('fetch',vi.fn(async()=>Response.json({promptFeedback:{blockReason:'SAFETY'}})));
+    const error=await ask3DWorldAi('test','gemini').catch(e=>e);
+    expect(error.failures).toEqual([{provider:'gemini',reason:'blocked'}]);
+    expect(String(error.message)).toMatch(/política de segurança/);
+  });
+  it('ignores visible thought parts and keeps only the JSON answer',async()=>{
+    process.env.GEMINI_API_KEY='mock-gemini';
+    vi.stubGlobal('fetch',vi.fn(async()=>Response.json({candidates:[{content:{parts:[
+      {text:'vou pensar...',thought:true},{text:'{"version":1}'}]}}]})));
+    const result=await ask3DWorldAi('test','gemini');
+    expect(result?.text).toBe('{"version":1}');
+  });
   it('uses Gemini only in auto mode after the failed Lovable request',async()=>{
     process.env.LOVABLE_API_KEY='dummy-lovable';
     process.env.GEMINI_API_KEY='dummy-gemini';
