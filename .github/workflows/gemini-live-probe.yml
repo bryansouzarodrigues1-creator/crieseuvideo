@@ -1,4 +1,4 @@
-name: Gemini live full 3D contract diagnostic
+name: Gemini schema compatibility experiment
 on:
   push:
     branches: [diagnostics/gemini-live-probe-20261124]
@@ -17,7 +17,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
-      - name: Generate with actual scene prompt and schema, compile with actual motor
+      - name: Isolate schema bounds and validate with actual motor
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         shell: bash
@@ -36,21 +36,46 @@ jobs:
           const schema = gemini3DResponseSchema(sources.map(s => s.sourceId));
           const model = 'gemini-3.6-flash';
           console.log('START FULL_CONTRACT', model, 'high', 'prompt chars', prompt.length, 'sources', sources.length);
-          const started = performance.now();
-          let response: Response;
-          try {
-            response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent', {
-              method: 'POST', headers: {'x-goog-api-key':key,'Content-Type':'application/json'},
-              signal: AbortSignal.timeout(60000),
-              body: JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,thinkingConfig:{thinkingLevel:'high'},maxOutputTokens:8192}})
-            });
-          } catch { console.log('FAIL: network or timeout'); process.exit(1); }
-          console.log('HTTP', response.status, 'seconds', ((performance.now()-started)/1000).toFixed(2));
-          if (!response.ok) {
-            const d = await readGeminiErrorDiagnostic(response);
-            console.log('FAIL API', d.httpStatus, d.rpcStatus ?? 'unknown', d.cause);
-            process.exit(1);
+          // Same synthetic prompt, same model and settings. Change only the array bounds.
+          function withoutBounds(value:any):any {
+            if (Array.isArray(value)) return value.map(withoutBounds);
+            if (!value || typeof value !== 'object') return value;
+            return Object.fromEntries(Object.entries(value).filter(([k])=>k!=='minItems'&&k!=='maxItems').map(([k,v])=>[k,withoutBounds(v)]));
           }
+          async function request(label:string, selectedSchema:unknown) {
+            const started = performance.now();
+            let response: Response;
+            try {
+              response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent', {
+                method:'POST', headers:{'x-goog-api-key':key!,'Content-Type':'application/json'},
+                signal:AbortSignal.timeout(60000),
+                body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',responseSchema:selectedSchema,thinkingConfig:{thinkingLevel:'high'},maxOutputTokens:8192}})
+              });
+            } catch { console.log(label,'FAIL network/timeout'); process.exit(1); }
+            console.log(label,'HTTP',response.status,'seconds',((performance.now()-started)/1000).toFixed(2));
+            if (!response.ok) {
+              // Diagnostic only: fixed synthetic input, redact credential, bound provider message.
+              const d=await readGeminiErrorDiagnostic(response.clone());
+              console.log(label,'RPC',d.rpcStatus??'unknown',d.cause);
+              try {
+                const raw=await response.json();
+                const message=String(raw.error?.message??'').split(key!).join('[redacted]').replace(/[\r\n\u001b]/g,' ').slice(0,1000);
+                console.log(label,'PROVIDER_REASON',message);
+                for (const detail of raw.error?.details??[]) {
+                  for(const v of detail.fieldViolations??[]) {
+                    console.log(label,'FIELD',String(v.field??'').split(key!).join('[redacted]').replace(/[^a-zA-Z0-9_.\[\]-]/g,'?').slice(0,200));
+                  }
+                }
+              } catch { console.log(label,'no readable diagnostic'); }
+            }
+            return response;
+          }
+          let response = await request('ORIGINAL_SCHEMA',schema);
+          if (response.status===400) {
+            console.log('EXPERIMENT: remove only minItems/maxItems from provider schema; compiler remains strict.');
+            response=await request('NO_ARRAY_BOUNDS',withoutBounds(schema));
+          }
+          if(!response.ok) process.exit(1);
           const data = await response.json();
           const c = data.candidates?.[0];
           const finish = c?.finishReason;
