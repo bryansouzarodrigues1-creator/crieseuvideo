@@ -12,12 +12,14 @@ export function gemini3DResponseSchema(sourceIds:readonly string[]) {
     new Set(sourceIds).size!==sourceIds.length)
     throw new Error('A sequência precisa de 1 a 3 IDs de narração distintos.');
 
-  const vec = {type:'ARRAY',items:{type:'NUMBER'},minItems:3,maxItems:3};
+  // Nested array bounds caused a confirmed HTTP 400 (too many schema states).
+  // Keep lengths in the prompt and strict compileCompactWorld validation.
+  const vec = {type:'ARRAY',items:{type:'NUMBER'}};
   const detail = {
     type:'OBJECT',
     properties:{
       id:{type:'STRING'},shape:{type:'STRING',enum:['box','sphere','cylinder','cone','torus']},
-      size:{type:'ARRAY',items:{type:'NUMBER'},minItems:1,maxItems:3},
+      size:{type:'ARRAY',items:{type:'NUMBER'}},
       at:vec,color:{type:'STRING'},
     },
     required:['id','shape','size','at'],
@@ -29,20 +31,20 @@ export function gemini3DResponseSchema(sourceIds:readonly string[]) {
       setting:{type:'STRING',enum:['city','industrial','coast','forest','interior','desert']},
       background:{type:'STRING'},
       entities:{
-        type:'ARRAY',minItems:2,maxItems:7,
+        type:'ARRAY',
         items:{
           type:'OBJECT',
           properties:{
             id:{type:'STRING'},name:{type:'STRING'},
             kind:{type:'STRING',enum:['building','crane','machine','vehicle','motorcycle','boat','cargo','gate','tree','custom']},
             at:vec,size:vec,color:{type:'STRING'},
-            details:{type:'ARRAY',minItems:3,maxItems:12,items:detail},
+            details:{type:'ARRAY',items:detail},
           },
           required:['id','name','kind','at','size','color'],
         },
       },
       actions:{
-        type:'ARRAY',minItems:1,maxItems:3,
+        type:'ARRAY',
         items:{
           type:'OBJECT',
           properties:{
