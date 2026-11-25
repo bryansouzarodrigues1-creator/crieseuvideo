@@ -1,77 +1,89 @@
-name: Gemini live staged inference diagnostic
+name: Gemini live full 3D contract diagnostic
 on:
   push:
     branches: [diagnostics/gemini-live-probe-20261124]
     paths: ['.github/workflows/gemini-live-probe.yml']
   workflow_dispatch:
-permissions: {}
+permissions:
+  contents: read
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 8
     steps:
-      - name: High reasoning then structured JSON (at most two Google requests)
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Generate with actual scene prompt and schema, compile with actual motor
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         shell: bash
         run: |
-          python3 -u - <<'PY'
-          import os, json, urllib.request, urllib.error, sys, time
-          key = os.environ.get("GEMINI_API_KEY", "")
-          if not key:
-              print("BLOCKED: GitHub Actions secret absent; no request made.")
-              sys.exit(1)
-          model = "gemini-3.6-flash"
-          print("Model:", model)
-          def probe(label, prompt, config):
-              started = time.monotonic()
-              body = {"contents":[{"role":"user","parts":[{"text":prompt}]}],"generationConfig":config}
-              req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent", data=json.dumps(body).encode(), headers={"x-goog-api-key":key,"Content-Type":"application/json"}, method="POST")
-              print("START:", label)
-              try:
-                  with urllib.request.urlopen(req, timeout=60) as response:
-                      print(label, "HTTP", response.status)
-                      result = json.load(response)
-              except urllib.error.HTTPError as e:
-                  print(label, "FAIL HTTP", e.code)
-                  try:
-                      error = json.loads(e.read(8192)).get("error", {})
-                      if error.get("status") in ("UNAVAILABLE","RESOURCE_EXHAUSTED","INVALID_ARGUMENT","INTERNAL","PERMISSION_DENIED","NOT_FOUND","UNAUTHENTICATED"):
-                          print("RPC:", error["status"])
-                      for d in error.get("details", []):
-                          if d.get("reason") in ("MODEL_CAPACITY_EXHAUSTED","MODEL_OVERLOADED"):
-                              print("CAUSE:", d["reason"])
-                  except Exception:
-                      pass
-                  sys.exit(1)
-              except Exception:
-                  print(label, "FAIL network/timeout/invalid response")
-                  sys.exit(1)
-              c = (result.get("candidates") or [{}])[0]
-              finish = c.get("finishReason")
-              print(label, "finish:", finish if finish in ("STOP","MAX_TOKENS","SAFETY","RECITATION") else "OTHER", "seconds:", round(time.monotonic()-started,2))
-              usage = result.get("usageMetadata",{})
-              for k in ("promptTokenCount","candidatesTokenCount","thoughtsTokenCount","totalTokenCount"):
-                  if isinstance(usage.get(k),int): print(k,usage[k])
-              if finish != "STOP":
-                  sys.exit(1)
-              return "".join(p.get("text","") for p in c.get("content",{}).get("parts",[]) if not p.get("thought")).strip()
-          high = {"maxOutputTokens":2048,"thinkingConfig":{"thinkingLevel":"high"}}
-          answer = probe("HIGH_TEXT","Responda somente OK.",high)
-          if answer.upper().rstrip(".!") != "OK":
-              print("FAIL HIGH_TEXT: missing OK")
-              sys.exit(1)
-          print("PASS HIGH_TEXT")
-          schema = {"type":"OBJECT","properties":{"setting":{"type":"STRING","enum":["industrial"]},"objects":{"type":"ARRAY","minItems":2,"maxItems":2,"items":{"type":"OBJECT","properties":{"id":{"type":"STRING"},"kind":{"type":"STRING","enum":["crane","cargo"]}},"required":["id","kind"]}},"action":{"type":"STRING","enum":["lift"]}},"required":["setting","objects","action"]}
-          answer = probe("HIGH_JSON","Crie uma descrição JSON curta de uma grua levantando uma carga. Use exatamente uma grua e uma carga com IDs diferentes.",{"maxOutputTokens":4096,"thinkingConfig":{"thinkingLevel":"high"},"responseMimeType":"application/json","responseSchema":schema})
-          try:
-              obj = json.loads(answer)
-              assert obj["setting"] == "industrial" and obj["action"] == "lift"
-              objects = obj["objects"]
-              assert len(objects) == 2 and {o["kind"] for o in objects} == {"crane","cargo"}
-              assert len({o["id"] for o in objects}) == 2 and all(isinstance(o["id"],str) and o["id"] for o in objects)
-          except Exception:
-              print("FAIL HIGH_JSON: invalid structure")
-              sys.exit(1)
-          print("PASS HIGH_JSON: parsed and validated")
-          PY
+          cat > .gemini-live-probe.ts <<'TS'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          import { sourceBriefsFromScript } from './src/studio/explainer/sceneProgram/planner/sceneScript';
+          import { compactWorldPrompt, compileCompactWorld } from './src/studio/explainer/sceneProgram/planner/compactWorldDirector';
+          import { gemini3DResponseSchema, parseAi3DScene } from './src/studio/server/ai3dSchema';
+          import { readGeminiErrorDiagnostic } from './src/studio/server/geminiFailure';
+          const key = process.env.GEMINI_API_KEY;
+          if (!key) { console.log('BLOCKED: secret missing'); process.exit(1); }
+          const script = 'Em um canteiro de obras, uma grua de torre ergue uma caixa de cimento do chão por meio do cabo e do gancho.';
+          const sources = sourceBriefsFromScript(script);
+          const prompt = compactWorldPrompt(sources) + '\n\nResponda somente com JSON válido.';
+          const schema = gemini3DResponseSchema(sources.map(s => s.sourceId));
+          const model = 'gemini-3.6-flash';
+          console.log('START FULL_CONTRACT', model, 'high', 'prompt chars', prompt.length, 'sources', sources.length);
+          const started = performance.now();
+          let response: Response;
+          try {
+            response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent', {
+              method: 'POST', headers: {'x-goog-api-key':key,'Content-Type':'application/json'},
+              signal: AbortSignal.timeout(60000),
+              body: JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,thinkingConfig:{thinkingLevel:'high'},maxOutputTokens:8192}})
+            });
+          } catch { console.log('FAIL: network or timeout'); process.exit(1); }
+          console.log('HTTP', response.status, 'seconds', ((performance.now()-started)/1000).toFixed(2));
+          if (!response.ok) {
+            const d = await readGeminiErrorDiagnostic(response);
+            console.log('FAIL API', d.httpStatus, d.rpcStatus ?? 'unknown', d.cause);
+            process.exit(1);
+          }
+          const data = await response.json();
+          const c = data.candidates?.[0];
+          const finish = c?.finishReason;
+          console.log('FINISH', ['STOP','MAX_TOKENS','SAFETY','RECITATION'].includes(finish) ? finish : 'OTHER');
+          for (const k of ['promptTokenCount','candidatesTokenCount','thoughtsTokenCount','totalTokenCount']) {
+            if (typeof data.usageMetadata?.[k] === 'number') console.log(k, data.usageMetadata[k]);
+          }
+          if (finish !== 'STOP') process.exit(1);
+          const visible = (c.content?.parts ?? []).filter((p:any)=>typeof p.text==='string' && !p.thought).map((p:any)=>p.text).join('');
+          const raw = parseAi3DScene(visible);
+          if (!raw) { console.log('FAIL: actual scene JSON parser rejected response'); process.exit(1); }
+          console.log('PASS actual JSON parser');
+          mkdirSync('tmp/gemini-live-proof',{recursive:true});
+          writeFileSync('tmp/gemini-live-proof/recipe.json',JSON.stringify(raw,null,2));
+          let clip;
+          try { clip = compileCompactWorld(raw,sources); }
+          catch(e) { console.log('FAIL compiler:', e instanceof Error ? e.name : 'unknown'); process.exit(1); }
+          console.log('PASS actual compiler', JSON.stringify({duration:clip.duration,audit:clip.audit}));
+          const entities = Array.isArray(raw.entities) ? raw.entities : [];
+          const actions = Array.isArray(raw.actions) ? raw.actions : [];
+          const crane = entities.find((e:any)=>e.kind==='crane');
+          const cargo = entities.find((e:any)=>e.kind==='cargo');
+          const lift = actions.find((a:any)=>a.kind==='lift' && a.target===cargo?.id && a.delta?.[1]>0);
+          if (!crane || !cargo || !lift) { console.log('FAIL: recipe lacks crane/cargo lifting action'); process.exit(1); }
+          console.log('PASS semantic check: crane, cargo and upward lift');
+          writeFileSync('tmp/gemini-live-proof/clip.json',JSON.stringify(clip,null,2));
+          TS
+          bun .gemini-live-probe.ts
+      - name: Archive synthetic scene proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-live-crane-scene
+          path: tmp/gemini-live-proof/
+          retention-days: 7
+          if-no-files-found: ignore
