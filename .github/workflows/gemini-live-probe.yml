@@ -1,4 +1,4 @@
-name: Gemini live minimal inference diagnostic
+name: Gemini live staged inference diagnostic
 on:
   push:
     branches: [diagnostics/gemini-live-probe-20261124]
@@ -8,38 +8,70 @@ permissions: {}
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 4
     steps:
-      - name: One Google request only; no Lovable calls
+      - name: High reasoning then structured JSON (at most two Google requests)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         shell: bash
         run: |
-          python3 - <<'PY'
-          import os, json, urllib.request, urllib.error, sys
+          python3 -u - <<'PY'
+          import os, json, urllib.request, urllib.error, sys, time
           key = os.environ.get("GEMINI_API_KEY", "")
           if not key:
-              print("BLOCKED: GEMINI_API_KEY is not configured in GitHub Actions. No request made.")
+              print("BLOCKED: GitHub Actions secret absent; no request made.")
               sys.exit(1)
           model = "gemini-3.6-flash"
-          body = {"contents":[{"role":"user","parts":[{"text":"Responda somente OK."}]}],"generationConfig":{"maxOutputTokens":80,"thinkingConfig":{"thinkingLevel":"low"}}}
-          req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent", data=json.dumps(body).encode(), headers={"x-goog-api-key":key,"Content-Type":"application/json"}, method="POST")
           print("Model:", model)
-          try:
-              with urllib.request.urlopen(req, timeout=25) as response:
-                  print("HTTP", response.status)
-                  result = json.load(response)
-              c = (result.get("candidates") or [{}])[0]
-              visible = "".join(p.get("text","") for p in c.get("content",{}).get("parts",[]) if not p.get("thought")).strip()
-              if visible.upper().rstrip(".!") == "OK":
-                  print("PASS: minimal inference returned OK.")
-              else:
-                  print("FAIL: no valid visible OK; finish reason:", c.get("finishReason") if c.get("finishReason") in ("MAX_TOKENS","STOP","SAFETY") else "OTHER")
+          def probe(label, prompt, config):
+              started = time.monotonic()
+              body = {"contents":[{"role":"user","parts":[{"text":prompt}]}],"generationConfig":config}
+              req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent", data=json.dumps(body).encode(), headers={"x-goog-api-key":key,"Content-Type":"application/json"}, method="POST")
+              print("START:", label)
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      print(label, "HTTP", response.status)
+                      result = json.load(response)
+              except urllib.error.HTTPError as e:
+                  print(label, "FAIL HTTP", e.code)
+                  try:
+                      error = json.loads(e.read(8192)).get("error", {})
+                      if error.get("status") in ("UNAVAILABLE","RESOURCE_EXHAUSTED","INVALID_ARGUMENT","INTERNAL","PERMISSION_DENIED","NOT_FOUND","UNAUTHENTICATED"):
+                          print("RPC:", error["status"])
+                      for d in error.get("details", []):
+                          if d.get("reason") in ("MODEL_CAPACITY_EXHAUSTED","MODEL_OVERLOADED"):
+                              print("CAUSE:", d["reason"])
+                  except Exception:
+                      pass
                   sys.exit(1)
-          except urllib.error.HTTPError as e:
-              print("FAIL: Google HTTP", e.code)
+              except Exception:
+                  print(label, "FAIL network/timeout/invalid response")
+                  sys.exit(1)
+              c = (result.get("candidates") or [{}])[0]
+              finish = c.get("finishReason")
+              print(label, "finish:", finish if finish in ("STOP","MAX_TOKENS","SAFETY","RECITATION") else "OTHER", "seconds:", round(time.monotonic()-started,2))
+              usage = result.get("usageMetadata",{})
+              for k in ("promptTokenCount","candidatesTokenCount","thoughtsTokenCount","totalTokenCount"):
+                  if isinstance(usage.get(k),int): print(k,usage[k])
+              if finish != "STOP":
+                  sys.exit(1)
+              return "".join(p.get("text","") for p in c.get("content",{}).get("parts",[]) if not p.get("thought")).strip()
+          high = {"maxOutputTokens":2048,"thinkingConfig":{"thinkingLevel":"high"}}
+          answer = probe("HIGH_TEXT","Responda somente OK.",high)
+          if answer.upper().rstrip(".!") != "OK":
+              print("FAIL HIGH_TEXT: missing OK")
               sys.exit(1)
+          print("PASS HIGH_TEXT")
+          schema = {"type":"OBJECT","properties":{"setting":{"type":"STRING","enum":["industrial"]},"objects":{"type":"ARRAY","minItems":2,"maxItems":2,"items":{"type":"OBJECT","properties":{"id":{"type":"STRING"},"kind":{"type":"STRING","enum":["crane","cargo"]}},"required":["id","kind"]}},"action":{"type":"STRING","enum":["lift"]}},"required":["setting","objects","action"]}
+          answer = probe("HIGH_JSON","Crie uma descrição JSON curta de uma grua levantando uma carga. Use exatamente uma grua e uma carga com IDs diferentes.",{"maxOutputTokens":4096,"thinkingConfig":{"thinkingLevel":"high"},"responseMimeType":"application/json","responseSchema":schema})
+          try:
+              obj = json.loads(answer)
+              assert obj["setting"] == "industrial" and obj["action"] == "lift"
+              objects = obj["objects"]
+              assert len(objects) == 2 and {o["kind"] for o in objects} == {"crane","cargo"}
+              assert len({o["id"] for o in objects}) == 2 and all(isinstance(o["id"],str) and o["id"] for o in objects)
           except Exception:
-              print("FAIL: network, timeout or invalid response.")
+              print("FAIL HIGH_JSON: invalid structure")
               sys.exit(1)
+          print("PASS HIGH_JSON: parsed and validated")
           PY
