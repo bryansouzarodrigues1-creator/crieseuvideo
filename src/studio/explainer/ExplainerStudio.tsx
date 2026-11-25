@@ -317,6 +317,20 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     }
   };
 
+  /** Offline 52s sample: "E se o Elon Musk sacasse todo o dinheiro dele?" with the five GLBs. */
+  const openMoneyDemo = async () => {
+    if (busy) return;
+    setPlaying(false);
+    try {
+      const { buildMoneyWithdrawalDemo } = await import('./sceneProgram/demo/moneyWithdrawal');
+      setAi3dClip(buildMoneyWithdrawalDemo());
+      setAi3dUsedProvider('demo');
+      setNote('Vídeo local de 52s (7 cenas) com cofre, caminhões e moeda em 3D. Sem custo; para voz, copie a narração e carregue o MP3 na prévia.');
+    } catch (error) {
+      setNote('Falha ao montar o vídeo 3D: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
   const loginForAi3D = async () => {
     if(ai3dLoginBusy||busy)return;
     setAi3dLoginBusy(true);
@@ -622,6 +636,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               </Button>
               <Button size="sm" variant="secondary" disabled={busy} onClick={() => void openSmartphoneDemo()}>
                 <Box /> Ver explicação do celular (12s, sem IA)
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void openMoneyDemo()}>
+                <Box /> Ver vídeo: E se ele sacasse tudo? (52s, sem IA)
               </Button>
               <p className="explainer-sub">Exemplo narrativo com problema e solução na tela e no MP4, sem cobrar créditos. A voz é opcional via importação de MP3/WAV no player. Esse botão não gera o seu roteiro por IA.</p>
               {ai3dAuthStatus==='authenticated'
