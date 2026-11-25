@@ -1,0 +1,13 @@
+import {readFile,mkdir,writeFile,copyFile} from 'node:fs/promises';
+import {reviewVisualScene,visualReviewInput} from '../src/studio/server/geminiVisualReview';
+const out='tmp/gemini-live-3d',input='tmp/visual-before';
+await mkdir(out,{recursive:true});
+const {plan,syntheticScript}=JSON.parse(await readFile(input+'/scene-plan.json','utf8'));
+const frames=await Promise.all([[0,'01-first'],[2,'02-pickup'],[5,'03-transfer'],[8,'04-lowering'],[11.8,'05-last']].map(async ([time,name])=>({time,mimeType:'image/png',data:(await readFile(input+'/'+name+'.png')).toString('base64')})));
+const result=await reviewVisualScene(visualReviewInput.parse({script:syntheticScript,plan,frames,confirmCost:true}));
+const {issues,originalHits,correctedHits,status}=result;
+console.log('VISUAL_REVIEW_RESULT',JSON.stringify({issues,originalHits,correctedHits,status,liveCalls:1}));
+await writeFile(out+'/review-report.json',JSON.stringify({issues,originalHits,correctedHits,status,liveCalls:1},null,2));
+if(status!=='corrected'||originalHits<1||correctedHits!==0)throw Error('No verified visual correction; original preserved.');
+await writeFile(out+'/scene-plan.json',JSON.stringify({plan:result.plan,syntheticScript},null,2));
+await copyFile(input+'/scene-plan.json',out+'/original-plan.json');
