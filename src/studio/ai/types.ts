@@ -33,6 +33,13 @@ export interface ProviderTarget {
   baseUrl?: string;
   /** Anything that can spend money must say so: the router never falls through to it unless allowPaid is set. */
   paid: boolean;
+  /**
+   * What we KNOW about billing. "free" = the model id itself is free (e.g. an OpenRouter ":free" model).
+   * "unverified" = the key's account might have billing enabled, so a free-tier cap is not guaranteed; it is only
+   * reachable under the local daily cap (and is blocked when the router runs with requireVerifiedFree).
+   * "paid" = costs money. Absent means "free".
+   */
+  billing?: "free" | "unverified" | "paid";
   /** Price per million tokens, to estimate cost. Unknown price → cost is reported as undefined, never guessed. */
   price?: { inputPerM: number; outputPerM: number };
   /** Free tiers publish daily request caps; counting locally avoids burning 429s. */
@@ -60,6 +67,8 @@ export type Problem =
   | "invalid_response"
   | "local_limit"
   | "paid_blocked"
+  | "unverified_blocked"
+  | "budget_exhausted"
   | "cooling_down";
 
 export interface Usage {
@@ -114,3 +123,9 @@ export type ProviderFn = (
 export const THINKING_ORDER: Thinking[] = ["minimal", "low", "medium", "high"];
 export const lowerThinking = (level: Thinking | undefined): Thinking =>
   THINKING_ORDER[Math.max(0, THINKING_ORDER.indexOf(level ?? "low") - 1)];
+/**
+ * High is a product decision (quality of the direction), so a truncated answer never silently downgrades it:
+ * the fix for truncation at High is more output room, not less thinking. Lower levels may still step down.
+ */
+export const thinkingAfterTruncation = (level: Thinking | undefined): Thinking =>
+  level === "high" ? "high" : lowerThinking(level);

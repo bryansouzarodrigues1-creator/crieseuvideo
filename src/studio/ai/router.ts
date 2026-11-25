@@ -1,7 +1,8 @@
+import type { Budget } from "./budget";
 import { cooldownMs, isTransient } from "./problems";
 import { PROVIDERS } from "./providers";
 import {
-  lowerThinking,
+  thinkingAfterTruncation,
   type AiFailureNote,
   type AiRequest,
   type AiResult,
@@ -37,6 +38,10 @@ export interface RouterOptions {
   fetch?: FetchLike;
   /** Spending guard: providers flagged paid are skipped unless this is true. */
   allowPaid?: boolean;
+  /** When true, providers whose free tier is not verified are skipped too (only ":free" models and explicit confirmations run). */
+  requireVerifiedFree?: boolean;
+  /** Shared per-video budget: planning, repairs and visual review all draw from it. */
+  budget?: Budget;
   maxAttemptsPerTarget?: number;
   /** Hard cap of HTTP calls per ask() across all providers. */
   maxCalls?: number;
@@ -58,10 +63,11 @@ const cost = (t: ProviderTarget, u: Usage) =>
 /**
  * Ordered providers with the behaviours a real deployment needs and the repo lacked:
  *  - 5xx / timeout / network: retry the SAME provider with exponential backoff + jitter (a 503 "high demand" is usually gone in seconds)
- *  - truncated answer: retry once with doubled output budget and lower reasoning (reasoning ate the budget before)
+ *  - truncated answer: retry once with doubled output budget; reasoning steps down one level, except High, which is kept
  *  - 429: pause that provider, move to the next, never hammer
  *  - paid providers are never reached unless allowPaid
  *  - local daily request counters for free tiers, so we stop before the provider has to say no
+ *  - an optional per-video Budget shared by every ask (a repair or a review can no longer restart the count)
  */
 export function createRouter(options: RouterOptions) {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -99,8 +105,12 @@ export function createRouter(options: RouterOptions) {
         skip("not_configured", "sem chave");
         continue;
       }
-      if (target.paid && !options.allowPaid) {
+      if ((target.paid || target.billing === "paid") && !options.allowPaid) {
         skip("paid_blocked", "provedor pago sem autorização");
+        continue;
+      }
+      if (options.requireVerifiedFree && target.billing === "unverified") {
+        skip("unverified_blocked", "gratuito não verificado");
         continue;
       }
       if ((cooldowns.get(target.id) ?? 0) > now()) {
@@ -121,11 +131,24 @@ export function createRouter(options: RouterOptions) {
           note(target, "local_limit");
           return { ok: false, problem: "local_limit", target: ref, attempts: calls, failures };
         }
+        if (options.budget && !options.budget.take()) {
+          note(target, "budget_exhausted");
+          options.onEvent?.({
+            target: target.id,
+            model: target.model,
+            ok: false,
+            problem: "budget_exhausted",
+            attempt,
+            note: "orçamento do vídeo esgotado",
+          });
+          return { ok: false, problem: "budget_exhausted", target: ref, attempts: calls, failures };
+        }
         calls++;
         quota.increment(`${target.id}:${target.model}:${day()}`);
         const result = await PROVIDERS[target.kind](target, req, fetchImpl);
         if (result.ok) {
           const costUsd = cost(target, result.usage);
+          options.budget?.charge(costUsd);
           options.onEvent?.({
             target: target.id,
             model: target.model,
@@ -160,7 +183,7 @@ export function createRouter(options: RouterOptions) {
           req = {
             ...req,
             maxOutputTokens: Math.min((req.maxOutputTokens ?? 4096) * 2, 32_768),
-            thinking: lowerThinking(req.thinking),
+            thinking: thinkingAfterTruncation(req.thinking),
           };
           continue;
         }

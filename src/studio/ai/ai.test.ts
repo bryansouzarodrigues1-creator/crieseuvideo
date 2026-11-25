@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   askStructured,
+  createBudget,
   createRouter,
   extractJson,
   targetsFromEnv,
@@ -222,7 +223,7 @@ describe("router", () => {
       "paid_blocked",
     ]);
   });
-  it("after truncation retries once with a bigger output budget and lower reasoning", async () => {
+  it("after truncation at HIGH keeps High and doubles the output room instead", async () => {
     const s = scripted([geminiOk("x", { finishReason: "MAX_TOKENS" }), geminiOk('{"ok":1}')]);
     const r = await createRouter({ chain: [G], fetch: s.fetch, ...fast }).ask({
       prompt: "p",
@@ -232,8 +233,69 @@ describe("router", () => {
     expect(r.ok).toBe(true);
     expect(s.calls[1].body.generationConfig).toMatchObject({
       maxOutputTokens: 5200,
-      thinkingConfig: { thinkingLevel: "medium" },
+      thinkingConfig: { thinkingLevel: "high" },
     });
+  });
+  it("after truncation at a lower level still steps reasoning down one level", async () => {
+    const s = scripted([geminiOk("x", { finishReason: "MAX_TOKENS" }), geminiOk('{"ok":1}')]);
+    await createRouter({ chain: [G], fetch: s.fetch, ...fast }).ask({
+      prompt: "p",
+      maxOutputTokens: 2600,
+      thinking: "medium",
+    });
+    expect(s.calls[1].body.generationConfig.thinkingConfig).toMatchObject({ thinkingLevel: "low" });
+  });
+  it("one shared budget caps a whole video: planning, repair and review draw from the same calls", async () => {
+    const s = scripted([geminiOk('{"n":1}')]),
+      budget = createBudget({ maxCalls: 3 }),
+      router = createRouter({ chain: [G], fetch: s.fetch, budget, ...fast });
+    expect((await router.ask({ prompt: "plan" })).ok).toBe(true);
+    expect((await router.ask({ prompt: "repair" })).ok).toBe(true);
+    expect((await router.ask({ prompt: "review" })).ok).toBe(true);
+    const fourth = await router.ask({ prompt: "one more" });
+    expect(fourth).toMatchObject({ ok: false, problem: "budget_exhausted" });
+    expect(s.calls).toHaveLength(3); // nothing was sent
+    expect(budget.used().calls).toBe(3);
+  });
+  it("retries count against the video budget too, and a structured repair cannot restart it", async () => {
+    const s = scripted([{ status: 503 }, geminiOk("not json"), geminiOk("still not json")]),
+      budget = createBudget({ maxCalls: 3 }),
+      router = createRouter({ chain: [G], fetch: s.fetch, budget, ...fast });
+    const r = await askStructured(router, { prompt: "p" }, (raw) => raw, 3);
+    expect(r.ok).toBe(false);
+    expect(s.calls).toHaveLength(3);
+    expect(r.ok === false && r.stage === "provider" && r.failure.problem).toBe("budget_exhausted");
+  });
+  it("stops when the estimated cost cap is reached", async () => {
+    const s = scripted([
+        {
+          body: {
+            content: [{ type: "text", text: "{}" }],
+            usage: { input_tokens: 1_000_000, output_tokens: 0 },
+          },
+        },
+      ]),
+      budget = createBudget({ maxCalls: 10, maxCostUsd: 0.05 }),
+      router = createRouter({ chain: [A], allowPaid: true, fetch: s.fetch, budget, ...fast });
+    expect((await router.ask({ prompt: "p" })).ok).toBe(true); // costs 0.10 USD at the configured price
+    expect(await router.ask({ prompt: "p" })).toMatchObject({
+      ok: false,
+      problem: "budget_exhausted",
+    });
+    expect(s.calls).toHaveLength(1);
+  });
+  it("refuses unverified free tiers in verified-free mode and still runs confirmed ones", async () => {
+    const s = scripted([geminiOk("{}")]);
+    const unverified = { ...G, billing: "unverified" as const },
+      confirmed = { ...Q, billing: "free" as const };
+    const r = await createRouter({
+      chain: [unverified, confirmed],
+      requireVerifiedFree: true,
+      fetch: s.fetch,
+      ...fast,
+    }).ask({ prompt: "p" });
+    expect(r.ok === false && r.failures[0].problem).toBe("unverified_blocked");
+    expect(s.calls.every((c) => !c.url.includes("googleapis"))).toBe(true);
   });
   it("counts a free-tier daily cap locally and stops before the provider says no", async () => {
     const s = scripted([geminiOk("{}")]),
@@ -351,8 +413,24 @@ describe("config", () => {
     ]);
     expect(chain.find((t) => t.id === "anthropic")!.paid).toBe(true);
     expect(allowPaid).toBe(false);
+    // a key alone does not prove the account has no billing: unverified until the operator confirms
+    expect(chain.find((t) => t.id === "gemini")!.billing).toBe("unverified");
+    expect(chain.find((t) => t.id === "groq")!.billing).toBe("unverified");
     expect(targetsFromEnv({ AI_CHAIN: "groq,anthropic", AI_ALLOW_PAID: "1" })).toMatchObject({
       allowPaid: true,
     });
+  });
+  it("classifies billing from what is known: confirmation, ':free' ids, anything else billed", () => {
+    const by = (env: Record<string, string>) =>
+      Object.fromEntries(targetsFromEnv(env).chain.map((t) => [t.id, t]));
+    expect(by({ GEMINI_BILLING: "free" }).gemini).toMatchObject({ billing: "free", paid: false });
+    expect(by({ GEMINI_BILLING: "paid" }).gemini).toMatchObject({ billing: "paid", paid: true });
+    expect(by({}).openrouter).toMatchObject({ billing: "free", paid: false });
+    expect(by({ OPENROUTER_MODEL: "vendor/model:free" }).openrouter.paid).toBe(false);
+    expect(by({ OPENROUTER_MODEL: "anthropic/claude-sonnet-4" }).openrouter).toMatchObject({
+      billing: "paid",
+      paid: true,
+    });
+    expect(targetsFromEnv({ AI_REQUIRE_VERIFIED_FREE: "1" }).requireVerifiedFree).toBe(true);
   });
 });

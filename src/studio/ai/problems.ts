@@ -54,5 +54,7 @@ export const PROBLEM_PT: Record<Problem, string> = {
   invalid_response: "resposta fora do formato do provedor",
   local_limit: "limite diário local atingido",
   paid_blocked: "provedor pago bloqueado (sem autorização de gasto)",
+  unverified_blocked: "provedor gratuito não verificado bloqueado (modo só-gratuito confirmado)",
+  budget_exhausted: "orçamento de chamadas deste vídeo esgotado",
   cooling_down: "provedor em pausa depois de erro recente",
 };

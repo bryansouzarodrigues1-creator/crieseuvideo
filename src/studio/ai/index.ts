@@ -9,5 +9,6 @@ export {
   type QuotaStore,
   type RouterOptions,
 } from "./router";
+export { createBudget, type Budget, type BudgetLimit } from "./budget";
 export { askStructured, extractJson, type StructuredResult } from "./structured";
 export { targetsFromEnv } from "./config";
