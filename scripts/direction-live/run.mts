@@ -121,7 +121,7 @@ const frameTimes = [...sources.map((s, i) => +(starts[i] + (s.duration ?? 0) * 0
 const events: AiEvent[] = [];
 const { chain } = targetsFromEnv(dry ? { GEMINI_API_KEY: "dry", AI_CHAIN: "gemini" } : { GEMINI_API_KEY: process.env.GEMINI_API_KEY, GEMINI_AI_MODEL: process.env.GEMINI_AI_MODEL, GEMINI_BILLING: process.env.GEMINI_BILLING, AI_CHAIN: "gemini" });
 const budget = createBudget({ maxCalls: Number(process.env.AI_VIDEO_MAX_CALLS) || 5 });
-const router = createRouter({ chain, allowPaid: false, budget, fetch: dry ? dryFetch : undefined, quota: memoryQuota(), cooldowns: new Map(), onEvent: (e) => events.push(e) });
+const router = createRouter({ chain, allowPaid: false, budget, maxAttemptsPerTarget: 1, fetch: dry ? dryFetch : undefined, quota: memoryQuota(), cooldowns: new Map(), onEvent: (e) => events.push(e) });
 
 const stages: string[] = [];
 let original: any = null,
