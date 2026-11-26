@@ -29,14 +29,34 @@ jobs:
         run: |
           bun add --no-save playwright@1.57.0
           bunx playwright install --with-deps chromium
+      - name: Probe Gemini (3 trivial calls, shows the real HTTP status and error text; picks the first model that answers)
+        id: probe
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          mkdir -p tmp/direction-live
+          : > tmp/direction-live/gemini-probe.txt
+          chosen=""
+          for m in gemini-3.8-flash gemini-3.6-flash gemini-3.5-flash-lite; do
+            code=$(curl -sS -m 60 -o "/tmp/probe-$m.json" -w '%{http_code}' \
+              -H "x-goog-api-key: ${GEMINI_API_KEY}" -H 'content-type: application/json' \
+              -d '{"contents":[{"role":"user","parts":[{"text":"Responda so: ok"}]}],"generationConfig":{"maxOutputTokens":512,"thinkingConfig":{"thinkingLevel":"high"}}}' \
+              "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent" || echo 000)
+            msg=$(jq -r '(.error.status // "") + " " + ((.error.message // (.candidates[0].finishReason // "")) | tostring | .[0:200])' "/tmp/probe-$m.json" 2>/dev/null || echo "sem json")
+            echo "$m http=$code $msg" | tee -a tmp/direction-live/gemini-probe.txt
+            if [ "$code" = "200" ] && [ -z "$chosen" ]; then chosen="$m"; fi
+          done
+          echo "chosen=${chosen}" | tee -a tmp/direction-live/gemini-probe.txt
+          echo "chosen=${chosen}" >> "$GITHUB_OUTPUT"
       - name: Gemini directs a NEW 45 s story, sees real frames, corrects and exports
         id: live
+        if: steps.probe.outputs.chosen != ''
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LIVE_EXPLICIT_RUN: '1'
           # 503 retries also draw from the per-video budget, so leave room for plan (+repair) and the review.
           AI_VIDEO_MAX_CALLS: '8'
-          GEMINI_AI_MODEL: gemini-3.8-flash
+          GEMINI_AI_MODEL: ${{ steps.probe.outputs.chosen }}
         run: bun scripts/direction-live/run.mts
       - name: MP4 (H.264) and probe
         if: always() && hashFiles('tmp/direction-live/video.*') != ''
@@ -62,6 +82,7 @@ jobs:
           path: |
             tmp/direction-live/report.json
             tmp/direction-live/probe.json
+            tmp/direction-live/gemini-probe.txt
             tmp/direction-live/direction-*.json
             tmp/direction-live/video.*
             tmp/direction-live/frames/
@@ -74,7 +95,7 @@ jobs:
         run: |
           set -e
           rm -rf /tmp/proof && mkdir -p /tmp/proof
-          cp -r tmp/direction-live/report.json tmp/direction-live/probe.json tmp/direction-live/direction-*.json tmp/direction-live/video.* tmp/direction-live/frames /tmp/proof/ 2>/dev/null || true
+          cp -r tmp/direction-live/report.json tmp/direction-live/probe.json tmp/direction-live/gemini-probe.txt tmp/direction-live/direction-*.json tmp/direction-live/video.* tmp/direction-live/frames /tmp/proof/ 2>/dev/null || true
           echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} commit: ${GITHUB_SHA}" > /tmp/proof/RUN.txt
           cd /tmp/proof
           git init -q
