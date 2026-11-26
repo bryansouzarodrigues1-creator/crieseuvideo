@@ -17,15 +17,17 @@ export interface FixedFrameExport {
   signal?: AbortSignal;
   /** Optional imported narration, encoded into the same MP4/WebM timeline. */
   audioBuffer?: AudioBuffer;
+  /** Longest clip accepted (seconds). Defaults to 30 to protect phones; desktop/CI callers may raise it up to 60. */
+  maxSeconds?: number;
 }
 
 export async function encodeFixedFrame3DClip({
-  canvas,durationSeconds,fps,renderFrame,onProgress,signal,audioBuffer,
+  canvas,durationSeconds,fps,renderFrame,onProgress,signal,audioBuffer,maxSeconds=30,
 }:FixedFrameExport):Promise<Encoded3DClip>{
   if(typeof VideoEncoder==='undefined'){
     throw new Error('Seu navegador não possui WebCodecs para gerar MP4 com quadros fixos.');
   }
-  if(!Number.isFinite(durationSeconds)||durationSeconds<=0||durationSeconds>30||
+  if(!Number.isFinite(durationSeconds)||durationSeconds<=0||durationSeconds>Math.min(60,maxSeconds)||
     !Number.isInteger(fps)||fps<12||fps>60){
     throw new Error('Parâmetros de renderização inválidos.');
   }

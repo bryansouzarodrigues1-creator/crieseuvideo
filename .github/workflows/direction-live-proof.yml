@@ -1,0 +1,76 @@
+name: Direction live proof (Gemini directs, sees, corrects, exports)
+# Real run, explicit and manual: it spends Gemini quota. Only Gemini High with the repository secret; no Lovable, no paid provider.
+on:
+  workflow_dispatch:
+  push:
+    branches: [proof/direction-live-20261126]
+    paths: ['.github/workflows/direction-live-proof.yml', 'scripts/direction-live/**']
+permissions:
+  contents: write
+concurrency:
+  group: direction-live-proof
+  cancel-in-progress: false
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Direction unit tests (parser, catalogue, compiler, loop)
+        run: bunx vitest run src/studio/explainer/sceneProgram/direction
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install --with-deps chromium
+      - name: Gemini directs a NEW 45 s story, sees real frames, corrects and exports
+        id: live
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LIVE_EXPLICIT_RUN: '1'
+          AI_VIDEO_MAX_CALLS: '5'
+        run: bun scripts/direction-live/run.mts
+      - name: MP4 (H.264) and probe
+        if: always() && hashFiles('tmp/direction-live/video.*') != ''
+        run: |
+          cd tmp/direction-live
+          if [ -f video.webm ] && [ ! -f video.mp4 ]; then
+            ffmpeg -v error -y -i video.webm -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -pix_fmt yuv420p -movflags +faststart video.mp4
+          fi
+          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate -of json video.mp4 | tee probe.json
+          {
+            echo '### Direction live proof'
+            echo '```json'
+            cat report.json
+            echo '```'
+            echo '```json'
+            cat probe.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: direction-live-proof
+          path: |
+            tmp/direction-live/report.json
+            tmp/direction-live/probe.json
+            tmp/direction-live/direction-*.json
+            tmp/direction-live/video.*
+            tmp/direction-live/frames/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish proof files to branch qa-proof/direction-live (read-only evidence, no code)
+        if: always()
+        run: |
+          set -e
+          mkdir -p /tmp/proof && cp -r tmp/direction-live/report.json tmp/direction-live/probe.json tmp/direction-live/direction-*.json tmp/direction-live/video.* tmp/direction-live/frames /tmp/proof/ 2>/dev/null || true
+          echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} commit: ${GITHUB_SHA}" > /tmp/proof/RUN.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan qa-proof-tmp
+          git rm -rf --quiet . || true
+          cp -r /tmp/proof/. .
+          git add -A
+          git commit -q -m "proof: direction live run ${GITHUB_RUN_ID}"
+          git push -f origin HEAD:refs/heads/qa-proof/direction-live
