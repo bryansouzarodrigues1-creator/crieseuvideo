@@ -5,6 +5,11 @@ on:
   push:
     branches: [proof/direction-live-20261126]
     paths: ['.github/workflows/direction-live-proof.yml', 'scripts/direction-live/**']
+  # Draft PRs are how this repo runs CI on non-default branches; a run happens only when this workflow or the harness changes.
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths: ['.github/workflows/direction-live-proof.yml', 'scripts/direction-live/**']
 permissions:
   contents: write
 concurrency:
