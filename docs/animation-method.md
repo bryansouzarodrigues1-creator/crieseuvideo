@@ -36,7 +36,19 @@ Todo verbo tem uma janela `at: [de, até]` em fase 0..1 dentro da cena (padrão 
 const program = compileDirection(direction, sources);   // sources = frases com duração
 ```
 O formato é JSON puro de propósito: um modelo de linguagem pode escrever a direção em vez de curvas cruas.
-**Ainda não está ligado ao prompt do Gemini** (o prompt atual proíbe modelos externos); é o próximo passo.
+## O Gemini escreve a direção
+
+`direction/aiDirection.ts` ensina o Gemini a escrever esse JSON em vez de trilhas cruas:
+
+- `directionPrompt(sources)` monta o prompt com o roteiro, as regras e o **catálogo de modelos**, lido de `modelRegistry.ts` (campo `catalogue`: tamanho, peças, eixos, ângulo de abertura, raio de roda). Registrar um modelo com `catalogue` é tudo para oferecê-lo à IA; nada é fixo no código.
+- `directionResponseSchema(ids)` é o `responseSchema` do Gemini (dica, não segurança).
+- `parseDirection` valida com lista de campos permitidos e **preenche os padrões do catálogo** (ângulo de porta, nomes e raio das rodas, raio da moeda × escala), então a IA diz *o que acontece*, não números do motor.
+- `checkDirectionAnswer` é o validador do provedor: só aceita o que passa por `parseDirection` + `compileDirection` + `normalizeSceneProgram`.
+- Servidor: `generateAi3DDirection` em `ai3d.functions.ts`, com login, `confirmCost`, uma chamada por vez, cooldown compartilhado, sem retry escondido e sem vídeo de demonstração como substituto. Aceita 1–8 frases, até 60 s.
+
+`drive` anda sempre **para a frente do veículo** (+Z girado pelo yaw); movimento de lado é rejeitado.
+
+Falta: revisão visual (Gemini Vision sobre quadros renderizados), mais verbos (andar, pegar, carregar), checagem de colisão e mais modelos no catálogo.
 
 ## 6. Como saber se ficou bom
 `npx vitest run src/studio/explainer/sceneProgram` e, para olhar de verdade, renderizar quadros por cena

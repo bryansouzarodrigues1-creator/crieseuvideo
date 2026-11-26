@@ -5,6 +5,7 @@ import {sourceBriefsFromScript} from './explainer/sceneProgram/planner/aiWorldDi
 import {compactWorldPrompt,compileCompactWorld} from './explainer/sceneProgram/planner/compactWorldDirector';
 import {cooldownSecondsRemaining,ai3dCooldownMessage} from './ai3dCooldown';
 import {gemini3DResponseSchema,parseAi3DScene} from './server/ai3dSchema';
+import {MAX_DIRECTION_SCENES,checkDirectionAnswer,directionPrompt,directionResponseSchema,directionSources,directionToClip} from './explainer/sceneProgram/direction/aiDirection';
 
 const input=z.object({
   script:z.string().min(45).max(750),
@@ -60,6 +61,53 @@ export const generateAi3DWorld=createServerFn({method:'POST'})
         provider:answer.provider,
         duration:clip.duration,
         warning:'A IA definiu os objetos e as ações; o motor construiu as peças e as câmeras. A revisão visual e o áudio ainda precisam ser finalizados.',
+      };
+    }finally{
+      inFlight.delete(userId);
+      if(lastRequest.size>2000)lastRequest.clear();
+    }
+  });
+
+const directionInput=z.object({
+  // Ids s1..sN are assigned by the server. 1–8 sentences, at most one minute in total.
+  sentences:z.array(z.object({
+    text:z.string().min(12).max(350),
+    duration:z.number().int().min(3).max(12),
+  }).strict()).min(1).max(MAX_DIRECTION_SCENES),
+  provider:z.enum(['auto','gemini','lovable']),
+  confirmCost:z.literal(true),
+  geminiModel:z.enum(['default','gemini-3.5-flash-lite','gemini-3.6-flash','gemini-3.8-flash']).default('default'),
+}).strict().refine(v=>v.sentences.reduce((n,s)=>n+s.duration,0)<=60,{message:'O vídeo pode ter até 60 segundos.'});
+
+/**
+ * The AI writes a DIRECTION (cast + verbs); compileDirection turns it into the SceneProgram.
+ * Same guards as generateAi3DWorld: sign-in, explicit cost confirmation, one call per user at a
+ * time, a shared cooldown, no hidden retries and no demo substitution when the AI fails.
+ */
+export const generateAi3DDirection=createServerFn({method:'POST'})
+  .middleware([requireSupabaseAuth])
+  .inputValidator(data=>directionInput.parse(data))
+  .handler(async ({data,context})=>{
+    const userId=context.userId;
+    const now=Date.now();
+    if(inFlight.has(userId))throw new Error('Uma cena sua já está sendo planejada.');
+    const retryIn=cooldownSecondsRemaining(lastRequest.get(userId)||0,now);
+    if(retryIn>0)throw new Error(ai3dCooldownMessage(retryIn));
+    const sources=directionSources(data.sentences);
+    const prompt=directionPrompt(sources);
+    inFlight.add(userId);
+    lastRequest.set(userId,now);
+    try{
+      const {ask3DWorldAi}=await import('./server/ai');
+      const answer=await ask3DWorldAi(prompt,data.provider,text=>checkDirectionAnswer(text,sources),
+        directionResponseSchema(sources.map(s=>s.sourceId)),data.geminiModel);
+      if(!answer)throw new Error('Os provedores não entregaram uma direção válida.');
+      const clip=directionToClip(answer.text,sources);
+      return {
+        clip,
+        provider:answer.provider,
+        duration:clip.duration,
+        warning:'A IA escreveu a direção (elenco e verbos); o motor calculou os movimentos e as câmeras. A revisão visual e o áudio ainda precisam ser finalizados.',
       };
     }finally{
       inFlight.delete(userId);

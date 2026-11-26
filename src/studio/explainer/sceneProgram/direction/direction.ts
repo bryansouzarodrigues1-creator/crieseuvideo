@@ -34,7 +34,7 @@ export type Verb =
   | { do: 'open'; node: string; part: string; axis: Axis; angle: number; at?: Window }
   | { do: 'close'; node: string; part: string; axis: Axis; at?: Window }
   | { do: 'spin'; node: string; part: string; axis: Axis; turns: number; at?: Window }
-  /** Drives the node by a vector and rolls its wheel parts by distance / radius. Linear. */
+  /** Drives the node by a vector ALONG ITS FORWARD (+Z rotated by its yaw) and rolls its wheel parts by distance / radius. Sideways vectors are rejected. Linear. */
   | { do: 'drive'; node: string; by: Vec3; wheels: string[]; wheelRadius: number; at?: Window }
   /** Rolls an upright disc along +X by `dx`; `centerY` is the disc center height above the node origin. Linear. */
   | { do: 'roll'; node: string; dx: number; radius: number; centerY: number; at?: Window }
@@ -143,7 +143,15 @@ export function compileDirection(direction: Direction, sources: ProgramSource[])
         case 'drive': {
           const t = prop('position', 'linear');
           const target = add(t.current, verb.by);
-          for (const w of verb.wheels) { const wt = track(m.id, 'rotation', w, 'linear', ZERO); animate(wt, sourceId, index, at, [wt.current[0] + verb.by[2] / verb.wheelRadius, 0, 0], w === verb.wheels[0]); }
+          if (!(verb.wheelRadius > 0)) throw new DirectionError(`"drive" de "${m.id}" precisa de wheelRadius positivo.`);
+          // Wheels roll about local X for motion along the vehicle's FORWARD (+Z rotated by its current yaw).
+          // A sideways drive would slide the wheels, so it is rejected instead of animated wrongly.
+          const yaw = (tracks.get(`${m.id}|rotation|`)?.current ?? (m.rotation as Vec3 | undefined) ?? ZERO)[1];
+          const fx = Math.sin(yaw), fz = Math.cos(yaw);
+          const along = verb.by[0] * fx + verb.by[2] * fz, side = verb.by[0] * fz - verb.by[2] * fx;
+          if (Math.abs(side) > Math.max(.05, .05 * Math.abs(along)))
+            throw new DirectionError(`"${m.id}" não pode andar de lado: vire o veículo (turn) antes de dirigir.`);
+          for (const w of verb.wheels) { const wt = track(m.id, 'rotation', w, 'linear', ZERO); animate(wt, sourceId, index, at, [wt.current[0] + along / verb.wheelRadius, 0, 0], w === verb.wheels[0]); }
           animate(t, sourceId, index, at, target, true); break;
         }
         case 'roll': {
