@@ -15,6 +15,7 @@ import {
 } from "../ai";
 import { splitSceneSentences } from "../explainer/sceneProgram/planner/sceneScript";
 import type { ProgramSource } from "../explainer/sceneProgram/score";
+import { estimateSeconds } from "../explainer/sceneProgram/direction/locomotion";
 import type { Direction } from "../explainer/sceneProgram/direction/direction";
 import {
   reviewDirection,
@@ -30,6 +31,7 @@ export const directInput = z
     script: z.string().min(45).max(1500),
     videoId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
     form: z.enum(["compact", "full"]).default("compact"),
+    geminiBeta: z.literal(true).optional(),
     confirmCost: z.literal(true),
   })
   .strict();
@@ -54,6 +56,7 @@ export const reviewInput = z
       )
       .min(3)
       .max(7),
+    geminiBeta: z.literal(true).optional(),
     confirmCost: z.literal(true),
   })
   .strict();
@@ -64,7 +67,10 @@ export function sourcesFromScript(script: string): ProgramSource[] {
     throw new Error("Use de 1 a 10 frases ou linhas.");
   if (sentences.some((s) => s.length < 12 || s.length > 350))
     throw new Error("Cada frase precisa ter de 12 a 350 caracteres.");
-  return sentences.map((text, i) => ({ sourceId: `s${i + 1}`, text }));
+  const sources=sentences.map((text,i)=>({sourceId:`s${i+1}`,text}));
+  const timed=sources.map(s=>({...s,duration:estimateSeconds(s)}));
+  if(timed.reduce((sum,s)=>sum+s.duration,0)>60)throw Error("Reduza o roteiro para no máximo 60 segundos.");
+  return timed;
 }
 
 /** One budget per video, kept for 30 minutes so planning and the later visual review draw from the same calls (in memory, like the other first-line guards). */
@@ -108,7 +114,7 @@ export async function runDirection(raw: unknown, env: Env, userId: string, fetch
   const sources = sourcesFromScript(input.script);
   const events: AiEvent[] = [],
     budget = budgetFor(`${userId}:${input.videoId}`, env);
-  const result = await directViaRouter(routerFor(env, budget, fetch, events), sources, {
+  const result = await directViaRouter(routerFor(input.geminiBeta?{...env,AI_CHAIN:"gemini",GEMINI_AI_MODEL:"gemini-3.6-flash",AI_ALLOW_PAID:"0"}:env, budget, fetch, events), sources, {
     form: input.form,
   });
   if (!result.ok) {
@@ -122,6 +128,7 @@ export async function runDirection(raw: unknown, env: Env, userId: string, fetch
   return {
     ok: true as const,
     title,
+    sources,
     directionJson: JSON.stringify(direction),
     programJson: JSON.stringify(program),
     warnings: compile.warnings,
@@ -140,7 +147,7 @@ export async function runDirectionReview(
   const events: AiEvent[] = [],
     budget = budgetFor(`${userId}:${input.videoId}`, env);
   const result: ReviewResult = await reviewDirection({
-    router: routerFor(env, budget, fetch, events),
+    router: routerFor(input.geminiBeta?{...env,AI_CHAIN:"gemini",GEMINI_AI_MODEL:"gemini-3.6-flash",AI_ALLOW_PAID:"0"}:env, budget, fetch, events),
     direction: input.direction as unknown as Direction,
     sources,
     frames: input.frames.map((f) => ({ time: f.time, mimeType: f.mimeType, base64: f.base64 })),
@@ -149,6 +156,7 @@ export async function runDirectionReview(
     const { direction, program, ...rest } = result;
     return {
       ...rest,
+      sources,
       directionJson: JSON.stringify(direction),
       programJson: JSON.stringify(program),
       ...report(budget, events),
