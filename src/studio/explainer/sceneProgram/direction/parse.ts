@@ -3,7 +3,8 @@ import type { ProgramSource } from "../score";
 import { DirectionError } from "./errors";
 import { EMOTIONS, POSE_NAMES } from "./poses";
 import { isLocomotion } from "./locomotion";
-import type { Direction } from "./direction";
+import type { CastMember, Direction } from "./direction";
+import { strictCast, strictVerb } from "./strict";
 
 export const VERB_NAMES = [
   "appear",
@@ -102,6 +103,55 @@ export function parseDirection(raw: unknown, sources: ProgramSource[]): Directio
       }
     });
   });
-  const { title: _t, ...direction } = r;
-  return direction as Direction;
+  // Second pass: allowlist of every field, ranges, and the model-catalogue defaults (door angle/axis, wheel names/radius, roll radius).
+  const idSet = new Set<string>(),
+    cast = new Map<string, CastMember>();
+  for (const item of r.cast) {
+    const m = strictCast(item, idSet);
+    cast.set(m.id, m);
+  }
+  const num = (v: unknown, what: string, min: number, max: number): number =>
+    typeof v === "number" && Number.isFinite(v) && v >= min && v <= max
+      ? v
+      : fail(`${what} precisa ser um número entre ${min} e ${max}.`);
+  const scenes = r.scenes.map((sc: any, i: number) => {
+    const s = sc.shot;
+    const unknown = Object.keys(s).find(
+      (k) => !["subjects", "azimuth", "endAzimuth", "elevation", "distance"].includes(k),
+    );
+    if (unknown) fail(`scenes[${i}].shot tem o campo não suportado "${unknown}".`);
+    // With `world` the engine creates reserved nodes (ground, wall, …) that a shot may cite; compileDirection checks them.
+    if (r.world === undefined)
+      for (const id of s.subjects)
+        if (!cast.has(id)) fail(`scenes[${i}].shot cita "${id}", que não está no elenco.`);
+    const extraKeys = Object.keys(sc).filter((k) => !["sourceId", "shot", "verbs"].includes(k));
+    if (extraKeys.length) fail(`scenes[${i}] tem o campo não suportado "${extraKeys[0]}".`);
+    return {
+      sourceId: sc.sourceId as string,
+      shot: {
+        subjects: s.subjects as string[],
+        azimuth: num(s.azimuth, `scenes[${i}].shot.azimuth`, -Math.PI * 2, Math.PI * 2),
+        ...(s.endAzimuth !== undefined && s.endAzimuth !== null
+          ? {
+              endAzimuth: num(
+                s.endAzimuth,
+                `scenes[${i}].shot.endAzimuth`,
+                -Math.PI * 2,
+                Math.PI * 2,
+              ),
+            }
+          : {}),
+        elevation: num(s.elevation, `scenes[${i}].shot.elevation`, -0.35, 1.1),
+        distance: num(s.distance, `scenes[${i}].shot.distance`, 1, 2.5),
+      },
+      verbs: sc.verbs.map((v: unknown) => strictVerb(v, cast)),
+    };
+  });
+  return {
+    version: 1,
+    background: r.background,
+    cast: [...cast.values()],
+    scenes,
+    ...(r.world !== undefined ? { world: r.world } : {}),
+  };
 }

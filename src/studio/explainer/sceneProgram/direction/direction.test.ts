@@ -77,4 +77,26 @@ describe('the money video as a direction', () => {
     expect(MONEY_DIRECTION.scenes).toHaveLength(7);
     expect(clip.duration).toBe(52);
   });
+  describe('drive follows the vehicle forward', () => {
+    const truck = (rotation: [number, number, number]): Direction => ({
+      version: 1, background: '#EEF1F5',
+      cast: [{ id: 'truck', kind: 'model', assetId: 'armored-truck-v1', position: [0, 0, 0], rotation }],
+      scenes: [{ sourceId: 's1', shot: { subjects: ['truck'], azimuth: 0, elevation: .2, distance: 1.2 }, verbs: [] }, { sourceId: 's2', shot: { subjects: ['truck'], azimuth: 0, elevation: .2, distance: 1.2 }, verbs: [] }],
+    });
+    const drive = (d: Direction, by: [number, number, number]): Direction => {
+      d.scenes[0].verbs = [{ do: 'drive', node: 'truck', by, wheels: ['roda_1'], wheelRadius: .42, at: [0, 1] }]; return d;
+    };
+    const wheelX = (d: Direction) => compileSceneProgram(compileDirection(d, src), src).sample(4).get('truck')!.parts!.roda_1[0];
+    it('rolls by the distance along the heading, whatever the yaw', () => {
+      expect(wheelX(drive(truck([0, 0, 0]), [0, 0, 8.4]))).toBeCloseTo(20);
+      // Heading +X (yaw 90°): driving +X is forward, so the wheels turn the same way.
+      expect(wheelX(drive(truck([0, Math.PI / 2, 0]), [8.4, 0, 0]))).toBeCloseTo(20);
+      // Reversing turns them backwards.
+      expect(wheelX(drive(truck([0, 0, 0]), [0, 0, -4.2]))).toBeCloseTo(-10);
+    });
+    it('rejects driving sideways instead of sliding the wheels', () => {
+      expect(() => compileDirection(drive(truck([0, 0, 0]), [8, 0, 0]), src)).toThrow(DirectionError);
+      expect(() => compileDirection(drive(truck([0, 0, 0]), [8, 0, 0]), src)).toThrow(/de lado/);
+    });
+  });
 });

@@ -46,6 +46,18 @@ Com `world: { kind: 'cliff', height, mood }` e um ator de id `hero`, uma cena po
 verbos de corpo medido (`direct/verbs.ts`); ninguém escreve coordenadas. Os outros membros do elenco continuam usando os
 verbos de elenco na mesma direção. `hero` não aceita outros verbos (conflito é erro explicado).
 
+### O catálogo de modelos e o parser único
+O Gemini diz *o que acontece* ("abra a porta do cofre"); o motor sabe o resto. Cada modelo aprovado pode ter um
+`catalogue` em `modelRegistry.ts` (tamanho, peças, eixo e ângulo de abertura, raio das rodas, raio de rolagem, piso interno).
+Só modelos com `catalogue` são oferecidos à IA, então **adicionar um veículo, máquina ou objeto = registrar o GLB com o catálogo**.
+
+- `direction/guide.ts` (`directionGuide`) escreve o prompt a partir do catálogo, com um exemplo que um teste compila.
+- `direction/parse.ts` (`parseDirection`) é o único parser: checa a estrutura, depois `direction/strict.ts` valida cada item e verbo
+  com lista de campos permitidos e **preenche os padrões do catálogo** (ângulo de porta, nomes e raio das rodas, raio da moeda × escala).
+  Os erros são escritos para o modelo e voltam na rodada de reparo.
+- `drive` anda sempre **para a frente do veículo** (+Z girado pelo yaw); andar de lado é rejeitado.
+- O servidor continua sendo `directScene` / `runDirection` (login, `confirmCost`, orçamento por vídeo). Não há outro endpoint.
+
 ## 6. Como saber se ficou bom
 `npx vitest run src/studio/explainer/sceneProgram` e, para olhar de verdade, renderizar quadros por cena
 no navegador (ver `deterministic3dExport.ts`).
