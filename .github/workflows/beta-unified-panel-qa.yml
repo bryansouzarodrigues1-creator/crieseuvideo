@@ -1,0 +1,17 @@
+name: Beta unified panel - offline verification
+on:
+  push:
+    branches: [feat/launch-beta-unified-panel-20261126]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run build
+      - run: bunx tsc --noEmit
