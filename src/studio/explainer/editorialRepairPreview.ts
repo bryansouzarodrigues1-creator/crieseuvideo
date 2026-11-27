@@ -8,7 +8,7 @@ export function compareEditorialReviews(before:EditorialReview,after:EditorialRe
  const old=new Set(before.issues.map(key)),next=new Set(after.issues.map(key));
  const introduced=after.issues.filter(i=>!old.has(key(i)));
  const resolved=before.issues.filter(i=>!next.has(key(i)));
- return {introduced,resolved,blocked:introduced.some(i=>i.code==='empty_art')};
+ return {introduced,resolved,blocked:introduced.some(i=>i.code==='empty_art'||i.code==='unsafe_art')};
 }
 export function buildRepairCandidate(plan:ExplainerPlan,index:number,edits:unknown):ExplainerPlan{
  if(!Number.isInteger(index)||index<0||index>=plan.scenes.length)throw Error('Cena inexistente.');

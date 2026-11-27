@@ -1,3 +1,4 @@
+import {editorialStagePose} from './editorialFraming';
 import {groupPose,type EditorialGroup} from './editorialGroups';
 import {drawEditorialBackdrop} from './editorialBackdrop';
 import {editorialCameraPose,EDITORIAL_CAMERA_MAX_SCALE,EDITORIAL_CAMERA_MAX_SHIFT} from './editorialCamera';
@@ -588,8 +589,9 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   const authored=scene.visual==='custom'&&scene.composition==='authored';
   // Authored cuts and motion come from the director, not the stock entrance/exit animation.
   const push = authored?1:1 + Math.min(local, 8) * 0.008;
-  const sBase = Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
-  const spot = centerIn(ext, z.hero, sSteady);
+  const fixed=authored&&scene.framing?editorialStagePose(scene.framing,w,h):undefined;
+  const sBase = fixed?.scale??Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
+  const spot = fixed??centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
   const enter = authored?1:pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
   const exit = authored?0:smooth(clamp((local - (duration - 0.22)) / 0.22));
