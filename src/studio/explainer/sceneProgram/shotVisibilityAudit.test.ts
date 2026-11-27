@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compileCompactWorld } from './planner/compactWorldDirector';
 import { sourceBriefsFromScript } from './planner/sceneScript';
 import { SceneProgram3D } from './stage3d';
-import { auditShotVisibilityAt, auditShotVisibilitySequence } from './shotVisibilityAudit';
+import { auditShotVisibilityAt, auditShotVisibilitySequence, blockingShotVisibilityIssues } from './shotVisibilityAudit';
 
 const sources = sourceBriefsFromScript(
   'O guindaste ergue uma carga única com o seu cabo até a parte alta do canteiro. ' +
@@ -75,6 +75,38 @@ describe('real 3D shot visibility audit — no model or remote calls', () => {
     } finally {
       stage.dispose();
     }
+  });
+
+  it('cannot approve a hidden subject even when its child meshes are individually visible', () => {
+    const stage = create();
+    try {
+      const load = stage.nodes.get('load')!;
+      load.visible = false;
+      const report = auditShotVisibilityAt(stage, 2, 9 / 16);
+      const subject = report.subjects.find(s => s.id === 'load')!;
+      expect(subject.issues).toContain('subject_missing_geometry');
+      expect(subject.rect).toBeNull();
+      expect(subject.areaFraction).toBe(0);
+      expect(blockingShotVisibilityIssues([report])).toEqual(expect.arrayContaining([
+        expect.objectContaining({ subjectId: 'load', code: 'subject_missing_geometry' })
+      ]));
+      load.visible = true;
+      const visible = auditShotVisibilityAt(stage, 2, 9 / 16);
+      expect(visible.subjects.find(s => s.id === 'load')!.issues).not.toContain('subject_missing_geometry');
+    } finally { stage.dispose(); }
+  });
+
+  it('keeps small-subject warnings advisory rather than blocking export', () => {
+    const stage = create();
+    try {
+      const report = auditShotVisibilityAt(stage, 2, 9 / 16, { minimumAreaFraction: .99 });
+      expect(report.issues.some(i => i.code === 'subject_too_small')).toBe(true);
+      expect(blockingShotVisibilityIssues([report]).every(i =>
+        i.code === 'subject_offscreen' || i.code === 'subject_missing_geometry')).toBe(true);
+      expect(blockingShotVisibilityIssues([{
+        ...report, issues: report.issues.filter(i => i.code === 'subject_too_small')
+      }])).toEqual([]);
+    } finally { stage.dispose(); }
   });
 
   it('rejects invalid time and aspect before mutating camera state', () => {

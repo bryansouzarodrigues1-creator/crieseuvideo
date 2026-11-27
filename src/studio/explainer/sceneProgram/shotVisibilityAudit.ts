@@ -82,8 +82,9 @@ export function auditShotVisibilityAt(
 
   // Raycast only actual, visible, reasonably opaque scene meshes (no sky or
   // ink outlines). A ray hitting a different mesh FIRST is a possible blocker.
-  const meshes: THREE.Object3D[] = [];
-  stage.scene.traverse((node) => {
+  const meshes: THREE.Mesh[] = [];
+  // A visible child of a hidden group is not rendered by Three.js.
+  stage.scene.traverseVisible((node) => {
     if (!(node instanceof THREE.Mesh) || !node.visible || node.name === 'ink') return;
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     if (!materials.some(m => m.visible && (m.opacity ?? 1) > .2)) return;
@@ -98,7 +99,20 @@ export function auditShotVisibilityAt(
 
   for (const id of shot.subjects) {
     const root = stage.nodes.get(id);
-    const box = root ? new THREE.Box3().setFromObject(root) : new THREE.Box3();
+    // Use the same render-eligible geometry for bounds and obstruction rays.
+    // Box3.setFromObject(root) includes hidden descendants and can approve an
+    // invisible subject or misjudge its framing based on invisible geometry.
+    const box = new THREE.Box3();
+    if (root) for (const mesh of meshes) {
+      if (!contains(mesh, root)) continue;
+      if (mesh instanceof THREE.SkinnedMesh || mesh instanceof THREE.InstancedMesh) {
+        mesh.computeBoundingBox();
+        if (mesh.boundingBox) box.union(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld));
+      } else {
+        mesh.geometry.computeBoundingBox();
+        if (mesh.geometry.boundingBox) box.union(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld));
+      }
+    }
     const issues: ShotVisibilityIssue[] = [];
     let rect: ShotSubjectVisibility['rect'] = null;
     let areaFraction = 0, insideFraction = 0, blockedRays = 0, testedRays = 0;
@@ -162,10 +176,21 @@ export function auditShotVisibilitySequence(
   options?: ShotVisibilityOptions,
 ): ShotVisibilityReport[] {
   const reports: ShotVisibilityReport[] = [];
-  for (const span of stage.score.spans) {
-    for (const phase of [.12, .5, .88])
-      reports.push(auditShotVisibilityAt(stage, span.start + phase * span.duration, aspect, options));
+  try {
+    for (const span of stage.score.spans) {
+      for (const phase of [.12, .5, .88])
+        reports.push(auditShotVisibilityAt(stage, span.start + phase * span.duration, aspect, options));
+    }
+    return reports;
+  } finally {
+    stage.update(0);
   }
-  stage.update(0);
-  return reports;
+}
+
+/** Hard geometric failures only. Small subjects and possible occlusions remain
+ * warnings requiring visual judgment, not automatic export blockers. */
+export function blockingShotVisibilityIssues(reports: readonly ShotVisibilityReport[]) {
+  return reports.flatMap(r => r.issues.filter(i =>
+    i.code === 'subject_offscreen' || i.code === 'subject_missing_geometry'
+  ).map(i => ({ sourceId: r.sourceId, ...i })));
 }
