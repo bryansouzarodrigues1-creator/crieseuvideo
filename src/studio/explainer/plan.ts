@@ -1,3 +1,4 @@
+import {normalizeEditorialFraming,type EditorialFraming} from './editorialFraming';
 import {normalizeGroups,groupIssues,type EditorialGroup} from './editorialGroups';
 import {normalizeBackdrop,type EditorialBackdrop} from './editorialBackdrop';
 import {normalizeEditorialShot,type EditorialShot} from './editorialCamera';
@@ -19,6 +20,7 @@ export interface ExplainerScene {
   label?: string;
   camera?: EditorialShot;
   composition?: 'authored';
+  framing?: EditorialFraming;
   groups?: EditorialGroup[];
   backdrop?: EditorialBackdrop;
   chat?: string;
@@ -151,6 +153,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       label: str(s.label, 28),
       camera: normalizeEditorialShot(s.camera),
       composition: s.composition==='authored'?'authored':undefined,
+      framing: s.composition==='authored'?normalizeEditorialFraming(s.framing):undefined,
       groups: s.composition==='authored'?validGroups:undefined,
       backdrop: normalizeBackdrop(s.backdrop),
       chat: str(s.chat, 120),
