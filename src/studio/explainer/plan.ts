@@ -1,3 +1,4 @@
+import {normalizeGroups,groupIssues,type EditorialGroup} from './editorialGroups';
 import {normalizeBackdrop,type EditorialBackdrop} from './editorialBackdrop';
 import {normalizeEditorialShot,type EditorialShot} from './editorialCamera';
 import { normalizeDrawing, type Shape } from './drawing';
@@ -18,6 +19,7 @@ export interface ExplainerScene {
   label?: string;
   camera?: EditorialShot;
   composition?: 'authored';
+  groups?: EditorialGroup[];
   backdrop?: EditorialBackdrop;
   chat?: string;
   chips?: string[];
@@ -135,6 +137,8 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
     const text = str(s?.text, 400);
     if (!text) return null;
     const drawing = normalizeDrawing(s?.drawing);
+    const groups=normalizeGroups(s.groups);
+    const validGroups=groupIssues(drawing??[],groups).length===0?groups:[];
     let visual = pick(s.visual, VISUALS, pickVisual(text));
     if (visual === 'custom' && !drawing) visual = pickVisual(text);
     return {
@@ -147,6 +151,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       label: str(s.label, 28),
       camera: normalizeEditorialShot(s.camera),
       composition: s.composition==='authored'?'authored':undefined,
+      groups: s.composition==='authored'?validGroups:undefined,
       backdrop: normalizeBackdrop(s.backdrop),
       chat: str(s.chat, 120),
       chips: Array.isArray(s.chips) ? s.chips.map((c: unknown) => str(c, 22)).filter(Boolean).slice(0, 4) : undefined,

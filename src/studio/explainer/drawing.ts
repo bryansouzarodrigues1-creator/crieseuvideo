@@ -1,3 +1,4 @@
+import {validGroupId} from './editorialGroups';
 import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 /**
  * Free-form drawings the AI writes per scene as a small list of shapes.
@@ -17,6 +18,7 @@ export interface Shape {
   rot?: number; text?: string; size?: number;
   mood?: string; anim: ShapeAnim; delay: number;
   strokeWidth?: number;
+  group?: string;
   motion?: ShapeMotionKey[]; depth?: 'back'|'middle'|'front';
 }
 export const MAX_SHAPES = 40;
@@ -48,6 +50,7 @@ export function normalizeDrawing(raw: unknown): Shape[] | undefined {
       mood: typeof o.mood === 'string' ? o.mood : undefined,
       anim: SHAPE_ANIMS.includes(o.anim as ShapeAnim) ? (o.anim as ShapeAnim) : 'pop',
       delay: num(o.delay, 0, 0, 6),
+      group: validGroupId(o.group)?o.group:undefined,
       strokeWidth: o.strokeWidth===undefined?undefined:num(o.strokeWidth,6,0,20),
       motion: normalizeShapeMotion(o.motion), depth: o.depth==='back'||o.depth==='front' ? o.depth : 'middle',
     });

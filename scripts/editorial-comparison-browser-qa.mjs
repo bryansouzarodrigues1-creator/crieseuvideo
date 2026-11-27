@@ -19,27 +19,57 @@ try{
     const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
     const {motionAudit}=await import('/src/studio/explainer/motionAudit.ts');
     const {encodeFixedFrame3DClip}=await import('/src/studio/utils/deterministic3dExport.ts');
-    const scene=(text,drawing)=>({text,drawing,visual:'custom',mood:'neutral',palette:'teal',setting:'office'});
-    const coin=(x,y,dx)=>({type:'coin',x,y,size:.65,depth:'middle',anim:'none',motion:[
-      {time:0,dx:0},{time:2,dx,ease:'smooth'},{time:4,dx}
+    const scenery=(top,bottom,ground,detail)=>({top,bottom,elements:[
+      {type:'rect',x:500,y:870,w:1000,h:260,color:ground},...detail
     ]});
-    const wall={type:'rect',x:0,y:20,w:740,h:440,color:'#173D53',depth:'back',anim:'none'};
-    const floor={type:'rect',x:0,y:400,w:730,h:55,color:'#143044',depth:'front',anim:'none'};
-    const scenes=[
-      scene('Uma moeda sozinha parece não fazer diferença.',[wall,coin(-150,0,260),floor]),
-      scene('Mas guardar um pouco toda semana muda o resultado.',[wall,coin(-240,-100,230),coin(-240,100,230),{type:'chart',x:220,y:0,size:.7,depth:'middle',anim:'none'},floor]),
-      scene('O dinheiro acumulado pode financiar ferramentas para trabalhar.',[wall,{type:'laptop',x:180,y:0,size:.7,depth:'middle',anim:'none'},coin(-240,0,100),floor]),
-      scene('O segredo é transformar pequenas decisões em um hábito.',[wall,{type:'clock',x:-170,y:0,size:.85,depth:'middle',anim:'none'},{type:'check',x:180,y:0,size:.85,depth:'front',anim:'none',motion:[{time:0,opacity:0,scale:.5},{time:1.5,opacity:1,scale:1}]},floor])
+    const workshop=scenery('#16354A','#457489','#273E48',[
+      {type:'rect',x:180,y:230,w:240,h:280,color:'#83AAB6'},
+      {type:'rect',x:180,y:230,w:12,h:280,color:'#29495C'},
+      {type:'rect',x:800,y:320,w:220,h:360,color:'#35596A'}
+    ]);
+    const road=scenery('#276B90','#A3D7DE','#32454C',[
+      {type:'poly',points:[[0,740],[220,410],[440,740]],color:'#568D81'},
+      {type:'poly',points:[[370,740],[750,310],[1000,740]],color:'#39756F'}
+    ]);
+    const factory=scenery('#362D42','#866F75','#33313E',[
+      {type:'rect',x:200,y:290,w:330,h:500,color:'#615E70'},
+      {type:'rect',x:800,y:220,w:230,h:300,color:'#A5B0B1'}
+    ]);
+    const part=(type,x,y,extras)=>({type,x,y,depth:'middle',anim:'none',strokeWidth:0,...extras});
+    const truck=[
+      part('rect',-60,0,{w:300,h:140,color:'#E4B34C',group:'truck'}),
+      part('rect',115,30,{w:100,h:90,color:'#DB7044',group:'truck'}),
+      part('rect',125,8,{w:54,h:36,color:'#ACDDE5',group:'truck'}),
+      part('circle',-150,85,{r:38,color:'#25333E',group:'truck'}),
+      part('circle',120,85,{r:38,color:'#25333E',group:'truck'}),
+      part('circle',-150,85,{r:15,color:'#C2CED2',group:'truck'}),
+      part('circle',120,85,{r:15,color:'#C2CED2',group:'truck'})
     ];
+    const scene=(text,drawing,backdrop,groups=[],camera='static')=>({text,drawing,backdrop,groups,camera,composition:'authored',visual:'custom',mood:'neutral',palette:'teal'});
+    const scenes=[
+      scene('Na oficina as peças formam um veículo de carga.',truck,workshop,[],'slide_right'),
+      scene('Na estrada o veículo transporta a carga até a fábrica.',truck,road,[{id:'truck',x:0,y:0,motion:[{time:0,dx:-160},{time:4,dx:160,ease:'linear'}]}],'slide_right'),
+      scene('Na fábrica a carga é retirada e segue para a produção.',[
+        part('rect',0,200,{w:680,h:48,color:'#808F9D',depth:'back'}),
+        part('rect',-130,85,{w:190,h:150,color:'#C88A4C',group:'box'}),
+        part('rect',-130,85,{w:26,h:150,color:'#EBC48C',group:'box'}),
+        part('rect',-130,45,{w:190,h:12,color:'#9C6235',group:'box'}),
+        part('circle',-250,242,{r:36,color:'#252F38'}),
+        part('circle',250,242,{r:36,color:'#252F38'})
+      ],factory,[{id:'box',x:-130,y:85,motion:[{time:0},{time:4,dx:260,ease:'linear'}]}],'push_in'),
+      scene('Cada etapa depende de peças trabalhando juntas.',truck,factory)
+    ];
+    // Static compositions share the same grouped truck geometry; supply the
+    // identity track so the group validator preserves those members.
+    for(const scene of scenes)if(scene.drawing.some(s=>s.group==='truck')&&!scene.groups.length)scene.groups=[{id:'truck',x:0,y:0,motion:[{time:0}]}];
     const script=scenes.map(s=>s.text).join(' ');
     const plan=fitToTrack(normalizePlan({title:'Pequenas decisões',scenes},script,'9:16'),20);
     const canvas=document.createElement('canvas');canvas.width=360;canvas.height=640;
     const ctx=canvas.getContext('2d');
     const captures=[];
     const audio=new AudioBuffer({length:48000*20,numberOfChannels:1,sampleRate:48000});
-    // A quiet reference tone, not speech; proves the audio muxer only.
-    const samples=audio.getChannelData(0);
-    for(let i=0;i<samples.length;i++)samples[i]=.018*Math.sin(i*2*Math.PI*220/48000);
+    // Silent reference buffer; proves track muxing without unpleasant test tones.
+    // Silent audio track only for container/mux verification; no fake narration.
     for(const engine of ['2d','2.5d']){
       const directed={...plan,engine};
       const render=t=>drawExplainerFrame(ctx,directed,t);
@@ -67,6 +97,6 @@ try{
     await writeFile(out+'/'+clip.engine+'.'+clip.extension,bytes);
     for(let i=0;i<clip.stills.length;i++)await writeFile(out+'/'+clip.engine+'-'+i+'.png',Buffer.from(clip.stills[i],'base64'));
   }
-  await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'reference tone, not Alex narration',quality:'requires visual review',seekStable:result.captures.map(c=>({engine:c.engine,stable:c.seekStable}))},null,2));
+  await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'silent test track, not Alex narration',quality:'requires visual review',seekStable:result.captures.map(c=>({engine:c.engine,stable:c.seekStable}))},null,2));
   for(const clip of result.captures)assert.equal(clip.seekStable,true,'Non-deterministic frame: '+clip.engine);
 }finally{await browser.close();}

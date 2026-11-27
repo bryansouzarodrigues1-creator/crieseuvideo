@@ -18,7 +18,7 @@ export function motionAudit(plan: ExplainerPlan) {
   for(const scene of plan.scenes){
     const objects=scene.drawing||[];
     allObjects+=objects.length;
-    const animated=objects.filter(s=>hasDirectedMotion(s.motion)).length;
+    const animated=objects.filter(s=>hasDirectedMotion(s.motion)||scene.groups?.some(g=>g.id===s.group&&hasDirectedMotion(g.motion))).length;
     directedObjects+=animated;
     if(animated>0)directedScenes++;
   }
