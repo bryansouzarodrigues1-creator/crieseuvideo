@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { NARRATION_VOICES } from "@/studio/explainer/voice";
 
+// Deliberately not an environment toggle: premium authorization and quota
+// must be implemented before this can be enabled.
+function cloudNarrationAvailable(): boolean { return false; }
+
 // Server-only: turns one scene line into a natural WAV narration via the Lovable AI Gateway.
 const MODEL = "google/gemini-3.1-flash-tts-preview";
 
@@ -8,6 +12,12 @@ export const Route = createFileRoute("/api/ai/narrate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Fail closed until a server-enforced paid entitlement and per-user
+        // credit reservation are implemented. A key alone must never enable
+        // unauthenticated paid speech requests.
+        if (!cloudNarrationAvailable()) return Response.json({
+          error: "Narração em nuvem desativada. Use prévia local ou importe seu áudio."
+        }, { status: 403 });
         const key = process.env.LOVABLE_API_KEY;
         if (!key) return Response.json({ error: "Voz indisponível no momento." }, { status: 503 });
         const body = await request.json().catch(() => ({}));
