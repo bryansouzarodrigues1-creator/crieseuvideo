@@ -90,7 +90,11 @@ try{
     const fixed=previewEditorialRepair(original,0,[{target:'shape_0',op:'color',color:'#FF2244'}]);
     const noop=previewEditorialRepair(original,0,[{target:'shape_0',op:'move',dx:0,dy:0}]);
     const repair={frames:fixed.frames.map(f=>({fraction:f.fraction,difference:f.difference,before:f.before.split(',')[1],after:f.after.split(',')[1]})),blocked:fixed.blocked,noVisibleChange:fixed.noVisibleChange,noop:noop.noVisibleChange,unchanged:before===JSON.stringify(original)};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair};
+    const fixedPlan={...original,scenes:original.scenes.map((scene,i)=>i===0?{...scene,framing:{x:0,y:0,zoom:1}}:scene)};
+    const moved=previewEditorialRepair(fixedPlan,0,[{target:'group_truck',op:'move',dx:0,dy:80}]);
+    const resized=previewEditorialRepair(fixedPlan,0,[{target:'group_truck',op:'resize',factor:1.2}]);
+    const motionRepair={moveVisible:!moved.noVisibleChange,resizeVisible:!resized.noVisibleChange,moveBlocked:moved.blocked,resizeBlocked:resized.blocked};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -114,6 +118,11 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.motionRepair.moveVisible,true);
+  assert.equal(result.motionRepair.resizeVisible,true);
+  assert.equal(result.motionRepair.moveBlocked,false);
+  assert.equal(result.motionRepair.resizeBlocked,false);
+  await writeFile(out+'/motion-repair-report.json',JSON.stringify(result.motionRepair,null,2));
   for(const f of result.repair.frames){
     await writeFile(out+'/repair-'+f.fraction+'-before.jpg',Buffer.from(f.before,'base64'));
     await writeFile(out+'/repair-'+f.fraction+'-after.jpg',Buffer.from(f.after,'base64'));

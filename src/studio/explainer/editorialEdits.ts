@@ -1,12 +1,29 @@
+import {normalizeEditorialFraming} from './editorialFraming';
+import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {ExplainerScene} from './plan';
 import {normalizeEditorialShot} from './editorialCamera';
 import {normalizeBackdrop} from './editorialBackdrop';
-export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown};
+export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown};
 export function sceneInventory(scene:ExplainerScene){
- return {text:scene.text,camera:scene.camera,backdrop:scene.backdrop,shapes:(scene.drawing??[]).map((s,i)=>({...s,id:'shape_'+i})),groups:(scene.groups??[]).map(g=>({...g,target:'group_'+g.id}))};
+ return {text:scene.text,camera:scene.camera,framing:scene.framing,backdrop:scene.backdrop,shapes:(scene.drawing??[]).map((s,i)=>({...s,id:'shape_'+i})),groups:(scene.groups??[]).map(g=>({...g,target:'group_'+g.id}))};
 }
 const number=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=300;
 const within=(v:number)=>Number.isFinite(v)&&Math.abs(v)<=560;
+function strictMotion(value:unknown):ShapeMotionKey[]{
+ if(!Array.isArray(value)||!value.length||value.length>12)throw Error('Trajetória inválida.');
+ let last=-1;
+ for(const key of value){
+  if(!key||typeof key!=='object'||typeof key.time!=='number'||!Number.isFinite(key.time)||key.time<=last||key.time>30||key.time<0)throw Error('Tempo inválido.');
+  last=key.time;
+  for(const [field,min,max] of [['dx',-440,440],['dy',-440,440],['rotation',-360,360],['scale',.05,3],['opacity',0,1]] as const){
+   const v=key[field];if(v!==undefined&&(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max))throw Error('Chave fora do limite.');
+  }
+  if(key.ease!==undefined&&!['smooth','linear','step'].includes(key.ease))throw Error('Interpolação inválida.');
+ }
+ const normalized=normalizeShapeMotion(value);
+ if(!normalized||normalized.length>12)throw Error('Trajetória inválida.');
+ return normalized;
+}
 /** Atomic edits to one authored scene; no arbitrary execution or text/timing changes. */
 export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene{
  if(scene.visual!=='custom'||scene.composition!=='authored'||!scene.drawing)throw Error('Revisão disponível apenas para composição autoral.');
@@ -24,7 +41,26 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
   const e=value as Record<string,unknown>;
   const target=e.target;
   if(typeof target!=='string')throw Error('Alvo inválido.');
-  if(e.op==='camera'&&target==='camera'){
+  if(e.op==='framing'&&target==='camera'){
+   const frame=normalizeEditorialFraming(e.framing);if(!frame)throw Error('Enquadramento inválido.');out.framing=frame;
+  }else if(e.op==='motion'){
+   const motion=strictMotion(e.motion);
+   if(target.startsWith('group_')){
+    const g=groups.find(g=>'group_'+g.id===target);if(!g)throw Error('Grupo inexistente.');g.motion=motion;
+   }else if(/^shape_(0|[1-9][0-9]*)$/.test(target)){
+    const i=Number(target.slice(6));if(!drawing[i])throw Error('Peça inexistente.');drawing[i]={...drawing[i],anim:'none',motion};
+   }else throw Error('Alvo desconhecido.');
+  }else if(e.op==='resize'&&typeof e.factor==='number'&&Number.isFinite(e.factor)&&e.factor>=.5&&e.factor<=2){
+   const factor=e.factor;
+   const resizeMotion=(motion:ShapeMotionKey[]|undefined)=>strictMotion((motion??[{time:0,scale:1}]).map(k=>({...k,scale:k.scale*factor})));
+   if(target.startsWith('group_')){
+    const g=groups.find(g=>'group_'+g.id===target);if(!g)throw Error('Grupo inexistente.');g.motion=resizeMotion(g.motion);
+   }else if(/^shape_(0|[1-9][0-9]*)$/.test(target)){
+    const i=Number(target.slice(6)),shape=drawing[i];if(!shape)throw Error('Peça inexistente.');
+    if(!shape.motion&&shape.anim!=='none')throw Error('Defina trajetória explícita antes de redimensionar animação automática.');
+    drawing[i]={...shape,anim:'none',motion:resizeMotion(shape.motion)};
+   }else throw Error('Alvo desconhecido.');
+  }else if(e.op==='camera'&&target==='camera'){
    const shot=normalizeEditorialShot(e.shot);if(!shot)throw Error('Câmera inválida.');out.camera=shot;
   }else if(e.op==='background'&&target==='background'){
    const art=normalizeBackdrop(e.backdrop);if(!art)throw Error('Cenário inválido.');out.backdrop=art;
