@@ -1,3 +1,4 @@
+import engineeringSource from './engineeringHelpers.js?raw';
 /**
  * Isolation for EXPERIMENTAL model-written Three.js code.
  *
@@ -86,6 +87,7 @@ export function buildSandboxSrcdoc(opts: {
 </head><body><canvas id="c"></canvas>
 <script type="module" nonce="${opts.nonce}">
 const TOKEN=${js(opts.token)}, PARENT=${js(opts.parentOrigin)};
+const ENGINEERING=${js(engineeringSource)};
 const MIN=${js(opts.minDuration)}, MAX=${js(opts.maxDuration)}, DEF=${js(opts.defaultDuration)};
 const diff=(${maxPixelDiff.toString()});
 const replay=(${replayCheck.toString()});
@@ -123,7 +125,7 @@ addEventListener('message',async ev=>{
     try{createScene=(await import(url(d.code+'\\n;export default (typeof createScene==="function"?createScene:null);'))).default;}
     catch(e){return fail('syntax',e);}
     if(typeof createScene!=='function')return fail('contract','createScene(THREE, canvas, width, height) não foi definida.');
-    try{scene=await createScene(THREE,canvas,w,h);}catch(e){return fail('runtime',e);}
+    try{const {createEngineeringHelpers}=await import(url(ENGINEERING));const E3D=Object.freeze(createEngineeringHelpers(THREE));scene=await createScene(THREE,canvas,w,h,E3D);}catch(e){return fail('runtime',e);}
     if(!scene||typeof scene.renderAt!=='function')return fail('contract','createScene não retornou { renderAt(t) }.');
     const dur=scene.duration===undefined?DEF:Number(scene.duration);
     if(!Number.isFinite(dur)||dur<MIN||dur>MAX)return fail('contract','duration deve ficar entre '+MIN+' e '+MAX+' s (recebido '+String(scene.duration).slice(0,20)+').');
