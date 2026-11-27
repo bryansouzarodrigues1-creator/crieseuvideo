@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {ask3DWorldAi,Ai3DProviderError,askGeminiForEditorial} from './ai';
+import {ask3DWorldAi,Ai3DProviderError,askGeminiForEditorial,askGeminiForEditorialReview} from './ai';
 import {gemini3DResponseSchema,parseAi3DScene} from './ai3dSchema';
 
 const LOVABLE=process.env.LOVABLE_API_KEY;
@@ -210,4 +210,32 @@ describe('editorial Gemini direct',()=>{
     expect(String(fetched.mock.calls[0][0])).toContain('generativelanguage.googleapis.com');
     expect(JSON.parse(String(fetched.mock.calls[0][1].body)).generationConfig.thinkingConfig.thinkingLevel).toBe('high');
   });
+});
+
+describe('editorial multimodal review (mock network only)',()=>{
+ it('is disabled by default and sends nothing',async()=>{
+  const saved=process.env.ENABLE_GEMINI_EDITORIAL_REVIEW;
+  try{
+   delete process.env.ENABLE_GEMINI_EDITORIAL_REVIEW;
+   const fetchMock=vi.fn();vi.stubGlobal('fetch',fetchMock);
+   await expect(askGeminiForEditorialReview('review',['/9j/AAAA','/9j/AAAA','/9j/AAAA'])).rejects.toThrow(/desativada/);
+   expect(fetchMock).not.toHaveBeenCalled();
+  }finally{if(saved===undefined)delete process.env.ENABLE_GEMINI_EDITORIAL_REVIEW;else process.env.ENABLE_GEMINI_EDITORIAL_REVIEW=saved;}
+ });
+ it('sends exactly three inline frames once and never falls back on failure',async()=>{
+  const saved=process.env.ENABLE_GEMINI_EDITORIAL_REVIEW;
+  try{
+   process.env.ENABLE_GEMINI_EDITORIAL_REVIEW='true';
+   process.env.GEMINI_API_KEY='mock-key';process.env.LOVABLE_API_KEY='mock-fallback';
+   const fetched=vi.fn(async(_url:string|URL|Request,_init:RequestInit)=>new Response('',{status:503}));
+   vi.stubGlobal('fetch',fetched);
+   await expect(askGeminiForEditorialReview('review',['bad'])).rejects.toThrow(/JPEG/);
+   expect(fetched).not.toHaveBeenCalled();
+   const output=await askGeminiForEditorialReview('review',['/9j/AAAA','/9j/BBBB','/9j/CCCC']);
+   expect(output.text).toBeNull();expect(fetched).toHaveBeenCalledTimes(1);
+   const payload=JSON.parse(String(fetched.mock.calls[0][1].body));
+   expect(payload.contents[0].parts.slice(1)).toEqual(['/9j/AAAA','/9j/BBBB','/9j/CCCC'].map(data=>({inlineData:{mimeType:'image/jpeg',data}})));
+   expect(payload.generationConfig.thinkingConfig).toEqual({thinkingLevel:'high'});
+  }finally{if(saved===undefined)delete process.env.ENABLE_GEMINI_EDITORIAL_REVIEW;else process.env.ENABLE_GEMINI_EDITORIAL_REVIEW=saved;}
+ });
 });

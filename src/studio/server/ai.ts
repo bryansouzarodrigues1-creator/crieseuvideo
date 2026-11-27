@@ -113,7 +113,8 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
 async function askGemini(
   prompt: string, onProblem?: (reason: ProviderProblem, diagnostic?:GeminiErrorDiagnostic) => void,
   responseSchema?:Record<string,unknown>,
-  modelChoice:GeminiModelChoice='default', forceHigh=false
+  modelChoice:GeminiModelChoice='default', forceHigh=false,
+  images:readonly string[]=[]
 ): Promise<string | null> {
   const model = resolveGeminiModel(modelChoice);
   const key = process.env.GEMINI_API_KEY;
@@ -128,7 +129,7 @@ async function askGemini(
         signal: ctrl.signal,
         headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt + "\n\nResponda somente com JSON válido." }] }],
+          contents: [{ role: "user", parts: [{ text: prompt + "\n\nResponda somente com JSON válido." },...images.map(data=>({inlineData:{mimeType:"image/jpeg",data}}))] }],
           // Gemini 2.5 JSON mode without responseSchema is only a format
           // preference. The schema constrains field names, enum values,
           // IDs and geometry before the separate strict compiler checks.
@@ -246,4 +247,13 @@ export async function askGeminiForEditorial(prompt:string) {
   let problem:ProviderProblem='invalid_response';
   const text=await askGemini(prompt,reason=>{problem=reason;},undefined,'gemini-3.6-flash',true);
   return {text,problem,model:'gemini-3.6-flash',thinkingLevel:'high' as const};
+}
+
+/** Opt-in only; no automatic fallback, no retries, no video upload. */
+export async function askGeminiForEditorialReview(prompt:string,images:readonly string[]){
+ if(process.env.ENABLE_GEMINI_EDITORIAL_REVIEW!=='true')throw new Error('Revisão Gemini desativada pelo administrador.');
+ if(images.length!==3||images.some(s=>s.length>180000||!/^\/9j\/[A-Za-z0-9+/=]+$/.test(s)))throw new Error('Quadros JPEG inválidos.');
+ let problem:ProviderProblem='invalid_response';
+ const text=await askGemini(prompt,reason=>{problem=reason;},undefined,'gemini-3.6-flash',true,images);
+ return {text,problem};
 }
