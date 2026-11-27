@@ -13,7 +13,7 @@ export type Effector = typeof EFFECTORS[number];
 export type Socket = 'root' | 'head' | Effector;
 export interface ProgramGeometry { shape: 'box' | 'sphere' | 'capsule' | 'cone' | 'cylinder' | 'plane' | 'torus' | 'mesh' | 'tube' | 'lathe' | 'extrude' | 'terrain' | 'water' | 'tree' | 'rock' | 'cloud'; size?: number[]; vertices?: number[]; indices?: number[]; colors?: number[]; points?: Vec3[]; /** [radius, height] pairs; rotated around local Y to create a novel 3D surface. */ profile?: [number, number][]; /** XY outline extruded along Z */ contour?: [number,number][]; depth?: number; segments?: number; /** Rounded edge radius for box (metres); cosmetic only. */ bevel?: number; bevelSegments?: number; /** Scenery kit: seed, relief (terrain), wave height (water), peak and foliage colours. */ seed?: number; roughness?: number; wave?: number; peakColor?: string; foliage?: string }
 export interface ProgramNode {
-  id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId; animationClip?: string;
+  id: string; kind: 'group' | 'mesh' | 'actor' | 'model'; parent?: string; socket: Socket; assetId?: ApprovedModelId; animationClip?: string; animationSequence?: { sourceId: string; clip: string }[];
   position: Vec3; rotation: Vec3; scale: Vec3; color: string; evidence: string;
   /** Optional top-level static terrain that supports the actor's root while moving. */ groundTo?: string;
   geometry?: ProgramGeometry; repeat?: { count: number; step: Vec3; jitter: Vec3; seed: number; /** id of a static terrain node: instances snap to its surface. */ ground?: string; /** with ground: instances below this height (metres) above the terrain base are skipped (lakes, shores). */ above?: number };
@@ -61,13 +61,30 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   const fullText = sources.map((s) => s.text).join(' ');
   let vertexBudget = 0;
   const nodes = list(r.nodes, 160).map((value): ProgramNode => {
-    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId', 'animationClip', 'groundTo']);
+    const n = obj(value); only(n, ['id', 'kind', 'parent', 'socket', 'position', 'rotation', 'scale', 'color', 'geometry', 'repeat', 'evidence', 'contextSourceId', 'material', 'assetId', 'animationClip', 'animationSequence', 'groundTo']);
     if (!['group', 'mesh', 'actor', 'model'].includes(n.kind)) fail('O tipo de nó do programa não é reconhecido.');
     const assetId = n.kind === 'model' ? n.assetId as ApprovedModelId : undefined;
     if (n.kind === 'model' && !approvedModel(assetId)) fail('O modelo externo solicitado não está no catálogo autorizado do projeto.');
     if (n.kind !== 'model' && n.assetId !== undefined) fail('Apenas nós model podem mencionar um modelo GLB.');
     if (n.animationClip !== undefined && (n.kind !== 'model' || typeof n.animationClip !== 'string' ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_. -]{0,79}$/.test(n.animationClip))) fail('Nome de animação GLB inválido.');
+    let animationSequence: ProgramNode['animationSequence'];
+    if (n.animationSequence !== undefined) {
+      if (n.kind !== 'model' || n.animationClip !== undefined)
+        fail('A sequência GLB exige um modelo sem animationClip simultâneo.');
+      let previous = -1;
+      animationSequence = list(n.animationSequence, 24).map(value => {
+        const item = obj(value); only(item, ['sourceId', 'clip']);
+        const sourceId = source(item.sourceId), index = sourceIndex.get(sourceId)!;
+        if (index <= previous || (previous === -1 && index !== 0))
+          fail('A sequência GLB deve começar na primeira frase e seguir a ordem do roteiro.');
+        previous = index;
+        if (typeof item.clip !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_. -]{0,79}$/.test(item.clip))
+          fail('Nome de animação GLB inválido.');
+        return { sourceId, clip: item.clip };
+      });
+      if (!animationSequence.length) fail('A sequência GLB não pode estar vazia.');
+    }
     const contextSourceId = n.contextSourceId !== undefined ? source(n.contextSourceId) : undefined;
     const evidence = contextSourceId ? sources[sourceIndex.get(contextSourceId)!].text : n.evidence;
     if (typeof evidence !== 'string' || !evidence.trim() || !contextSourceId && (evidence.length > 400 || !fullText.includes(evidence))) fail('Cada objeto precisa indicar contextSourceId de uma frase original ou citar um trecho literal do roteiro.');
@@ -160,7 +177,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
     return { id: identifier(n.id), kind: n.kind, ...(n.parent !== undefined ? { parent: identifier(n.parent) } : {}), socket,
       position: vector(n.position ?? [0, 0, 0]), rotation: vector(n.rotation ?? [0, 0, 0], -Math.PI * 2, Math.PI * 2), scale: vector(n.scale ?? [1, 1, 1], .01, 100),
-      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(n.animationClip !== undefined ? { animationClip: n.animationClip } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}), ...(n.groundTo !== undefined ? { groundTo: identifier(n.groundTo) } : {}) };
+      color: color(n.color ?? '#F0B44B'), evidence, ...(assetId ? { assetId } : {}), ...(n.animationClip !== undefined ? { animationClip: n.animationClip } : {}), ...(animationSequence ? { animationSequence } : {}), ...(geometry ? { geometry } : {}), ...(repeat ? { repeat } : {}), ...(material ? { material } : {}), ...(n.groundTo !== undefined ? { groundTo: identifier(n.groundTo) } : {}) };
   });
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length || nodeMap.size !== nodes.length || nodes.filter((n) => n.kind === 'actor').length > 4) fail('A cena precisa de IDs únicos e no máximo quatro personagens.');
