@@ -1,3 +1,4 @@
+import { makeCharacterPrototypeGLB } from './characterPrototype';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
@@ -64,11 +65,16 @@ export interface PreparedModel {
 export async function loadApprovedModel(id: ApprovedModelId, fetchAsset = fetch): Promise<PreparedModel> {
   const info = approvedModel(id);
   if (!info) throw new SceneProgramError('O catálogo seguro não contém o modelo solicitado.');
-  const response = await fetchAsset(info.url, { credentials: 'same-origin' });
-  if (!response.ok) throw new SceneProgramError('O arquivo GLB autorizado não foi encontrado no armazenamento do projeto.');
-  const bytes = Number(response.headers.get('content-length') || 0);
-  if (bytes > MAX_GLB_BYTES) throw new SceneProgramError('O modelo excede o limite de transferência.');
-  const data = await response.arrayBuffer();
+  let data: ArrayBuffer;
+  if (id === 'human-prototype-v1') {
+    data = makeCharacterPrototypeGLB();
+  } else {
+    const response = await fetchAsset(info.url, { credentials: 'same-origin' });
+    if (!response.ok) throw new SceneProgramError('O arquivo GLB autorizado não foi encontrado no armazenamento do projeto.');
+    const bytes = Number(response.headers.get('content-length') || 0);
+    if (bytes > MAX_GLB_BYTES) throw new SceneProgramError('O modelo excede o limite de transferência.');
+    data = await response.arrayBuffer();
+  }
   inspectGLB(data);
   const gltf = await new GLTFLoader().parseAsync(data, '/');
   if (!gltf.scene) throw new SceneProgramError('O modelo não contém uma cena tridimensional.');
