@@ -99,7 +99,23 @@ try{
     const {groupPoint}=await import('/src/studio/explainer/editorialGroups.ts');
     const g=grounded.candidate.scenes[0].groups.find(g=>g.id==='truck');
     const groundRepair={visible:!grounded.noVisibleChange,blocked:grounded.blocked,anchorY:groupPoint(g,-150,123,1.3).y,frames:grounded.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair};
+    const carryPlan={...fixedPlan,scenes:fixedPlan.scenes.map((sc,i)=>i===0?{...sc,camera:'static',drawing:[
+      part('rect',-80,-80,{w:160,h:28,color:'#497D8A',group:'hand'}),
+      part('circle',0,-80,{r:20,color:'#E9CDAA',group:'hand'}),
+      part('rect',0,-30,{w:100,h:100,color:'#C88A4C',group:'cargo'}),
+      part('rect',0,-30,{w:18,h:100,color:'#EBC48C',group:'cargo'})
+    ],groups:[
+      {id:'hand',x:0,y:-80,motion:[{time:0},{time:1},{time:3,dx:180,dy:-60,ease:'linear'},{time:4,dx:240,dy:-60,ease:'linear'}]},
+      {id:'cargo',x:0,y:-30,motion:[{time:0}]}
+    ].map(g=>({...g,motion:g.motion.map(k=>({dx:0,dy:0,rotation:0,scale:1,opacity:1,ease:'smooth',...k}))}))}:sc)};
+    const attached=previewEditorialRepair(carryPlan,0,[{target:'group_cargo',op:'attachment',attachment:{carrier:'hand',start:1,end:3,anchorX:0,anchorY:-80,carrierX:0,carrierY:-80}}]);
+    const cargo=attached.candidate.scenes[0].groups.find(g=>g.id==='cargo');
+    const hand=attached.candidate.scenes[0].groups.find(g=>g.id==='hand');
+    const gs=attached.candidate.scenes[0].groups;
+    const carryRepair={visible:!attached.noVisibleChange,blocked:attached.blocked,
+      mid:groupPoint(cargo,0,-80,2,gs),handMid:groupPoint(hand,0,-80,2,gs),
+      released:groupPoint(cargo,0,-80,4,gs),frames:attached.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,carryRepair};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -123,6 +139,14 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.carryRepair.visible,true);
+  assert.equal(result.carryRepair.blocked,false);
+  assert.deepEqual(result.carryRepair.mid,result.carryRepair.handMid);
+  assert.deepEqual(result.carryRepair.released,{x:180,y:-140});
+  for(const frame of result.carryRepair.frames){
+    await writeFile(out+'/carry-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/carry-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
   assert.equal(result.groundRepair.visible,true);
   assert.equal(result.groundRepair.blocked,false);
   assert.ok(Math.abs(result.groundRepair.anchorY-200)<1e-8);
