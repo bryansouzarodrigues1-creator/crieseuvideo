@@ -37,7 +37,7 @@ const MOOD_LABEL: Record<Mood, string> = { happy: 'Feliz', neutral: 'Neutro', sa
 
 export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: () => void; onOpenVideo: () => void }) {
   const [script, setScript] = useState('');
-  const [vaultCount, setVaultCount] = useState(0);
+  const [, setVaultCount] = useState(0);
   const [aspect, setAspect] = useState<'9:16' | '16:9'>('9:16');
   const [plan, setPlan] = useState<ExplainerPlan>({ title: 'Novo projeto', aspect: '9:16', scenes: [] });
   void buildFallbackPlan;
@@ -435,7 +435,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
         setNote('Entre com sua conta Google para solicitar direção do Gemini.');
         return;
       }
-      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+sessionData.session.access_token }, body: JSON.stringify({ script: text, aspect, engine, mode, gallery: [...gallery, ...vaultFor(text)] }) });
+      const res = await fetch('/api/ai/explainer-plan', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+sessionData.session.access_token }, body: JSON.stringify({ script: text, aspect, engine, mode, gallery: mode==='gallery'?[...gallery, ...vaultFor(text)]:[] }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
@@ -657,7 +657,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 <Button key={m} size="sm" variant={mode === m ? 'default' : 'secondary'} onClick={() => setMode(m)} aria-pressed={mode === m}>{l}</Button>
               ))}
             </div>
-            <p className="explainer-sub">{mode === 'creative' ? `A IA cria um visual próprio para cada cena no renderizador clássico, usando sua galeria de ${gallery.length} desenhos e os ${vaultCount} do cofre automático.` : `A IA reaproveita seus ${gallery.length} desenhos e os visuais prontos no renderizador clássico.`}</p>
+            <p className="explainer-sub">{mode === 'creative' ? `A IA cria desenhos e cenários próprios para cada cena, sem usar sua galeria.` : `A IA reaproveita seus ${gallery.length} desenhos e os visuais prontos no renderizador clássico.`}</p>
           </>)}
           <div className="explainer-row">
             {(['9:16', '16:9'] as const).map((a) => (
