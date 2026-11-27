@@ -1,3 +1,4 @@
+import {normalizeBackdrop,type EditorialBackdrop} from './editorialBackdrop';
 import {normalizeEditorialShot,type EditorialShot} from './editorialCamera';
 import { normalizeDrawing, type Shape } from './drawing';
 import { SETTINGS, type Setting } from './settings';
@@ -16,6 +17,8 @@ export interface ExplainerScene {
   palette: Palette;
   label?: string;
   camera?: EditorialShot;
+  composition?: 'authored';
+  backdrop?: EditorialBackdrop;
   chat?: string;
   chips?: string[];
   highlight?: string[];
@@ -143,6 +146,8 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),
       camera: normalizeEditorialShot(s.camera),
+      composition: s.composition==='authored'?'authored':undefined,
+      backdrop: normalizeBackdrop(s.backdrop),
       chat: str(s.chat, 120),
       chips: Array.isArray(s.chips) ? s.chips.map((c: unknown) => str(c, 22)).filter(Boolean).slice(0, 4) : undefined,
       highlight: Array.isArray(s.highlight) ? s.highlight.map((c: unknown) => str(c, 30)).filter(Boolean).slice(0, 5) : [],
