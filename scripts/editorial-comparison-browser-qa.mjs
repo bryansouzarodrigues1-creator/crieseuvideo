@@ -115,7 +115,12 @@ try{
     const anchorGap=[1,1.5,2,3].map(t=>{const a=groupPoint(cargo,0,10,t,cg),b=groupPoint(grip,0,10,t,cg);return Math.hypot(a.x-b.x,a.y-b.y);});
     const released=groupPoint(cargo,0,10,3,cg),later=groupPoint(cargo,0,10,4.5,cg);
     const attachmentProof={visible:!attached.noVisibleChange,blocked:attached.blocked,anchorGap,releaseDrift:Math.hypot(released.x-later.x,released.y-later.y),frames:attached.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof};
+    const finished=previewEditorialRepair(grounded.candidate,0,[
+      {target:'shape_1',op:'material',material:{kind:'linear',light:'#FFEEA0',dark:'#704020',angle:90}},
+      {target:'group_truck',op:'shadow',shadow:{width:360,height:32,opacity:.55}}
+    ]);
+    const materialProof={visible:!finished.noVisibleChange,blocked:finished.blocked,frames:finished.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof,materialProof};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -139,6 +144,12 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.materialProof.visible,true);
+  assert.equal(result.materialProof.blocked,false);
+  for(const frame of result.materialProof.frames){
+    await writeFile(out+'/material-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/material-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
   assert.equal(result.attachmentProof.visible,true);
   assert.equal(result.attachmentProof.blocked,false);
   assert.ok(result.attachmentProof.anchorGap.every(gap=>gap<1e-8));
