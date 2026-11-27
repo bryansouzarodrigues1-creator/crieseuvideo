@@ -1,5 +1,5 @@
 import {fixedEditorialPose} from './editorialFraming';
-import {groupPose,type EditorialGroup} from './editorialGroups';
+import {groupPose,groupPoint,type EditorialGroup} from './editorialGroups';
 import {drawEditorialBackdrop} from './editorialBackdrop';
 import {editorialCameraPose,EDITORIAL_CAMERA_MAX_SCALE,EDITORIAL_CAMERA_MAX_SHIFT} from './editorialCamera';
 import {sampleShapeMotion} from './shapeMotion';
@@ -395,7 +395,7 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
     c.save(); c.globalAlpha *= alpha;
     const group=groups.find(g=>g.id===sh.group);
-    if(group){const p=groupPose(group,local);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
+    if(group){const p=groupPose(group,local,groups);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style
     if (!authored && sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
@@ -507,6 +507,24 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
         const anchorRadius=Math.hypot(g.support.anchorX-g.x,g.support.anchorY-g.y);
         const reach=(radius+anchorRadius)*scale;
         ext={...ext,y0:Math.min(ext.y0,g.support.surfaceY-reach),y1:Math.max(ext.y1,g.support.surfaceY+reach)};
+      }
+      if(g.attachment){
+        const a=g.attachment,target=scene.groups?.find(v=>v.id===a.target);
+        if(target){
+          const scale=Math.max(1,...g.motion.map(p=>p.scale));
+          const targetScale=Math.max(1,...target.motion.map(p=>p.scale));
+          const targetReach=Math.hypot(a.targetX-target.x,a.targetY-target.y)*targetScale;
+          const reach=(radius+Math.hypot(a.anchorX-g.x,a.anchorY-g.y))*scale+targetReach;
+          const extend=(x:number,y:number,r:number)=>{ext={x0:Math.min(ext.x0,x-r),x1:Math.max(ext.x1,x+r),y0:Math.min(ext.y0,y-r),y1:Math.max(ext.y1,y+r)};};
+          for(const p of target.motion)extend(target.x+p.dx,target.y+p.dy,reach);
+          if(target.support){
+            const supportReach=Math.hypot(target.support.anchorX-target.x,target.support.anchorY-target.y)*targetScale;
+            ext={...ext,y0:Math.min(ext.y0,target.support.surfaceY-reach-supportReach),y1:Math.max(ext.y1,target.support.surfaceY+reach+supportReach)};
+          }
+          const release=groupPoint(g,g.x,g.y,a.end,scene.groups);
+          const free=groupPoint(g,g.x,g.y,a.end);
+          for(const p of g.motion)extend(g.x+p.dx+release.x-free.x,g.y+p.dy+release.y-free.y,radius*scale);
+        }
       }
       for(const p of g.motion){
         const rr=radius*Math.max(1,p.scale),x=g.x+p.dx,y=g.y+p.dy;

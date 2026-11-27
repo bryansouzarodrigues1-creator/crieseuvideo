@@ -65,3 +65,16 @@ it('allows adding and removing support without mutating the original group',()=>
  expect(applySceneEdits(moved,[{target:'group_motor',op:'support',support:null}]).groups?.[0].support).toBeUndefined();
  expect(()=>applySceneEdits(scene,[{target:'group_motor',op:'support',support:{...support,surfaceY:999}}])).toThrow();
 });
+
+it('applies an attachment atomically and rejects repairs that break pickup contact',()=>{
+ const scene=normalizePlan({scenes:[{text:'A garra leva a caixa.',visual:'custom',composition:'authored',drawing:[
+ {type:'rect',x:0,y:0,group:'grip'},{type:'circle',x:10,y:0,group:'grip'},
+ {type:'rect',x:10,y:0,group:'cargo'},{type:'rect',x:20,y:10,group:'cargo'}
+ ],groups:[{id:'grip',x:0,y:0,motion:[{time:0},{time:1},{time:3,dx:100}]},{id:'cargo',x:10,y:0,motion:[{time:0}]}]}]},'A garra leva a caixa.','9:16').scenes[0];
+ const attachment={target:'grip',start:1,end:3,anchorX:10,anchorY:0,targetX:10,targetY:0};
+ const after=applySceneEdits(scene,[{target:'group_cargo',op:'attachment',attachment}]);
+ expect(after.groups?.[1].attachment).toEqual(attachment);
+ expect(scene.groups?.[1].attachment).toBeUndefined();
+ expect(()=>applySceneEdits(after,[{target:'group_cargo',op:'move',dx:20,dy:0}])).toThrow(/sem contato/);
+ expect(applySceneEdits(after,[{target:'group_cargo',op:'attachment',attachment:null}]).groups?.[1].attachment).toBeUndefined();
+});
