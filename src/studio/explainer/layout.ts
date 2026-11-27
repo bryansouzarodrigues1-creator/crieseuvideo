@@ -177,7 +177,7 @@ const ANIM_PAD: Partial<Record<NonNullable<Shape['anim']>, [number, number, numb
 export function foregroundExtent(shapes: Shape[]): Box | null {
   let ext: Box | null = null;
   for (const s of shapes) {
-    if (isBackdrop(s) || s.anim === 'drive') continue;
+    if ((isBackdrop(s) || s.anim === 'drive') && !s.motion?.length) continue;
     let b = shapeBox(s);
     const [px0, py0, px1, py1] = (s.anim && ANIM_PAD[s.anim]) || [0, 0, 0, 0];
     b = { x0: b.x0 - px0, y0: b.y0 - py0, x1: b.x1 + px1, y1: b.y1 + py1 };
@@ -188,6 +188,20 @@ export function foregroundExtent(shapes: Shape[]): Box | null {
       const half = Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2 * grow * (spins ? 1.42 : 1);
       const hw = spins ? half : (b.x1 - b.x0) / 2 * grow, hh = spins ? half : (b.y1 - b.y0) / 2 * grow;
       b = { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh };
+    }
+    // Conservative swept bounds: all interpolated positions/scales lie within
+    // the component-wise extrema, and rotation is bounded by a circumscribed radius.
+    if(s.motion?.length){
+      const radius=Math.hypot(Math.max(Math.abs(b.x0-s.x),Math.abs(b.x1-s.x)),
+        Math.max(Math.abs(b.y0-s.y),Math.abs(b.y1-s.y)));
+      for(const pose of s.motion){
+        const x=s.x+pose.dx,y=s.y+pose.dy,rr=radius*Math.max(1,pose.scale);
+        b={x0:Math.min(b.x0,x-rr),y0:Math.min(b.y0,y-rr),
+          x1:Math.max(b.x1,x+rr),y1:Math.max(b.y1,y+rr)};
+      }
+    }
+    if(s.depth==='front'||s.depth==='back'){
+      b={...b,x0:b.x0-32,x1:b.x1+32};
     }
     ext = ext ? { x0: Math.min(ext.x0, b.x0), y0: Math.min(ext.y0, b.y0), x1: Math.max(ext.x1, b.x1), y1: Math.max(ext.y1, b.y1) } : b;
   }
