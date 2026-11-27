@@ -1,0 +1,405 @@
+{
+  "version": 1,
+  "background": "#1E293B",
+  "cast": [
+    {
+      "id": "chao",
+      "kind": "mesh",
+      "position": [
+        0,
+        -0.1,
+        0
+      ],
+      "color": "#33373B",
+      "geometry": {
+        "shape": "box",
+        "size": [
+          60,
+          0.2,
+          60
+        ]
+      }
+    },
+    {
+      "id": "caminhao",
+      "kind": "model",
+      "position": [
+        0,
+        0,
+        -12
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "assetId": "armored-truck-v1"
+    },
+    {
+      "id": "malote_1",
+      "kind": "model",
+      "position": [
+        -0.3,
+        0.5,
+        -2.5
+      ],
+      "hidden": true,
+      "assetId": "money-bag-v1"
+    },
+    {
+      "id": "malote_2",
+      "kind": "model",
+      "position": [
+        0.3,
+        0.5,
+        -2.5
+      ],
+      "hidden": true,
+      "assetId": "money-bag-v1"
+    },
+    {
+      "id": "cofre",
+      "kind": "model",
+      "position": [
+        0,
+        0,
+        6
+      ],
+      "rotation": [
+        0,
+        3.14159,
+        0
+      ],
+      "hidden": true,
+      "assetId": "giant-safe-v1"
+    },
+    {
+      "id": "gerente",
+      "kind": "actor",
+      "position": [
+        1.2,
+        0,
+        5.2
+      ],
+      "rotation": [
+        0,
+        -2.5,
+        0
+      ],
+      "hidden": true,
+      "color": "#1E3A8A"
+    }
+  ],
+  "scenes": [
+    {
+      "sourceId": "s1",
+      "shot": {
+        "subjects": [
+          "caminhao"
+        ],
+        "azimuth": 0.4,
+        "endAzimuth": 0.15,
+        "elevation": 0.15,
+        "distance": 1.4
+      },
+      "verbs": [
+        {
+          "do": "drive",
+          "node": "caminhao",
+          "by": [
+            0,
+            0,
+            5
+          ],
+          "wheels": [
+            "roda_1",
+            "roda_2",
+            "roda_3",
+            "roda_4",
+            "roda_5",
+            "roda_6"
+          ],
+          "wheelRadius": 0.42,
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s2",
+      "shot": {
+        "subjects": [
+          "caminhao"
+        ],
+        "azimuth": -0.35,
+        "endAzimuth": -0.1,
+        "elevation": 0.2,
+        "distance": 1.3
+      },
+      "verbs": [
+        {
+          "do": "drive",
+          "node": "caminhao",
+          "by": [
+            0,
+            0,
+            7
+          ],
+          "wheels": [
+            "roda_1",
+            "roda_2",
+            "roda_3",
+            "roda_4",
+            "roda_5",
+            "roda_6"
+          ],
+          "wheelRadius": 0.42,
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s3",
+      "shot": {
+        "subjects": [
+          "caminhao",
+          "malote_1",
+          "malote_2"
+        ],
+        "azimuth": 3,
+        "endAzimuth": 3.14,
+        "elevation": 0.15,
+        "distance": 1.2
+      },
+      "verbs": [
+        {
+          "do": "open",
+          "node": "caminhao",
+          "part": "porta_traseira",
+          "axis": "y",
+          "angle": 2.09,
+          "at": [
+            0,
+            0.4
+          ]
+        },
+        {
+          "do": "appear",
+          "node": "malote_1",
+          "at": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "do": "move",
+          "node": "malote_1",
+          "to": [
+            -0.4,
+            0,
+            -4.2
+          ],
+          "at": [
+            0.5,
+            0.9
+          ]
+        },
+        {
+          "do": "appear",
+          "node": "malote_2",
+          "at": [
+            0.4,
+            0.6
+          ]
+        },
+        {
+          "do": "move",
+          "node": "malote_2",
+          "to": [
+            0.4,
+            0,
+            -4
+          ],
+          "at": [
+            0.6,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s4",
+      "shot": {
+        "subjects": [
+          "cofre",
+          "malote_1",
+          "malote_2"
+        ],
+        "azimuth": 0.35,
+        "endAzimuth": 0.1,
+        "elevation": 0.15,
+        "distance": 2.2
+      },
+      "verbs": [
+        {
+          "do": "appear",
+          "node": "cofre",
+          "at": [
+            0,
+            0.1
+          ]
+        },
+        {
+          "do": "appear",
+          "node": "gerente",
+          "at": [
+            0,
+            0.1
+          ]
+        },
+        {
+          "do": "open",
+          "node": "cofre",
+          "part": "porta",
+          "axis": "y",
+          "angle": 2,
+          "at": [
+            0.15,
+            0.45
+          ]
+        },
+        {
+          "do": "move",
+          "node": "malote_1",
+          "to": [
+            -0.2,
+            0.28,
+            5.8
+          ],
+          "at": [
+            0.2,
+            0.7
+          ]
+        },
+        {
+          "do": "vanish",
+          "node": "malote_1",
+          "at": [
+            0.7,
+            0.8
+          ]
+        },
+        {
+          "do": "move",
+          "node": "malote_2",
+          "to": [
+            0.2,
+            0.28,
+            5.8
+          ],
+          "at": [
+            0.35,
+            0.85
+          ]
+        },
+        {
+          "do": "vanish",
+          "node": "malote_2",
+          "at": [
+            0.85,
+            0.95
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s5",
+      "shot": {
+        "subjects": [
+          "cofre",
+          "gerente"
+        ],
+        "azimuth": -0.25,
+        "endAzimuth": -0.05,
+        "elevation": 0.12,
+        "distance": 1.8
+      },
+      "verbs": [
+        {
+          "do": "close",
+          "node": "cofre",
+          "part": "porta",
+          "axis": "y",
+          "at": [
+            0.1,
+            0.5
+          ]
+        },
+        {
+          "do": "spin",
+          "node": "cofre",
+          "part": "volante",
+          "axis": "z",
+          "turns": 2,
+          "at": [
+            0.55,
+            0.95
+          ]
+        },
+        {
+          "do": "pose",
+          "node": "gerente",
+          "pose": "rest",
+          "emotion": "calm",
+          "at": [
+            0,
+            0.5
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s6",
+      "shot": {
+        "subjects": [
+          "cofre",
+          "gerente"
+        ],
+        "azimuth": 0.1,
+        "endAzimuth": 0,
+        "elevation": 0.1,
+        "distance": 2
+      },
+      "verbs": [
+        {
+          "do": "pose",
+          "node": "gerente",
+          "pose": "rest",
+          "emotion": "calm",
+          "at": [
+            0,
+            0.5
+          ]
+        },
+        {
+          "do": "turn",
+          "node": "gerente",
+          "to": [
+            0,
+            -2.8,
+            0
+          ],
+          "at": [
+            0.2,
+            0.8
+          ]
+        }
+      ]
+    }
+  ]
+}

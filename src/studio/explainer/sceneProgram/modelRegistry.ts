@@ -26,6 +26,8 @@ export interface ModelCatalogue {
   roll?: { radius: number; centerY: number };
   /** Height (y, unscaled) of the floor inside an enclosure, for placing small models inside. */
   interiorFloorY?: number;
+  /** The model has a face that matters (door, symbol) on local +Z: it must face the camera in every shot where it is a subject. */
+  front?: boolean;
 }
 export const APPROVED_MODELS: Readonly<Record<string, ApprovedModelInfo>> = Object.freeze({
   'expressive-robot-v1': {
@@ -65,7 +67,7 @@ export const APPROVED_MODELS: Readonly<Record<string, ApprovedModelInfo>> = Obje
     source: 'gemini-procedural-script',
     licensing: 'owner-generated (scripts/glb/gerar_pack_dinheiro.py)',
     display: 'Cofre gigante (porta, volante; piso interno y=0,28)',
-    catalogue: { size: [1.94, 2.0, 1.54], origin: 'centro da base; a porta fica na face +Z', description: 'Cofre de aço com porta de dobradiça e volante.', interiorFloorY: 0.28,
+    catalogue: { size: [1.94, 2.0, 1.54], origin: 'centro da base; a porta fica na face +Z', description: 'Cofre de aço com porta de dobradiça e volante.', interiorFloorY: 0.28, front: true,
       parts: [
         { name: 'porta', kind: 'door', axis: 'y', openAngle: 2.0, note: 'abre para +Z (para a câmera) com +Y; 0 = fechada, 2,0 = aberta (~115°)' },
         { name: 'volante', kind: 'dial', axis: 'z', note: 'volante da porta; gira em Z' },
@@ -78,7 +80,7 @@ export const APPROVED_MODELS: Readonly<Record<string, ApprovedModelInfo>> = Obje
     source: 'gemini-procedural-script',
     licensing: 'owner-generated (scripts/glb/gerar_pack_dinheiro.py)',
     display: 'Saco de dinheiro',
-    catalogue: { size: [0.4, 0.5, 0.36], origin: 'centro da base', description: 'Saco de dinheiro amarrado com símbolo de cifrão na frente (+Z).' },
+    catalogue: { size: [0.4, 0.5, 0.36], origin: 'centro da base', description: 'Saco de dinheiro amarrado com símbolo de cifrão na frente (+Z).', front: true },
   },
   'giant-coin-v1': {
     url: '/models/moeda_grande.glb',
