@@ -42,3 +42,39 @@ describe('horizontal support constraint',()=>{
   expect(normalizeGroups([{...groups[0],support:{anchorX:0,anchorY:Infinity,surfaceY:200}}])).toEqual([]);
  });
 });
+
+describe('temporary attachment',()=>{
+ const attachment={target:'hand',start:1,end:3,anchorX:50,anchorY:0,targetX:50,targetY:0};
+ const groups=normalizeGroups([
+  {id:'hand',x:0,y:0,motion:[{time:0},{time:1},{time:3,dx:100,dy:-80,rotation:30,scale:1.2,ease:'linear'},{time:5,dx:150}]},
+  {id:'box',x:50,y:0,attachment,motion:[{time:0},{time:3},{time:5,dx:40,ease:'linear'}]}
+ ]);
+ const drawing=normalizeDrawing([
+  {type:'rect',group:'hand',x:0,y:0},{type:'circle',group:'hand',x:50,y:0},
+  {type:'rect',group:'box',x:50,y:0},{type:'rect',group:'box',x:60,y:10}
+ ])!;
+ it('aligns anchors while carrying, preserves release position and is seekable',()=>{
+  expect(groupIssues(drawing,groups)).toEqual([]);
+  const [hand,box]=groups;
+  for(const t of [1,1.25,2,2.75,3,1.25]){
+   const a=groupPoint(hand,50,0,t,groups),b=groupPoint(box,50,0,t,groups);
+   expect(b.x).toBeCloseTo(a.x,9);expect(b.y).toBeCloseTo(a.y,9);
+  }
+  expect(groupPoint(box,50,0,.9,groups)).toEqual({x:50,y:0});
+  const release=groupPoint(box,50,0,3,groups),later=groupPoint(box,50,0,5,groups);
+  expect(later.x-release.x).toBeCloseTo(40,9);expect(later.y).toBeCloseTo(release.y,9);
+  expect(groupPoint(box,50,0,3.000001,groups).x).toBeCloseTo(release.x,3);
+ });
+ it('rejects pickup gaps, chains, conflicting support and different layers',()=>{
+  const [hand,box]=groups;
+  expect(groupIssues(drawing,[hand,{...box,attachment:{...attachment,targetX:55}}])).not.toEqual([]);
+  expect(groupIssues(drawing,[{...hand,attachment:{...attachment,target:'box'}},box])).not.toEqual([]);
+  expect(groupIssues(drawing,[hand,{...box,support:{anchorX:50,anchorY:0,surfaceY:0}}])).not.toEqual([]);
+  expect(groupIssues(drawing.map(s=>s.group==='hand'?{...s,depth:'back'}:s),groups)).not.toEqual([]);
+  expect(normalizeGroups([{...box,attachment:{...attachment,end:0}}])).toEqual([]);
+ });
+ it('preserves attachment in normalized scenes',()=>{
+  const p=normalizePlan({scenes:[{text:'A mão leva a caixa.',visual:'custom',composition:'authored',drawing,groups}]},'A mão leva a caixa.','9:16');
+  expect(p.scenes[0].groups?.[1].attachment).toEqual(attachment);
+ });
+});
