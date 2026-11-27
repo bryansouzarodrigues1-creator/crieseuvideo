@@ -802,7 +802,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                     </div>
                   </div>)}
                   {proposal.preview.introduced.map(i=><p key={i.scene+'-'+i.code}>Novo alerta na cena {i.scene}: {i.message}</p>)}
-                  {proposal.preview.blocked&&<p role="alert">Bloqueado: a correção criou uma cena praticamente vazia.</p>}
+                  {proposal.preview.blocked&&<p role="alert">Bloqueado: a correção criou arte praticamente vazia ou fora da área segura.</p>}
                   {proposal.preview.noVisibleChange&&<p role="alert">Bloqueado: não houve mudança perceptível nos três quadros.</p>}
                   <p className="explainer-sub">A comparação não garante qualidade estética; aprove somente após conferir os quadros.</p>
                 </>}
