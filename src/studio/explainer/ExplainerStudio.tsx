@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
 import { LocalVoiceSettings } from '../components/LocalVoiceSettings';
 import { drawExplainerFrame, drawOverlay } from './render';
+import { inspectEditorialFrames,type EditorialReview } from './editorialReview';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
@@ -45,6 +46,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [review,setReview]=useState<{plan:ExplainerPlan;engine:string;report:EditorialReview}|null>(null);
   const [recording, setRecording] = useState<number | null>(null);
   const voice = 'local';
   const voiceOn = false;
@@ -439,7 +441,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao criar.');
       const track = trackRef.current;
-      setPlan(track ? fitToTrack(data.plan, track.duration) : data.plan); seek(0);
+      const generatedPlan:ExplainerPlan=track ? fitToTrack(data.plan, track.duration) : data.plan;
+      setPlan(generatedPlan); seek(0);
+      if(engine!=='3d'){
+        try{setReview({plan:generatedPlan,engine,report:inspectEditorialFrames({...generatedPlan,engine})});}
+        catch{setReview(null);}
+      }
       for (const sc of data.plan.scenes as ExplainerPlan['scenes']) if (sc.visual === 'custom' && sc.drawing?.length) addToVault(sc.text, sc.drawing);
       setVaultCount(listVault().length);
       setGenId(null); setRated(null); setReason('');
@@ -453,6 +460,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const updateScene = (i: number, patch: Partial<ExplainerPlan['scenes'][number]>) =>
     setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined } : {}) } : s)) }));
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
+  const currentReview=review?.plan===plan&&review.engine===engine?review.report:null;
+  const reviewFrames=()=>{
+    setPlaying(false);
+    try{setReview({plan,engine,report:inspectEditorialFrames({...plan,engine})});}
+    catch(e){setReview(null);setNote('Não consegui revisar os quadros: '+(e instanceof Error?e.message:String(e)));}
+  };
   const voiced = plan.scenes.length > 0 && (plan.track ? !!trackRef.current : plan.scenes.every((s) => s.voice));
 
       /**
@@ -727,6 +740,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
             <span className="explainer-time">{fmt(time)} / {fmt(total)}</span>
             <Button onClick={exportVideo} disabled={recording !== null || !plan.scenes.length}>{recording !== null ? <><Loader2 className="animate-spin" />{recording}%</> : <><Download />Baixar vídeo</>}</Button>
           </div>
+          {engine!=='3d'&&plan.scenes.length>0&&<div className="explainer-scene" role="group" aria-label="Revisão visual local">
+            <div className="explainer-scene-body">
+              <strong>Revisão visual local</strong>
+              <p className="explainer-sub">Analisa três quadros reais por cena, separando cenário, arte e legendas. Não chama IA e não garante qualidade estética.</p>
+              <Button size="sm" variant="secondary" disabled={busy||recording!==null} onClick={reviewFrames}>Revisar quadros</Button>
+              {currentReview&&<div role="status">
+                <p>{currentReview.frames} quadros · {currentReview.issues.length} alertas. Alertas são sugestões, não impedem a exportação.</p>
+                {currentReview.issues.length===0&&<p>Nenhuma anomalia detectada nas amostras; confira a prévia.</p>}
+                {currentReview.issues.map(issue=><div key={issue.scene+'-'+issue.code} className="explainer-row">
+                  <Button size="sm" variant="outline" disabled={recording!==null} onClick={()=>{setPlaying(false);seek(sceneStart(plan,issue.scene-1)+0.05);}}>Cena {issue.scene}</Button>
+                  <span>{issue.message}</span>
+                </div>)}
+              </div>}
+            </div>
+          </div>}
           {genId && rated !== 'sent' && (
             <div className="explainer-scene" role="group" aria-label="Avaliação">
               <div className="explainer-scene-body">
