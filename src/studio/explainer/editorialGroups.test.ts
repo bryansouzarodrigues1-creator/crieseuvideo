@@ -42,3 +42,33 @@ describe('horizontal support constraint',()=>{
   expect(normalizeGroups([{...groups[0],support:{anchorX:0,anchorY:Infinity,surfaceY:200}}])).toEqual([]);
  });
 });
+
+describe('temporary object attachment',()=>{
+ const attachment={carrier:'hand',start:1,end:3,anchorX:0,anchorY:0,carrierX:0,carrierY:0};
+ const groups=normalizeGroups([
+  {id:'hand',x:0,y:0,motion:[{time:0},{time:1},{time:3,dx:180,dy:-60,ease:'linear'},{time:4,dx:240,dy:-60,ease:'linear'}]},
+  {id:'box',x:0,y:0,motion:[{time:0}],attachment}
+ ]);
+ const shapes=normalizeDrawing(['hand','box'].flatMap(group=>[{type:'rect',group},{type:'circle',group}]))!;
+ it('preserves pickup, follows carrier, releases without snapping and seeks backwards',()=>{
+  const [hand,box]=groups;
+  expect(groupIssues(shapes,groups)).toEqual([]);
+  for(const t of [1,1.5,2,3,1.25])expect(groupPoint(box,0,0,t,groups)).toEqual(groupPoint(hand,0,0,t,groups));
+  expect(groupPoint(box,0,0,.5,groups)).toEqual({x:0,y:0});
+  expect(groupPoint(box,0,0,4,groups)).toEqual({x:180,y:-60});
+  expect(groupPoint(hand,0,0,4,groups)).toEqual({x:240,y:-60});
+ });
+ it('rejects missing carriers, cycles, initial gaps and cross-layer attachments',()=>{
+  for(const invalid of [
+    [{...groups[0]}, {...groups[1],attachment:{...attachment,carrier:'missing'}}],
+    [{...groups[0],attachment:{...attachment,carrier:'box'}},groups[1]],
+    [groups[0],{...groups[1],attachment:{...attachment,anchorX:100}}],
+    [groups[0],{...groups[1],support:{anchorX:0,anchorY:0,surfaceY:0}}]
+  ])expect(groupIssues(shapes,invalid).length).toBeGreaterThan(0);
+  expect(groupIssues(shapes.map(s=>s.group==='box'?{...s,depth:'front'}:s),groups).length).toBeGreaterThan(0);
+ });
+ it('preserves attachment through plan normalization',()=>{
+  const p=normalizePlan({scenes:[{text:'Transporta a caixa.',visual:'custom',composition:'authored',drawing:shapes,groups}]},'Transporta a caixa.','9:16');
+  expect(p.scenes[0].groups?.find(g=>g.id==='box')?.attachment).toEqual(attachment);
+ });
+});
