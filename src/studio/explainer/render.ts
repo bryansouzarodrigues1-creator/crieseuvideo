@@ -1,3 +1,4 @@
+import {fixedEditorialPose} from './editorialFraming';
 import {groupPose,type EditorialGroup} from './editorialGroups';
 import {drawEditorialBackdrop} from './editorialBackdrop';
 import {editorialCameraPose,EDITORIAL_CAMERA_MAX_SCALE,EDITORIAL_CAMERA_MAX_SHIFT} from './editorialCamera';
@@ -588,8 +589,9 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   const authored=scene.visual==='custom'&&scene.composition==='authored';
   // Authored cuts and motion come from the director, not the stock entrance/exit animation.
   const push = authored?1:1 + Math.min(local, 8) * 0.008;
-  const sBase = Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
-  const spot = centerIn(ext, z.hero, sSteady);
+  const fixed=authored&&scene.framing?fixedEditorialPose(scene.framing,z.hero,u):undefined;
+  const sBase = fixed?.scale??Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
+  const spot = fixed??centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
   const enter = authored?1:pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
   const exit = authored?0:smooth(clamp((local - (duration - 0.22)) / 0.22));
@@ -601,6 +603,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     c.beginPath(); c.ellipse(px, spot.y + (ext.y1 - 18 * u) * sSteady, shadowW * (1 - float / (80 * u)), 26 * u, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill();
   }
   c.save(); c.globalAlpha = 1 - exit;
+  if(fixed){c.beginPath();c.rect(z.hero.x0,z.hero.y0,z.hero.x1-z.hero.x0,z.hero.y1-z.hero.y0);c.clip();}
   if (scene.visual === 'money') { c.beginPath(); c.rect(0, 0, w, z.caption.y0 - 4 * u); c.clip(); }
   withPop(c, px, spot.y + (isProp ? float : 0), Math.min(1, enter) * sBase * push * (1 - exit * 0.15), () => {
     if (isProp) c.rotate(rot);
