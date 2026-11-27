@@ -90,7 +90,13 @@ try{
     const fixed=previewEditorialRepair(original,0,[{target:'shape_0',op:'color',color:'#FF2244'}]);
     const noop=previewEditorialRepair(original,0,[{target:'shape_0',op:'move',dx:0,dy:0}]);
     const repair={frames:fixed.frames.map(f=>({fraction:f.fraction,difference:f.difference,before:f.before.split(',')[1],after:f.after.split(',')[1]})),blocked:fixed.blocked,noVisibleChange:fixed.noVisibleChange,noop:noop.noVisibleChange,unchanged:before===JSON.stringify(original)};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair};
+    const stage=normalizePlan({scenes:[{text:'A caixa se move.',visual:'custom',composition:'authored',camera:'static',framing:{x:.5,y:.4,scale:1},backdrop:{top:'#111111',bottom:'#111111',elements:[]},drawing:[{type:'rect',x:0,y:0,w:160,h:100,color:'#FFFFFF',strokeWidth:0,anim:'none'}]}]},'A caixa se move.','9:16');
+    stage.engine='2d';
+    const moved=previewEditorialRepair(stage,0,[{target:'shape_0',op:'move',dx:0,dy:160}]);
+    const unsafe=previewEditorialRepair(stage,0,[{target:'framing',op:'framing',framing:{x:.5,y:.78,scale:1}}]);
+    const trajectory=previewEditorialRepair(stage,0,[{target:'shape_0',op:'motion',motion:[{time:0},{time:2,dx:100}]}]);
+    const placement={visibleMove:!moved.noVisibleChange,blockedMove:moved.blocked,unsafeBlocked:unsafe.blocked,unsafeIssues:unsafe.introduced.map(i=>i.code),trajectoryVisible:!trajectory.noVisibleChange};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,placement};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -114,6 +120,12 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.placement.visibleMove,true);
+  assert.equal(result.placement.blockedMove,false);
+  assert.equal(result.placement.unsafeBlocked,true);
+  assert.ok(result.placement.unsafeIssues.includes('unsafe_art'));
+  assert.equal(result.placement.trajectoryVisible,true);
+  await writeFile(out+'/framing-report.json',JSON.stringify(result.placement,null,2));
   for(const f of result.repair.frames){
     await writeFile(out+'/repair-'+f.fraction+'-before.jpg',Buffer.from(f.before,'base64'));
     await writeFile(out+'/repair-'+f.fraction+'-after.jpg',Buffer.from(f.after,'base64'));
