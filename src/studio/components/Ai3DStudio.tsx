@@ -10,7 +10,7 @@ import {checkGeminiModelStatus,probeGeminiInference,type GeminiModelStatus,type 
 import type {GeminiModelChoice} from '../server/ai';
 import type {ComplexWorldClip} from '../explainer/sceneProgram/planner/complexWorldBatch';
 import {SceneProgram3D} from '../explainer/sceneProgram/stage3d';
-import {auditShotVisibilitySequence} from '../explainer/sceneProgram/shotVisibilityAudit';
+import {auditShotVisibilitySequence,blockingShotVisibilityIssues} from '../explainer/sceneProgram/shotVisibilityAudit';
 import type {AiWorldProvider} from '../explainer/sceneProgram/planner/aiWorldDirector';
 import {takeAi3DHandoff} from '../explainer/ai3dHandoff';
 
@@ -234,7 +234,27 @@ export default function Ai3DStudio(){
 
   const exportClip=async()=>{
     const canvas=canvasRef.current;
-    if(!canvas||!clip||busyExportRef.current)return;
+    const stage=stageRef.current;
+    if(!canvas||!clip||!stage||busyExportRef.current||busy)return;
+    setPlaying(false);playingRef.current=false;
+    // Run on the current aspect and real geometry before encoding any frames.
+    // No provider calls, no auto-retry or credit consumption.
+    try{
+      const reports=auditShotVisibilitySequence(stage,landscape?16/9:9/16);
+      setShotQa(reports);
+      const blockers=blockingShotVisibilityIssues(reports);
+      if(blockers.length){
+        const first=blockers[0];
+        setError('Exportação interrompida pela auditoria geométrica ('+first.sourceId+'): '+first.suggestion);
+        return;
+      }
+    }catch(e){
+      setShotQa(null);
+      setError('Não foi possível verificar a cena antes da exportação: '+(e instanceof Error?e.message:String(e)));
+      return;
+    }finally{
+      try{drawRef.current(clockRef.current);}catch{}
+    }
     const ctrl=new AbortController();abortRef.current=ctrl;
     busyExportRef.current=true;setPlaying(false);playingRef.current=false;
     setError('');setExportProgress(0);
