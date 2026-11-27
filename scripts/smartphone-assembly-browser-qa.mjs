@@ -104,7 +104,7 @@ try {
   });
   await page.getByText(/Narração pronta:/).waitFor({timeout:30000});
   assert.equal(providerRequests,0,'Uploading narration must not call a model');
-  await page.getByRole('button',{name:'Copiar narração para ElevenLabs'}).waitFor();
+  await page.getByRole('button',{name:'Copiar texto da narração'}).waitFor();
   const downloadPromise=page.waitForEvent('download',{timeout:180000});
   await page.getByRole('button',{name:/Baixar cena 3D/}).click();
   const download=await downloadPromise;
