@@ -54,3 +54,14 @@ describe('motion and framing repair',()=>{
   expect(()=>applySceneEdits(scene,[{target:'camera',op:'framing',framing:{x:0,y:900,zoom:1}}])).toThrow();
  });
 });
+
+it('allows adding and removing support without mutating the original group',()=>{
+ const scene=base(),support={anchorX:0,anchorY:60,surfaceY:200};
+ const pinned=applySceneEdits(scene,[{target:'group_motor',op:'support',support}]);
+ expect(pinned.groups?.[0].support).toEqual(support);
+ expect(scene.groups?.[0].support).toBeUndefined();
+ const moved=applySceneEdits(pinned,[{target:'group_motor',op:'move',dx:10,dy:20}]);
+ expect(moved.groups?.[0].support).toEqual({anchorX:10,anchorY:80,surfaceY:200});
+ expect(applySceneEdits(moved,[{target:'group_motor',op:'support',support:null}]).groups?.[0].support).toBeUndefined();
+ expect(()=>applySceneEdits(scene,[{target:'group_motor',op:'support',support:{...support,surfaceY:999}}])).toThrow();
+});
