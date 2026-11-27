@@ -1,3 +1,4 @@
+import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 /**
  * Free-form drawings the AI writes per scene as a small list of shapes.
  * The AI never makes pixels: it describes primitives and motions, and this code draws them,
@@ -15,6 +16,7 @@ export interface Shape {
   color?: string; stroke?: string;
   rot?: number; text?: string; size?: number;
   mood?: string; anim: ShapeAnim; delay: number;
+  motion?: ShapeMotionKey[]; depth?: 'back'|'middle'|'front';
 }
 export const MAX_SHAPES = 40;
 const LIMIT = 560;
@@ -45,6 +47,7 @@ export function normalizeDrawing(raw: unknown): Shape[] | undefined {
       mood: typeof o.mood === 'string' ? o.mood : undefined,
       anim: SHAPE_ANIMS.includes(o.anim as ShapeAnim) ? (o.anim as ShapeAnim) : 'pop',
       delay: num(o.delay, 0, 0, 6),
+      motion: normalizeShapeMotion(o.motion), depth: o.depth==='back'||o.depth==='front' ? o.depth : 'middle',
     });
   }
   return out.length ? out : undefined;
