@@ -1,0 +1,18 @@
+name: Engineering 3D native integration QA
+on:
+  push:
+    branches: [engineering3d/casa-forno-render]
+    paths: ['src/studio/code3d/**','.github/workflows/engineering3d-native-qa.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
+      - run: bun run build
