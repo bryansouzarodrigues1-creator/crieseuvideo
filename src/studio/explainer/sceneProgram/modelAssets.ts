@@ -85,9 +85,17 @@ export interface ModelInstance {
 }
 
 /** Clone mesh skeletons AND resources so one timeline never mutates another. */
-export function instantiateModel(loaded: PreparedModel): ModelInstance {
-  const root = cloneWithSkeleton(loaded.gltf.scene);
-  root.traverse((node) => {
+export function instantiateModel(loaded: PreparedModel, animationClip?: string): ModelInstance {
+  // A scene node owns the outer placement; animation owns only the imported
+  // child. Root animation channels must not overwrite authored coordinates.
+  const animated = cloneWithSkeleton(loaded.gltf.scene);
+  const root = new THREE.Group();
+  root.add(animated);
+  const clips = loaded.gltf.animations.slice(0, MAX_CLIPS);
+  const selected = animationClip === undefined ? clips[0] : clips.find(c => c.name === animationClip);
+  if (animationClip !== undefined && !selected)
+    throw new SceneProgramError('Animação GLB não encontrada: ' + animationClip);
+  animated.traverse((node) => {
     const mesh = node as THREE.Mesh;
     if (!mesh.isMesh) return;
     mesh.geometry = mesh.geometry.clone();
@@ -96,9 +104,10 @@ export function instantiateModel(loaded: PreparedModel): ModelInstance {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
   });
-  const mixer = new THREE.AnimationMixer(root);
-  for (const clip of loaded.gltf.animations.slice(0, MAX_CLIPS)) {
-    const action = mixer.clipAction(clip);
+  const mixer = new THREE.AnimationMixer(animated);
+  // Playing walk, idle, run and gestures together corrupts the skeleton.
+  if (selected) {
+    const action = mixer.clipAction(selected);
     action.setLoop(THREE.LoopRepeat, Infinity);
     action.play();
   }
