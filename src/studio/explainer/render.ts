@@ -451,7 +451,8 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
   });
 }
 
-export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
+export type EditorialRenderPass='full'|'art'|'background';
+export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number, pass:EditorialRenderPass='full') {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
   const at = sceneAt(plan, t);
   // A frame may be reached from any previous time. Establish an opaque
@@ -468,7 +469,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
     if (!at) { sunburst(c, w, h, PAL.purple, t); return; }
     const { scene, local, index, duration } = at;
     // Keep the editorial frame stable, especially at cuts and on export.
-    drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d');
+    drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d',pass);
   } finally { c.restore(); }
 }
 
@@ -567,9 +568,10 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
   c.restore();
 }
 
-function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, depth=false) {
+function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, depth=false,pass:EditorialRenderPass='full') {
   if(scene.backdrop)drawEditorialBackdrop(c,scene.backdrop,w,h);
   else if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  if(pass==='background')return;
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, k = portrait ? 1.15 : 0.9;
@@ -603,6 +605,8 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     drawHero(c, scene, local, t, u, talk, wd?.since ?? 1,depth,duration);
   });
   c.restore();
+  // Review art without captions or badges: text must not mask missing action.
+  if(pass==='art')return;
   // label badge: fixed slot above the hero zone
   if (outerLabel)
     badge(c, scene.label!.toUpperCase(), w / 2, (z.label.y0 + z.label.y1) / 2, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
