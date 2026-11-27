@@ -1,9 +1,10 @@
+import {normalizeGroupSupport} from './editorialGroups';
 import {normalizeEditorialFraming} from './editorialFraming';
 import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {ExplainerScene} from './plan';
 import {normalizeEditorialShot} from './editorialCamera';
 import {normalizeBackdrop} from './editorialBackdrop';
-export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown};
+export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown};
 export function sceneInventory(scene:ExplainerScene){
  return {text:scene.text,camera:scene.camera,framing:scene.framing,backdrop:scene.backdrop,shapes:(scene.drawing??[]).map((s,i)=>({...s,id:'shape_'+i})),groups:(scene.groups??[]).map(g=>({...g,target:'group_'+g.id}))};
 }
@@ -41,7 +42,11 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
   const e=value as Record<string,unknown>;
   const target=e.target;
   if(typeof target!=='string')throw Error('Alvo inválido.');
-  if(e.op==='framing'&&target==='camera'){
+  if(e.op==='support'&&target.startsWith('group_')){
+   const g=groups.find(g=>'group_'+g.id===target);if(!g)throw Error('Grupo inexistente.');
+   if(e.support===null){delete g.support;}
+   else{const support=normalizeGroupSupport(e.support);if(!support)throw Error('Apoio inválido.');g.support=support;}
+  }else if(e.op==='framing'&&target==='camera'){
    const frame=normalizeEditorialFraming(e.framing);if(!frame)throw Error('Enquadramento inválido.');out.framing=frame;
   }else if(e.op==='motion'){
    const motion=strictMotion(e.motion);
@@ -68,7 +73,9 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
    const dx=e.dx,dy=e.dy;
    if(target.startsWith('group_')){
     const g=groups.find(g=>'group_'+g.id===target);if(!g||!within(g.x+dx)||!within(g.y+dy))throw Error('Grupo inválido.');
-    drawing.forEach((s,i)=>{if(s.group===g.id)move(i,dx,dy);});g.x+=dx;g.y+=dy;
+    drawing.forEach((s,i)=>{if(s.group===g.id)move(i,dx,dy);});
+    if(g.support){const {anchorX,anchorY,surfaceY}=g.support;if(!within(anchorX+dx)||!within(anchorY+dy))throw Error('Âncora fora do limite.');g.support={anchorX:anchorX+dx,anchorY:anchorY+dy,surfaceY};}
+    g.x+=dx;g.y+=dy;
    }else if(/^shape_(0|[1-9][0-9]*)$/.test(target)){const i=Number(target.slice(6));move(i,dx,dy);}
    else throw Error('Alvo desconhecido.');
   }else if(e.op==='color'&&/^shape_(0|[1-9][0-9]*)$/.test(target)&&typeof e.color==='string'&&/^#[0-9a-f]{6}$/i.test(e.color)){

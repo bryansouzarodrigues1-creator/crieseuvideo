@@ -94,7 +94,12 @@ try{
     const moved=previewEditorialRepair(fixedPlan,0,[{target:'group_truck',op:'move',dx:0,dy:80}]);
     const resized=previewEditorialRepair(fixedPlan,0,[{target:'group_truck',op:'resize',factor:1.2}]);
     const motionRepair={moveVisible:!moved.noVisibleChange,resizeVisible:!resized.noVisibleChange,moveBlocked:moved.blocked,resizeBlocked:resized.blocked};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair};
+    const groundPlan={...fixedPlan,scenes:fixedPlan.scenes.map((sc,i)=>i===0?{...sc,camera:'static',drawing:[part('rect',0,220,{w:720,h:40,color:'#555555'}),...sc.drawing]}:sc)};
+    const grounded=previewEditorialRepair(groundPlan,0,[{target:'group_truck',op:'support',support:{anchorX:-150,anchorY:123,surfaceY:200}}]);
+    const {groupPoint}=await import('/src/studio/explainer/editorialGroups.ts');
+    const g=grounded.candidate.scenes[0].groups.find(g=>g.id==='truck');
+    const groundRepair={visible:!grounded.noVisibleChange,blocked:grounded.blocked,anchorY:groupPoint(g,-150,123,1.3).y,frames:grounded.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -118,6 +123,13 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.groundRepair.visible,true);
+  assert.equal(result.groundRepair.blocked,false);
+  assert.ok(Math.abs(result.groundRepair.anchorY-200)<1e-8);
+  for(const frame of result.groundRepair.frames){
+    await writeFile(out+'/ground-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/ground-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
   assert.equal(result.motionRepair.moveVisible,true);
   assert.equal(result.motionRepair.resizeVisible,true);
   assert.equal(result.motionRepair.moveBlocked,false);
