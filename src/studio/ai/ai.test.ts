@@ -434,3 +434,37 @@ describe("config", () => {
     expect(targetsFromEnv({ AI_REQUIRE_VERIFIED_FREE: "1" }).requireVerifiedFree).toBe(true);
   });
 });
+
+describe("vision capability", () => {
+  const eyes: ProviderTarget = { id: "gemini", kind: "gemini", model: "gemini-3.6-flash", apiKey: "k", paid: false, billing: "free" };
+  const blind: ProviderTarget = { id: "groq", kind: "openai-compatible", model: "openai/gpt-oss-120b", apiKey: "k", baseUrl: "https://api.groq.com/openai/v1", paid: false, billing: "unverified", vision: false };
+  const img = [{ mimeType: "image/jpeg" as const, base64: "AAAA" }];
+  it("skips a text-only provider when the request has images, without spending a call, and uses the next one", async () => {
+    const s = scripted([geminiOk('{"ok":true}')]);
+    const router = createRouter({ chain: [blind, eyes], fetch: s.fetch, sleep: async () => {} });
+    const r = await router.ask({ prompt: "veja", images: img });
+    expect(r.ok).toBe(true);
+    expect(s.calls).toHaveLength(1);
+    expect(s.calls[0].url).toContain("generativelanguage");
+  });
+  it("still uses the text-only provider for requests without images", async () => {
+    const s = scripted([{ body: { choices: [{ message: { content: '{"ok":true}' }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 5 } } }]);
+    const router = createRouter({ chain: [blind], fetch: s.fetch, sleep: async () => {} });
+    expect((await router.ask({ prompt: "texto" })).ok).toBe(true);
+    expect(s.calls).toHaveLength(1);
+  });
+  it("fails with no_vision when nobody in the chain can see", async () => {
+    const s = scripted([geminiOk("x")]);
+    const router = createRouter({ chain: [blind], fetch: s.fetch, sleep: async () => {} });
+    const r = await router.ask({ prompt: "veja", images: img });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.problem).toBe("no_vision");
+    expect(s.calls).toHaveLength(0);
+  });
+  it("defaults: Gemini sees, Groq and OpenRouter do not until proven (GROQ_VISION=1)", () => {
+    const base = { GEMINI_API_KEY: "a", GROQ_API_KEY: "b", OPENROUTER_API_KEY: "c" };
+    const by = (env: Record<string, string>) => Object.fromEntries(targetsFromEnv({ ...base, ...env, AI_CHAIN: "gemini,groq,openrouter" }).chain.map((t) => [t.id, t.vision]));
+    expect(by({})).toEqual({ gemini: undefined, groq: false, openrouter: false });
+    expect(by({ GROQ_VISION: "1" }).groq).toBe(true);
+  });
+});

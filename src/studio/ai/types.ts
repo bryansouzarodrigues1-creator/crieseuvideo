@@ -44,6 +44,11 @@ export interface ProviderTarget {
   price?: { inputPerM: number; outputPerM: number };
   /** Free tiers publish daily request caps; counting locally avoids burning 429s. */
   dailyRequests?: number;
+  /**
+   * Can this model read images? Gemini and Anthropic: yes. OpenAI-compatible hosts: NO unless proven (<ID>_VISION=1 after a real
+   * call). A request with images skips a target that cannot see, without spending a call.
+   */
+  vision?: boolean;
   /** OpenAI-compatible only. */
   structured?: "json_schema" | "json_object" | "none";
   reasoning?: boolean;
@@ -69,7 +74,8 @@ export type Problem =
   | "paid_blocked"
   | "unverified_blocked"
   | "budget_exhausted"
-  | "cooling_down";
+  | "cooling_down"
+  | "no_vision";
 
 export interface Usage {
   inputTokens: number;

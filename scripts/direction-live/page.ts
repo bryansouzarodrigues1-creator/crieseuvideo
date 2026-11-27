@@ -45,7 +45,8 @@ let total = 0;
     const a = read(t0),
       b = read(t1);
     let sum = 0;
-    for (let i = 0; i < a.length; i += 4) sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    for (let i = 0; i < a.length; i += 4)
+      sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
     return sum / (a.length / 4) / 3;
   },
   async exportVideo(fps = 12) {
@@ -62,7 +63,13 @@ let total = 0;
       r.onerror = () => reject(r.error);
       r.readAsDataURL(result.blob);
     });
-    return { base64, ext: result.filenameExtension, frames: result.frames, fps: result.fps, bytes: result.blob.size };
+    return {
+      base64,
+      ext: result.filenameExtension,
+      frames: result.frames,
+      fps: result.fps,
+      bytes: result.blob.size,
+    };
   },
 };
 (window as any).__ready = true;

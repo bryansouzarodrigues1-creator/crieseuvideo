@@ -57,4 +57,5 @@ export const PROBLEM_PT: Record<Problem, string> = {
   unverified_blocked: "provedor gratuito não verificado bloqueado (modo só-gratuito confirmado)",
   budget_exhausted: "orçamento de chamadas deste vídeo esgotado",
   cooling_down: "provedor em pausa depois de erro recente",
+  no_vision: "este modelo não lê imagens (revisão visual pulou o provedor)",
 };

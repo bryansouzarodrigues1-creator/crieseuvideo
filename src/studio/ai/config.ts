@@ -53,6 +53,7 @@ export function targetsFromEnv(env: Env): {
       ...billingOf(env.GROQ_BILLING),
       structured: "json_object",
       reasoning: true,
+      vision: env.GROQ_VISION === "1",
     },
     openrouter: {
       id: "openrouter",
@@ -66,6 +67,7 @@ export function targetsFromEnv(env: Env): {
         : { paid: true, billing: "paid" as const }),
       structured: "json_object",
       dailyRequests: 50,
+      vision: env.OPENROUTER_VISION === "1",
     },
     anthropic: {
       id: "anthropic",

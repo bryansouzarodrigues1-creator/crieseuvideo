@@ -105,6 +105,10 @@ export function createRouter(options: RouterOptions) {
         skip("not_configured", "sem chave");
         continue;
       }
+      if (request.images?.length && target.vision === false) {
+        skip("no_vision", "modelo sem leitura de imagens");
+        continue;
+      }
       if ((target.paid || target.billing === "paid") && !options.allowPaid) {
         skip("paid_blocked", "provedor pago sem autorização");
         continue;

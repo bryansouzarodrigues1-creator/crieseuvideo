@@ -57,6 +57,13 @@ jobs:
           # 503 retries also draw from the per-video budget, so leave room for plan (+repair) and the review.
           AI_VIDEO_MAX_CALLS: '8'
           GEMINI_AI_MODEL: ${{ steps.probe.outputs.chosen }}
+          # Free fallbacks, in order, used only if Gemini fails: the router moves on by itself. Groq/OpenRouter never see images
+          # unless GROQ_VISION=1 / OPENROUTER_VISION=1 is set after the provider matrix proves it.
+          LIVE_CHAIN: gemini,gemini-lite,groq,openrouter
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Plan three sentences at a time, with a checkpoint after each block.
+          LIVE_BLOCKS: '3'
         run: bun scripts/direction-live/run.mts
       - name: MP4 (H.264) and probe
         if: always() && hashFiles('tmp/direction-live/video.*') != ''
