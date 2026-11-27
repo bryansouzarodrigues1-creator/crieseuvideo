@@ -113,7 +113,7 @@ async function askLovable(prompt: string, model: string, onProblem?: (reason: Pr
 async function askGemini(
   prompt: string, onProblem?: (reason: ProviderProblem, diagnostic?:GeminiErrorDiagnostic) => void,
   responseSchema?:Record<string,unknown>,
-  modelChoice:GeminiModelChoice='default'
+  modelChoice:GeminiModelChoice='default', forceHigh=false
 ): Promise<string | null> {
   const model = resolveGeminiModel(modelChoice);
   const key = process.env.GEMINI_API_KEY;
@@ -134,10 +134,9 @@ async function askGemini(
           // IDs and geometry before the separate strict compiler checks.
           generationConfig: {
             responseMimeType: "application/json",
-            ...(responseSchema?{responseSchema,
-              // High was verified against the real Gemini 3.6 Flash API.
-              ...(model==='gemini-3.6-flash'?{thinkingConfig:{thinkingLevel:'high'},maxOutputTokens:8192}:{})
-            }:{}),
+            ...(responseSchema?{responseSchema}:{}),
+            ...((responseSchema||forceHigh)&&model==='gemini-3.6-flash'
+              ?{thinkingConfig:{thinkingLevel:'high'},maxOutputTokens:8192}:{}),
           },
         }),
       },
@@ -240,4 +239,11 @@ export async function ask3DWorldAi(
     failures.push({provider,reason:text && text.length>480000?'response_too_large':problem??'invalid_response',...(diagnostic?{diagnostic}:{})});
   }
   throw new Ai3DProviderError(failures);
+}
+
+/** Direct-only director: no paid fallback, no hidden retry. */
+export async function askGeminiForEditorial(prompt:string) {
+  let problem:ProviderProblem='invalid_response';
+  const text=await askGemini(prompt,reason=>{problem=reason;},undefined,'gemini-3.6-flash',true);
+  return {text,problem,model:'gemini-3.6-flash',thinkingLevel:'high' as const};
 }
