@@ -13,7 +13,7 @@ import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDura
 import { LocalVoiceSettings } from '../components/LocalVoiceSettings';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { inspectEditorialFrames,type EditorialReview } from './editorialReview';
-import { applySceneEdits } from './editorialEdits';
+import { previewEditorialRepair,type RepairPreview } from './editorialRepairPreview';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
@@ -47,7 +47,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
-  const [proposal,setProposal]=useState<{base:ExplainerPlan;engine:string;index:number;summary:string;edits:unknown[]}|null>(null);
+  const [proposal,setProposal]=useState<{base:ExplainerPlan;engine:string;index:number;summary:string;edits:unknown[];preview:RepairPreview|null}|null>(null);
   const [undoEdit,setUndoEdit]=useState<{before:ExplainerPlan;after:ExplainerPlan}|null>(null);
   const [review,setReview]=useState<{plan:ExplainerPlan;engine:string;report:EditorialReview}|null>(null);
   const [recording, setRecording] = useState<number | null>(null);
@@ -485,8 +485,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const result=await response.json();
       if(!response.ok)throw Error(result.error||'Falha na revisão.');
       if(typeof result.summary!=='string'||!Array.isArray(result.edits))throw Error('Proposta inválida.');
-      applySceneEdits(scene,result.edits);
-      setProposal({base:plan,engine,index,summary:result.summary,edits:result.edits});
+      const preview=result.edits.length?previewEditorialRepair({...plan,engine,aspect},index,result.edits):null;
+      setProposal({base:plan,engine,index,summary:result.summary,edits:result.edits,preview});
       setNote('Revisão recebida. Nenhuma alteração foi aplicada.');
     }catch(e){setNote(e instanceof Error?e.message:String(e));}
     finally{setBusy(false);}
@@ -494,9 +494,9 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const applyProposal=()=>{
     if(!proposal||proposal.base!==plan||proposal.engine!==engine||busy||recording!==null)return;
     try{
-      const scenes=plan.scenes.map((s,i)=>i===proposal.index?applySceneEdits(s,proposal.edits):s);
-      const after={...plan,scenes};
-      const report=inspectEditorialFrames({...after,engine});
+      if(!proposal.preview||proposal.preview.blocked||proposal.preview.noVisibleChange)throw Error('Correção bloqueada pela conferência local.');
+      const after=proposal.preview.candidate;
+      const report=proposal.preview.after;
       setPlaying(false);setPlan(after);setUndoEdit({before:plan,after});
       setReview({plan:after,engine,report});setProposal(null);
       setNote('Correções aplicadas. Confira o resultado e desfaça se necessário.');
@@ -792,7 +792,21 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
                 <p><strong>Cena {proposal.index+1}:</strong> {proposal.summary}</p>
                 <p>{proposal.edits.length} correções propostas.</p>
                 <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:160,overflow:'auto'}}>{JSON.stringify(proposal.edits,null,2)}</pre>
-                <Button size="sm" disabled={!proposal.edits.length||busy||recording!==null} onClick={applyProposal}>Aplicar correções</Button>
+                {proposal.preview&&<>
+                  <p>Comparação local: {proposal.preview.resolved.length} alertas resolvidos, {proposal.preview.introduced.length} novos.</p>
+                  {proposal.preview.frames.map(frame=><div key={frame.fraction}>
+                    <p>{Math.round(frame.fraction*100)}% da cena</p>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8}}>
+                      <div>Antes<img src={frame.before} alt="Quadro original" style={{width:'100%',display:'block'}}/></div>
+                      <div>Depois<img src={frame.after} alt="Quadro corrigido proposto" style={{width:'100%',display:'block'}}/></div>
+                    </div>
+                  </div>)}
+                  {proposal.preview.introduced.map(i=><p key={i.scene+'-'+i.code}>Novo alerta na cena {i.scene}: {i.message}</p>)}
+                  {proposal.preview.blocked&&<p role="alert">Bloqueado: a correção criou uma cena praticamente vazia.</p>}
+                  {proposal.preview.noVisibleChange&&<p role="alert">Bloqueado: não houve mudança perceptível nos três quadros.</p>}
+                  <p className="explainer-sub">A comparação não garante qualidade estética; aprove somente após conferir os quadros.</p>
+                </>}
+                <Button size="sm" disabled={!proposal.preview||proposal.preview.blocked||proposal.preview.noVisibleChange||busy||recording!==null} onClick={applyProposal}>Aplicar correções</Button>
                 <Button size="sm" variant="ghost" onClick={()=>setProposal(null)}>Descartar</Button>
               </div>}
               {undoEdit?.after===plan&&<Button size="sm" variant="outline" disabled={busy||recording!==null} onClick={()=>{setPlaying(false);setPlan(undoEdit.before);setUndoEdit(null);setReview(null);setNote('Alterações desfeitas.');}}>Desfazer última correção</Button>}
