@@ -302,14 +302,14 @@ export function InlineAi3DPlayer({
       </div>
       {clip.presentation&&<div className="native-3d-actions">
         <button type="button" onClick={()=>void navigator.clipboard.writeText(clip.presentation!.narration)
-          .then(()=>setVoiceNote('Narração copiada: cole no ElevenLabs e carregue o áudio abaixo.'))
+          .then(()=>setVoiceNote('Narração copiada. Use um gerador local ou áudio devidamente licenciado.'))
           .catch(()=>setVoiceNote('Não foi possível copiar automaticamente. Selecione o roteiro no campo de texto.'))}>
-          Copiar narração para ElevenLabs
+          Copiar texto da narração
         </button>
       </div>}
       <div className="native-3d-actions">
         <label className="native-3d-download" style={{display:'inline-flex',alignItems:'center',gap:6,padding:'10px',cursor:'pointer'}}>
-          Carregar narração do ElevenLabs
+          Carregar narração (MP3/WAV)
           <input type="file" hidden accept="audio/*"
             aria-label="Carregar narração no 3D avançado" disabled={progress!==null}
             onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void loadNarration(f);}}/>
