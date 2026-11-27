@@ -239,10 +239,14 @@ export class SceneProgram3D {
     if (this.separateBodies()) { this.groundActorsOnTerrain(); this.scene.updateMatrixWorld(true); }
     for (const [id, actor] of this.actors) {
       const state = this.states.get(id)!;
+      // Authored hand/foot targets are in metres for a full-size actor. A hidden actor (scale 0.01) has nothing to reach and
+      // nothing to show; while it grows in, its targets shrink with it, otherwise its short arms "miss" a full-size target.
+      const bodyScale = Math.max(...state.scale);
+      if (bodyScale < 0.05) continue;
       for (const effector of EFFECTORS) {
         const contact = this.score.contacts.filter((c) => c.actor === id && c.effector === effector && this.time >= c.start && this.time <= c.finish).pop();
         const target = contact ? this.nodes.get(contact.target)!.localToWorld(new THREE.Vector3(...contact.offset))
-          : state.pose[effector] ? new THREE.Vector3(...state.pose[effector]!).add(V(this.bodyShift.get(id)?.[0] ?? 0, 0, this.bodyShift.get(id)?.[1] ?? 0))
+          : state.pose[effector] ? this.scaleAboutBody(new THREE.Vector3(...state.pose[effector]!).add(V(this.bodyShift.get(id)?.[0] ?? 0, 0, this.bodyShift.get(id)?.[1] ?? 0)), actor, bodyScale)
           : effector.endsWith('Foot') ? actor.root.localToWorld(V(effector.startsWith('left') ? -.17 : .17, .06, .07)) : undefined;
         if (target) {
           const error = actor.solve(effector, target); this.maxIKError = Math.max(this.maxIKError, error);
@@ -258,6 +262,12 @@ export class SceneProgram3D {
       }
     }
     this.scene.updateMatrixWorld(true);
+  }
+  /** Shrinks an authored world target toward the actor's base by the actor's scale (1 = unchanged). */
+  private scaleAboutBody(target: THREE.Vector3, actor: ProgramActor3D, scale: number) {
+    if (Math.abs(scale - 1) < 1e-3) return target;
+    const base = actor.root.getWorldPosition(V());
+    return base.add(target.sub(base).multiplyScalar(scale));
   }
   /** Bounded contact audit before accepting an AI-authored preview. Export also
    * checks each actual frame. This is not a semantic or artistic approval. */

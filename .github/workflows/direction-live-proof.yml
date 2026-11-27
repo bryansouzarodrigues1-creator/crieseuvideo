@@ -91,6 +91,7 @@ jobs:
             tmp/direction-live/probe.json
             tmp/direction-live/gemini-probe.txt
             tmp/direction-live/direction-*.json
+            tmp/direction-live/checkpoint.json
             tmp/direction-live/video.*
             tmp/direction-live/frames/
           retention-days: 14
@@ -102,7 +103,7 @@ jobs:
         run: |
           set -e
           rm -rf /tmp/proof && mkdir -p /tmp/proof
-          cp -r tmp/direction-live/report.json tmp/direction-live/probe.json tmp/direction-live/gemini-probe.txt tmp/direction-live/direction-*.json tmp/direction-live/video.* tmp/direction-live/frames /tmp/proof/ 2>/dev/null || true
+          cp -r tmp/direction-live/report.json tmp/direction-live/probe.json tmp/direction-live/gemini-probe.txt tmp/direction-live/direction-*.json tmp/direction-live/checkpoint.json tmp/direction-live/video.* tmp/direction-live/frames /tmp/proof/ 2>/dev/null || true
           echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} commit: ${GITHUB_SHA}" > /tmp/proof/RUN.txt
           cd /tmp/proof
           git init -q
