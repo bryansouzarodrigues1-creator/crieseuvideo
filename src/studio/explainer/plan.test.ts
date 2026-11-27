@@ -62,3 +62,15 @@ describe('script fidelity', () => {
     expect(out.every((s) => s.text.length > 0)).toBe(true);
   });
 });
+
+import {wordTimings} from './plan';
+it('keeps continuous narration exact even with several short beats',()=>{
+ const p=fitToTrack(bfp('Um. Dois. Três. Quatro. Cinco.'),3);
+ expect(td(p)).toBeCloseTo(3,9);
+ expect(sceneAt(p,sceneDuration(p.scenes[0])+.001)?.index).toBe(1);
+ for(const scene of p.scenes){const timing=wordTimings(scene);expect(timing[0].start).toBe(0);expect(timing[timing.length-1].end).toBeCloseTo(sceneDuration(scene),9);}
+});
+it('rejects invalid imported track durations',()=>{
+ expect(()=>fitToTrack(bfp('Uma cena.'),0)).toThrow();
+ expect(()=>fitToTrack(bfp('Uma cena.'),NaN)).toThrow();
+});
