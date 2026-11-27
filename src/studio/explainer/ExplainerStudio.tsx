@@ -9,10 +9,11 @@ import type {ComplexWorldClip} from './sceneProgram/planner/complexWorldBatch';
 import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Download, Loader2, Film, Wand2, Mic, MicOff, FolderOpen, Upload, Trash2, Bookmark, X, Plus } from 'lucide-react';
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
-import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
+import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, sceneDuration, SCENE_LEAD, type Visual, type Mood } from './plan';
 import { LocalVoiceSettings } from '../components/LocalVoiceSettings';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { inspectEditorialFrames,type EditorialReview } from './editorialReview';
+import { applySceneEdits } from './editorialEdits';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
 import { getBestSupportedVideoMimeType } from '../utils/videoRecorder';
@@ -46,6 +47,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [proposal,setProposal]=useState<{base:ExplainerPlan;engine:string;index:number;summary:string;edits:unknown[]}|null>(null);
+  const [undoEdit,setUndoEdit]=useState<{before:ExplainerPlan;after:ExplainerPlan}|null>(null);
   const [review,setReview]=useState<{plan:ExplainerPlan;engine:string;report:EditorialReview}|null>(null);
   const [recording, setRecording] = useState<number | null>(null);
   const voice = 'local';
@@ -461,6 +464,44 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     setPlan((p) => ({ ...p, scenes: p.scenes.map((s, k) => (k === i ? { ...s, ...patch, ...(patch.text !== undefined && patch.text !== s.text ? { voice: undefined } : {}) } : s)) }));
   const jumpTo = (i: number) => seek(sceneStart(plan, i) + 0.6);
   const currentReview=review?.plan===plan&&review.engine===engine?review.report:null;
+  const requestGeminiReview=async()=>{
+    if(busy||recording!==null||engine==='3d'||!plan.scenes.length)return;
+    const index=sceneAt(plan,time)?.index??0,scene=plan.scenes[index];
+    if(scene.composition!=='authored'||scene.visual!=='custom'){setNote('Selecione uma cena autoral para revisar.');return;}
+    if(!window.confirm('Enviar três quadros e os dados desta cena ao Google Gemini? A solicitação pode consumir cota da API. Nenhuma nova chamada será feita automaticamente.'))return;
+    setBusy(true);setPlaying(false);setProposal(null);
+    try{
+      const {data}=await supabase.auth.getSession();
+      if(!data.session?.access_token)throw Error('Entre na sua conta antes de solicitar a revisão.');
+      await document.fonts.ready;
+      const canvas=document.createElement('canvas');canvas.width=aspect==='9:16'?360:640;canvas.height=aspect==='9:16'?640:360;
+      const context=canvas.getContext('2d');if(!context)throw Error('Canvas indisponível.');
+      const images=[.2,.5,.8].map(f=>{
+        drawExplainerFrame(context,{...plan,engine},sceneStart(plan,index)+sceneDuration(scene)*f);
+        return canvas.toDataURL('image/jpeg',.72).split(',')[1];
+      });
+      canvas.width=1;canvas.height=1;
+      const response=await fetch('/api/ai/explainer-plan',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+data.session.access_token},body:JSON.stringify({action:'review',script:scene.text,scene,engine,aspect,images})});
+      const result=await response.json();
+      if(!response.ok)throw Error(result.error||'Falha na revisão.');
+      if(typeof result.summary!=='string'||!Array.isArray(result.edits))throw Error('Proposta inválida.');
+      applySceneEdits(scene,result.edits);
+      setProposal({base:plan,engine,index,summary:result.summary,edits:result.edits});
+      setNote('Revisão recebida. Nenhuma alteração foi aplicada.');
+    }catch(e){setNote(e instanceof Error?e.message:String(e));}
+    finally{setBusy(false);}
+  };
+  const applyProposal=()=>{
+    if(!proposal||proposal.base!==plan||proposal.engine!==engine||busy||recording!==null)return;
+    try{
+      const scenes=plan.scenes.map((s,i)=>i===proposal.index?applySceneEdits(s,proposal.edits):s);
+      const after={...plan,scenes};
+      const report=inspectEditorialFrames({...after,engine});
+      setPlaying(false);setPlan(after);setUndoEdit({before:plan,after});
+      setReview({plan:after,engine,report});setProposal(null);
+      setNote('Correções aplicadas. Confira o resultado e desfaça se necessário.');
+    }catch(e){setNote(e instanceof Error?e.message:String(e));}
+  };
   const reviewFrames=()=>{
     setPlaying(false);
     try{setReview({plan,engine,report:inspectEditorialFrames({...plan,engine})});}
@@ -745,6 +786,16 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <strong>Revisão visual local</strong>
               <p className="explainer-sub">Analisa três quadros reais por cena, separando cenário, arte e legendas. Não chama IA e não garante qualidade estética.</p>
               <Button size="sm" variant="secondary" disabled={busy||recording!==null} onClick={reviewFrames}>Revisar quadros</Button>
+              <Button size="sm" variant="outline" disabled={busy||recording!==null} onClick={()=>void requestGeminiReview()}>Pedir revisão Gemini da cena atual (experimental)</Button>
+              <p className="explainer-sub">Requer habilitação administrativa; envia três imagens e pode consumir cota. Não é transmissão ao vivo.</p>
+              {proposal?.base===plan&&proposal.engine===engine&&<div role="status">
+                <p><strong>Cena {proposal.index+1}:</strong> {proposal.summary}</p>
+                <p>{proposal.edits.length} correções propostas.</p>
+                <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:160,overflow:'auto'}}>{JSON.stringify(proposal.edits,null,2)}</pre>
+                <Button size="sm" disabled={!proposal.edits.length||busy||recording!==null} onClick={applyProposal}>Aplicar correções</Button>
+                <Button size="sm" variant="ghost" onClick={()=>setProposal(null)}>Descartar</Button>
+              </div>}
+              {undoEdit?.after===plan&&<Button size="sm" variant="outline" disabled={busy||recording!==null} onClick={()=>{setPlaying(false);setPlan(undoEdit.before);setUndoEdit(null);setReview(null);setNote('Alterações desfeitas.');}}>Desfazer última correção</Button>}
               {currentReview&&<div role="status">
                 <p>{currentReview.frames} quadros · {currentReview.issues.length} alertas. Alertas são sugestões, não impedem a exportação.</p>
                 {currentReview.issues.length===0&&<p>Nenhuma anomalia detectada nas amostras; confira a prévia.</p>}
