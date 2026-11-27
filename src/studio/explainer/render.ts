@@ -1,3 +1,4 @@
+import {editorialCameraPose,EDITORIAL_CAMERA_MAX_SCALE,EDITORIAL_CAMERA_MAX_SHIFT} from './editorialCamera';
 import {sampleShapeMotion} from './shapeMotion';
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
 import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
@@ -489,7 +490,7 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
 
-function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, t: number, u: number, talk: number, beat: number, depth=false) {
+function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, t: number, u: number, talk: number, beat: number, depth=false, duration=5) {
   switch (scene.visual) {
     case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
     case 'profile': profile(c, u, local, scene.label); break;
@@ -508,10 +509,15 @@ function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: num
     case 'city_night': break;
     case 'custom': {
       const shapes=laidOut(scene.drawing || []);
-      if(!depth){customDrawing(c,u,local,t,shapes,talk,beat);break;}
-      const pan=Math.sin(Math.min(local,8)*.36)*18*u;
-      for(const [layer,factor] of [['back',.35],['middle',1],['front',1.7]] as const){
-        c.save();c.translate(pan*factor,0);
+      const shot=scene.camera??(depth?'slide_right':'static');
+      if(!depth){
+        const pose=editorialCameraPose(shot,'middle',local,duration,false);
+        c.save();c.translate(pose.x*u,pose.y*u);c.scale(pose.scale,pose.scale);
+        customDrawing(c,u,local,t,shapes,talk,beat);c.restore();break;
+      }
+      for(const layer of ['back','middle','front'] as const){
+        const pose=editorialCameraPose(shot,layer,local,duration,true);
+        c.save();c.translate(pose.x*u,pose.y*u);c.scale(pose.scale,pose.scale);
         customDrawing(c,u,local,t,shapes.filter(s=>(s.depth??'middle')===layer),talk,beat);
         c.restore();
       }
@@ -552,7 +558,12 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   const z = frameZones(w, h, outerLabel);
   // hero placement: the whole group is scaled to fit the hero zone (headroom kept for the push-in and idle float)
   // and centred in it, so it can never reach the label slot above or the caption band below
-  const ext = padRect(heroExtent(scene, u), 6 * u);
+  let ext = padRect(heroExtent(scene, u), 6 * u);
+  if(scene.visual==='custom'&&(depth||scene.camera&&scene.camera!=='static')){
+    const k=EDITORIAL_CAMERA_MAX_SCALE,d=EDITORIAL_CAMERA_MAX_SHIFT*u;
+    ext={x0:Math.min(ext.x0,ext.x0*k)-d,x1:Math.max(ext.x1,ext.x1*k)+d,
+      y0:Math.min(ext.y0,ext.y0*k),y1:Math.max(ext.y1,ext.y1*k)};
+  }
   const push = 1 + Math.min(local, 8) * 0.008; // slow Ken Burns push-in
   const sBase = Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
   const spot = centerIn(ext, z.hero, sSteady);
@@ -570,7 +581,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   if (scene.visual === 'money') { c.beginPath(); c.rect(0, 0, w, z.caption.y0 - 4 * u); c.clip(); }
   withPop(c, px, spot.y + (isProp ? float : 0), Math.min(1, enter) * sBase * push * (1 - exit * 0.15), () => {
     if (isProp) c.rotate(rot);
-    drawHero(c, scene, local, t, u, talk, wd?.since ?? 1,depth);
+    drawHero(c, scene, local, t, u, talk, wd?.since ?? 1,depth,duration);
   });
   c.restore();
   // label badge: fixed slot above the hero zone
