@@ -9,7 +9,7 @@ by('generate').onclick=()=>{
   if(!text||text.length>1500||!Number.isFinite(speed)||speed<.75||speed>1.25){by('status').textContent='Verifique o roteiro e a velocidade.';return;}
   clearOutputs();setBusy(true);by('status').textContent='Iniciando…';
   try{
-    worker??=new Worker(new URL('./voice.worker.js',import.meta.url),{type:'module'});
+    worker??=new Worker(new URL('./voice.worker.js',import.meta.url));
     worker.onerror=()=>{reset();by('status').textContent='Falha no motor local. Verifique modelo, WASM e compatibilidade.';};
     worker.onmessage=({data})=>{
       if(data.status){by('status').textContent=data.status;return;}
