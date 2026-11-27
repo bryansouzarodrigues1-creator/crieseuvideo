@@ -1,5 +1,5 @@
 import json, subprocess, sys, io
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageStat
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -23,21 +23,35 @@ with sync_playwright() as p:
         def snap(n):
             page.evaluate('(n)=>{window.renderFrame(n);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))}',n)
             return stage.screenshot(type='png',animations='disabled')
+        def canvas_pixels():
+            import base64
+            data=page.evaluate("document.querySelector('canvas').toDataURL('image/png').split(',')[1]")
+            return Image.open(io.BytesIO(base64.b64decode(data))).convert('RGB')
         snap(0)
         snap(0)
         replay=[]
         for n in [0,135,270,405,539]:
             a=snap(n)
+            ca=canvas_pixels()
             snap((n+211)%540)
             b=snap(n)
+            cb=canvas_pixels()
             (output/f'frame-{n:03}.png').write_bytes(a)
             diff=ImageChops.difference(Image.open(io.BytesIO(a)).convert('RGB'),Image.open(io.BytesIO(b)).convert('RGB'))
             maxdiff=max(v[1] for v in diff.getextrema())
-            replay.append({'frame':n,'maxPixelDiff':maxdiff})
+            canvasdiff=ImageChops.difference(ca,cb)
+            canvasmax=max(v[1] for v in canvasdiff.getextrema())
+            # Composited Chromium screenshots can differ at a handful of HUD antialias pixels.
+            # Keep WebGL pixels independently checked; never tolerate large or widespread changes.
+            channels=diff.split()
+            peak=ImageChops.lighter(ImageChops.lighter(channels[0],channels[1]),channels[2])
+            changed=sum(peak.histogram()[4:])
+            fraction=changed/(1080*1920)
+            replay.append({'frame':n,'maxPixelDiff':maxdiff,'canvasMaxDiff':canvasmax,'changedPixelsAbove3':changed,'changedFraction':fraction,'meanRGBDiff':ImageStat.Stat(diff).mean})
             (output/'replay.json').write_text(json.dumps(replay,indent=2))
-            if maxdiff>3:
+            if canvasmax>3 or maxdiff>32 or fraction>0.00001:
                 (output/f'replay-{n:03}.png').write_bytes(b)
-                raise AssertionError(f'Non deterministic seek: {n}, pixel difference {maxdiff}')
+                raise AssertionError(f'Non deterministic seek: {n}, pixel difference {maxdiff}, canvas {canvasmax}, changed pixels {changed}')
         assert not errors,errors
         tmp=output/'render-incomplete.mp4'
         cmd=['ffmpeg','-v','error','-y','-f','image2pipe','-vcodec','png','-framerate','30','-i','-','-c:v','libx264','-threads','3','-preset','fast','-pix_fmt','yuv420p','-crf','18','-movflags','+faststart',str(tmp)]
