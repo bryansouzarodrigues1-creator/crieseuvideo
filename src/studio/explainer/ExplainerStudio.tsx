@@ -663,7 +663,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
             ))}
           </div>
-          <LocalVoiceSettings text={script} disabled={busy||recording!==null}/>
+          <LocalVoiceSettings text={script} disabled={busy||recording!==null} onAudio={engine==='3d'&&engine3dMode==='advanced'?undefined:useOwnAudio}/>
           {engine==='3d'&&engine3dMode==='advanced'&&
             <p className="explainer-sub">Depois de gerar a cena, importe seu áudio no player 3D para incluí-lo no MP4.</p>}
           <Button className="explainer-generate" onClick={() => generate()}
