@@ -49,7 +49,7 @@ with sync_playwright() as p:
         (d/f'frame-{n:03}.png').write_bytes(a)
         diff=ImageChops.difference(Image.open(io.BytesIO(a)).convert('RGB'),Image.open(io.BytesIO(b)).convert('RGB'))
         assert max(x[1] for x in diff.getextrema())<=3,'Full frame replay mismatch'
-    out=d/'Bomba_Centrifuga_Gemini.mp4'
+    out=d/'Geladeira_Engineering3D_Gemini.mp4'
     proc=subprocess.Popen(['ffmpeg','-v','error','-y','-f','image2pipe','-vcodec','png','-framerate','30','-i','-','-c:v','libx264','-preset','fast','-threads','3','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart',str(out)],stdin=subprocess.PIPE)
     try:
         for n in range(count):
