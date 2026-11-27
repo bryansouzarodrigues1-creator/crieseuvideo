@@ -19,6 +19,7 @@ try{
     const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
     const {motionAudit}=await import('/src/studio/explainer/motionAudit.ts');
     const {inspectEditorialFrames}=await import('/src/studio/explainer/editorialReview.ts');
+    const {previewEditorialRepair}=await import('/src/studio/explainer/editorialRepairPreview.ts');
     const {encodeFixedFrame3DClip}=await import('/src/studio/utils/deterministic3dExport.ts');
     const scenery=(top,bottom,ground,detail)=>({top,bottom,elements:[
       {type:'rect',x:500,y:870,w:1000,h:260,color:ground},...detail
@@ -84,7 +85,12 @@ try{
     }
     const review=inspectEditorialFrames({...plan,engine:'2d'});
     const blank=inspectEditorialFrames({title:'Empty',aspect:'9:16',engine:'2d',scenes:[{...plan.scenes[0],drawing:[],groups:[],camera:'static'}]});
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures};
+    const original={...plan,engine:'2d'};
+    const before=JSON.stringify(original);
+    const fixed=previewEditorialRepair(original,0,[{target:'shape_0',op:'color',color:'#FF2244'}]);
+    const noop=previewEditorialRepair(original,0,[{target:'shape_0',op:'move',dx:0,dy:0}]);
+    const repair={frames:fixed.frames.map(f=>({fraction:f.fraction,difference:f.difference,before:f.before.split(',')[1],after:f.after.split(',')[1]})),blocked:fixed.blocked,noVisibleChange:fixed.noVisibleChange,noop:noop.noVisibleChange,unchanged:before===JSON.stringify(original)};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -103,6 +109,16 @@ try{
   await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'silent test track, not Alex narration',quality:'requires human visual review',localReview:result.review,blankReview:result.blank,seekStable:result.captures.map(c=>({engine:c.engine,stable:c.seekStable}))},null,2));
   for(const clip of result.captures)assert.equal(clip.seekStable,true,'Non-deterministic frame: '+clip.engine);
   assert.equal(result.review.frames,12);
+  assert.equal(result.repair.frames.length,3);
+  assert.equal(result.repair.blocked,false);
+  assert.equal(result.repair.noVisibleChange,false);
+  assert.equal(result.repair.noop,true);
+  assert.equal(result.repair.unchanged,true);
+  for(const f of result.repair.frames){
+    await writeFile(out+'/repair-'+f.fraction+'-before.jpg',Buffer.from(f.before,'base64'));
+    await writeFile(out+'/repair-'+f.fraction+'-after.jpg',Buffer.from(f.after,'base64'));
+  }
+  await writeFile(out+'/repair-report.json',JSON.stringify({...result.repair,frames:result.repair.frames.map(({fraction,difference})=>({fraction,difference}))},null,2));
   assert.deepEqual(result.review.issues.filter(i=>i.code==='repeated_background').map(i=>i.scene),[4]);
   assert.ok(result.blank.issues.some(i=>i.code==='empty_art'),'Blank art must be detected');
   assert.ok(result.review.metrics[1].motion>.004,'Moving linked truck must register as action');
