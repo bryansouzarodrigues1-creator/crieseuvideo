@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {ask3DWorldAi,Ai3DProviderError} from './ai';
+import {ask3DWorldAi,Ai3DProviderError,askGeminiForEditorial} from './ai';
 import {gemini3DResponseSchema,parseAi3DScene} from './ai3dSchema';
 
 const LOVABLE=process.env.LOVABLE_API_KEY;
@@ -194,5 +194,20 @@ describe('safe diagnostic of real 3D AI provider failures (no real credits)',()=
     const result=await ask3DWorldAi('test scene','auto');
     expect(result?.provider).toBe('gemini');
     expect(mocked).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('editorial Gemini direct',()=>{
+  it('uses High with one direct request and does not call Lovable when Gemini fails',async()=>{
+    process.env.GEMINI_API_KEY='mock-gemini';
+    process.env.LOVABLE_API_KEY='mock-lovable';
+    const fetched=vi.fn(async(_url:string|URL|Request,_init:RequestInit)=>new Response('',{status:503}));
+    vi.stubGlobal('fetch',fetched);
+    const output=await askGeminiForEditorial('direção 2D');
+    expect(output.text).toBeNull();
+    expect(output.problem).toBe('service_unavailable');
+    expect(fetched).toHaveBeenCalledTimes(1);
+    expect(String(fetched.mock.calls[0][0])).toContain('generativelanguage.googleapis.com');
+    expect(JSON.parse(String(fetched.mock.calls[0][1].body)).generationConfig.thinkingConfig.thinkingLevel).toBe('high');
   });
 });
