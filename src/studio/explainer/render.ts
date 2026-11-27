@@ -1,3 +1,4 @@
+import {drawEditorialBackdrop} from './editorialBackdrop';
 import {editorialCameraPose,EDITORIAL_CAMERA_MAX_SCALE,EDITORIAL_CAMERA_MAX_SHIFT} from './editorialCamera';
 import {sampleShapeMotion} from './shapeMotion';
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
@@ -25,7 +26,7 @@ function rr(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: num
   c.beginPath(); c.roundRect(x, y, w, h, r);
 }
 function shape(c: CanvasRenderingContext2D, fill: string, lw: number, stroke = INK) {
-  c.fillStyle = fill; c.fill(); c.lineWidth = lw; c.strokeStyle = stroke; c.stroke();
+  c.fillStyle = fill; c.fill(); if(lw>0){c.lineWidth = lw; c.strokeStyle = stroke; c.stroke();}
 }
 function withPop(c: CanvasRenderingContext2D, x: number, y: number, s: number, fn: () => void) {
   if (s <= 0.001) return; c.save(); c.translate(x, y); c.scale(s, s); fn(); c.restore();
@@ -363,7 +364,7 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
   c.restore();
 }
 
-function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number) {
+function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number, authored=false) {
   const firstPerson = shapes.find((x) => x.type === 'person' || x.type === 'bust');
   shapes.forEach((sh, i) => {
     const d = sh.delay, ph = t * 1.3 + i;
@@ -393,8 +394,8 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     c.save(); c.globalAlpha *= alpha;
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style
-    if (sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
-    const fill = sh.color || '#FFFFFF', lw = 6 * u, st = sh.stroke || INK;
+    if (!authored && sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
+    const fill = sh.color || '#FFFFFF', lw = (sh.strokeWidth??6) * u, st = sh.stroke || INK;
     const w = (sh.w || 120) * u, h = (sh.h || 120) * u, r = (sh.r || 60) * u;
     switch (sh.type) {
       case 'circle': c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); shape(c, fill, lw, st); break;
@@ -485,8 +486,9 @@ const HERO_EXT: Record<string, Rect> = {
 /** Labels that already live inside their prop; every other label gets the badge slot above the hero zone. */
 const LABEL_IN_PROP = new Set(['laptop', 'phone_chat', 'profile', 'chips']);
 
+function sceneShapes(scene:ExplainerScene){return scene.composition==='authored'?(scene.drawing??[]):laidOut(scene.drawing??[]);}
 function heroExtent(scene: ExplainerScene, u: number): Rect {
-  if (scene.visual === 'custom') return scaleRect(foregroundExtent(laidOut(scene.drawing || [])) ?? { x0: -420, y0: -290, x1: 420, y1: 430 }, u);
+  if (scene.visual === 'custom') return scaleRect(foregroundExtent(sceneShapes(scene),scene.composition==='authored') ?? { x0: -420, y0: -290, x1: 420, y1: 430 }, u);
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
 
@@ -508,17 +510,17 @@ function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: num
     }
     case 'city_night': break;
     case 'custom': {
-      const shapes=laidOut(scene.drawing || []);
+      const shapes=sceneShapes(scene);
       const shot=scene.camera??(depth?'slide_right':'static');
       if(!depth){
         const pose=editorialCameraPose(shot,'middle',local,duration,false);
         c.save();c.translate(pose.x*u,pose.y*u);c.scale(pose.scale,pose.scale);
-        customDrawing(c,u,local,t,shapes,talk,beat);c.restore();break;
+        customDrawing(c,u,local,t,shapes,talk,beat,scene.composition==='authored');c.restore();break;
       }
       for(const layer of ['back','middle','front'] as const){
         const pose=editorialCameraPose(shot,layer,local,duration,true);
         c.save();c.translate(pose.x*u,pose.y*u);c.scale(pose.scale,pose.scale);
-        customDrawing(c,u,local,t,shapes.filter(s=>(s.depth??'middle')===layer),talk,beat);
+        customDrawing(c,u,local,t,shapes.filter(s=>(s.depth??'middle')===layer),talk,beat,scene.composition==='authored');
         c.restore();
       }
       break;
@@ -550,7 +552,8 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
 }
 
 function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, depth=false) {
-  if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  if(scene.backdrop)drawEditorialBackdrop(c,scene.backdrop,w,h);
+  else if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, k = portrait ? 1.15 : 0.9;
