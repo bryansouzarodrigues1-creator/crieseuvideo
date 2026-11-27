@@ -44,6 +44,10 @@ jobs:
         run: bun scripts/compact-ai-world-browser-qa.mjs
       - name: Render 12-second causal crane scene (portrait and landscape)
         run: bun scripts/causal-motion-browser-qa.mjs
+      - name: Export comparable editorial 2D and 2.5D videos
+        run: bun scripts/editorial-render-browser-qa.mjs
+      - name: Verify local voice API contract without model or paid provider
+        run: python3 -m unittest discover -s scripts -p 'test_kokoro_local_api.py'
       - name: Archive visual QA frames
         if: always()
         uses: actions/upload-artifact@v4
