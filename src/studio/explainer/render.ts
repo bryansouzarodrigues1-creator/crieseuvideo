@@ -1,3 +1,4 @@
+import {sampleShapeMotion} from './shapeMotion';
 // Code-drawn 2D explainer renderer (flat cartoon, sunburst backgrounds, word-by-word captions).
 import { ExplainerPlan, ExplainerScene, sceneAt, wordAt, words, Mood, MOODS } from './plan';
 import type { Shape } from './drawing';
@@ -366,6 +367,7 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
   shapes.forEach((sh, i) => {
     const d = sh.delay, ph = t * 1.3 + i;
     let sc = sh.anim === 'none' ? (local >= d ? 1 : 0) : pop(local, d, 0.45);
+    if (sh.motion?.length) sc = 1;
     if (sc <= 0.001) return;
     let dx = 0, dy = 0, rot = (sh.rot || 0) * Math.PI / 180, alpha = 1;
     switch (sh.anim) {
@@ -385,6 +387,7 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
       case 'zoom': sc *= 1 + Math.min(0.5, Math.max(0, local - d) * 0.12); break;
       case 'orbit': dx = Math.cos(t * 1.1 + i) * 50; dy = Math.sin(t * 1.1 + i) * 22; break;
     }
+    if(sh.motion?.length){const m=sampleShapeMotion(sh.motion,local);dx=m.dx;dy=m.dy;rot=(sh.rot||0)*Math.PI/180+m.rotation*Math.PI/180;sc=m.scale;alpha=m.opacity;}
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
     c.save(); c.globalAlpha *= alpha;
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
@@ -451,7 +454,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
   // camera impact: short decaying shake as each scene lands
   const kick = Math.max(0, 1 - local / 0.35);
   c.save(); c.translate(Math.sin(local * 70) * 6 * u * kick, Math.cos(local * 55) * 5 * u * kick);
-  try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t); } finally { c.restore(); }
+  try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d'); } finally { c.restore(); }
 }
 
 /** Drawn extent of each hero visual (px at u = 1, relative to its origin), measured from the draw code. */
@@ -476,7 +479,7 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
 
-function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, t: number, u: number, talk: number, beat: number) {
+function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, t: number, u: number, talk: number, beat: number, depth=false) {
   switch (scene.visual) {
     case 'phone_chat': phone(c, u, local, scene.chat || scene.text, scene.label || 'Conversa'); break;
     case 'profile': profile(c, u, local, scene.label); break;
@@ -493,7 +496,17 @@ function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: num
       break;
     }
     case 'city_night': break;
-    case 'custom': customDrawing(c, u, local, t, laidOut(scene.drawing || []), talk, beat); break;
+    case 'custom': {
+      const shapes=laidOut(scene.drawing || []);
+      if(!depth){customDrawing(c,u,local,t,shapes,talk,beat);break;}
+      const pan=Math.sin(Math.min(local,8)*.36)*18*u;
+      for(const [layer,factor] of [['back',.35],['middle',1],['front',1.7]] as const){
+        c.save();c.translate(pan*factor,0);
+        customDrawing(c,u,local,t,shapes.filter(s=>(s.depth??'middle')===layer),talk,beat);
+        c.restore();
+      }
+      break;
+    }
     default: drawCharacter(c, 0, -60 * u, u * 1.3, scene.mood, t, talk, beat);
   }
 }
@@ -520,7 +533,7 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
   c.restore();
 }
 
-function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number) {
+function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, depth=false) {
   if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
@@ -547,7 +560,7 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
   if (scene.visual === 'money') { c.beginPath(); c.rect(0, 0, w, z.caption.y0 - 4 * u); c.clip(); }
   withPop(c, px, spot.y + (isProp ? float : 0), Math.min(1, enter) * sBase * push * (1 - exit * 0.15), () => {
     if (isProp) c.rotate(rot);
-    drawHero(c, scene, local, t, u, talk, wd?.since ?? 1);
+    drawHero(c, scene, local, t, u, talk, wd?.since ?? 1,depth);
   });
   c.restore();
   // label badge: fixed slot above the hero zone
