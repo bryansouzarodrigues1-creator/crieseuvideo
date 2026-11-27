@@ -29,3 +29,27 @@ describe('bounded scene repairs',()=>{
   expect(after.camera).toBe('push_in');
  });
 });
+
+describe('framing and motion repairs',()=>{
+ it('sets explicit stage placement without changing scene duration or original object',()=>{
+  const scene=base();
+  const framing={x:.5,y:.55,scale:1.2};
+  const after=applySceneEdits(scene,[{target:'framing',op:'framing',framing}]);
+  expect(after.framing).toEqual(framing);
+  expect(scene.framing).toBeUndefined();
+  expect(normalizePlan({scenes:[after]},after.text,'9:16').scenes[0].framing).toEqual(framing);
+  expect(()=>applySceneEdits(scene,[{target:'framing',op:'framing',framing:{...framing,scale:4}}])).toThrow();
+ });
+ it('replaces group trajectory and scales all parts without editing their geometry',()=>{
+  const scene=base(),before=JSON.stringify(scene);
+  const after=applySceneEdits(scene,[{target:'group_motor',op:'motion',motion:[{time:0},{time:2,dx:100}]},{target:'group_motor',op:'resize',factor:1.5}]);
+  expect(after.groups?.[0].motion.map(k=>[k.time,k.dx,k.scale])).toEqual([[0,0,1.5],[2,100,1.5]]);
+  expect(after.drawing).toEqual(scene.drawing);
+  expect(JSON.stringify(scene)).toBe(before);
+ });
+ it('rejects invalid, unordered or excessive trajectory keys',()=>{
+  for(const motion of [[{time:1}],[{time:0},{time:0}],[{time:0,dx:441}],[{time:0,scale:NaN}],[{time:0,unknown:1}]]){
+   expect(()=>applySceneEdits(base(),[{target:'shape_0',op:'motion',motion}])).toThrow();
+  }
+ });
+});
