@@ -47,7 +47,7 @@ try{
     ];
     const scene=(text,drawing,backdrop,groups=[],camera='static')=>({text,drawing,backdrop,groups,camera,composition:'authored',visual:'custom',mood:'neutral',palette:'teal'});
     const scenes=[
-      scene('Na oficina as peças formam um veículo de carga.',truck,workshop),
+      scene('Na oficina as peças formam um veículo de carga.',truck,workshop,[],'slide_right'),
       scene('Na estrada o veículo transporta a carga até a fábrica.',truck,road,[{id:'truck',x:0,y:0,motion:[{time:0,dx:-160},{time:4,dx:160,ease:'linear'}]}],'slide_right'),
       scene('Na fábrica a carga é retirada e segue para a produção.',[
         part('rect',0,200,{w:680,h:48,color:'#808F9D',depth:'back'}),
