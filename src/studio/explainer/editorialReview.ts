@@ -1,6 +1,7 @@
+import {frameZones,type Rect} from './safeZone';
 import {drawExplainerFrame} from './render';
 import {sceneDuration,type ExplainerPlan} from './plan';
-export type ReviewIssue={scene:number;code:'empty_art'|'small_art'|'little_motion'|'repeated_background'|'repeated_art';message:string};
+export type ReviewIssue={scene:number;code:'empty_art'|'small_art'|'little_motion'|'repeated_background'|'repeated_art'|'unsafe_art';message:string};
 export type FrameMetric={coverage:number;motion:number};
 export type EditorialReview={scenes:number;frames:number;metrics:FrameMetric[];issues:ReviewIssue[]};
 const THRESHOLD=30;
@@ -23,6 +24,13 @@ export function frameDifference(a:Uint8ClampedArray,b:Uint8ClampedArray){
  if(a.length!==b.length||a.length%4!==0)throw Error('Dimensões incompatíveis.');
  let n=0;for(let i=0;i<a.length;i+=4)if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])+Math.abs(a[i+3]-b[i+3])>=THRESHOLD)n++;
  return n/(a.length/4||1);
+}
+export function outsideZoneCoverage(art:Uint8ClampedArray,w:number,h:number,zone:Rect){
+ if(art.length!==w*h*4)throw Error('Dimensões incompatíveis.');
+ let count=0;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++)
+  if((x<zone.x0||x>=zone.x1||y<zone.y0||y>=zone.y1)&&art[(y*w+x)*4+3])count++;
+ return count/(w*h);
 }
 export function inspectEditorialFrames(plan:ExplainerPlan):EditorialReview{
  if(plan.engine==='3d')throw Error('A revisão editorial é exclusiva do 2D/2.5D.');
@@ -51,6 +59,9 @@ export function inspectEditorialFrames(plan:ExplainerPlan):EditorialReview{
    if(maxCoverage<.002)add('empty_art','Quase nenhum elemento principal visível nas três amostras.');
    else if(maxCoverage<.035)add('small_art','Arte principal ocupa pouco espaço; confira o enquadramento.');
    if(motion<.004)add('little_motion','Pouca mudança visual na ação entre as amostras.');
+   if(scene.framing){const zone=frameZones(canvas.width,canvas.height,!!scene.label).hero;
+    if(arts.some(a=>outsideZoneCoverage(a,canvas.width,canvas.height,zone)>.002))add('unsafe_art','Arte fora da área segura; pode invadir legendas ou bordas.');
+   }
   }
   if(previousBack&&middleBack&&frameDifference(previousBack,middleBack)<.012)add('repeated_background','Fundo quase igual ao da cena anterior; confirme se há continuidade intencional.');
   if(previousArt&&maxCoverage>.005&&frameDifference(previousArt,arts[1])<.008)add('repeated_art','Composição principal quase igual à cena anterior.');
