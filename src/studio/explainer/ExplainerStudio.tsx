@@ -10,7 +10,7 @@ import { ThumbsUp, ThumbsDown, Box, Clapperboard, Sparkles, Play, Pause, Downloa
 import { listProjects, saveProject, deleteProject, listGallery, addToGallery, removeFromGallery, addToVault, vaultFor, listVault, type SavedProject, type GalleryItem } from './library';
 import { Button } from '@/components/ui/button';
 import { ExplainerPlan, VISUALS, MOODS, buildFallbackPlan, fitToTrack, totalDuration, sceneAt, sceneStart, SCENE_LEAD, type Visual, type Mood } from './plan';
-import { NARRATION_VOICES, getNarration, speechBounds } from './voice';
+import { LocalVoiceSettings } from '../components/LocalVoiceSettings';
 import { drawExplainerFrame, drawOverlay } from './render';
 import { detectCues } from './keywords';
 import type { Toon3D } from './toon3d';
@@ -46,9 +46,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [recording, setRecording] = useState<number | null>(null);
-  const [voice, setVoice] = useState<string>(NARRATION_VOICES[0].id);
-  const [voiceOn, setVoiceOn] = useState(true);
-  const [voicing, setVoicing] = useState<number | null>(null);
+  const voice = 'local';
+  const voiceOn = false;
   const [engine, setEngine] = useState<'2d' | '3d'>('3d');
   const [engine3dMode,setEngine3dMode] = useState<'advanced'|'classic'>('advanced');
   const [ai3dProvider,setAi3dProvider] = useState<'auto'|'gemini'|'lovable'>('gemini');
@@ -70,8 +69,6 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [rated, setRated] = useState<'yes' | 'no' | 'sent' | null>(null);
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'creative' | 'gallery'>('creative');
-  const [provider, setProvider] = useState<'gemini' | 'eleven'>('gemini');
-  const [elevenId, setElevenId] = useState('');
   const [projectId, setProjectId] = useState(() => `p${Date.now().toString(36)}`);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
@@ -80,7 +77,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const [trackName, setTrackName] = useState('');
   const trackRef = useRef<AudioBuffer | null>(null);
   const micRef = useRef<MediaRecorder | null>(null);
-  const voiceKey = provider === 'eleven' ? `eleven:${elevenId.trim()}` : voice;
+  const voiceKey = voice;
   const sceneScriptCheck=checkSceneScript(prepareAi3DHandoff(script,aspect,voiceOn,voice).script);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
@@ -177,26 +174,6 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
     return () => nodes.forEach((n) => { try { n.stop(); } catch {} });
   };
 
-  const narrate = async (target: ExplainerPlan) => {
-    if (provider === 'eleven' && !elevenId.trim()) { setNote('Informe o Voice ID do ElevenLabs.'); return null; }
-    const ac = ctx(); const out = { ...target, scenes: [...target.scenes] };
-    setVoicing(0);
-    try {
-      for (let i = 0; i < out.scenes.length; i++) {
-        const s = out.scenes[i];
-        const buf = await getNarration(ac, s.text, voiceKey);
-        buffers.current.set(`${voiceKey}|${s.text}`, buf);
-        const b = speechBounds(buf);
-        out.scenes[i] = { ...s, voice: { duration: buf.duration, start: b.start, end: b.end } };
-        setVoicing(Math.round(((i + 1) / out.scenes.length) * 100));
-      }
-      setPlan(out); seek(0);
-      return out;
-    } catch (e: any) {
-      setNote(`${e.message} A animação segue sem voz.`);
-      return null;
-    } finally { setVoicing(null); }
-  };
   const timeRef = useRef(0);
   const total = totalDuration(plan);
 
@@ -273,10 +250,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
   const useOwnAudio = async (file: File) => {
     unlockAudio(); setNote('Lendo seu áudio…');
     try {
-      trackRef.current = await ctx().decodeAudioData(await file.arrayBuffer()); setTrackName(file.name);
-      let text = script;
-      if (text.trim().length < 4) { setNote('Entendendo o que foi falado…'); text = await transcribe(file, file.name); setScript(text); }
-      await generate(text);
+      if(file.size>24_000_000)throw new Error('Áudio muito grande: use até 24 MB.');
+      const audio=await ctx().decodeAudioData(await file.arrayBuffer());
+      if(!Number.isFinite(audio.duration)||audio.duration<=0)throw new Error('Áudio inválido.');
+      setPlaying(false);trackRef.current=audio;setTrackName(file.name);
+      setPlan(p=>p.scenes.length?fitToTrack(p,audio.duration):p);
+      seek(0);
+      setNote('Áudio importado localmente. Se ainda não houver cenas, escreva o roteiro e crie a animação quando desejar. Nenhuma IA foi chamada para importar.');
     } catch (e: any) { trackRef.current = null; setTrackName(''); setNote(e.message || 'Áudio inválido.'); }
   };
   const removeTrack = () => { trackRef.current = null; setTrackName(''); setPlaying(false); setPlan((p) => ({ ...p, track: undefined, scenes: p.scenes.map(({ voice: _v, ...r }) => r) })); };
@@ -311,7 +291,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const { buildSmartphoneAssemblyDemo } = await import('./sceneProgram/demo/smartphoneAssembly');
       setAi3dClip(buildSmartphoneAssemblyDemo());
       setAi3dUsedProvider('demo');
-      setNote('Demonstração local de 12s: problema → solução, com textos explicativos sincronizados na prévia e no MP4. Sem custo; para voz, copie a narração e carregue o MP3 do ElevenLabs na prévia.');
+      setNote('Demonstração local de 12s: problema → solução, com textos explicativos sincronizados na prévia e no MP4. Sem custo; para voz, copie a narração e carregue um áudio próprio ou licenciado na prévia.');
     } catch (error) {
       setNote('Falha ao montar demonstração 3D: ' + (error instanceof Error ? error.message : String(error)));
     }
@@ -460,7 +440,6 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       fetch('/api/ai/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'log', script: text, plan: data.plan, engine, keywords: detectCues(text).map((c) => c.tag) }) })
         .then((r) => r.json()).then((d) => d.id && setGenId(d.id)).catch(() => {});
       setNote(data.source === 'ai' ? `A IA dirigiu ${data.plan.scenes.length} cenas.` : 'IA indisponível agora: montei as cenas pelas palavras do roteiro.');
-      if (voiceOn && !track) await narrate(data.plan);
       setPlaying(true);
     } catch (e: any) { setNote(e.message); } finally { setBusy(false); }
   };
@@ -676,23 +655,13 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
               <Button key={a} variant={aspect === a ? 'default' : 'secondary'} size="sm" onClick={() => { setAspect(a); setPlan((p) => ({ ...p, aspect: a })); }}>{a === '9:16' ? 'Vertical 9:16' : 'Horizontal 16:9'}</Button>
             ))}
           </div>
-          {engine==='3d'&&engine3dMode==='advanced'
-          ? <p className="explainer-sub" role="note">No 3D avançado, a voz não é criada automaticamente pela opção do estúdio clássico. Após gerar ou abrir a demonstração, use “Carregar narração do ElevenLabs” no player para incluir áudio na exportação.</p>
-          : <div className="explainer-row">
-            <Button size="sm" variant={voiceOn ? 'default' : 'secondary'} onClick={() => setVoiceOn((v) => !v)} aria-pressed={voiceOn}><Mic />{voiceOn ? 'Com narração' : 'Sem narração'}</Button>
-            <select value={voice} onChange={(e) => { setPlaying(false); setVoice(e.target.value); setPlan((p) => ({ ...p, scenes: p.scenes.map(({ voice: _v, ...rest }) => rest) })); }} aria-label="Voz" className="explainer-voice-select" disabled={!voiceOn}>
-              {NARRATION_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-            </select>
-            <select value={provider} onChange={(e) => { setPlaying(false); setProvider(e.target.value as 'gemini' | 'eleven'); }} aria-label="Motor de voz" className="explainer-voice-select" disabled={!voiceOn}>
-              <option value="gemini">Voz do estúdio</option><option value="eleven">ElevenLabs (voz clonada)</option>
-            </select>
-            {provider === 'eleven' && voiceOn && <input className="explainer-badge-input" placeholder="Voice ID do ElevenLabs" value={elevenId} onChange={(e) => setElevenId(e.target.value)} aria-label="Voice ID do ElevenLabs" />}
-            {voiceOn && plan.scenes.length > 0 && !voiced && !plan.track && <Button size="sm" variant="secondary" onClick={() => { setPlaying(false); void narrate(plan); }} disabled={voicing !== null}>{voicing !== null ? `Gravando voz ${voicing}%` : 'Gerar voz'}</Button>}
-          </div>}
+          <LocalVoiceSettings text={script} disabled={busy||recording!==null}/>
+          {engine==='3d'&&engine3dMode==='advanced'&&
+            <p className="explainer-sub">Depois de gerar a cena, importe seu áudio no player 3D para incluí-lo no MP4.</p>}
           <Button className="explainer-generate" onClick={() => generate()}
-            disabled={busy || voicing !== null ||
+            disabled={busy ||
               (engine==='3d'&&engine3dMode==='advanced'&&ai3dCooldownSeconds>0)}>
-            {busy || voicing !== null ? <Loader2 className="animate-spin" /> : <Sparkles />}{voicing !== null ? `Gravando narração ${voicing}%` : busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? ai3dCooldownSeconds>0?`Aguarde ${ai3dCooldownSeconds}s`:'Criar cena 3D pela IA' : 'Criar animação'}
+            {busy ? <Loader2 className="animate-spin" /> : <Sparkles />}{busy ? 'Dirigindo cenas…' : engine==='3d'&&engine3dMode==='advanced' ? ai3dCooldownSeconds>0?`Aguarde ${ai3dCooldownSeconds}s`:'Criar cena 3D pela IA' : 'Criar animação'}
           </Button>
           {note && <p className="explainer-note" role="status">{note}</p>}
           {engine==='3d'&&engine3dMode==='advanced'&&
