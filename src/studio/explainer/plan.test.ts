@@ -62,3 +62,12 @@ describe('script fidelity', () => {
     expect(out.every((s) => s.text.length > 0)).toBe(true);
   });
 });
+
+test('continuous imported audio allocates even very short scenes without extending the track',()=>{
+  const p=fitToTrack(bfp('Oi. Uma frase consideravelmente maior com muitas palavras para narrar. Fim.'),2);
+  expect(td(p)).toBeCloseTo(2,10);
+  expect(p.scenes[0].voice?.continuous).toBe(true);
+  expect(wordAt(p.scenes[0],0)?.speaking).toBe(true);
+  expect(sceneAt(p,2)?.index).toBe(2);
+  expect(()=>fitToTrack(p,0)).toThrow(/inválida/);
+});
