@@ -1,3 +1,4 @@
+import {normalizeEditorialShot,type EditorialShot} from './editorialCamera';
 import { normalizeDrawing, type Shape } from './drawing';
 import { SETTINGS, type Setting } from './settings';
 // Explainer plan: the "score" the AI writes. Rendering is pure code, so no video credits are spent.
@@ -14,6 +15,7 @@ export interface ExplainerScene {
   mood: Mood;
   palette: Palette;
   label?: string;
+  camera?: EditorialShot;
   chat?: string;
   chips?: string[];
   highlight?: string[];
@@ -140,6 +142,7 @@ export function normalizePlan(raw: any, script: string, aspect: '9:16' | '16:9')
       mood: pick(s.mood, MOODS, pickMood(text)),
       palette: pick(s.palette, PALETTES, PALETTES[i % 4]),
       label: str(s.label, 28),
+      camera: normalizeEditorialShot(s.camera),
       chat: str(s.chat, 120),
       chips: Array.isArray(s.chips) ? s.chips.map((c: unknown) => str(c, 22)).filter(Boolean).slice(0, 4) : undefined,
       highlight: Array.isArray(s.highlight) ? s.highlight.map((c: unknown) => str(c, 30)).filter(Boolean).slice(0, 5) : [],
