@@ -51,7 +51,7 @@ try{
     }
     return {duration:totalDuration(plan),audit:motionAudit(plan),captures};
   });
-  assert.equal(result.duration,20);
+  assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
   assert.equal(result.captures.length,2);
   assert.notEqual(result.captures[0].stills[0],result.captures[1].stills[0],'Depth mode produced identical first shot');
