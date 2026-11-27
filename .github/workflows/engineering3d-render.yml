@@ -22,7 +22,7 @@ jobs:
         run: |
           npm pack three@0.128.0 --pack-destination "$RUNNER_TEMP"
           tar -xzf "$RUNNER_TEMP/three-0.128.0.tgz" -C "$RUNNER_TEMP" package/build/three.min.js
-          python -m pip install playwright==1.51.0
+          python -m pip install playwright==1.51.0 Pillow==11.2.1
           python -m playwright install --with-deps chromium
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
