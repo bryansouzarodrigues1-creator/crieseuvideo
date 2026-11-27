@@ -1,4 +1,4 @@
-name: Engineering 3D - real Gemini pump proof
+name: Engineering 3D - real Gemini refrigerator proof
 on:
   push:
     branches: [engineering3d/casa-forno-render]
@@ -32,12 +32,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: engineering-pump-proof
+          name: engineering-refrigerator-proof
           path: |
             tmp/engineering-live/provider.json
             tmp/engineering-live/browser.json
             tmp/engineering-live/frame-*.png
-            tmp/engineering-live/Bomba_Centrifuga_Gemini.mp4
+            tmp/engineering-live/Geladeira_Engineering3D_Gemini.mp4
             tmp/engineering-live/video-validation.json
           retention-days: 7
           if-no-files-found: warn
