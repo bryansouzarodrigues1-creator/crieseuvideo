@@ -1,10 +1,10 @@
-import {normalizeGroupSupport} from './editorialGroups';
+import {normalizeGroupSupport,normalizeGroupAttachment,groupIssues} from './editorialGroups';
 import {normalizeEditorialFraming} from './editorialFraming';
 import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {ExplainerScene} from './plan';
 import {normalizeEditorialShot} from './editorialCamera';
 import {normalizeBackdrop} from './editorialBackdrop';
-export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown};
+export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown}|{target:string;op:'attachment';attachment:unknown};
 export function sceneInventory(scene:ExplainerScene){
  return {text:scene.text,camera:scene.camera,framing:scene.framing,backdrop:scene.backdrop,shapes:(scene.drawing??[]).map((s,i)=>({...s,id:'shape_'+i})),groups:(scene.groups??[]).map(g=>({...g,target:'group_'+g.id}))};
 }
@@ -42,7 +42,11 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
   const e=value as Record<string,unknown>;
   const target=e.target;
   if(typeof target!=='string')throw Error('Alvo inválido.');
-  if(e.op==='support'&&target.startsWith('group_')){
+  if(e.op==='attachment'&&target.startsWith('group_')){
+   const g=groups.find(g=>'group_'+g.id===target);if(!g)throw Error('Grupo inexistente.');
+   if(e.attachment===null)delete g.attachment;
+   else{const attachment=normalizeGroupAttachment(e.attachment);if(!attachment)throw Error('Vínculo inválido.');g.attachment=attachment;}
+  }else if(e.op==='support'&&target.startsWith('group_')){
    const g=groups.find(g=>'group_'+g.id===target);if(!g)throw Error('Grupo inexistente.');
    if(e.support===null){delete g.support;}
    else{const support=normalizeGroupSupport(e.support);if(!support)throw Error('Apoio inválido.');g.support=support;}
@@ -75,6 +79,17 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
     const g=groups.find(g=>'group_'+g.id===target);if(!g||!within(g.x+dx)||!within(g.y+dy))throw Error('Grupo inválido.');
     drawing.forEach((s,i)=>{if(s.group===g.id)move(i,dx,dy);});
     if(g.support){const {anchorX,anchorY,surfaceY}=g.support;if(!within(anchorX+dx)||!within(anchorY+dy))throw Error('Âncora fora do limite.');g.support={anchorX:anchorX+dx,anchorY:anchorY+dy,surfaceY};}
+    if(g.attachment){
+     const a=g.attachment;
+     if(!within(a.anchorX+dx)||!within(a.anchorY+dy))throw Error('Âncora fora do limite.');
+     g.attachment={...a,anchorX:a.anchorX+dx,anchorY:a.anchorY+dy};
+    }
+    for(const follower of groups){
+     const a=follower.attachment;
+     if(a?.carrier!==g.id)continue;
+     if(!within(a.carrierX+dx)||!within(a.carrierY+dy))throw Error('Âncora fora do limite.');
+     follower.attachment={...a,carrierX:a.carrierX+dx,carrierY:a.carrierY+dy};
+    }
     g.x+=dx;g.y+=dy;
    }else if(/^shape_(0|[1-9][0-9]*)$/.test(target)){const i=Number(target.slice(6));move(i,dx,dy);}
    else throw Error('Alvo desconhecido.');
@@ -82,5 +97,6 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
    const i=Number(target.slice(6));if(!drawing[i])throw Error('Peça inexistente.');drawing[i]={...drawing[i],color:e.color};
   }else throw Error('Operação não permitida.');
  }
+ const issues=groupIssues(drawing,groups);if(issues.length)throw Error(issues.join('; '));
  return out;
 }
