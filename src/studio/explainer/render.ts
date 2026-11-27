@@ -500,6 +500,14 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
       const b=foregroundExtent(shapes.filter(s=>s.group===g.id),true);
       if(!b)continue;
       const radius=Math.hypot(Math.max(Math.abs(b.x0-g.x),Math.abs(b.x1-g.x)),Math.max(Math.abs(b.y0-g.y),Math.abs(b.y1-g.y)));
+      if(g.support){
+        // A supported pivot stays within anchor radius of the surface even
+        // between rotation keys. Include its entire conservative swept extent.
+        const scale=Math.max(1,...g.motion.map(p=>p.scale));
+        const anchorRadius=Math.hypot(g.support.anchorX-g.x,g.support.anchorY-g.y);
+        const reach=(radius+anchorRadius)*scale;
+        ext={...ext,y0:Math.min(ext.y0,g.support.surfaceY-reach),y1:Math.max(ext.y1,g.support.surfaceY+reach)};
+      }
       for(const p of g.motion){
         const rr=radius*Math.max(1,p.scale),x=g.x+p.dx,y=g.y+p.dy;
         ext={x0:Math.min(ext.x0,x-rr),x1:Math.max(ext.x1,x+rr),y0:Math.min(ext.y0,y-rr),y1:Math.max(ext.y1,y+rr)};
