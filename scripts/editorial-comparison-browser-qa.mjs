@@ -99,7 +99,23 @@ try{
     const {groupPoint}=await import('/src/studio/explainer/editorialGroups.ts');
     const g=grounded.candidate.scenes[0].groups.find(g=>g.id==='truck');
     const groundRepair={visible:!grounded.noVisibleChange,blocked:grounded.blocked,anchorY:groupPoint(g,-150,123,1.3).y,frames:grounded.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair};
+    const carryScene=scene('A garra transporta a caixa e depois a solta.',[
+      part('rect',0,-50,{w:30,h:100,color:'#8093a8',group:'grip'}),
+      part('rect',0,0,{w:100,h:18,color:'#42586a',group:'grip'}),
+      part('rect',0,60,{w:100,h:100,color:'#CB8844',group:'cargo'}),
+      part('rect',0,60,{w:16,h:100,color:'#F5D18A',group:'cargo'})
+    ],factory,[
+      {id:'grip',x:0,y:0,motion:[{time:0},{time:1},{time:3,dx:140,dy:-80,ease:'linear'},{time:5,dx:180,dy:-160,ease:'linear'}]},
+      {id:'cargo',x:0,y:60,motion:[{time:0}]}
+    ]);
+    const carryPlan=fitToTrack(normalizePlan({scenes:[{...carryScene,framing:{x:0,y:0,zoom:1}}]},carryScene.text,'9:16'),5);
+    const attached=previewEditorialRepair({...carryPlan,engine:'2d'},0,[{target:'group_cargo',op:'attachment',attachment:{target:'grip',start:1,end:3,anchorX:0,anchorY:10,targetX:0,targetY:10}}]);
+    const cg=attached.candidate.scenes[0].groups;
+    const cargo=cg.find(g=>g.id==='cargo'),grip=cg.find(g=>g.id==='grip');
+    const anchorGap=[1,1.5,2,3].map(t=>{const a=groupPoint(cargo,0,10,t,cg),b=groupPoint(grip,0,10,t,cg);return Math.hypot(a.x-b.x,a.y-b.y);});
+    const released=groupPoint(cargo,0,10,3,cg),later=groupPoint(cargo,0,10,4.5,cg);
+    const attachmentProof={visible:!attached.noVisibleChange,blocked:attached.blocked,anchorGap,releaseDrift:Math.hypot(released.x-later.x,released.y-later.y),frames:attached.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -123,6 +139,14 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.attachmentProof.visible,true);
+  assert.equal(result.attachmentProof.blocked,false);
+  assert.ok(result.attachmentProof.anchorGap.every(gap=>gap<1e-8));
+  assert.ok(result.attachmentProof.releaseDrift<1e-8);
+  for(const frame of result.attachmentProof.frames){
+    await writeFile(out+'/attachment-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/attachment-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
   assert.equal(result.groundRepair.visible,true);
   assert.equal(result.groundRepair.blocked,false);
   assert.ok(Math.abs(result.groundRepair.anchorY-200)<1e-8);
