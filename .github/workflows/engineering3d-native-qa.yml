@@ -2,7 +2,7 @@ name: Engineering 3D native integration QA
 on:
   push:
     branches: [engineering3d/casa-forno-render]
-    paths: ['src/studio/code3d/**','.github/workflows/engineering3d-native-qa.yml']
+    paths: ['src/studio/code3d/**','vitest.config.ts','.github/workflows/engineering3d-native-qa.yml']
 permissions:
   contents: read
 jobs:
