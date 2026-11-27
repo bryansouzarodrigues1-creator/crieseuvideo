@@ -1,3 +1,4 @@
+import { GROUP_GUIDE, normalizeGroups, groupIssues } from "@/studio/explainer/editorialGroups";
 import { BACKDROP_GUIDE, normalizeBackdrop } from "@/studio/explainer/editorialBackdrop";
 import { createFileRoute } from "@tanstack/react-router";
 import { askGeminiForEditorial, parseJson } from "@/studio/server/ai";
@@ -47,7 +48,7 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
             "Para cenas custom, escolha camera: static, slide_left, slide_right, push_in ou pull_out. Alterne os planos com propósito. No 2.5D coloque pelo menos dois planos úteis, com ação principal no middle; não cubra a cena com retângulos decorativos. Preserve o espaço para legendas.",
             "Use visual custom com trajetória motion quando houver ação; o motor não interpreta código. Varie planos e mantenha continuidade de cores e objetos.",
             creative ? "MODO AUTORAL: toda cena usa visual custom, composition authored e backdrop próprio. Não use a galeria. Crie ilustrações específicas do roteiro com rect, ellipse, circle, poly e line, permitindo sobreposição intencional. Use 8 a 28 formas quando necessário, com pelo menos duas primitivas de desenho por cena. Os objetos prontos são apoio, não o assunto principal. Use strokeWidth 0 para áreas chapadas e sem contorno. Não repita a mesma composição. Varie enquadramento, cor e lugar quando a narrativa pedir; não troque o ambiente sem motivo." : "MODO GALERIA: reutilize desenhos quando forem adequados.",
-            DRAWING_GUIDE,MOTION_GUIDE,SETTING_GUIDE,BACKDROP_GUIDE,
+            DRAWING_GUIDE,MOTION_GUIDE,SETTING_GUIDE,BACKDROP_GUIDE,GROUP_GUIDE,
             creative ? "As recomendações de 6 itens e de não sobrepor formas do guia anterior valem APENAS para o layout antigo. Em composition authored, a composição de várias peças é intencional e será preservada." : "",
             creative ? "Não envie campo gallery." : "Se um desenho da galeria corresponder exatamente à cena, use gallery com o ID: "+JSON.stringify(refs),
             "visual: "+VISUALS.join(", ")+"; mood: "+MOODS.join(", ")+"; palette: "+PALETTES.join(", "),
@@ -68,6 +69,9 @@ export const Route = createFileRoute("/api/ai/explainer-plan")({
               const originals=shapes?.filter(s=>['rect','ellipse','circle','poly','line'].includes(s.type)).length??0;
               if(scene.visual!=='custom'||originals<2||!backdrop||scene.gallery!==undefined)
                 return Response.json({error:'A direção autoral precisa de desenho e cenário próprios em cada cena. Nenhum modelo pronto foi usado como substituto.',code:'invalid_original_art'},{status:502});
+              const groups=normalizeGroups(scene.groups);
+              const issues=groupIssues(shapes??[],groups);
+              if(issues.length)return Response.json({error:'Direção de objetos vinculados inválida: '+issues.join('; '),code:'invalid_groups'},{status:502});
               scene.composition='authored';
             }
             const hit=gallery.find(g=>g.id===scene.gallery);
