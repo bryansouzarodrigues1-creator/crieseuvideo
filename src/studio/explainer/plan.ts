@@ -22,17 +22,19 @@ export interface ExplainerScene {
   /** Animated full-screen scenario behind the scene. */
   setting?: Setting;
   /** Measured narration clip: total length plus where speech starts/ends inside it (seconds). */
-  voice?: { duration: number; start: number; end: number };
+  voice?: { duration: number; start: number; end: number; continuousTrack?: true };
 }
 export interface ExplainerPlan { title: string; aspect: '9:16' | '16:9'; scenes: ExplainerScene[]; /** Length of an uploaded narration that drives the whole timeline. */ track?: number; /** Rendering engine chosen for this project. */ engine?: '2d' | '2.5d' | '3d' }
 
 /** Fit scenes to one uploaded narration: each scene gets a share of the track proportional to its spoken weight. */
 export function fitToTrack(plan: ExplainerPlan, track: number): ExplainerPlan {
+  if (!Number.isFinite(track) || track <= 0) throw new Error('Duração de áudio inválida.');
+  if (!plan.scenes.length) return {...plan, track: undefined};
   const weights = plan.scenes.map((s) => words(s.text).reduce((a, w) => a + wordWeight(w), 0) || 1);
   const sum = weights.reduce((a, b) => a + b, 0);
   return { ...plan, track, scenes: plan.scenes.map((s, i) => {
-    const d = Math.max(0.4, (weights[i] / sum) * track - SCENE_LEAD - VOICE_TAIL);
-    return { ...s, voice: { duration: d, start: 0, end: d } };
+    const d = (weights[i] / sum) * track;
+    return { ...s, voice: { duration: d, start: 0, end: d, continuousTrack: true } };
   }) };
 }
 
@@ -43,15 +45,15 @@ export const MIN_SCENE = 2.4;
 export const words = (text: string) => text.split(/\s+/).map((w) => w.trim()).filter(Boolean);
 export const VOICE_TAIL = 0.35;
 export const sceneDuration = (s: ExplainerScene) =>
-  s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5);
+  s.voice?.continuousTrack ? s.voice.duration : s.voice ? Math.max(1.6, SCENE_LEAD + s.voice.duration + VOICE_TAIL) : Math.max(MIN_SCENE, SCENE_LEAD + words(s.text).length * SECONDS_PER_WORD + 0.5);
 export const sceneStart = (p: ExplainerPlan, i: number) => p.scenes.slice(0, i).reduce((a, s) => a + sceneDuration(s), 0);
 
 /** Spoken weight of a word: longer words and punctuation pauses take more time. */
 export const wordWeight = (w: string) => w.replace(/[^\p{L}\d]/gu, '').length + 2 + (/[,;:]$/.test(w) ? 3 : /[.!?…]$/.test(w) ? 5 : 0);
 export function wordTimings(scene: ExplainerScene) {
   const list = words(scene.text);
-  const from = SCENE_LEAD + (scene.voice ? scene.voice.start : 0);
-  const span = scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : list.length * SECONDS_PER_WORD;
+  const from = (scene.voice?.continuousTrack ? 0 : SCENE_LEAD) + (scene.voice ? scene.voice.start : 0);
+  const span = scene.voice?.continuousTrack ? scene.voice.duration : scene.voice ? Math.max(0.2, scene.voice.end - scene.voice.start) : list.length * SECONDS_PER_WORD;
   const total = list.reduce((a, w) => a + wordWeight(w), 0) || 1;
   let acc = 0;
   return list.map((word) => { const start = from + (acc / total) * span; acc += wordWeight(word); return { word, start, end: from + (acc / total) * span }; });
