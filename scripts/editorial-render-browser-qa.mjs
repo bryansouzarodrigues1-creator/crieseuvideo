@@ -10,7 +10,7 @@ try{
   const page=await browser.newPage({viewport:{width:420,height:780},acceptDownloads:true});
   await page.goto('http://127.0.0.1:4198/',{waitUntil:'domcontentloaded'});
   await page.evaluate(async()=>{
-    const {normalizePlan,fitToTrack}=await import('/src/studio/explainer/plan.ts');
+    const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
     const {drawExplainerFrame}=await import('/src/studio/explainer/render.ts');
     const {encodeFixedFrame3DClip}=await import('/src/studio/utils/deterministic3dExport.ts');
     const {motionAudit}=await import('/src/studio/explainer/motionAudit.ts');
@@ -23,7 +23,7 @@ try{
         shape('coin',230,-120,.7,'front',{motion:move(-110,120)})]),
       scene('O dono cria um site simples para mostrar seu cardápio.','office',[
         shape('laptop',0,30,1,'middle'),shape('hand',260,180,.65,'front',{motion:move(-130,-130)}),
-        shape('plant',0,0,1,'back'),shape('clock',-280,-130,.45,'back')].filter(x=>x.type!=='plant')),
+        shape('clock',-280,-130,.45,'back')]),
       scene('Agora os clientes encontram a loja e fazem seus pedidos.','city_day',[
         shape('phone',-160,15,.8,'middle'),shape('person',190,100,.75,'back'),
         shape('check',230,-160,.55,'front',{motion:move(-90,100)})]),
@@ -34,6 +34,7 @@ try{
     const raw={title:'Pizzaria — teste técnico',scenes};
     const script=scenes.map(s=>s.text).join(' ');
     const base=fitToTrack(normalizePlan(raw,script,'9:16'),20);
+    if(Math.abs(totalDuration(base)-20)>1e-8)throw new Error('Timeline must match the audio fixture exactly');
     const canvas=document.createElement('canvas');canvas.id='editorial-qa';
     canvas.width=360;canvas.height=640;
     document.body.replaceChildren(canvas);
