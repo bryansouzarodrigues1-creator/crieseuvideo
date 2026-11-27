@@ -3,7 +3,7 @@ import {generateCode3DWithGemini} from '../src/studio/server/code3dGemini';
 
 const dir='tmp/engineering-live';
 await mkdir(dir,{recursive:true});
-const script='Uma bomba centrífuga de água sobre uma bancada técnica. Mostre a carcaça fechada, retire a tampa lateral para revelar o rotor, faça o rotor girar e mostre setas ciano atravessando a entrada axial e saindo pela descarga tangencial. Mantenha a mesma bomba, com câmera aproximando e legendas técnicas curtas. Use os helpers E3D de corte, fluxo e câmera. Fluxo apenas ilustrativo.';
+const script="Por que a geladeira esfria por dentro e esquenta atrás? Animação vertical de engenharia, 12 s, sem narração. Cozinha moderna completa: armários, pia, bancada, piso, janela, luz natural e objetos de uso diário. Geladeira realista de duas portas, inox, puxadores, borrachas, prateleiras, alimentos e gavetas. 0–3s: gancho visual, porta abre pela dobradiça e câmera revela alimentos frios. 3–6s: câmera se aproxima e painel lateral se afasta, revelando compressor na base, condensador externo, tubo capilar e evaporador interno interligados em circuito fechado. 6–10s: anime refrigerante em circuito compressor → condensador → capilar → evaporador → compressor. Vermelho/laranja na descarga quente, azul na região fria; setas orientadas; calor sai para a cozinha no condensador e é absorvido no evaporador. 10–12s: restaure painel e feche a porta, resultado. Use E3D, materiais variados, sombras, encaixes, rótulos curtos e câmera suave. Sem valores térmicos inventados, sem apresentar o fluxo como simulação física. Não faça maquete vazia nem vários eletrodomésticos desconectados.";
 let calls=0;
 const original=globalThis.fetch;
 globalThis.fetch=(...args:Parameters<typeof fetch>)=>{calls++;return original(...args);};
