@@ -261,8 +261,9 @@ const result = await produceDirectedVideo({
     : {}),
   measure: (program) => {
     originalProgram ??= program;
-    return framingProblems(program, sources);
+    return [];
   },
+  advise: (program) => framingProblems(program, sources),
   onStage: (stage, info) => {
     stages.push(`${stage}: ${info} (+${Math.round((Date.now() - t0) / 1000)}s)`);
     console.log("[stage]", stages.at(-1));

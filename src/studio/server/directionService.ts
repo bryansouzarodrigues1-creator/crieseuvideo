@@ -21,6 +21,9 @@ import {
   type ReviewResult,
 } from "../explainer/sceneProgram/direction/visualReview";
 import { directViaRouter } from "../explainer/sceneProgram/direction/viaRouter";
+import { planInBlocks, type PlanCheckpoint } from "../explainer/sceneProgram/direction/blocks";
+import { advisory } from "../explainer/sceneProgram/direction/advisory";
+import { framingProblems } from "../explainer/sceneProgram/direction/framing";
 
 type Env = Record<string, string | undefined>;
 export const DEFAULT_VIDEO_CALLS = 5;
@@ -30,6 +33,13 @@ export const directInput = z
     script: z.string().min(45).max(1500),
     videoId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
     form: z.enum(["compact", "full"]).default("compact"),
+    /** Plan 2-3 sentences at a time with a checkpoint after each block (form "full" only). */
+    blocks: z.boolean().default(false),
+    /** Checkpoint returned by an earlier interrupted generation of the SAME script; revalidated server-side. */
+    checkpoint: z
+      .record(z.unknown())
+      .refine((d) => JSON.stringify(d).length <= 60_000)
+      .optional(),
     confirmCost: z.literal(true),
   })
   .strict();
@@ -108,8 +118,43 @@ export async function runDirection(raw: unknown, env: Env, userId: string, fetch
   const sources = sourcesFromScript(input.script);
   const events: AiEvent[] = [],
     budget = budgetFor(`${userId}:${input.videoId}`, env);
-  const result = await directViaRouter(routerFor(env, budget, fetch, events), sources, {
+  const router = routerFor(env, budget, fetch, events);
+  const measure = (program: Parameters<typeof framingProblems>[0]) => framingProblems(program, sources);
+  if (input.blocks) {
+    const r = await planInBlocks({
+      router,
+      sources,
+      checkpoint: input.checkpoint as unknown as PlanCheckpoint | undefined,
+      advise: measure,
+      thinking: "high",
+    });
+    if (r.status === "partial")
+      return {
+        ok: false as const,
+        reason: `Bloco ${r.failedBlock}/${r.blocks} falhou: ${r.reason}`,
+        // Everything planned before the failure is kept: send it back with the next request to resume without paying again.
+        checkpoint: r.checkpoint,
+        resumable: r.checkpoint.blocksDone > 0,
+        ...report(budget, events),
+      };
+    const { program, direction, title, report: compile } = r.scene;
+    return {
+      ok: true as const,
+      title,
+      directionJson: JSON.stringify(direction),
+      programJson: JSON.stringify(program),
+      warnings: [...compile.warnings, ...r.warnings],
+      checkpoint: r.checkpoint,
+      ...report(budget, events),
+    };
+  }
+  const advise = advisory(measure);
+  const result = await directViaRouter(router, sources, {
     form: input.form,
+    validate: (scene) => {
+      const problems = advise(scene.program);
+      if (problems.length) throw new Error(problems.slice(0, 4).join(" | "));
+    },
   });
   if (!result.ok) {
     const why =
@@ -143,6 +188,7 @@ export async function runDirectionReview(
     router: routerFor(env, budget, fetch, events),
     direction: input.direction as unknown as Direction,
     sources,
+    measure: (program) => framingProblems(program, sources),
     frames: input.frames.map((f) => ({ time: f.time, mimeType: f.mimeType, base64: f.base64 })),
   });
   if (result.status === "corrected") {

@@ -15,6 +15,7 @@ import { askStructured } from "../../../ai/structured";
 import type { Thinking } from "../../../ai/types";
 import { compileSceneProgram, type ProgramSource } from "../score";
 import { compileDirectionDetailed, type Direction } from "./direction";
+import { advisory } from "./advisory";
 import { directionGuide } from "./guide";
 import { parseDirection } from "./parse";
 import type { DirectedScene } from "./viaRouter";
@@ -39,13 +40,15 @@ export interface BlockPlanOptions {
   onCheckpoint?: (checkpoint: PlanCheckpoint) => void;
   /** Engine validators run on the whole program so far; messages are written for the model. */
   measure?: (program: DirectedScene["program"]) => string[];
+  /** Soft checks (framing): asked to the model once per block, then accepted as warnings. */
+  advise?: (program: DirectedScene["program"]) => string[];
   thinking?: Thinking;
   maxOutputTokens?: number;
   onBlock?: (block: number, total: number, info: string) => void;
 }
 
 export type BlockPlanResult =
-  | { status: "complete"; scene: DirectedScene; checkpoint: PlanCheckpoint; blocks: number }
+  | { status: "complete"; scene: DirectedScene; checkpoint: PlanCheckpoint; blocks: number; warnings: string[] }
   | {
       status: "partial";
       checkpoint: PlanCheckpoint;
@@ -108,12 +111,26 @@ export async function planInBlocks(options: BlockPlanOptions): Promise<BlockPlan
   const blocks: ProgramSource[][] = [];
   for (let i = 0; i < sources.length; i += size) blocks.push(sources.slice(i, i + size));
 
-  let checkpoint = checkpointMatches(options.checkpoint, sources)
-    ? options.checkpoint
-    : emptyCheckpoint(sources);
+  // A checkpoint may come back from a client: it is trusted only after the strict parser accepts its direction again.
+  const usable = (cp: PlanCheckpoint | undefined): cp is PlanCheckpoint => {
+    if (!checkpointMatches(cp, sources)) return false;
+    if (!cp.direction) return cp.blocksDone === 0;
+    const n = blocks.slice(0, cp.blocksDone).reduce((t, b) => t + b.length, 0);
+    if (!Number.isInteger(cp.blocksDone) || cp.blocksDone < 1 || cp.blocksDone > blocks.length) return false;
+    try {
+      const d = parseDirection(cp.direction, sources.slice(0, n));
+      compileDirectionDetailed(d, sources.slice(0, n));
+      cp.direction = d;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  let checkpoint = usable(options.checkpoint) ? options.checkpoint : emptyCheckpoint(sources);
   let prefix = checkpoint.direction;
   let scene: DirectedScene | undefined;
   let title = checkpoint.title;
+  const warnings: string[] = [];
   const done = () => blocks.slice(0, checkpoint.blocksDone).reduce((n, b) => n + b.length, 0);
 
   for (let b = checkpoint.blocksDone; b < blocks.length; b++) {
@@ -130,6 +147,7 @@ export async function planInBlocks(options: BlockPlanOptions): Promise<BlockPlan
           };
         })()
       : undefined;
+    const advise = advisory(options.advise, (p) => warnings.push(...p));
     const prompt = [
       directionGuide(),
       "",
@@ -174,7 +192,7 @@ export async function planInBlocks(options: BlockPlanOptions): Promise<BlockPlan
             );
         }
         const { program, report } = compileDirectionDetailed(direction, upTo);
-        const problems = options.measure?.(program) ?? [];
+        const problems = [...(options.measure?.(program) ?? []), ...advise(program)];
         if (problems.length) throw new Error(problems.slice(0, 4).join(" | "));
         const t = typeof r.title === "string" ? r.title.slice(0, 80) : "Cena";
         return { title: t, direction, program, report, form: "full" };
@@ -199,5 +217,5 @@ export async function planInBlocks(options: BlockPlanOptions): Promise<BlockPlan
     const { program, report } = compileDirectionDetailed(prefix!, sources);
     scene = { title: title ?? "Cena", direction: prefix!, program, report, form: "full" };
   }
-  return { status: "complete", scene, checkpoint, blocks: blocks.length };
+  return { status: "complete", scene, checkpoint, blocks: blocks.length, warnings: [...new Set(warnings)] };
 }

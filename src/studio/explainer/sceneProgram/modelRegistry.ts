@@ -80,7 +80,7 @@ export const APPROVED_MODELS: Readonly<Record<string, ApprovedModelInfo>> = Obje
     source: 'gemini-procedural-script',
     licensing: 'owner-generated (scripts/glb/gerar_pack_dinheiro.py)',
     display: 'Saco de dinheiro',
-    catalogue: { size: [0.4, 0.5, 0.36], origin: 'centro da base', description: 'Saco de dinheiro amarrado com símbolo de cifrão na frente (+Z).', front: true },
+    catalogue: { size: [0.4, 0.5, 0.36], origin: 'centro da base', description: 'Saco de dinheiro amarrado com símbolo de cifrão na frente (+Z).' },
   },
   'giant-coin-v1': {
     url: '/models/moeda_grande.glb',

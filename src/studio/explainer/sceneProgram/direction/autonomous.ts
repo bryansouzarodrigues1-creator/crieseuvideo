@@ -12,6 +12,7 @@ import type { ProgramSource } from "../score";
 import type { Direction } from "./direction";
 import { reviewDirection, type ReviewFrame, type ReviewResult } from "./visualReview";
 import { directViaRouter, type DirectedScene, type DirectOptions } from "./viaRouter";
+import { advisory } from "./advisory";
 import { planInBlocks, type PlanCheckpoint } from "./blocks";
 
 export interface AutonomousDeps {
@@ -26,6 +27,8 @@ export interface AutonomousDeps {
   };
   /** Engine validators (contacts, IK reach, penetration). Throw/return messages written for the model; they feed the measured repair. */
   measure?: (program: DirectedScene["program"]) => string[];
+  /** Soft checks (framing): repaired once by the model, then kept as warnings instead of failing the video. */
+  advise?: (program: DirectedScene["program"]) => string[];
   /** Real frames from the engine (3–7). Absent → no visual review. */
   renderFrames?: (scene: DirectedScene) => Promise<ReviewFrame[]>;
   exportVideo: (scene: DirectedScene) => Promise<{ ref: string }>;
@@ -62,6 +65,7 @@ export async function produceDirectedVideo(deps: AutonomousDeps): Promise<Autono
       checkpoint: deps.blocks.checkpoint,
       onCheckpoint: deps.blocks.onCheckpoint,
       measure: measureAll,
+      advise: deps.advise,
       thinking: deps.direct?.thinking,
       onBlock: (b, n, info) => deps.onStage?.("plan", `bloco ${b}/${n} (${info})`),
     });
@@ -84,10 +88,11 @@ export async function produceDirectedVideo(deps: AutonomousDeps): Promise<Autono
       last: undefined as never,
     };
   } else {
+    const advise = advisory(deps.advise);
     planned = await directViaRouter(router, sources, {
       ...deps.direct,
       validate: (scene) => {
-        const problems = measureAll(scene.program);
+        const problems = [...measureAll(scene.program), ...advise(scene.program)];
         if (problems.length) throw new Error(problems.slice(0, 4).join(" | "));
       },
     });
@@ -125,7 +130,7 @@ export async function produceDirectedVideo(deps: AutonomousDeps): Promise<Autono
         direction: scene.direction,
         sources,
         frames,
-        measure: deps.measure,
+        measure: (p) => [...(deps.measure?.(p) ?? []), ...(deps.advise?.(p) ?? [])],
       });
       review = result.status;
       reviewIssues = result.issues;
