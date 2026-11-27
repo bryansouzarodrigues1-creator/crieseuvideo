@@ -585,14 +585,16 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     ext={x0:Math.min(ext.x0,ext.x0*k)-d,x1:Math.max(ext.x1,ext.x1*k)+d,
       y0:Math.min(ext.y0,ext.y0*k),y1:Math.max(ext.y1,ext.y1*k)};
   }
-  const push = 1 + Math.min(local, 8) * 0.008; // slow Ken Burns push-in
+  const authored=scene.visual==='custom'&&scene.composition==='authored';
+  // Authored cuts and motion come from the director, not the stock entrance/exit animation.
+  const push = authored?1:1 + Math.min(local, 8) * 0.008;
   const sBase = Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
   const spot = centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
-  const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
-  const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
+  const enter = authored?1:pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
+  const exit = authored?0:smooth(clamp((local - (duration - 0.22)) / 0.22));
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
-  const px = spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
+  const px = authored?spot.x:spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
   const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
   if (isProp && enter > 0.01) {
     const shadowW = Math.min(260 * u * sBase, ((ext.x1 - ext.x0) / 2) * sSteady * 0.8);
