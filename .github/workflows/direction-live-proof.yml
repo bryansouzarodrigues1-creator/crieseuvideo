@@ -1,0 +1,115 @@
+name: Direction live proof (Gemini directs, sees, corrects, exports)
+# Real run, explicit and manual: it spends Gemini quota. Only Gemini High with the repository secret; no Lovable, no paid provider.
+on:
+  workflow_dispatch:
+  push:
+    branches: [proof/direction-live-20261126]
+    paths: ['.github/workflows/direction-live-proof.yml', 'scripts/direction-live/**']
+  # Draft PRs are how this repo runs CI on non-default branches; a run happens only when this workflow or the harness changes.
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths: ['.github/workflows/direction-live-proof.yml', 'scripts/direction-live/**']
+permissions:
+  contents: write
+concurrency:
+  group: direction-live-proof
+  cancel-in-progress: false
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Direction unit tests (parser, catalogue, compiler, loop)
+        run: bunx vitest run src/studio/explainer/sceneProgram/direction
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install --with-deps chromium
+      - name: Probe Gemini (3 trivial calls, shows the real HTTP status and error text; picks the first model that answers)
+        id: probe
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          mkdir -p tmp/direction-live
+          : > tmp/direction-live/gemini-probe.txt
+          chosen=""
+          for m in gemini-3.8-flash gemini-3.6-flash gemini-3.5-flash-lite; do
+            code=$(curl -sS -m 60 -o "/tmp/probe-$m.json" -w '%{http_code}' \
+              -H "x-goog-api-key: ${GEMINI_API_KEY}" -H 'content-type: application/json' \
+              -d '{"contents":[{"role":"user","parts":[{"text":"Responda so: ok"}]}],"generationConfig":{"maxOutputTokens":512,"thinkingConfig":{"thinkingLevel":"high"}}}' \
+              "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent" || echo 000)
+            msg=$(jq -r '(.error.status // "") + " " + ((.error.message // (.candidates[0].finishReason // "")) | tostring | .[0:200])' "/tmp/probe-$m.json" 2>/dev/null || echo "sem json")
+            echo "$m http=$code $msg" | tee -a tmp/direction-live/gemini-probe.txt
+            if [ "$code" = "200" ] && [ -z "$chosen" ]; then chosen="$m"; fi
+          done
+          echo "chosen=${chosen}" | tee -a tmp/direction-live/gemini-probe.txt
+          echo "chosen=${chosen}" >> "$GITHUB_OUTPUT"
+      - name: Gemini directs a NEW 45 s story, sees real frames, corrects and exports
+        id: live
+        if: steps.probe.outputs.chosen != ''
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LIVE_EXPLICIT_RUN: '1'
+          # 503 retries also draw from the per-video budget, so leave room for plan (+repair) and the review.
+          AI_VIDEO_MAX_CALLS: '8'
+          GEMINI_AI_MODEL: ${{ steps.probe.outputs.chosen }}
+          # Free fallbacks, in order, used only if Gemini fails: the router moves on by itself. Groq/OpenRouter never see images
+          # unless GROQ_VISION=1 / OPENROUTER_VISION=1 is set after the provider matrix proves it.
+          LIVE_CHAIN: gemini,gemini-lite,groq,openrouter
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Plan three sentences at a time, with a checkpoint after each block.
+          LIVE_BLOCKS: '3'
+        run: bun scripts/direction-live/run.mts
+      - name: MP4 (H.264) and probe
+        if: always() && hashFiles('tmp/direction-live/video.*') != ''
+        run: |
+          cd tmp/direction-live
+          if [ -f video.webm ] && [ ! -f video.mp4 ]; then
+            ffmpeg -v error -y -i video.webm -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -pix_fmt yuv420p -movflags +faststart video.mp4
+          fi
+          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate -of json video.mp4 | tee probe.json
+          {
+            echo '### Direction live proof'
+            echo '```json'
+            cat report.json
+            echo '```'
+            echo '```json'
+            cat probe.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: direction-live-proof
+          path: |
+            tmp/direction-live/report.json
+            tmp/direction-live/probe.json
+            tmp/direction-live/gemini-probe.txt
+            tmp/direction-live/direction-*.json
+            tmp/direction-live/video.*
+            tmp/direction-live/frames/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish proof files to branch qa-proof/direction-live (evidence only, no code, clean directory)
+        if: always()
+        env:
+          GH_PUSH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          rm -rf /tmp/proof && mkdir -p /tmp/proof
+          cp -r tmp/direction-live/report.json tmp/direction-live/probe.json tmp/direction-live/gemini-probe.txt tmp/direction-live/direction-*.json tmp/direction-live/video.* tmp/direction-live/frames /tmp/proof/ 2>/dev/null || true
+          echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} commit: ${GITHUB_SHA}" > /tmp/proof/RUN.txt
+          cd /tmp/proof
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout -q -b proof
+          git add -A
+          git commit -q -m "proof: direction live run ${GITHUB_RUN_ID}"
+          git remote add origin "https://x-access-token:${GH_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push -f origin HEAD:refs/heads/qa-proof/direction-live

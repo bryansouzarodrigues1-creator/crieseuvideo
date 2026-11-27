@@ -20,7 +20,9 @@ export interface ProgramNode {
   material?: { roughness: number; metalness: number; opacity: number; emissive: string; emissiveIntensity: number };
 }
 export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
-export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[] }
+/** `part` (model nodes only, rotation only) addresses a NAMED node inside the imported GLB, e.g. a door or wheel.
+ * Only the part's rotation is driven (absolute Euler XYZ, radians); its authored translation/pivot is never touched. */
+export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[]; part?: string }
 export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number }
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
 /** A measurable on-screen action, not a thematic action ID or AI assertion.
@@ -30,13 +32,15 @@ export interface ProgramMotionCheck {
   sourceId: string;
   node: string;
   channel: 'position' | 'rotation' | 'scale';
+  /** Checks the named GLB part's rotation instead of the node's own transform. */
+  part?: string;
   kind: 'change' | 'hold';
   startPhase: number;
   endPhase: number;
   threshold: number;
 }
 export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
-export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>> }
+export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>>; /** Rotation (Euler XYZ) of named parts inside an imported model. */ parts?: Record<string, Vec3> }
 export class SceneProgramError extends Error {
   readonly code = 'invalid_scene_program';
   constructor(message: string, readonly diagnostic?: unknown) { super(message); }
@@ -46,6 +50,7 @@ const obj = (value: unknown): Record<string, any> => value && typeof value === '
 const list = (value: unknown, max: number): any[] => Array.isArray(value) && value.length <= max ? value : fail('O programa excedeu um limite de elementos ou contém uma lista inválida.');
 const num = (v: unknown, a: number, b: number) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b ? v : fail('Uma coordenada, tempo ou dimensão do programa é inválida.');
 const vector = (v: unknown, a = -200, b = 200): Vec3 => { const p = list(v, 3); if (p.length !== 3) fail('Uma coordenada precisa de três valores.'); return p.map((x) => num(x, a, b)) as Vec3; };
+const partName = (v: unknown) => typeof v === 'string' && /^[A-Za-z][A-Za-z0-9_.-]{0,59}$/.test(v) ? v : fail('O nome da peça interna do modelo é inválido.');
 const identifier = (v: unknown) => typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v) ? v : fail('Um identificador do programa é inválido.');
 const color = (v: unknown) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : fail('Uma cor do programa é inválida.');
 const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r).some((k) => !keys.includes(k))) fail('O programa contém um campo não suportado. Não envie JavaScript, URLs ou shaders.'); };
@@ -152,7 +157,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       repeat = { count, seed, step: vector(p.step ?? [0, 0, 0]), jitter: vector(p.jitter ?? [0, 0, 0], 0, 200), ...(p.ground !== undefined ? { ground: identifier(p.ground), above: num(p.above ?? 0, 0, 200) } : {}) };
       if (p.above !== undefined && p.ground === undefined) fail('A altura mínima só vale junto com o terreno de apoio (ground).');
     }
-    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? 40000 : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry?.shape === 'extrude' ? geometry.contour!.length * 12 : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
+    vertexBudget += (geometry?.vertices ? geometry.vertices.length / 3 : n.kind === 'actor' ? 5000 : n.kind === 'model' ? (approvedModel(assetId)?.vertices ?? 40000) : n.kind === 'group' ? 0 : geometry?.shape === 'tube' ? 520 : geometry?.shape === 'lathe' ? (geometry.profile!.length * (geometry.segments! + 1)) : geometry?.shape === 'extrude' ? geometry.contour!.length * 12 : geometry && isKit(geometry.shape) ? kitVertexCount(geometry.shape, geometry.segments ?? 0) : 500) * (repeat?.count ?? 1);
     if (vertexBudget > 250000) fail('A cena excedeu o orçamento de geometria para a prévia.');
     if (n.groundTo !== undefined && n.kind !== 'actor') fail('Somente um personagem pode seguir o terreno.');
     const socket = n.socket ?? 'root'; if (!['root', 'head', ...EFFECTORS].includes(socket)) fail('O encaixe de um objeto não existe.');
@@ -181,10 +186,12 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   }
   let keyBudget = 0;
   const tracks = list(r.tracks, 256).map((value): ProgramTrack => {
-    const t = obj(value); only(t, ['node', 'channel', 'interpolation', 'keys']);
+    const t = obj(value); only(t, ['node', 'channel', 'interpolation', 'keys', 'part']);
     const node = nodeMap.get(t.node) ?? fail('Uma curva citou um objeto inexistente.'); if (!(PROGRAM_CHANNELS as readonly string[]).includes(t.channel)) fail('Uma curva citou uma propriedade inexistente.');
     if (!['position', 'rotation', 'scale'].includes(t.channel) && node.kind !== 'actor') fail('Somente personagens possuem controles corporais.');
     if (!['linear', 'smooth', 'step'].includes(t.interpolation ?? 'smooth')) fail('A interpolação de uma curva é inválida.');
+    const part = t.part === undefined ? undefined : partName(t.part);
+    if (part !== undefined && (node.kind !== 'model' || t.channel !== 'rotation')) fail('Uma peça interna só pode ser girada (rotation) dentro de um nó model.');
     // Models frequently emit a useful key at the end of one phrase and
     // another key at the exact start of the next. Both describe the SAME
     // absolute time; blindly rejecting them wastes a valid scene.
@@ -216,9 +223,9 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     keyBudget += keys.length;
     if (keys.length < 2 || keyBudget > 3000)
       fail('Uma curva precisa de pelo menos dois instantes distintos e respeitar o orçamento de animação.');
-    return { node: node.id, channel: t.channel, interpolation: t.interpolation ?? 'smooth', keys };
+    return { node: node.id, channel: t.channel, interpolation: t.interpolation ?? 'smooth', keys, ...(part ? { part } : {}) };
   });
-  if (!tracks.length || new Set(tracks.map((t) => `${t.node}/${t.channel}`)).size !== tracks.length) fail('Defina movimentos sem duplicar uma curva do mesmo objeto.');
+  if (!tracks.length || new Set(tracks.map((t) => `${t.node}/${t.part ?? ''}/${t.channel}`)).size !== tracks.length) fail('Defina movimentos sem duplicar uma curva do mesmo objeto.');
   // GroundTo is a visual runtime constraint, not a second motion track.
   for (const node of nodes) if (node.groundTo && tracks.some(
     t => t.node === node.groundTo && ['position', 'rotation', 'scale'].includes(t.channel)
@@ -246,7 +253,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   }
   const motionChecks = r.motionChecks === undefined ? undefined : list(r.motionChecks, 60).map((value): ProgramMotionCheck => {
     const check = obj(value);
-    only(check, ['sourceId', 'node', 'channel', 'kind', 'startPhase', 'endPhase', 'threshold']);
+    only(check, ['sourceId', 'node', 'channel', 'kind', 'startPhase', 'endPhase', 'threshold', 'part']);
     const sourceId = source(check.sourceId);
     if (!nodeMap.has(check.node)) fail('Uma verificação de movimento citou um objeto que não existe.');
     if (!['position', 'rotation', 'scale'].includes(check.channel)) fail('A verificação usa um eixo de movimento não permitido.');
@@ -254,9 +261,11 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
     const startPhase = num(check.startPhase, 0, 1), endPhase = num(check.endPhase, 0, 1);
     if (endPhase - startPhase < .05) fail('A verificação de movimento precisa de uma janela temporal positiva.');
     const threshold = num(check.threshold, .001, 100);
-    if (!tracks.some((t) => t.node === check.node && t.channel === check.channel))
+    const part = check.part === undefined ? undefined : partName(check.part);
+    if (part !== undefined && check.channel !== 'rotation') fail('A verificação de uma peça interna só vale para rotation.');
+    if (!tracks.some((t) => t.node === check.node && t.channel === check.channel && t.part === part))
       fail('A IA declarou uma ação sem animar a propriedade correspondente.');
-    return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold };
+    return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold, ...(part ? { part } : {}) };
   });
   const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
     ...(motionChecks ? { motionChecks } : {}) };
@@ -283,6 +292,7 @@ export function compileSceneProgram(program: SceneProgram, sources: ProgramSourc
         value = a.value.map((v, axis) => v + (b.value[axis] - v) * u) as Vec3; break;
       }
       const state = states.get(curve.node)!;
+      if (curve.part) { (state.parts ??= {})[curve.part] = [...value]; continue; }
       if (curve.channel === 'position' || curve.channel === 'rotation' || curve.channel === 'scale') state[curve.channel] = [...value];
       else state.pose[curve.channel] = [...value];
     }
@@ -308,7 +318,7 @@ export function validateMotionChecks(program: SceneProgram, sources: ProgramSour
       const time = span.start + span.duration * phase;
       const state = timeline.sample(time).get(check.node);
       if (!state) throw new SceneProgramError('Uma ação verificável cita um objeto inexistente.');
-      points.push(state[check.channel]);
+      points.push(check.part ? (state.parts?.[check.part] ?? [0, 0, 0]) : state[check.channel]);
     }
     // Total travelled path catches rotating parts that return to their
     // starting angle; max displacement catches holds that briefly wander.

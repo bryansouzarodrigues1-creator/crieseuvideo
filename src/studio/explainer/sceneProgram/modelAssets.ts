@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { SceneProgramError } from './score';
+import { SceneProgramError, type SceneProgram } from './score';
 import { approvedModel, type ApprovedModelId } from './modelRegistry';
 
 /**
@@ -79,9 +79,20 @@ export async function loadApprovedModel(id: ApprovedModelId, fetchAsset = fetch)
   return { id, gltf };
 }
 
+/** Loads every distinct approved GLB a program mentions, so SceneProgram3D can be built synchronously. */
+export async function loadProgramModels(program: SceneProgram, fetchAsset = fetch): Promise<Map<ApprovedModelId, PreparedModel>> {
+  const ids = [...new Set(program.nodes.flatMap((n) => (n.kind === 'model' && n.assetId ? [n.assetId] : [])))];
+  const loaded = await Promise.all(ids.map((id) => loadApprovedModel(id, fetchAsset)));
+  return new Map(loaded.map((m) => [m.id, m]));
+}
+
 export interface ModelInstance {
   root: THREE.Object3D;
   setTime(time: number): void;
+  /** True when the imported scene contains a node with this exact name. */
+  hasPart(name: string): boolean;
+  /** Rotates a named inner node (Euler XYZ, radians). Its authored position/pivot and scale are never modified. */
+  setPartRotation(name: string, rotation: readonly [number, number, number]): void;
 }
 
 /** Clone mesh skeletons AND resources so one timeline never mutates another. */
@@ -93,9 +104,14 @@ export function instantiateModel(loaded: PreparedModel): ModelInstance {
     mesh.geometry = mesh.geometry.clone();
     mesh.material = Array.isArray(mesh.material)
       ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+    const cap = approvedModel(loaded.id)?.maxMetalness;
+    if (cap !== undefined) for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material])
+      if (m instanceof THREE.MeshStandardMaterial) m.metalness = Math.min(m.metalness, cap);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
   });
+  const parts = new Map<string, THREE.Object3D>();
+  root.traverse((node) => { if (node !== root && node.name && !parts.has(node.name)) parts.set(node.name, node); });
   const mixer = new THREE.AnimationMixer(root);
   for (const clip of loaded.gltf.animations.slice(0, MAX_CLIPS)) {
     const action = mixer.clipAction(clip);
@@ -104,6 +120,11 @@ export function instantiateModel(loaded: PreparedModel): ModelInstance {
   }
   return {
     root,
+    hasPart: (name) => parts.has(name),
+    setPartRotation(name, rotation) {
+      const part = parts.get(name);
+      if (part) part.rotation.set(rotation[0], rotation[1], rotation[2]);
+    },
     setTime(time) {
       // setTime, unlike update(delta), is seekable and independent of render order.
       mixer.setTime(Math.max(0, Number.isFinite(time) ? time : 0));

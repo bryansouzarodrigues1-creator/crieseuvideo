@@ -1,0 +1,72 @@
+name: Provider matrix (who can really direct and see?)
+# Real, explicit, free-tier-only calls: one direction and one visual review per configured provider. Keys never printed.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths: ['.github/workflows/provider-matrix.yml', 'scripts/provider-matrix.mts']
+permissions:
+  contents: write
+concurrency:
+  group: provider-matrix
+  cancel-in-progress: false
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Install Chromium
+        run: |
+          bun add --no-save playwright@1.57.0
+          bunx playwright install --with-deps chromium
+      - name: Which keys exist (presence only)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          mkdir -p tmp
+          for k in GEMINI_API_KEY GROQ_API_KEY OPENROUTER_API_KEY; do
+            if [ -n "${!k}" ]; then echo "$k: configurada"; else echo "$k: AUSENTE"; fi
+          done | tee tmp/keys.txt
+      - name: Real engine frames for the vision test (no AI, canned direction)
+        run: |
+          LIVE_DRY=1 bun scripts/direction-live/run.mts
+          rm -rf tmp/matrix-in && cp -r tmp/direction-live tmp/matrix-in && rm -rf tmp/matrix-in/dist
+      - name: Run the matrix (real calls)
+        env:
+          MATRIX_EXPLICIT_RUN: '1'
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: bun scripts/provider-matrix.mts
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Provider matrix'
+            echo '```'; cat tmp/keys.txt 2>/dev/null; echo '```'
+            echo '```json'; cat tmp/provider-matrix.json 2>/dev/null; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish evidence to branch qa-proof/provider-matrix (no code, clean directory)
+        if: always()
+        env:
+          GH_PUSH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          rm -rf /tmp/proof && mkdir -p /tmp/proof
+          cp tmp/provider-matrix.json tmp/keys.txt /tmp/proof/ 2>/dev/null || true
+          echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} commit: ${GITHUB_SHA}" > /tmp/proof/RUN.txt
+          cd /tmp/proof
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout -q -b proof
+          git add -A
+          git commit -q -m "proof: provider matrix run ${GITHUB_RUN_ID}"
+          git remote add origin "https://x-access-token:${GH_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push -f origin HEAD:refs/heads/qa-proof/provider-matrix
