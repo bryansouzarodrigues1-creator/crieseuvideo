@@ -169,6 +169,28 @@ describe('trusted GLB registry and model import', () => {
       expect(()=>normalizeSceneProgram({...raw,nodes:[{...raw.nodes[0],animationSequence}]},sources)).toThrow(/sequência GLB/);
   });
 
+  it('loads the original articulated humanoid GLB locally with real named motions', async () => {
+    let requests=0;
+    const loaded=await loadApprovedModel('human-prototype-v1', (async()=>{requests++;throw new Error('Network forbidden');}) as typeof fetch);
+    expect(requests).toBe(0);
+    expect(loaded.gltf.animations.map(a=>a.name)).toEqual(['idle','walk','wave']);
+    const model=instantiateModel(loaded,undefined,[{start:0,clip:'idle'},{start:2,clip:'walk'},{start:4,clip:'wave'}]);
+    const hips=model.root.getObjectByName('Hips')!;
+    const leg=model.root.getObjectByName('Hip-1')!;
+    const arm=model.root.getObjectByName('Shoulder1')!;
+    expect(hips).toBeDefined();
+    model.setTime(2.3);
+    expect(Math.abs(leg.rotation.x)).toBeGreaterThan(.3);
+    model.setTime(5);
+    expect(Math.abs(arm.rotation.z)).toBeGreaterThan(1);
+    expect(Math.abs(leg.rotation.x)).toBeLessThan(.001);
+    model.setTime(2.3);
+    expect(Math.abs(leg.rotation.x)).toBeGreaterThan(.3);
+    expect(Math.abs(arm.rotation.z)).toBeLessThan(.001);
+    model.root.updateMatrixWorld(true);
+    expect(new THREE.Box3().setFromObject(model.root).getSize(new THREE.Vector3()).y).toBeGreaterThan(1.5);
+  });
+
   it('refuses to display an unprepared model instead of substituting a generic presenter', () => {
     const plan = normalizeSceneProgram(rawPlan(), source);
     expect(() => new SceneProgram3D(plan, source)).toThrow(/ainda não foi carregado/);
