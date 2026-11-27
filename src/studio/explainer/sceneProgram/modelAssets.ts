@@ -1,3 +1,4 @@
+import { makeCharacterPrototypeGLB } from './characterPrototype';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
@@ -64,11 +65,16 @@ export interface PreparedModel {
 export async function loadApprovedModel(id: ApprovedModelId, fetchAsset = fetch): Promise<PreparedModel> {
   const info = approvedModel(id);
   if (!info) throw new SceneProgramError('O catálogo seguro não contém o modelo solicitado.');
-  const response = await fetchAsset(info.url, { credentials: 'same-origin' });
-  if (!response.ok) throw new SceneProgramError('O arquivo GLB autorizado não foi encontrado no armazenamento do projeto.');
-  const bytes = Number(response.headers.get('content-length') || 0);
-  if (bytes > MAX_GLB_BYTES) throw new SceneProgramError('O modelo excede o limite de transferência.');
-  const data = await response.arrayBuffer();
+  let data: ArrayBuffer;
+  if (id === 'human-prototype-v1') {
+    data = makeCharacterPrototypeGLB();
+  } else {
+    const response = await fetchAsset(info.url, { credentials: 'same-origin' });
+    if (!response.ok) throw new SceneProgramError('O arquivo GLB autorizado não foi encontrado no armazenamento do projeto.');
+    const bytes = Number(response.headers.get('content-length') || 0);
+    if (bytes > MAX_GLB_BYTES) throw new SceneProgramError('O modelo excede o limite de transferência.');
+    data = await response.arrayBuffer();
+  }
   inspectGLB(data);
   const gltf = await new GLTFLoader().parseAsync(data, '/');
   if (!gltf.scene) throw new SceneProgramError('O modelo não contém uma cena tridimensional.');
@@ -85,7 +91,8 @@ export interface ModelInstance {
 }
 
 /** Clone mesh skeletons AND resources so one timeline never mutates another. */
-export function instantiateModel(loaded: PreparedModel, animationClip?: string): ModelInstance {
+export function instantiateModel(loaded: PreparedModel, animationClip?: string,
+  sequence: readonly {start: number; clip: string}[] = []): ModelInstance {
   // A scene node owns the outer placement; animation owns only the imported
   // child. Root animation channels must not overwrite authored coordinates.
   const animated = cloneWithSkeleton(loaded.gltf.scene);
@@ -95,6 +102,15 @@ export function instantiateModel(loaded: PreparedModel, animationClip?: string):
   const selected = animationClip === undefined ? clips[0] : clips.find(c => c.name === animationClip);
   if (animationClip !== undefined && !selected)
     throw new SceneProgramError('Animação GLB não encontrada: ' + animationClip);
+  if (sequence.length && animationClip !== undefined)
+    throw new SceneProgramError('Escolha uma animação ou uma sequência GLB.');
+  const scheduled = sequence.map((entry, index) => {
+    if (!Number.isFinite(entry.start) || (index === 0 ? entry.start !== 0 : entry.start <= sequence[index - 1].start))
+      throw new SceneProgramError('Tempo de animação GLB inválido.');
+    const clip = clips.find(c => c.name === entry.clip);
+    if (!clip) throw new SceneProgramError('Animação GLB não encontrada: ' + entry.clip);
+    return {start: entry.start, clip};
+  });
   animated.traverse((node) => {
     const mesh = node as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -105,17 +121,23 @@ export function instantiateModel(loaded: PreparedModel, animationClip?: string):
     mesh.receiveShadow = true;
   });
   const mixer = new THREE.AnimationMixer(animated);
-  // Playing walk, idle, run and gestures together corrupts the skeleton.
-  if (selected) {
-    const action = mixer.clipAction(selected);
-    action.setLoop(THREE.LoopRepeat, Infinity);
-    action.play();
-  }
+  // Exactly one active clip. Switching restores the previous binding's
+  // rest pose; absolute local time permits backwards seeks and offline export.
+  let current: THREE.AnimationClip | undefined;
+  const activate = (clip: THREE.AnimationClip | undefined) => {
+    if (clip === current) return;
+    mixer.stopAllAction();
+    current = clip;
+    if (clip) mixer.clipAction(clip).reset().setLoop(THREE.LoopRepeat, Infinity).play();
+  };
+  activate(scheduled[0]?.clip ?? selected);
   return {
     root,
     setTime(time) {
-      // setTime, unlike update(delta), is seekable and independent of render order.
-      mixer.setTime(Math.max(0, Number.isFinite(time) ? time : 0));
+      const t = Math.max(0, Number.isFinite(time) ? time : 0);
+      const entry = [...scheduled].reverse().find(item => item.start <= t);
+      activate(entry?.clip ?? selected);
+      mixer.setTime(t - (entry?.start ?? 0));
     },
   };
 }

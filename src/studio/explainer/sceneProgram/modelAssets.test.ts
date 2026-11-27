@@ -136,6 +136,61 @@ describe('trusted GLB registry and model import', () => {
     expect(() => normalizeSceneProgram({...plan,nodes:[{...plan.nodes[0],animationClip:'https://example.com'}]},source)).toThrow(/animação GLB inválido/);
   });
 
+  it('switches actions by narration time and supports non-linear seeks', async () => {
+    const loaded = await loadApprovedModel('expressive-robot-v1', (async () => new Response(triangleGLB())) as typeof fetch);
+    loaded.gltf.animations = [
+      new THREE.AnimationClip('idle', 2, [new THREE.VectorKeyframeTrack('.position', [0, 2], [0, 0, 0, 0, 2, 0])]),
+      new THREE.AnimationClip('walk', 2, [new THREE.VectorKeyframeTrack('.position', [0, 2], [0, 0, 0, 4, 0, 0])]),
+    ];
+    const seq = [{start:0,clip:'idle'},{start:2,clip:'walk'},{start:4,clip:'idle'}];
+    const instance = instantiateModel(loaded, undefined, seq);
+    const pose = (time:number) => { instance.setTime(time); return instance.root.children[0].position.toArray(); };
+    expect(pose(1)).toEqual([0,1,0]);
+    expect(pose(2.5)).toEqual([1,0,0]);
+    expect(pose(4.5)).toEqual([0,.5,0]);
+    expect(pose(2.5)).toEqual([1,0,0]);
+    expect(pose(1)).toEqual([0,1,0]);
+    expect(() => instantiateModel(loaded, undefined, [{start:0,clip:'missing'}])).toThrow(/não encontrada/);
+    expect(() => instantiateModel(loaded, undefined, [{start:1,clip:'idle'}])).toThrow(/Tempo/);
+    const plan = rawPlan();
+    const sources = [...source, {sourceId:'s2',text:'Ele começa a andar.',duration:2}];
+    const raw = {...plan, nodes:[{...plan.nodes[0], animationSequence:[
+      {sourceId:'s1',clip:'idle'}, {sourceId:'s2',clip:'walk'}
+    ]}], shots:[...plan.shots,{...plan.shots[0],sourceId:'s2'}]};
+    const normalized = normalizeSceneProgram(raw,sources);
+    const stage = new SceneProgram3D(normalized,sources,new Map([['expressive-robot-v1',loaded]]));
+    try {
+      stage.update(6.5);
+      expect(stage.nodes.get('robot')!.children[0].position.x).toBeCloseTo(1);
+      stage.update(.5);
+      expect(stage.nodes.get('robot')!.children[0].position.y).toBeCloseTo(.5);
+    } finally { stage.dispose(); }
+    for(const animationSequence of [[],[{sourceId:'s2',clip:'walk'}],[{sourceId:'s1',clip:'idle'},{sourceId:'s1',clip:'walk'}]])
+      expect(()=>normalizeSceneProgram({...raw,nodes:[{...raw.nodes[0],animationSequence}]},sources)).toThrow(/sequência GLB/);
+  });
+
+  it('loads the original articulated humanoid GLB locally with real named motions', async () => {
+    let requests=0;
+    const loaded=await loadApprovedModel('human-prototype-v1', (async()=>{requests++;throw new Error('Network forbidden');}) as typeof fetch);
+    expect(requests).toBe(0);
+    expect(loaded.gltf.animations.map(a=>a.name)).toEqual(['idle','walk','wave']);
+    const model=instantiateModel(loaded,undefined,[{start:0,clip:'idle'},{start:2,clip:'walk'},{start:4,clip:'wave'}]);
+    const hips=model.root.getObjectByName('Hips')!;
+    const leg=model.root.getObjectByName('Hip-1')!;
+    const arm=model.root.getObjectByName('Shoulder1')!;
+    expect(hips).toBeDefined();
+    model.setTime(2.3);
+    expect(Math.abs(leg.rotation.x)).toBeGreaterThan(.3);
+    model.setTime(5);
+    expect(Math.abs(arm.rotation.z)).toBeGreaterThan(1);
+    expect(Math.abs(leg.rotation.x)).toBeLessThan(.001);
+    model.setTime(2.3);
+    expect(Math.abs(leg.rotation.x)).toBeGreaterThan(.3);
+    expect(Math.abs(arm.rotation.z)).toBeLessThan(.001);
+    model.root.updateMatrixWorld(true);
+    expect(new THREE.Box3().setFromObject(model.root).getSize(new THREE.Vector3()).y).toBeGreaterThan(1.5);
+  });
+
   it('refuses to display an unprepared model instead of substituting a generic presenter', () => {
     const plan = normalizeSceneProgram(rawPlan(), source);
     expect(() => new SceneProgram3D(plan, source)).toThrow(/ainda não foi carregado/);
