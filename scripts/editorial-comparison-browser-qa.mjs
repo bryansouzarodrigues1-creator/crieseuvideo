@@ -13,6 +13,8 @@ try{
   await page.route(/generativelanguage\.googleapis\.com|ai\.gateway\.lovable\.dev|api\.elevenlabs\.io/,route=>{providerRequests++;return route.abort();});
   await page.goto('http://127.0.0.1:4198/',{waitUntil:'domcontentloaded'});
   const result=await page.evaluate(async()=>{
+    await Promise.all([document.fonts.load("40px 'Lilita One'"),document.fonts.load("700 40px 'Plus Jakarta Sans'"),document.fonts.load("800 40px 'Plus Jakarta Sans'")].map(p=>p.catch(()=>{})));
+    await document.fonts.ready;
     const {drawExplainerFrame}=await import('/src/studio/explainer/render.ts');
     const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
     const {motionAudit}=await import('/src/studio/explainer/motionAudit.ts');
@@ -56,7 +58,6 @@ try{
   assert.equal(result.captures.length,2);
   assert.notEqual(result.captures[0].stills[0],result.captures[1].stills[0],'Depth mode produced identical first shot');
   for(const clip of result.captures){
-    assert.equal(clip.seekStable,true,'Non-deterministic frame');
     assert.equal(clip.frames,240);
     const bytes=Buffer.from(clip.video,'base64');
     const {Input,BlobSource,ALL_FORMATS}=await import('mediabunny');
@@ -66,5 +67,6 @@ try{
     await writeFile(out+'/'+clip.engine+'.'+clip.extension,bytes);
     for(let i=0;i<clip.stills.length;i++)await writeFile(out+'/'+clip.engine+'-'+i+'.png',Buffer.from(clip.stills[i],'base64'));
   }
-  await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'reference tone, not Alex narration',quality:'requires visual review'},null,2));
+  await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'reference tone, not Alex narration',quality:'requires visual review',seekStable:result.captures.map(c=>({engine:c.engine,stable:c.seekStable}))},null,2));
+  for(const clip of result.captures)assert.equal(clip.seekStable,true,'Non-deterministic frame: '+clip.engine);
 }finally{await browser.close();}
