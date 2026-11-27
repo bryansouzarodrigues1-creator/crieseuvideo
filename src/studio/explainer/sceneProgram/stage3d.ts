@@ -85,7 +85,11 @@ export class SceneProgram3D {
       else if (n.kind === 'model') {
         const loaded = loadedModels.get(n.assetId!);
         if (!loaded) throw new SceneProgramError('O modelo 3D autorizado ainda não foi carregado. Aguarde a importação antes de renderizar.');
-        const instance = instantiateModel(loaded, n.animationClip);
+        const sequence = n.animationSequence?.map(item => ({
+          start: this.score.spans.find(span => span.sourceId === item.sourceId)!.start,
+          clip: item.clip,
+        }));
+        const instance = instantiateModel(loaded, n.animationClip, sequence);
         this.importedModels.set(n.id, instance); root = instance.root;
       }
       else if (n.kind === 'group') root = new THREE.Group();
