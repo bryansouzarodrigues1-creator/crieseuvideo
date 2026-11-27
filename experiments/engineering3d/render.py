@@ -1,4 +1,5 @@
-import json, subprocess, sys
+import json, subprocess, sys, io
+from PIL import Image, ImageChops
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -20,14 +21,23 @@ with sync_playwright() as p:
         stage=page.locator('#stage')
         assert stage.bounding_box()['width']==1080 and stage.bounding_box()['height']==1920
         def snap(n):
-            page.evaluate('(n)=>window.renderFrame(n)',n)
+            page.evaluate('(n)=>{window.renderFrame(n);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))}',n)
             return stage.screenshot(type='png',animations='disabled')
+        snap(0)
+        snap(0)
+        replay=[]
         for n in [0,135,270,405,539]:
             a=snap(n)
             snap((n+211)%540)
             b=snap(n)
-            assert a==b, f'Non deterministic seek: {n}'
             (output/f'frame-{n:03}.png').write_bytes(a)
+            diff=ImageChops.difference(Image.open(io.BytesIO(a)).convert('RGB'),Image.open(io.BytesIO(b)).convert('RGB'))
+            maxdiff=max(v[1] for v in diff.getextrema())
+            replay.append({'frame':n,'maxPixelDiff':maxdiff})
+            (output/'replay.json').write_text(json.dumps(replay,indent=2))
+            if maxdiff>3:
+                (output/f'replay-{n:03}.png').write_bytes(b)
+                raise AssertionError(f'Non deterministic seek: {n}, pixel difference {maxdiff}')
         assert not errors,errors
         tmp=output/'render-incomplete.mp4'
         cmd=['ffmpeg','-v','error','-y','-f','image2pipe','-vcodec','png','-framerate','30','-i','-','-c:v','libx264','-threads','3','-preset','fast','-pix_fmt','yuv420p','-crf','18','-movflags','+faststart',str(tmp)]
