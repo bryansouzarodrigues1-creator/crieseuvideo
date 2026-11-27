@@ -7,7 +7,7 @@ export function localPortugueseVoices(voices: readonly SpeechSynthesisVoice[]) {
 
 /** Device speech is a preview only: Web Speech does not return PCM for MP4.
  * No server, provider, remote speech voice or paid fallback is used here. */
-export function LocalVoiceSettings({text,disabled=false,onAudio}:{text:string;disabled?:boolean;onAudio?:(file:File)=>Promise<void>}){
+export function LocalVoiceSettings({text,disabled=false,onAudio}:{text:string;disabled?:boolean;onAudio?:(file:File)=>Promise<boolean>}){
   const [voices,setVoices]=useState<SpeechSynthesisVoice[]>([]);
   const [selected,setSelected]=useState('');
   const [rate,setRate]=useState(1);
@@ -62,7 +62,7 @@ export function LocalVoiceSettings({text,disabled=false,onAudio}:{text:string;di
       if(!response.ok||!response.headers.get('Content-Type')?.startsWith('audio/wav'))throw new Error('Resposta local inválida.');
       const blob=await response.blob();
       if(!blob.size||blob.size>24000000)throw new Error('Áudio fora do limite.');
-      await onAudio(new File([blob],'kokoro-alex.wav',{type:'audio/wav'}));
+      if(!await onAudio(new File([blob],'kokoro-alex.wav',{type:'audio/wav'})))throw new Error('O áudio não pôde ser importado.');
       setNote('Áudio Alex recebido pelo estúdio. Confira a reprodução.');
     }catch{
       setNote('Não foi possível conectar ou gerar a voz. Inicie o servidor Kokoro no próprio computador, confira o token e permita acesso local no navegador. Nenhum fallback pago foi acionado.');
