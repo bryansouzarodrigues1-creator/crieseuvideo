@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { approvedModel } from './modelRegistry';
-import { inspectGLB, loadApprovedModel } from './modelAssets';
+import { inspectGLB, loadApprovedModel, instantiateModel } from './modelAssets';
 import { normalizeSceneProgram, type ProgramSource } from './score';
 import { SceneProgram3D } from './stage3d';
 
@@ -105,6 +105,37 @@ describe('trusted GLB registry and model import', () => {
       expect(a.children.length).toBeGreaterThan(0);
     } finally { stage.dispose(); }
   });
+  it('selects one named animation, isolates scene placement, and seeks deterministically', async () => {
+    const loaded = await loadApprovedModel('expressive-robot-v1', (async () => new Response(triangleGLB())) as typeof fetch);
+    const animated = loaded.gltf.scene;
+    animated.name = 'CharacterRoot';
+    loaded.gltf.animations = [
+      new THREE.AnimationClip('idle', 2, [new THREE.VectorKeyframeTrack('.position', [0, 2], [0, 0, 0, 0, 2, 0])]),
+      new THREE.AnimationClip('walk', 2, [new THREE.VectorKeyframeTrack('.position', [0, 2], [0, 0, 0, 4, 0, 0])]),
+    ];
+    const instance = instantiateModel(loaded, 'walk');
+    instance.root.position.set(10, 0, 0);
+    instance.setTime(1);
+    expect(instance.root.position.toArray()).toEqual([10, 0, 0]);
+    expect(instance.root.children[0].position.toArray()).toEqual([2, 0, 0]);
+    instance.setTime(1.7); instance.setTime(.2); instance.setTime(1);
+    expect(instance.root.children[0].position.toArray()).toEqual([2, 0, 0]);
+    const defaultInstance = instantiateModel(loaded);
+    defaultInstance.setTime(1);
+    expect(defaultInstance.root.children[0].position.toArray()).toEqual([0, 1, 0]);
+    expect(() => instantiateModel(loaded, 'missing')).toThrow(/não encontrada/);
+    const plan = rawPlan();
+    const normalized = normalizeSceneProgram({...plan,nodes:[{...plan.nodes[0],animationClip:'walk'}]}, source);
+    expect(normalized.nodes[0].animationClip).toBe('walk');
+    const stage = new SceneProgram3D(normalized, source, new Map([['expressive-robot-v1',loaded]]));
+    try {
+      stage.update(1);
+      expect(stage.nodes.get('robot')!.children[0].position.x).toBeCloseTo(2);
+      expect(stage.nodes.get('robot')!.position.x).toBeLessThan(0);
+    } finally { stage.dispose(); }
+    expect(() => normalizeSceneProgram({...plan,nodes:[{...plan.nodes[0],animationClip:'https://example.com'}]},source)).toThrow(/animação GLB inválido/);
+  });
+
   it('refuses to display an unprepared model instead of substituting a generic presenter', () => {
     const plan = normalizeSceneProgram(rawPlan(), source);
     expect(() => new SceneProgram3D(plan, source)).toThrow(/ainda não foi carregado/);
