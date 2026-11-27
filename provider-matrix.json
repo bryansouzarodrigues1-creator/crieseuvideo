@@ -1,0 +1,68 @@
+{
+  "frames": 7,
+  "rows": [
+    {
+      "provider": "gemini gemini-3.8-flash",
+      "configured": true,
+      "paid": false,
+      "directMs": 13533,
+      "direct": "falhou: orçamento de chamadas deste vídeo esgotado",
+      "visionMs": 9353,
+      "vision": "falhou: orçamento de chamadas deste vídeo esgotado. Cena original preservada."
+    },
+    {
+      "provider": "gemini gemini-3.6-flash",
+      "configured": true,
+      "paid": false,
+      "directMs": 31763,
+      "direct": "ok",
+      "directCast": [
+        "mesh",
+        "armored-truck-v1",
+        "money-bag-v1",
+        "giant-safe-v1",
+        "actor"
+      ],
+      "visionMs": 24177,
+      "vision": "rejected",
+      "visionIssues": [
+        "s1: Enquadramento poluído com objetos cortados na câmera.",
+        "s2: Distância da câmera muito distante dos elementos principais.",
+        "s3: O cofre bloqueia a visão do descarregamento da caminhão."
+      ]
+    },
+    {
+      "provider": "gemini gemini-3.5-flash-lite",
+      "configured": true,
+      "paid": false,
+      "directMs": 12622,
+      "direct": "ok",
+      "directCast": [
+        "mesh",
+        "armored-truck-v1",
+        "giant-safe-v1",
+        "money-bag-v1",
+        "actor"
+      ],
+      "visionMs": 14104,
+      "vision": "corrected",
+      "visionIssues": [
+        "20.20s, o malote (saco) aparece na posição [-3,0,-1.2], longe da traseira do caminhão que parou em z=4"
+      ]
+    },
+    {
+      "provider": "groq openai/gpt-oss-120b",
+      "configured": false,
+      "paid": false,
+      "vision": "sem chave",
+      "direct": "sem chave"
+    },
+    {
+      "provider": "openrouter openrouter/free",
+      "configured": false,
+      "paid": false,
+      "vision": "sem chave",
+      "direct": "sem chave"
+    }
+  ]
+}
