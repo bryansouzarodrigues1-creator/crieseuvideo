@@ -59,6 +59,15 @@ describe('Gemini-directed Motion 2D keyframes',()=>{
     expect(b.y0).toBeLessThan(a.y0-50);
     expect(b.y1).toBeGreaterThan(a.y1+50);
   });
+  it('keeps three valid depth layers through normalization and layout',()=>{
+    const shapes=normalizeDrawing([
+      {type:'circle',x:-250,y:0,r:35,depth:'back'},
+      {type:'rect',x:0,y:0,w:60,h:60,depth:'middle'},
+      {type:'circle',x:250,y:0,r:35,depth:'front'},
+    ])!;
+    expect(laidOut(shapes).map(s=>s.depth)).toEqual(['back','middle','front']);
+    expect(normalizeDrawing([{type:'circle',depth:'invalid'}])![0].depth).toBe('middle');
+  });
   it('keeps old saved drawings without motion compatible',()=>{
     const drawing=normalizeDrawing([{type:'coin',x:0,y:0,anim:'pop',delay:0}])!;
     expect(drawing[0].motion).toBeUndefined();
