@@ -18,6 +18,7 @@ try{
     const {drawExplainerFrame}=await import('/src/studio/explainer/render.ts');
     const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
     const {motionAudit}=await import('/src/studio/explainer/motionAudit.ts');
+    const {inspectEditorialFrames}=await import('/src/studio/explainer/editorialReview.ts');
     const {encodeFixedFrame3DClip}=await import('/src/studio/utils/deterministic3dExport.ts');
     const scenery=(top,bottom,ground,detail)=>({top,bottom,elements:[
       {type:'rect',x:500,y:870,w:1000,h:260,color:ground},...detail
@@ -81,7 +82,9 @@ try{
       let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
       captures.push({engine,stills,seekStable,frames:encoded.frames,extension:encoded.filenameExtension,video:btoa(binary)});
     }
-    return {duration:totalDuration(plan),audit:motionAudit(plan),captures};
+    const review=inspectEditorialFrames({...plan,engine:'2d'});
+    const blank=inspectEditorialFrames({title:'Empty',aspect:'9:16',engine:'2d',scenes:[{...plan.scenes[0],drawing:[],groups:[],camera:'static'}]});
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -97,6 +100,11 @@ try{
     await writeFile(out+'/'+clip.engine+'.'+clip.extension,bytes);
     for(let i=0;i<clip.stills.length;i++)await writeFile(out+'/'+clip.engine+'-'+i+'.png',Buffer.from(clip.stills[i],'base64'));
   }
-  await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'silent test track, not Alex narration',quality:'requires visual review',seekStable:result.captures.map(c=>({engine:c.engine,stable:c.seekStable}))},null,2));
+  await writeFile(out+'/report.json',JSON.stringify({duration:result.duration,audit:result.audit,providerRequests,frames:240,source:'manual fixture',audio:'silent test track, not Alex narration',quality:'requires human visual review',localReview:result.review,blankReview:result.blank,seekStable:result.captures.map(c=>({engine:c.engine,stable:c.seekStable}))},null,2));
   for(const clip of result.captures)assert.equal(clip.seekStable,true,'Non-deterministic frame: '+clip.engine);
+  assert.equal(result.review.frames,12);
+  assert.deepEqual(result.review.issues.filter(i=>i.code==='repeated_background').map(i=>i.scene),[4]);
+  assert.ok(result.blank.issues.some(i=>i.code==='empty_art'),'Blank art must be detected');
+  assert.ok(result.review.metrics[1].motion>.004,'Moving linked truck must register as action');
+  assert.ok(result.review.issues.some(i=>i.scene===4&&i.code==='little_motion'),'Static final shot must be detected');
 }finally{await browser.close();}

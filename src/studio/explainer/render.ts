@@ -451,7 +451,8 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
   });
 }
 
-export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
+export type EditorialRenderPass='full'|'art'|'background';
+export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number, pass:EditorialRenderPass='full') {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
   const at = sceneAt(plan, t);
   // A frame may be reached from any previous time. Establish an opaque
@@ -468,7 +469,7 @@ export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerP
     if (!at) { sunburst(c, w, h, PAL.purple, t); return; }
     const { scene, local, index, duration } = at;
     // Keep the editorial frame stable, especially at cuts and on export.
-    drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d');
+    drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d',pass);
   } finally { c.restore(); }
 }
 
@@ -567,9 +568,10 @@ export function drawBoardArt(c: CanvasRenderingContext2D, scene: ExplainerScene,
   c.restore();
 }
 
-function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, depth=false) {
+function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, local: number, index: number, duration: number, w: number, h: number, u: number, t: number, depth=false,pass:EditorialRenderPass='full') {
   if(scene.backdrop)drawEditorialBackdrop(c,scene.backdrop,w,h);
   else if (scene.visual === 'city_night') city(c, w, h, u, local); else if (!scene.setting || !drawSetting(c, scene.setting, w, h, t)) sunburst(c, w, h, PAL[scene.palette] || PAL.orange, t);
+  if(pass==='background')return;
   const wd = wordAt(scene, local);
   const talk = wd?.speaking ? 0.35 + 0.65 * Math.abs(Math.sin(wd.since * 17 + wd.index)) * (1 - 0.4 * clamp(wd.since / 0.5)) : 0;
   const portrait = h > w, k = portrait ? 1.15 : 0.9;
@@ -583,14 +585,16 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     ext={x0:Math.min(ext.x0,ext.x0*k)-d,x1:Math.max(ext.x1,ext.x1*k)+d,
       y0:Math.min(ext.y0,ext.y0*k),y1:Math.max(ext.y1,ext.y1*k)};
   }
-  const push = 1 + Math.min(local, 8) * 0.008; // slow Ken Burns push-in
+  const authored=scene.visual==='custom'&&scene.composition==='authored';
+  // Authored cuts and motion come from the director, not the stock entrance/exit animation.
+  const push = authored?1:1 + Math.min(local, 8) * 0.008;
   const sBase = Math.min(k, fitScale(ext, z.hero, Infinity) / 1.065), sSteady = sBase * push;
   const spot = centerIn(ext, z.hero, sSteady);
   // camera: whip-in from alternating sides, slow push-in, quick exit
-  const enter = pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
-  const exit = smooth(clamp((local - (duration - 0.22)) / 0.22));
+  const enter = authored?1:pop(local, 0.05, 0.5), dir = index % 2 ? 1 : -1;
+  const exit = authored?0:smooth(clamp((local - (duration - 0.22)) / 0.22));
   const float = Math.sin(t * 1.6) * 8 * u, rot = Math.sin(t * 1.1) * 0.015;
-  const px = spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
+  const px = authored?spot.x:spot.x + dir * (1 - smooth(clamp(local / 0.45))) * w * 0.18 - dir * exit * w * 0.25;
   const isProp = scene.visual !== 'custom' && scene.visual !== 'character' && scene.visual !== 'city_night' && scene.visual !== 'money';
   if (isProp && enter > 0.01) {
     const shadowW = Math.min(260 * u * sBase, ((ext.x1 - ext.x0) / 2) * sSteady * 0.8);
@@ -603,6 +607,8 @@ function drawSceneFrame(c: CanvasRenderingContext2D, scene: ExplainerScene, loca
     drawHero(c, scene, local, t, u, talk, wd?.since ?? 1,depth,duration);
   });
   c.restore();
+  // Review art without captions or badges: text must not mask missing action.
+  if(pass==='art')return;
   // label badge: fixed slot above the hero zone
   if (outerLabel)
     badge(c, scene.label!.toUpperCase(), w / 2, (z.label.y0 + z.label.y1) / 2, u, pop(local, 0.5) * (1 - exit), -0.06 + Math.sin(t * 2) * 0.02, scene.visual === 'city_night' ? '#3DDC97' : '#FFFFFF');
