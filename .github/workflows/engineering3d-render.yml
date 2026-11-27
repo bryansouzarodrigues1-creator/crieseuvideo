@@ -1,0 +1,37 @@
+name: Engineering 3D - render Casa Forno
+on:
+  push:
+    branches: [engineering3d/casa-forno-render]
+    paths: ['experiments/engineering3d/**', '.github/workflows/engineering3d-render.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned Three.js and renderer
+        run: |
+          npm pack three@0.128.0 --pack-destination "$RUNNER_TEMP"
+          tar -xzf "$RUNNER_TEMP/three-0.128.0.tgz" -C "$RUNNER_TEMP" package/build/three.min.js
+          python -m pip install playwright==1.51.0
+          python -m playwright install --with-deps chromium
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Render original scene
+        run: python experiments/engineering3d/render.py experiments/engineering3d/casa-forno.html "$RUNNER_TEMP/package/build/three.min.js" output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: casa-forno-render
+          path: output/
+          if-no-files-found: warn
+          retention-days: 7
