@@ -395,7 +395,7 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
     c.save(); c.globalAlpha *= alpha;
     const group=groups.find(g=>g.id===sh.group);
-    if(group){const p=groupPose(group,local);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
+    if(group){const p=groupPose(group,local,groups);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style
     if (!authored && sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
@@ -507,6 +507,17 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
         const anchorRadius=Math.hypot(g.support.anchorX-g.x,g.support.anchorY-g.y);
         const reach=(radius+anchorRadius)*scale;
         ext={...ext,y0:Math.min(ext.y0,g.support.surfaceY-reach),y1:Math.max(ext.y1,g.support.surfaceY+reach)};
+      }
+      // Include attachment samples in the automatic framing estimate.
+      if(g.attachment){
+        const times=new Set([0,g.attachment.start,g.attachment.end,...g.motion.map(p=>p.time)]);
+        const carrier=scene.groups?.find(x=>x.id===g.attachment!.carrier);
+        for(const p of carrier?.motion??[])times.add(p.time);
+        for(let t=g.attachment.start;t<g.attachment.end;t+=.125)times.add(t);
+        for(const t of times){
+          const p=groupPose(g,t,scene.groups),rr=radius*Math.max(1,p.scale),x=g.x+p.dx,y=g.y+p.dy;
+          ext={x0:Math.min(ext.x0,x-rr),x1:Math.max(ext.x1,x+rr),y0:Math.min(ext.y0,y-rr),y1:Math.max(ext.y1,y+rr)};
+        }
       }
       for(const p of g.motion){
         const rr=radius*Math.max(1,p.scale),x=g.x+p.dx,y=g.y+p.dy;
