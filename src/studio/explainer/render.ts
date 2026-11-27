@@ -1,3 +1,4 @@
+import {groupPose,type EditorialGroup} from './editorialGroups';
 import {drawEditorialBackdrop} from './editorialBackdrop';
 import {editorialCameraPose,EDITORIAL_CAMERA_MAX_SCALE,EDITORIAL_CAMERA_MAX_SHIFT} from './editorialCamera';
 import {sampleShapeMotion} from './shapeMotion';
@@ -364,7 +365,7 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
   c.restore();
 }
 
-function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number, authored=false) {
+function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number, authored=false, groups:readonly EditorialGroup[]=[] ) {
   const firstPerson = shapes.find((x) => x.type === 'person' || x.type === 'bust');
   shapes.forEach((sh, i) => {
     const d = sh.delay, ph = t * 1.3 + i;
@@ -392,6 +393,8 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     if(sh.motion?.length){const m=sampleShapeMotion(sh.motion,local);dx=m.dx;dy=m.dy;rot=(sh.rot||0)*Math.PI/180+m.rotation*Math.PI/180;sc=m.scale;alpha=m.opacity;}
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
     c.save(); c.globalAlpha *= alpha;
+    const group=groups.find(g=>g.id===sh.group);
+    if(group){const p=groupPose(group,local);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style
     if (!authored && sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
@@ -488,7 +491,20 @@ const LABEL_IN_PROP = new Set(['laptop', 'phone_chat', 'profile', 'chips']);
 
 function sceneShapes(scene:ExplainerScene){return scene.composition==='authored'?(scene.drawing??[]):laidOut(scene.drawing??[]);}
 function heroExtent(scene: ExplainerScene, u: number): Rect {
-  if (scene.visual === 'custom') return scaleRect(foregroundExtent(sceneShapes(scene),scene.composition==='authored') ?? { x0: -420, y0: -290, x1: 420, y1: 430 }, u);
+  if (scene.visual === 'custom') {
+    const shapes=sceneShapes(scene), authored=scene.composition==='authored';
+    let ext=foregroundExtent(shapes,authored)??{x0:-420,y0:-290,x1:420,y1:430};
+    for(const g of scene.groups??[]){
+      const b=foregroundExtent(shapes.filter(s=>s.group===g.id),true);
+      if(!b)continue;
+      const radius=Math.hypot(Math.max(Math.abs(b.x0-g.x),Math.abs(b.x1-g.x)),Math.max(Math.abs(b.y0-g.y),Math.abs(b.y1-g.y)));
+      for(const p of g.motion){
+        const rr=radius*Math.max(1,p.scale),x=g.x+p.dx,y=g.y+p.dy;
+        ext={x0:Math.min(ext.x0,x-rr),x1:Math.max(ext.x1,x+rr),y0:Math.min(ext.y0,y-rr),y1:Math.max(ext.y1,y+rr)};
+      }
+    }
+    return scaleRect(ext,u);
+  }
   return scaleRect(HERO_EXT[scene.visual] ?? HERO_EXT.character, u);
 }
 
@@ -515,12 +531,12 @@ function drawHero(c: CanvasRenderingContext2D, scene: ExplainerScene, local: num
       if(!depth){
         const pose=editorialCameraPose(shot,'middle',local,duration,false);
         c.save();c.translate(pose.x*u,pose.y*u);c.scale(pose.scale,pose.scale);
-        customDrawing(c,u,local,t,shapes,talk,beat,scene.composition==='authored');c.restore();break;
+        customDrawing(c,u,local,t,shapes,talk,beat,scene.composition==='authored',scene.groups);c.restore();break;
       }
       for(const layer of ['back','middle','front'] as const){
         const pose=editorialCameraPose(shot,layer,local,duration,true);
         c.save();c.translate(pose.x*u,pose.y*u);c.scale(pose.scale,pose.scale);
-        customDrawing(c,u,local,t,shapes.filter(s=>(s.depth??'middle')===layer),talk,beat,scene.composition==='authored');
+        customDrawing(c,u,local,t,shapes.filter(s=>(s.depth??'middle')===layer),talk,beat,scene.composition==='authored',scene.groups);
         c.restore();
       }
       break;
