@@ -29,3 +29,28 @@ describe('bounded scene repairs',()=>{
   expect(after.camera).toBe('push_in');
  });
 });
+
+describe('motion and framing repair',()=>{
+ it('resizes group preserving trajectory and pivots',()=>{
+  const scene=base(),after=applySceneEdits(scene,[{target:'group_motor',op:'resize',factor:1.5}]);
+  expect(after.groups?.[0].motion.map(k=>k.scale)).toEqual([1.5,1.5]);
+  expect(after.groups?.[0].motion[1].rotation).toBe(90);
+  expect(after.drawing).toEqual(scene.drawing);
+  expect(scene.groups?.[0].motion[0].scale).toBe(1);
+ });
+ it('changes motion only on named target and rejects malformed tracks',()=>{
+  const scene=base(),after=applySceneEdits(scene,[{target:'shape_0',op:'motion',motion:[{time:0},{time:2,dx:100,ease:'linear'}]}]);
+  expect(after.drawing?.[0].motion?.[1].dx).toBe(100);
+  expect(after.drawing?.[0].anim).toBe('none');
+  expect(after.groups).toEqual(scene.groups);
+  for(const motion of [[{time:0},{time:0}],[{time:0,dx:500}],[{time:-1}],[{time:1,scale:Infinity}],[{time:0,ease:'unknown'}]])
+   expect(()=>applySceneEdits(scene,[{target:'group_motor',op:'motion',motion}])).toThrow();
+ });
+ it('retains fixed frame and rejects out-of-bounds values',()=>{
+  const scene=base(),framing={x:0,y:80,zoom:1.2};
+  const after=applySceneEdits(scene,[{target:'camera',op:'framing',framing}]);
+  expect(after.framing).toEqual(framing);
+  expect(normalizePlan({scenes:[after]},scene.text,'9:16').scenes[0].framing).toEqual(framing);
+  expect(()=>applySceneEdits(scene,[{target:'camera',op:'framing',framing:{x:0,y:900,zoom:1}}])).toThrow();
+ });
+});
