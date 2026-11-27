@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {encodeWav} from './wav.mjs';
+test('writes WAV with correct PCM format, samples and length',()=>{const b=encodeWav(new Float32Array([-1,0,1]),24000);const v=new DataView(b);assert.equal(b.byteLength,50);assert.equal(v.getUint32(24,true),24000);assert.equal(v.getUint32(40,true),6);assert.equal(v.getInt16(44,true),-32768);assert.equal(v.getInt16(48,true),32767);});
+test('rejects non-finite data, silence and invalid rate',()=>{for(const [a,r] of [[new Float32Array([NaN]),24000],[new Float32Array([0]),24000],[new Float32Array([1]),16000]])assert.throws(()=>encodeWav(a,r));});
