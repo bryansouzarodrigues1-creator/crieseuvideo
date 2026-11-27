@@ -1,0 +1,26 @@
+name: Alex local browser lab (no model calls)
+on:
+  pull_request:
+    paths:
+      - 'labs/alex-browser/**'
+      - '.github/workflows/alex-browser-lab.yml'
+permissions:
+  contents: read
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: labs/alex-browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: WAV validation (no model)
+        run: node --test wav.test.mjs
+      - name: Install experimental SDK, no lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Prepare WASM and build isolated lab (no weights)
+        run: npm run prepare && npm run build
