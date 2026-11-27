@@ -449,12 +449,22 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
 export function drawExplainerFrame(c: CanvasRenderingContext2D, plan: ExplainerPlan, t: number) {
   const w = c.canvas.width, h = c.canvas.height, u = Math.min(w, h) / 1080;
   const at = sceneAt(plan, t);
-  if (!at) { sunburst(c, w, h, PAL.purple, t); return; }
-  const { scene, local, index, duration } = at;
-  // camera impact: short decaying shake as each scene lands
-  const kick = Math.max(0, 1 - local / 0.35);
-  c.save(); c.translate(Math.sin(local * 70) * 6 * u * kick, Math.cos(local * 55) * 5 * u * kick);
-  try { drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d'); } finally { c.restore(); }
+  // A frame may be reached from any previous time. Establish an opaque
+  // backing and a known drawing state before rendering animated content.
+  c.save();
+  try {
+    c.setTransform(1,0,0,1,0,0);
+    c.globalAlpha=1; c.globalCompositeOperation='source-over';
+    c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
+    c.filter='none'; c.setLineDash([]); c.lineDashOffset=0;
+    c.lineCap='butt'; c.lineJoin='miter'; c.textAlign='start'; c.textBaseline='alphabetic';
+    c.clearRect(0,0,w,h);
+    c.fillStyle=(PAL[at?.scene.palette??'purple']??PAL.purple)[1]; c.fillRect(0,0,w,h);
+    if (!at) { sunburst(c, w, h, PAL.purple, t); return; }
+    const { scene, local, index, duration } = at;
+    // Keep the editorial frame stable, especially at cuts and on export.
+    drawSceneFrame(c, scene, local, index, duration, w, h, u, t, plan.engine==='2.5d');
+  } finally { c.restore(); }
 }
 
 /** Drawn extent of each hero visual (px at u = 1, relative to its origin), measured from the draw code. */
