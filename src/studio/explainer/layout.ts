@@ -174,10 +174,10 @@ const ANIM_PAD: Partial<Record<NonNullable<Shape['anim']>, [number, number, numb
  * needs (backdrops such as floors/walls and vehicles driving through are excluded). The renderer scales
  * the whole drawing so this box fits the hero zone, which keeps the artwork clear of the caption band.
  */
-export function foregroundExtent(shapes: Shape[]): Box | null {
+export function foregroundExtent(shapes: Shape[],authored=false): Box | null {
   let ext: Box | null = null;
   for (const s of shapes) {
-    if ((isBackdrop(s) || s.anim === 'drive') && !s.motion?.length) continue;
+    if (!authored && (isBackdrop(s) || s.anim === 'drive') && !s.motion?.length) continue;
     let b = shapeBox(s);
     const [px0, py0, px1, py1] = (s.anim && ANIM_PAD[s.anim]) || [0, 0, 0, 0];
     b = { x0: b.x0 - px0, y0: b.y0 - py0, x1: b.x1 + px1, y1: b.y1 + py1 };
