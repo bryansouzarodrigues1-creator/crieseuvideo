@@ -1,0 +1,43 @@
+name: Engineering 3D - real Gemini pump proof
+on:
+  push:
+    branches: [engineering3d/casa-forno-render]
+    paths: ['.github/workflows/engineering3d-live.yml']
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Exactly one real provider call, no fallback
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_CODE3D_MODEL: gemini-3.6-flash
+        run: bun scripts/engineering-gemini-live.mts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          pip install playwright==1.51.0 Pillow==11.2.1
+          python -m playwright install --with-deps chromium
+          sudo apt-get install -y ffmpeg
+      - name: Render in the official sandbox and verify MP4
+        run: python scripts/engineering-gemini-browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engineering-pump-proof
+          path: |
+            tmp/engineering-live/provider.json
+            tmp/engineering-live/browser.json
+            tmp/engineering-live/frame-*.png
+            tmp/engineering-live/Bomba_Centrifuga_Gemini.mp4
+            tmp/engineering-live/video-validation.json
+          retention-days: 7
+          if-no-files-found: warn
