@@ -9,7 +9,7 @@ permissions:
 jobs:
   lab:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: labs/alex-browser
@@ -24,3 +24,31 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Prepare WASM and build isolated lab (no weights)
         run: npm run prepare && npm run build
+      - name: Download public pinned Kokoro weights (no inference API)
+        run: |
+          mkdir -p public/models
+          curl --fail --location --retry 1 --max-time 180 'https://huggingface.co/litert-community/Kokoro-82M/resolve/5d1501fdcec28c65d5136aacd6c6c4a1d36d666a/kokoro_int8_fp16.litertlm' -o public/models/kokoro_int8_fp16.litertlm
+          test "$(stat -c %s public/models/kokoro_int8_fp16.litertlm)" -gt 100000000
+          mkdir -p proof
+          sha256sum public/models/kokoro_int8_fp16.litertlm > proof/model-sha256.txt
+      - name: Install test browser
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.57.0
+          npx playwright install chromium
+      - name: Run actual offline speech synthesis
+        run: |
+          npm run build
+          npm exec vite preview -- --host 127.0.0.1 --port 4199 --strictPort > proof/vite.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4199/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node smoke-browser.mjs
+      - name: Upload audio proof and diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alex-real-browser-proof
+          path: labs/alex-browser/proof/
+          retention-days: 7
+          if-no-files-found: warn
