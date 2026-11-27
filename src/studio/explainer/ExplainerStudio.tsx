@@ -257,7 +257,8 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       setPlan(p=>p.scenes.length?fitToTrack(p,audio.duration):p);
       seek(0);
       setNote('Áudio importado localmente. Se ainda não houver cenas, escreva o roteiro e crie a animação quando desejar. Nenhuma IA foi chamada para importar.');
-    } catch (e: any) { trackRef.current = null; setTrackName(''); setNote(e.message || 'Áudio inválido.'); }
+      return true;
+    } catch (e: any) { setNote(e.message || 'Áudio inválido.'); return false; }
   };
   const removeTrack = () => { trackRef.current = null; setTrackName(''); setPlaying(false); setPlan((p) => ({ ...p, track: undefined, scenes: p.scenes.map(({ voice: _v, ...r }) => r) })); };
   const saveDrawing = (i: number) => {
