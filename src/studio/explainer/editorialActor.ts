@@ -1,3 +1,5 @@
+import type {Shape} from './drawing';
+import {sampleShapeMotion} from './shapeMotion';
 /** Original vector cast: bounded appearance, deterministic articulated poses.
  * Walk is in-place; scene motion supplies displacement. No asset downloads. */
 export const ACTOR_ACTIONS=['idle','walk','wave','point','talk','react'] as const;
@@ -99,3 +101,16 @@ export function drawEditorialActor(c:CanvasRenderingContext2D,a:EditorialActor,u
  }finally{c.restore();}
 }
 export const ACTOR_GUIDE=`Use type:"actor" somente se a narrativa precisar de personagem de corpo inteiro. Exemplo: {"type":"actor","x":0,"y":100,"size":1.5,"anim":"none","actor":{"id":"trabalhador","style":{"skin":"#D7A27D","hair":"#503329","shirt":"#26778B","pants":"#293A4C","haircut":"short"},"action":"walk","expression":"neutral","facing":"right","speaking":false}}. Ações: idle,walk,wave,point,talk,react. Expressões: neutral,happy,worried,surprised,sad. Cabelo short/swept/bald. Preserve exatamente id e style para a mesma pessoa em todas as cenas; IDs diferentes para pessoas diferentes. speaking:true somente para quem fala; a narração fora de quadro não move boca. walk é ciclo no lugar; use motion para deslocar o personagem na direção desejada. Não é IK de contato com objetos externos nem caminhada com pés fixos. Crie cenário e objetos autorais ao redor, não use personagem em toda cena sem razão.`;
+
+/** Same local pose, mirroring, scale and rotation as the authored renderer.
+ * Restrict target to explicit root motion (no parent group or automatic entrance). */
+export function actorHandPoint(shape:Shape,time:number,hand:'left'|'right'){
+ const a=shape.actor;
+ if(shape.type!=='actor'||!a||shape.group||shape.anim!=='none'||shape.delay!==0||a.action==='talk')return;
+ const m=sampleShapeMotion(shape.motion,time);
+ const end=actorPose(a,time).arms[hand==='left'?0:1].end;
+ const scale=(shape.size??1)*m.scale,angle=((shape.rot??0)+m.rotation)*Math.PI/180;
+ const x=end.x*scale*(a.facing==='left'?-1:1),y=end.y*scale;
+ return {x:shape.x+m.dx+x*Math.cos(angle)-y*Math.sin(angle),y:shape.y+m.dy+x*Math.sin(angle)+y*Math.cos(angle),scale,opacity:m.opacity};
+}
+export const GRIP_GUIDE=`Para transportar um objeto composto com uma mão real do personagem actor, use no grupo do objeto grip:{"actor":"trabalhador","hand":"right","start":1,"end":4,"anchorX":100,"anchorY":80}. O id identifica o actor na cena, hand é o lado anatômico do rig (espelha com facing), anchorX/Y é o ponto do objeto em repouso. O ponto deve estar a até 16 unidades multiplicadas pela escala do personagem da mão no instante de captura. O motor conserva essa pequena diferença inicial e segue a mão sem teleporte; depois da soltura mantém o deslocamento final. O actor precisa anim:none, delay:0, sem group, action diferente de talk. Use motion explícito, mesmo plano de profundidade, sem support ou attachment no objeto transportado. Não é colisão nem fechamento dos dedos.`;
