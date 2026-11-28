@@ -23,7 +23,7 @@ import {
   type AiEvent,
   type FetchLike,
 } from "../../src/studio/ai";
-import { framingProblems } from "../../src/studio/explainer/sceneProgram/direction/framing";
+import { measurerFor } from "../../src/studio/server/directionService";
 import { produceDirectedVideo } from "../../src/studio/explainer/sceneProgram/direction/autonomous";
 import type { ProgramSource } from "../../src/studio/explainer/sceneProgram/score";
 import { SENTENCES } from "./story";
@@ -263,7 +263,7 @@ const result = await produceDirectedVideo({
     originalProgram ??= program;
     return [];
   },
-  advise: (program) => framingProblems(program, sources),
+  advise: await measurerFor(sources),
   onStage: (stage, info) => {
     stages.push(`${stage}: ${info} (+${Math.round((Date.now() - t0) / 1000)}s)`);
     console.log("[stage]", stages.at(-1));

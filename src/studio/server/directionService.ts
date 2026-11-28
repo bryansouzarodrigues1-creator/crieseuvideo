@@ -23,6 +23,9 @@ import {
 import { directViaRouter } from "../explainer/sceneProgram/direction/viaRouter";
 import { planInBlocks, type PlanCheckpoint } from "../explainer/sceneProgram/direction/blocks";
 import { advisory } from "../explainer/sceneProgram/direction/advisory";
+import { stageProblems } from "../explainer/sceneProgram/direction/stageMeasure";
+import { loadProgramModels, type PreparedModel } from "../explainer/sceneProgram/modelAssets";
+import type { ApprovedModelId } from "../explainer/sceneProgram/modelRegistry";
 import { framingProblems } from "../explainer/sceneProgram/direction/framing";
 
 type Env = Record<string, string | undefined>;
@@ -113,13 +116,52 @@ const report = (budget: Budget, events: AiEvent[]) => ({
   providers: [...new Set(events.filter((e) => e.ok).map((e) => `${e.target}/${e.model}`))],
 });
 
+/**
+ * The approved GLBs, read once from the project's own public folder so the engine can measure what each camera really
+ * shows (ray casting on the real meshes). Without a readable folder (edge runtimes) only the cheap checks run.
+ */
+let modelCache: Promise<ReadonlyMap<ApprovedModelId, PreparedModel> | undefined> | undefined;
+export function stageModels(dir?: string) {
+  modelCache ??= (async () => {
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const path = await import("node:path");
+      const { directionModels } = await import("../explainer/sceneProgram/direction/strict");
+      const root = dir ?? path.resolve(process.cwd(), "public");
+      const files = (async (url: string) => {
+        const bytes = await readFile(path.join(root, String(url).replace(/^\//, "")));
+        return new Response(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+      }) as unknown as typeof fetch;
+      const fake = {
+        nodes: directionModels().map(([id]) => ({ kind: "model", assetId: id })),
+      } as unknown as Parameters<typeof loadProgramModels>[0];
+      return await loadProgramModels(fake, files);
+    } catch {
+      return undefined;
+    }
+  })();
+  return modelCache;
+}
+export const resetStageModels = () => {
+  modelCache = undefined;
+};
+
+/** Advisory measurements for a script: cheap geometry checks plus, when the GLBs are readable, the real-stage ray casting. */
+export async function measurerFor(sources: ProgramSource[]) {
+  const models = await stageModels();
+  return (program: Parameters<typeof framingProblems>[0]) => [
+    ...framingProblems(program, sources),
+    ...(models ? stageProblems(program, sources, models) : []),
+  ];
+}
+
 export async function runDirection(raw: unknown, env: Env, userId: string, fetch?: FetchLike) {
   const input = directInput.parse(raw);
   const sources = sourcesFromScript(input.script);
   const events: AiEvent[] = [],
     budget = budgetFor(`${userId}:${input.videoId}`, env);
   const router = routerFor(env, budget, fetch, events);
-  const measure = (program: Parameters<typeof framingProblems>[0]) => framingProblems(program, sources);
+  const measure = await measurerFor(sources);
   if (input.blocks) {
     const r = await planInBlocks({
       router,
@@ -188,7 +230,7 @@ export async function runDirectionReview(
     router: routerFor(env, budget, fetch, events),
     direction: input.direction as unknown as Direction,
     sources,
-    measure: (program) => framingProblems(program, sources),
+    measure: await measurerFor(sources),
     frames: input.frames.map((f) => ({ time: f.time, mimeType: f.mimeType, base64: f.base64 })),
   });
   if (result.status === "corrected") {
