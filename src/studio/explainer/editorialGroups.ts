@@ -61,7 +61,7 @@ export function groupIssues(shapes:readonly Shape[],groups:readonly EditorialGro
    const a=g.grip,targets=shapes.filter(s=>s.actor?.id===a.actor),target=targets[0];
    const hand=target&&actorHandPoint(target,a.start,a.hand);
    const from=pointWithPose(g,a.anchorX,a.anchorY,baseGroupPose(g,a.start));
-   if(targets.length!==1||!hand||g.support||g.attachment||(target.depth??'middle')!==(members[0]?.depth??'middle')||hand.opacity<.99||Math.hypot(from.x-hand.x,from.y-hand.y)>16*hand.scale)issues.push('Captura pela mão inválida: '+g.id);
+   if(targets.length!==1||!target||!hand||g.support||g.attachment||(target.depth??'middle')!==(members[0]?.depth??'middle')||hand.opacity<.99||Math.hypot(from.x-hand.x,from.y-hand.y)>16*hand.scale)issues.push('Captura pela mão inválida: '+g.id);
   }
   if(g.attachment){
    const a=g.attachment,target=groups.find(t=>t.id===a.target);
