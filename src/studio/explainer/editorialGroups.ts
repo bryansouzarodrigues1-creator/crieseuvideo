@@ -1,8 +1,9 @@
+import {normalizeContactShadow,type ContactShadow} from './editorialMaterials';
 import {normalizeShapeMotion,sampleShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {Shape} from './drawing';
 export interface GroupSupport {anchorX:number;anchorY:number;surfaceY:number}
 export interface GroupAttachment {target:string;start:number;end:number;anchorX:number;anchorY:number;targetX:number;targetY:number}
-export interface EditorialGroup {id:string;x:number;y:number;motion:ShapeMotionKey[];support?:GroupSupport;attachment?:GroupAttachment}
+export interface EditorialGroup {id:string;x:number;y:number;motion:ShapeMotionKey[];support?:GroupSupport;attachment?:GroupAttachment;shadow?:ContactShadow}
 export function normalizeGroupAttachment(raw:unknown):GroupAttachment|undefined{
  if(!raw||typeof raw!=='object')return;
  const a=raw as Record<string,unknown>;
@@ -33,7 +34,8 @@ export function normalizeGroups(raw:unknown):EditorialGroup[]{
   if(g.support!==undefined&&!support)continue;
   const attachment=normalizeGroupAttachment(g.attachment);
   if(g.attachment!==undefined&&!attachment)continue;
-  result.push({id:g.id,x:Math.max(-560,Math.min(560,g.x)),y:Math.max(-560,Math.min(560,g.y)),motion,...(support?{support}:{}),...(attachment?{attachment}:{})});
+  const shadow=normalizeContactShadow(g.shadow);
+  result.push({id:g.id,x:Math.max(-560,Math.min(560,g.x)),y:Math.max(-560,Math.min(560,g.y)),motion,...(support?{support}:{}),...(attachment?{attachment}:{}),...(support&&shadow?{shadow}:{})});
  }
  return result;
 }

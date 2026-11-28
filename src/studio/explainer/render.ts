@@ -1,3 +1,4 @@
+import {materialFill,drawContactShadow} from './editorialMaterials';
 import {fixedEditorialPose} from './editorialFraming';
 import {groupPose,groupPoint,type EditorialGroup} from './editorialGroups';
 import {drawEditorialBackdrop} from './editorialBackdrop';
@@ -27,7 +28,7 @@ const BODY = (px: number, w = 700) => `${w} ${Math.round(px)}px 'Plus Jakarta Sa
 function rr(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath(); c.roundRect(x, y, w, h, r);
 }
-function shape(c: CanvasRenderingContext2D, fill: string, lw: number, stroke = INK) {
+function shape(c: CanvasRenderingContext2D, fill: string | CanvasGradient, lw: number, stroke = INK) {
   c.fillStyle = fill; c.fill(); if(lw>0){c.lineWidth = lw; c.strokeStyle = stroke; c.stroke();}
 }
 function withPop(c: CanvasRenderingContext2D, x: number, y: number, s: number, fn: () => void) {
@@ -367,6 +368,7 @@ function city(c: CanvasRenderingContext2D, w: number, h: number, u: number, loca
 }
 
 function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t: number, shapes: Shape[], talk: number, beat: number, authored=false, groups:readonly EditorialGroup[]=[] ) {
+  const shadowed=new Set<string>();
   const firstPerson = shapes.find((x) => x.type === 'person' || x.type === 'bust');
   shapes.forEach((sh, i) => {
     const d = sh.delay, ph = t * 1.3 + i;
@@ -393,22 +395,28 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     }
     if(sh.motion?.length){const m=sampleShapeMotion(sh.motion,local);dx=m.dx;dy=m.dy;rot=(sh.rot||0)*Math.PI/180+m.rotation*Math.PI/180;sc=m.scale;alpha=m.opacity;}
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
-    c.save(); c.globalAlpha *= alpha;
     const group=groups.find(g=>g.id===sh.group);
+    if(authored&&group?.support&&group.shadow&&!shadowed.has(group.id)){
+      const p=groupPose(group,local,groups),s=group.shadow;
+      drawContactShadow(c,(group.x+p.dx)*u,group.support.surfaceY*u,s.width*p.scale*u,s.height*u,s.opacity*p.opacity);
+      shadowed.add(group.id);
+    }
+    c.save(); c.globalAlpha *= alpha;
     if(group){const p=groupPose(group,local,groups);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style
     if (!authored && sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
     const fill = sh.color || '#FFFFFF', lw = (sh.strokeWidth??6) * u, st = sh.stroke || INK;
     const w = (sh.w || 120) * u, h = (sh.h || 120) * u, r = (sh.r || 60) * u;
+    const material=authored&&sh.material?materialFill(c,sh.material,sh.type==='circle'?2*r:w,sh.type==='circle'?2*r:h):fill;
     switch (sh.type) {
-      case 'circle': c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); shape(c, fill, lw, st); break;
-      case 'ellipse': c.beginPath(); c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); shape(c, fill, lw, st); break;
-      case 'rect': rr(c, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.08); shape(c, fill, lw, st); break;
+      case 'circle': c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); shape(c, material, lw, st); break;
+      case 'ellipse': c.beginPath(); c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); shape(c, material, lw, st); break;
+      case 'rect': rr(c, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.08); shape(c, material, lw, st); break;
       case 'poly': case 'line': {
         const pts = sh.points || []; c.beginPath();
         pts.forEach(([px, py], k) => { const X = (px - sh.x) * u, Y = (py - sh.y) * u; k ? c.lineTo(X, Y) : c.moveTo(X, Y); });
-        if (sh.type === 'poly') { c.closePath(); shape(c, fill, lw, st); }
+        if (sh.type === 'poly') { c.closePath(); shape(c, material, lw, st); }
         else { c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = st; c.lineWidth = (sh.size || 1) * 22 * u; c.stroke(); c.strokeStyle = fill; c.lineWidth = (sh.size || 1) * 12 * u; c.stroke(); }
         break;
       }
@@ -500,6 +508,10 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
       const b=foregroundExtent(shapes.filter(s=>s.group===g.id),true);
       if(!b)continue;
       const radius=Math.hypot(Math.max(Math.abs(b.x0-g.x),Math.abs(b.x1-g.x)),Math.max(Math.abs(b.y0-g.y),Math.abs(b.y1-g.y)));
+      if(g.support&&g.shadow){
+        const half=g.shadow.width*Math.max(1,...g.motion.map(p=>p.scale))/2;
+        for(const p of g.motion)ext={x0:Math.min(ext.x0,g.x+p.dx-half),x1:Math.max(ext.x1,g.x+p.dx+half),y0:Math.min(ext.y0,g.support.surfaceY-g.shadow.height/2),y1:Math.max(ext.y1,g.support.surfaceY+g.shadow.height/2)};
+      }
       if(g.support){
         // A supported pivot stays within anchor radius of the surface even
         // between rotation keys. Include its entire conservative swept extent.
