@@ -1,3 +1,4 @@
+import {paintTexture} from './editorialTextures';
 import {materialFill,drawContactShadow} from './editorialMaterials';
 import {fixedEditorialPose} from './editorialFraming';
 import {groupPose,groupPoint,type EditorialGroup} from './editorialGroups';
@@ -409,14 +410,20 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     const fill = sh.color || '#FFFFFF', lw = (sh.strokeWidth??6) * u, st = sh.stroke || INK;
     const w = (sh.w || 120) * u, h = (sh.h || 120) * u, r = (sh.r || 60) * u;
     const material=authored&&sh.material?materialFill(c,sh.material,sh.type==='circle'?2*r:w,sh.type==='circle'?2*r:h):fill;
+    const surface=(bounds:{x:number;y:number;w:number;h:number})=>{
+      if(!authored||!sh.texture){shape(c,material,lw,st);return;}
+      shape(c,material,0,st);
+      if(authored&&sh.texture)paintTexture(c,sh.texture,u,bounds);
+      if(lw>0){c.lineWidth=lw;c.strokeStyle=st;c.stroke();}
+    };
     switch (sh.type) {
-      case 'circle': c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); shape(c, material, lw, st); break;
-      case 'ellipse': c.beginPath(); c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); shape(c, material, lw, st); break;
-      case 'rect': rr(c, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.08); shape(c, material, lw, st); break;
+      case 'circle': c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); surface({x:-r,y:-r,w:2*r,h:2*r}); break;
+      case 'ellipse': c.beginPath(); c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); surface({x:-w/2,y:-h/2,w,h}); break;
+      case 'rect': rr(c, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.08); surface({x:-w/2,y:-h/2,w,h}); break;
       case 'poly': case 'line': {
         const pts = sh.points || []; c.beginPath();
         pts.forEach(([px, py], k) => { const X = (px - sh.x) * u, Y = (py - sh.y) * u; k ? c.lineTo(X, Y) : c.moveTo(X, Y); });
-        if (sh.type === 'poly') { c.closePath(); shape(c, material, lw, st); }
+        if (sh.type === 'poly') { c.closePath(); if(!pts.length){c.restore();return;} const xs=pts.map(p=>(p[0]-sh.x)*u),ys=pts.map(p=>(p[1]-sh.y)*u);const x=Math.min(...xs),y=Math.min(...ys);surface({x,y,w:Math.max(...xs)-x,h:Math.max(...ys)-y}); }
         else { c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = st; c.lineWidth = (sh.size || 1) * 22 * u; c.stroke(); c.strokeStyle = fill; c.lineWidth = (sh.size || 1) * 12 * u; c.stroke(); }
         break;
       }
