@@ -1,3 +1,4 @@
+import {normalizeActor} from './editorialActor';
 import {normalizeMaterial,normalizeContactShadow} from './editorialMaterials';
 import {normalizeGroupSupport,normalizeGroupAttachment,groupIssues} from './editorialGroups';
 import {normalizeEditorialFraming} from './editorialFraming';
@@ -5,7 +6,7 @@ import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {ExplainerScene} from './plan';
 import {normalizeEditorialShot} from './editorialCamera';
 import {normalizeBackdrop} from './editorialBackdrop';
-export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown}|{target:string;op:'attachment';attachment:unknown}|{target:string;op:'material';material:unknown}|{target:string;op:'shadow';shadow:unknown};
+export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown}|{target:string;op:'attachment';attachment:unknown}|{target:string;op:'material';material:unknown}|{target:string;op:'shadow';shadow:unknown}|{target:string;op:'acting';action:string;expression:string;facing:string;speaking:boolean};
 export function sceneInventory(scene:ExplainerScene){
  return {text:scene.text,camera:scene.camera,framing:scene.framing,backdrop:scene.backdrop,shapes:(scene.drawing??[]).map((s,i)=>({...s,id:'shape_'+i})),groups:(scene.groups??[]).map(g=>({...g,target:'group_'+g.id}))};
 }
@@ -43,7 +44,13 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
   const e=value as Record<string,unknown>;
   const target=e.target;
   if(typeof target!=='string')throw Error('Alvo inválido.');
-  if(e.op==='material'&&/^shape_(0|[1-9][0-9]*)$/.test(target)){
+  if(e.op==='acting'&&/^shape_(0|[1-9][0-9]*)$/.test(target)){
+   const i=Number(target.slice(6)),s=drawing[i];
+   if(!s||s.type!=='actor'||!s.actor)throw Error('Personagem inexistente.');
+   const actor=normalizeActor({...s.actor,action:e.action,expression:e.expression,facing:e.facing,speaking:e.speaking});
+   if(!actor)throw Error('Atuação inválida.');
+   drawing[i]={...s,actor};
+  }else if(e.op==='material'&&/^shape_(0|[1-9][0-9]*)$/.test(target)){
    const i=Number(target.slice(6)),s=drawing[i];
    if(!s||!['circle','ellipse','rect','poly'].includes(s.type))throw Error('Peça não aceita material.');
    if(e.material===null){drawing[i]={...s,material:undefined};}
