@@ -134,7 +134,28 @@ try{
     const textures=TEXTURES.map(kind=>({kind,...draw(kind,17)}));
     const stable=draw('wood',17).image===textures[0].image;
     const textureProof={visible:!textured.noVisibleChange,blocked:textured.blocked,stable,patterns:textures.map(({kind,outside,insideChanged})=>({kind,outside,insideChanged})),frames:textured.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof,materialProof,textureProof};
+    const actor={id:'worker',style:{skin:'#D7A27D',hair:'#503329',shirt:'#26778B',pants:'#293A4C',haircut:'short'},action:'walk',expression:'neutral',facing:'right',speaking:false};
+    const actorScene=scene('O trabalhador caminha até a oficina.',[
+      part('rect',0,185,{w:720,h:36,color:'#526675'}),
+      part('actor',0,0,{actor,size:1.1,motion:[{time:0,dx:-130},{time:5,dx:130,ease:'linear'}]})
+    ],workshop);
+    const actorPlan=fitToTrack(normalizePlan({scenes:[{...actorScene,framing:{x:0,y:0,zoom:1}}]},actorScene.text,'9:16'),5);
+    const actorReview=previewEditorialRepair({...actorPlan,engine:'2d'},0,[{target:'shape_1',op:'acting',action:'wave',expression:'happy',facing:'right',speaking:false}]);
+    const actorProof={visible:!actorReview.noVisibleChange,blocked:actorReview.blocked,frames:actorReview.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    const {actorHandPoint}=await import('/src/studio/explainer/editorialActor.ts');
+    const {normalizeDrawing}=await import('/src/studio/explainer/drawing.ts');
+    const carrier=normalizeDrawing([part('actor',-120,0,{actor:{...actor,action:'point'},size:1,motion:[{time:0},{time:3,dx:180,dy:-35,ease:'linear'},{time:5,dx:240}]})])[0];
+    const hand=actorHandPoint(carrier,0,'right');
+    const gripScene=scene('O trabalhador transporta e solta a caixa.',[
+      carrier,part('rect',hand.x+25,hand.y+20,{w:50,h:50,color:'#CB8844',group:'cargo'}),
+      part('rect',hand.x+25,hand.y+20,{w:8,h:50,color:'#F5D18A',group:'cargo'})
+    ],workshop,[{id:'cargo',x:hand.x,y:hand.y,motion:[{time:0}]}]);
+    const gripPlan=fitToTrack(normalizePlan({scenes:[{...gripScene,framing:{x:0,y:0,zoom:1}}]},gripScene.text,'9:16'),5);
+    const gripPreview=previewEditorialRepair({...gripPlan,engine:'2d'},0,[{target:'group_cargo',op:'grip',grip:{actor:'worker',hand:'right',start:0,end:3,anchorX:hand.x,anchorY:hand.y}}]);
+    const gs=gripPreview.candidate.scenes[0],gCargo=gs.groups[0],gActor=gs.drawing[0];
+    const gaps=[0,.2,1.5,3].map(t=>{const a=actorHandPoint(gActor,t,'right'),b=groupPoint(gCargo,hand.x,hand.y,t,gs.groups,gs.drawing);return Math.hypot(a.x-b.x,a.y-b.y);});
+    const gripProof={visible:!gripPreview.noVisibleChange,blocked:gripPreview.blocked,gaps,frames:gripPreview.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof,materialProof,textureProof,actorProof,gripProof};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -167,6 +188,19 @@ try{
     await writeFile(out+'/texture-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
   }
   await writeFile(out+'/texture-report.json',JSON.stringify({stable:result.textureProof.stable,patterns:result.textureProof.patterns},null,2));
+  assert.equal(result.gripProof.visible,true);
+  assert.equal(result.gripProof.blocked,false);
+  assert.ok(result.gripProof.gaps.every(gap=>gap<1e-8));
+  for(const frame of result.gripProof.frames){
+    await writeFile(out+'/grip-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/grip-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
+  assert.equal(result.actorProof.visible,true);
+  assert.equal(result.actorProof.blocked,false);
+  for(const frame of result.actorProof.frames){
+    await writeFile(out+'/actor-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/actor-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
   assert.equal(result.materialProof.visible,true);
   assert.equal(result.materialProof.blocked,false);
   for(const frame of result.materialProof.frames){

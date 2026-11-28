@@ -1,9 +1,11 @@
+import {actorHandPoint} from './editorialActor';
 import {normalizeContactShadow,type ContactShadow} from './editorialMaterials';
 import {normalizeShapeMotion,sampleShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {Shape} from './drawing';
 export interface GroupSupport {anchorX:number;anchorY:number;surfaceY:number}
 export interface GroupAttachment {target:string;start:number;end:number;anchorX:number;anchorY:number;targetX:number;targetY:number}
-export interface EditorialGroup {id:string;x:number;y:number;motion:ShapeMotionKey[];support?:GroupSupport;attachment?:GroupAttachment;shadow?:ContactShadow}
+export interface ActorGrip {actor:string;hand:'left'|'right';start:number;end:number;anchorX:number;anchorY:number}
+export interface EditorialGroup {id:string;x:number;y:number;motion:ShapeMotionKey[];support?:GroupSupport;attachment?:GroupAttachment;shadow?:ContactShadow;grip?:ActorGrip}
 export function normalizeGroupAttachment(raw:unknown):GroupAttachment|undefined{
  if(!raw||typeof raw!=='object')return;
  const a=raw as Record<string,unknown>;
@@ -11,6 +13,13 @@ export function normalizeGroupAttachment(raw:unknown):GroupAttachment|undefined{
  const time=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=30;
  if(!validGroupId(a.target)||!time(a.start)||!time(a.end)||a.end<=a.start||!coordinate(a.anchorX)||!coordinate(a.anchorY)||!coordinate(a.targetX)||!coordinate(a.targetY))return;
  return {target:a.target,start:a.start,end:a.end,anchorX:a.anchorX,anchorY:a.anchorY,targetX:a.targetX,targetY:a.targetY};
+}
+export function normalizeActorGrip(raw:unknown):ActorGrip|undefined{
+ if(!raw||typeof raw!=='object')return;
+ const a=raw as Record<string,unknown>;
+ const n=(v:unknown,lo:number,hi:number):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi;
+ if(!validGroupId(a.actor)||(a.hand!=='left'&&a.hand!=='right')||!n(a.start,0,30)||!n(a.end,0,30)||a.end<=a.start||!n(a.anchorX,-560,560)||!n(a.anchorY,-560,560))return;
+ return {actor:a.actor,hand:a.hand,start:a.start,end:a.end,anchorX:a.anchorX,anchorY:a.anchorY};
 }
 export function normalizeGroupSupport(raw:unknown):GroupSupport|undefined{
  if(!raw||typeof raw!=='object')return;
@@ -34,8 +43,10 @@ export function normalizeGroups(raw:unknown):EditorialGroup[]{
   if(g.support!==undefined&&!support)continue;
   const attachment=normalizeGroupAttachment(g.attachment);
   if(g.attachment!==undefined&&!attachment)continue;
+  const grip=normalizeActorGrip(g.grip);
+  if(g.grip!==undefined&&!grip)continue;
   const shadow=normalizeContactShadow(g.shadow);
-  result.push({id:g.id,x:Math.max(-560,Math.min(560,g.x)),y:Math.max(-560,Math.min(560,g.y)),motion,...(support?{support}:{}),...(attachment?{attachment}:{}),...(support&&shadow?{shadow}:{})});
+  result.push({id:g.id,x:Math.max(-560,Math.min(560,g.x)),y:Math.max(-560,Math.min(560,g.y)),motion,...(support?{support}:{}),...(attachment?{attachment}:{}),...(support&&shadow?{shadow}:{}),...(grip?{grip}:{})});
  }
  return result;
 }
@@ -46,9 +57,15 @@ export function groupIssues(shapes:readonly Shape[],groups:readonly EditorialGro
   const members=shapes.filter(s=>s.group===g.id);
   if(members.length<2)issues.push('Grupo precisa de duas peças: '+g.id);
   if(new Set(members.map(s=>s.depth??'middle')).size>1)issues.push('Grupo dividido entre planos: '+g.id);
+  if(g.grip){
+   const a=g.grip,targets=shapes.filter(s=>s.actor?.id===a.actor),target=targets[0];
+   const hand=target&&actorHandPoint(target,a.start,a.hand);
+   const from=pointWithPose(g,a.anchorX,a.anchorY,baseGroupPose(g,a.start));
+   if(targets.length!==1||!target||!hand||g.support||g.attachment||(target.depth??'middle')!==(members[0]?.depth??'middle')||hand.opacity<.99||Math.hypot(from.x-hand.x,from.y-hand.y)>16*hand.scale)issues.push('Captura pela mão inválida: '+g.id);
+  }
   if(g.attachment){
    const a=g.attachment,target=groups.find(t=>t.id===a.target);
-   if(!target||target.id===g.id||target.attachment||g.support){issues.push('Vínculo inválido: '+g.id);continue;}
+   if(!target||target.id===g.id||(target.attachment||target.grip)||g.support){issues.push('Vínculo inválido: '+g.id);continue;}
    const targetMembers=shapes.filter(s=>s.group===target.id);
    if(!targetMembers.length||(members[0]?.depth??'middle')!==(targetMembers[0]?.depth??'middle'))issues.push('Vínculo entre planos diferentes: '+g.id);
    // The director must bring the two points together before the pickup.
@@ -76,18 +93,27 @@ function pointWithPose(g:EditorialGroup,x:number,y:number,p:ReturnType<typeof ba
 }
 /** One-level, temporary positional attachment. The release retains the last
  * offset, so authored movement resumes without jumping to the old position. */
-export function groupPose(g:EditorialGroup,t:number,groups:readonly EditorialGroup[]=[]){
+export function groupPose(g:EditorialGroup,t:number,groups:readonly EditorialGroup[]=[],shapes:readonly Shape[]=[]){
  const p=baseGroupPose(g,t),a=g.attachment;
+ const grip=g.grip;
+ if(grip&&!g.support&&!a&&t>=grip.start){
+  const actor=shapes.find(s=>s.actor?.id===grip.actor),at=Math.min(t,grip.end);
+  const hand=actor&&actorHandPoint(actor,at,grip.hand),initial=actor&&actorHandPoint(actor,grip.start,grip.hand);
+  if(hand&&initial){
+   const from=pointWithPose(g,grip.anchorX,grip.anchorY,baseGroupPose(g,at)),start=pointWithPose(g,grip.anchorX,grip.anchorY,baseGroupPose(g,grip.start));
+   return {...p,dx:p.dx+hand.x-initial.x+start.x-from.x,dy:p.dy+hand.y-initial.y+start.y-from.y};
+  }
+ }
  if(!a||g.support||t<a.start)return p;
  const target=groups.find(v=>v.id===a.target);
- if(!target||target===g||target.attachment)return p;
+ if(!target||target===g||target.attachment||target.grip)return p;
  const at=Math.min(t,a.end);
  const from=pointWithPose(g,a.anchorX,a.anchorY,baseGroupPose(g,at));
  const to=pointWithPose(target,a.targetX,a.targetY,baseGroupPose(target,at));
  return {...p,dx:p.dx+to.x-from.x,dy:p.dy+to.y-from.y};
 }
-export function groupPoint(g:EditorialGroup,x:number,y:number,t:number,groups:readonly EditorialGroup[]=[]){
- return pointWithPose(g,x,y,groupPose(g,t,groups));
+export function groupPoint(g:EditorialGroup,x:number,y:number,t:number,groups:readonly EditorialGroup[]=[],shapes:readonly Shape[]=[]){
+ return pointWithPose(g,x,y,groupPose(g,t,groups,shapes));
 }
 export const GROUP_GUIDE=`Para um objeto composto que se move inteiro (máquina, veículo, pessoa, caixa), dê a todas as peças o mesmo campo group:"motor" e depth:"middle". Na cena, use groups:[{"id":"motor","x":0,"y":100,"motion":[{"time":0},{"time":2,"dx":150,"rotation":20}]}]. x,y são o pivô comum em coordenadas do desenho. As peças mantêm suas posições relativas. Cada peça ainda pode ter motion próprio (por exemplo roda girando). Até 12 grupos, sem grupos aninhados. Um grupo não pode misturar planos. Não repita a trajetória do grupo nas peças.`;
 

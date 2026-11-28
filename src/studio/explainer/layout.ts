@@ -1,3 +1,4 @@
+import {ACTOR_BOUNDS} from './editorialActor';
 /**
  * Composition pass for AI drawings: keeps every shape inside the hero zone (never under the caption
  * or off-screen), pushes objects off the characters' faces and draws text/balloons last.
@@ -16,6 +17,7 @@ export function shapeBox(s: Shape): Box {
     case 'rect': case 'ellipse': { const w = (s.w ?? 120) / 2, h = (s.h ?? 120) / 2; return { x0: s.x - w, x1: s.x + w, y0: s.y - h, y1: s.y + h }; }
     case 'poly': case 'line': { const p = s.points ?? [[s.x, s.y]]; return { x0: Math.min(...p.map((q) => q[0])), x1: Math.max(...p.map((q) => q[0])), y0: Math.min(...p.map((q) => q[1])), y1: Math.max(...p.map((q) => q[1])) }; }
     case 'text': { const hw = (s.text?.length ?? 4) * 19; return at(hw, 36, 36); }
+    case 'actor': return at(ACTOR_BOUNDS.right,Math.abs(ACTOR_BOUNDS.top),ACTOR_BOUNDS.bottom);
     case 'person': return at(140, 150, 195);
     case 'bust': return at(200, 175, 280);
     case 'phone': return at(150, 270, 270);
