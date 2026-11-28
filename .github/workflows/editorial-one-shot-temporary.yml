@@ -1,0 +1,117 @@
+# TEMPORARY TEST ONLY. DO NOT MERGE.
+name: Editorial one-shot authorized Gemini proof
+on:
+  pull_request:
+    types: [opened]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: editorial-live-proof
+  cancel-in-progress: false
+jobs:
+  lab:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'test/editorial-live-one-shot-20261128' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    defaults:
+      run:
+        working-directory: labs/alex-browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Check explicit approval and key without revealing it
+        working-directory: .
+        env:
+          EDITORIAL_LIVE_APPROVAL: ONE_FREE_TIER_GEMINI_CALL
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          test "$EDITORIAL_LIVE_APPROVAL" = ONE_FREE_TIER_GEMINI_CALL
+          if [ -z "$GEMINI_API_KEY" ]; then echo '::error::GEMINI_API_KEY is not available in GitHub Actions. No API call made.'; exit 1; fi
+      - name: Install locked production dependencies
+        working-directory: .
+        run: bun install --frozen-lockfile
+      - name: One real Gemini call through production director
+        working-directory: .
+        env:
+          EDITORIAL_LIVE_APPROVAL: ONE_FREE_TIER_GEMINI_CALL
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bun scripts/editorial-live-smoke.mts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: WAV validation (no model)
+        run: node --test wav.test.mjs
+      - name: Install experimental SDK, no lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Prepare WASM and build isolated lab (no weights)
+        run: npm run prepare && npm run build
+      - name: Download public pinned Kokoro weights (no inference API)
+        run: |
+          mkdir -p public/models
+          curl --fail --location --retry 1 --max-time 180 'https://huggingface.co/litert-community/Kokoro-82M/resolve/5d1501fdcec28c65d5136aacd6c6c4a1d36d666a/kokoro_int8_fp16.litertlm' -o public/models/kokoro_int8_fp16.litertlm
+          test "$(stat -c %s public/models/kokoro_int8_fp16.litertlm)" -gt 100000000
+          mkdir -p proof
+          sha256sum public/models/kokoro_int8_fp16.litertlm > proof/model-sha256.txt
+      - name: Install test browser
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.57.0
+          npx playwright install chromium
+      - name: Verify model integrity and prepare same-origin studio bundle
+        run: |
+          echo 'e7b931ee5d4b7104012a838c9eee240d19ea69cb3ca269041a3274f83dbb7fa1  public/models/kokoro_int8_fp16.litertlm' | sha256sum -c -
+          node prepare-studio.mjs
+      - uses: oven-sh/setup-bun@v2
+      - name: Install actual studio dependencies
+        working-directory: .
+        run: bun install --frozen-lockfile && bun add --no-save playwright@1.57.0
+      - name: Start actual studio
+        working-directory: .
+        run: |
+          mkdir -p tmp/editorial-live-proof
+          bunx vite --host 127.0.0.1 --port 4198 --strictPort >tmp/editorial-live-proof/vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4198/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Synthesize actual Alex in studio and export video
+        working-directory: .
+        env:
+          EDITORIAL_LIVE_PROOF: '1'
+        run: bun scripts/editorial-launch-proof.mjs
+      - name: Install media verification tools
+        working-directory: .
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffprobe -version | head -1
+      - name: Inspect encoded audio and video
+        working-directory: .
+        run: |
+          file=$(find tmp/editorial-live-proof -name 'ar-condicionado.*' -print -quit)
+          test -n "$file"
+          ffprobe -v error -count_frames -show_streams -show_format -of json "$file" > tmp/editorial-live-proof/ffprobe.json
+          ffmpeg -hide_banner -i "$file" -vn -af volumedetect -f null - 2> tmp/editorial-live-proof/audio-check.txt
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          p=Path('tmp/editorial-live-proof')
+          report=json.loads((p/'report.json').read_text())
+          media=json.loads((p/'ffprobe.json').read_text())
+          video=next(s for s in media['streams'] if s['codec_type']=='video')
+          audio=next(s for s in media['streams'] if s['codec_type']=='audio')
+          assert int(video['nb_read_frames'])==report['frames'],video
+          assert video['width']==720 and video['height']==1280
+          assert abs(float(media['format']['duration'])-(report['timelineSeconds']+.35))<.2,media
+          match=re.search(r'mean_volume: (-?[\d.]+) dB',(p/'audio-check.txt').read_text())
+          assert match and float(match.group(1))>-50,'Encoded audio missing or silent'
+          PY
+      - name: Archive actual video proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editorial-real-gemini-alex
+          path: tmp/editorial-live-proof/
+          retention-days: 7
+          if-no-files-found: warn
