@@ -1,3 +1,4 @@
+import {drawEditorialActor} from './editorialActor';
 import {paintTexture} from './editorialTextures';
 import {materialFill,drawContactShadow} from './editorialMaterials';
 import {fixedEditorialPose} from './editorialFraming';
@@ -457,6 +458,10 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
         drawProp(c, sh.type, (sh.size || 1) * u, sh.color, st, t + i, local - d, sh.text); break;
       case 'car': case 'house': case 'tree': case 'cloud': case 'building': case 'sun': case 'moon': case 'heart': case 'arrow': case 'bubble':
         drawObject(c, sh.type, (sh.size || 1) * u, sh.color, st, t + i, lw, sh.anim === 'drive' || sh.anim === 'walk', sh.text); break;
+      case 'actor': {
+        if(sh.actor)drawEditorialActor(c,sh.actor,u*(sh.size||1),local,sh.actor.speaking?talk:0);
+        break;
+      }
       case 'person': {
         const mood = (MOODS as readonly string[]).includes(sh.mood || '') ? (sh.mood as Mood) : 'neutral';
         drawCharacter(c, 0, 0, u * 0.55 * (sh.size || 1), mood, t + i, sh === firstPerson ? talk : 0, beat);
