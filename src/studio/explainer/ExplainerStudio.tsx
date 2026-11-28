@@ -1,3 +1,4 @@
+import {exportEditorialVideo} from './editorialExport';
 import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { supabase } from '@/integrations/supabase/client';
@@ -152,10 +153,12 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       const draft:unknown=JSON.parse(raw);
       if(!draft||typeof draft!=='object')return;
       const parsed=draft as Record<string,unknown>;
-      if(typeof parsed.script==='string'&&parsed.script.length<=750&&parsed.script.trim()){
+      if(typeof parsed.script==='string'&&parsed.script.length<=1500&&parsed.script.trim()){
         setScript(current=>current.trim()?current:parsed.script as string);
       }
       if(parsed.aspect==='9:16'||parsed.aspect==='16:9')setAspect(parsed.aspect);
+      if(parsed.engine==='2d'||parsed.engine==='2.5d'||parsed.engine==='3d')setEngine(parsed.engine);
+      if(parsed.mode==='creative'||parsed.mode==='gallery')setMode(parsed.mode);
       if(parsed.provider==='auto'||parsed.provider==='gemini'||parsed.provider==='lovable')
         setAi3dProvider(parsed.provider);
     }catch{/* blocked sessionStorage is not a login failure */}
@@ -311,7 +314,7 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
       // The SDK may redirect the whole browser; preserve only the draft.
       try{
         sessionStorage.setItem(AI3D_LOGIN_DRAFT_KEY,JSON.stringify({
-          script,aspect,provider:ai3dProvider
+          script,aspect,engine,mode,provider:ai3dProvider
         }));
       }catch{/* login may still work without draft persistence */}
       const result=await lovable.auth.signInWithOAuth('google',{
@@ -518,13 +521,26 @@ export function ExplainerStudio({ onOpenEditor, onOpenVideo }: { onOpenEditor: (
    */
   const exportVideo = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') { setNote('Este navegador não grava vídeo.'); return; }
+    if (!canvas) { setNote('Canvas indisponível.'); return; }
+    if(engine==='3d'&&(typeof MediaRecorder === 'undefined'||typeof canvas.captureStream !== 'function')){setNote('Este navegador não grava vídeo.');return;}
     if (exportingRef.current || !plan.scenes.length) return;
     exportingRef.current = true; setPlaying(false); setRecording(0); setNote('');
     let timer = 0, src: AudioBufferSourceNode | null = null, stream: MediaStream | null = null;
     try {
       unlockAudio();
       await document.fonts?.load("40px 'Lilita One'").catch(() => {});
+      if(engine!=='3d'){
+        const snapshot={...plan,engine,aspect};
+        const target=document.createElement('canvas');target.width=canvas.width;target.height=canvas.height;
+        try{
+          const result=await exportEditorialVideo({plan:snapshot,track:trackRef.current,canvas:target,onProgress:setRecording});
+          const link=document.createElement('a');link.href=URL.createObjectURL(result.blob);
+          link.download=(snapshot.title.replace(/[^\p{L}\d]+/gu,'-').slice(0,40)||'animacao')+'.'+result.filenameExtension;
+          link.click();setTimeout(()=>URL.revokeObjectURL(link.href),60000);
+          setNote('Vídeo '+result.filenameExtension.toUpperCase()+' exportado com '+result.frames+' quadros fixos a '+result.fps+' FPS'+(snapshot.track?', com narração.':', sem narração.'));
+          return;
+        }finally{target.width=1;target.height=1;}
+      }
       const ac = ctx(); await ac.resume();
       const fps = EXPORT_FPS;
 

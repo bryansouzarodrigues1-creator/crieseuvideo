@@ -1,3 +1,4 @@
+import {synthesizeAlexInBrowser} from './alexBrowser';
 import {useEffect,useRef,useState} from 'react';
 import {Button} from '@/components/ui/button';
 
@@ -16,6 +17,9 @@ export function LocalVoiceSettings({text,disabled=false,onAudio}:{text:string;di
   const [token,setToken]=useState('');
   const [generating,setGenerating]=useState(false);
   const active=useRef<SpeechSynthesisUtterance|null>(null);
+  const browserAbort=useRef<AbortController|null>(null);
+  const currentText=useRef(text);currentText.current=text;
+  useEffect(()=>()=>browserAbort.current?.abort(),[]);
   useEffect(()=>{
     if(!('speechSynthesis' in window))return;
     const synth=window.speechSynthesis;
@@ -47,6 +51,20 @@ export function LocalVoiceSettings({text,disabled=false,onAudio}:{text:string;di
     utterance.onend=()=>{if(active.current===utterance){active.current=null;setNote('Prévia concluída.');}};
     utterance.onerror=()=>{if(active.current===utterance){active.current=null;setNote('Não foi possível reproduzir esta voz local.');}};
     setNote('Reproduzindo prévia local…');synth.speak(utterance);
+  };
+  const generateBrowserAlex=async()=>{
+    if(disabled||generating||!onAudio||!text.trim()||text.length>1500)return;
+    if(!window.confirm('Gerar Alex neste dispositivo? O primeiro uso pode baixar cerca de 295 MB de modelo e exigir bastante memória. Nenhuma API de voz será chamada.'))return;
+    const requested=text,controller=new AbortController();browserAbort.current=controller;
+    setGenerating(true);
+    const timer=setTimeout(()=>controller.abort(),300000);
+    try{
+      const file=await synthesizeAlexInBrowser({text:requested,speed:rate,signal:controller.signal,onStatus:setNote});
+      if(controller.signal.aborted||currentText.current!==requested)throw Error('O roteiro mudou. Gere novamente para sincronizar a narração.');
+      if(!await onAudio(file))throw Error('O áudio não pôde ser importado.');
+      setNote('Narração Alex gerada neste aparelho e adicionada ao vídeo.');
+    }catch(e){setNote((e instanceof Error?e.message:String(e))+' Nenhum fallback pago foi acionado.');}
+    finally{clearTimeout(timer);browserAbort.current=null;setGenerating(false);}
   };
   const generateAlex=async()=>{
     if(disabled||generating||!onAudio||!token.trim()||!text.trim()||text.length>1500)return;
@@ -85,7 +103,11 @@ export function LocalVoiceSettings({text,disabled=false,onAudio}:{text:string;di
       <Button type="button" size="sm" variant="ghost" onClick={stop} disabled={!selected}>Parar</Button>
     </div>
     {onAudio&&<div style={{display:'grid',gap:8,marginTop:12}}>
-      <strong>Kokoro Alex · API local experimental</strong>
+      <strong>Kokoro Alex · voz neural no navegador (experimental)</strong>
+      <p className="explainer-sub">Sem servidor no computador, quando o pacote local estiver disponibilizado. Modelo de cerca de 295 MB; use Wi-Fi. Compatibilidade em Android ainda em validação.</p>
+      <Button type="button" size="sm" disabled={disabled||generating||!text.trim()||text.length>1500} onClick={()=>void generateBrowserAlex()}>Gerar Alex neste aparelho</Button>
+      {generating&&<Button type="button" size="sm" variant="outline" onClick={()=>browserAbort.current?.abort()}>Cancelar geração no navegador</Button>}
+      <strong>Kokoro Alex · servidor local alternativo</strong>
       <p className="explainer-sub">Requer o servidor Kokoro no mesmo computador. Não é uma API remota. O controle de tom acima só afeta a prévia do aparelho.</p>
       <label>Token local <input type="password" autoComplete="off" value={token} disabled={generating||disabled} onChange={e=>setToken(e.target.value)} placeholder="Token exibido pelo servidor"/></label>
       <Button type="button" size="sm" disabled={disabled||generating||!token.trim()||!text.trim()||text.length>1500} onClick={()=>void generateAlex()}>{generating?'Gerando áudio…':'Gerar narração Alex para o vídeo'}</Button>
