@@ -535,7 +535,7 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
       if(g.grip){
         const target=shapes.find(s=>s.actor?.id===g.grip?.actor),a=g.grip;
         const targetBox=target&&foregroundExtent([target],true);
-        if(targetBox){
+        if(target&&targetBox){
           const reach=(radius+Math.hypot(a.anchorX-g.x,a.anchorY-g.y))*Math.max(1,...g.motion.map(p=>p.scale))+16*(target.size??1)*Math.max(1,...(target.motion??[]).map(p=>p.scale));
           ext={x0:Math.min(ext.x0,targetBox.x0-reach),y0:Math.min(ext.y0,targetBox.y0-reach),x1:Math.max(ext.x1,targetBox.x1+reach),y1:Math.max(ext.y1,targetBox.y1+reach)};
           const release=groupPoint(g,g.x,g.y,a.end,scene.groups,shapes),free=groupPoint(g,g.x,g.y,a.end);
