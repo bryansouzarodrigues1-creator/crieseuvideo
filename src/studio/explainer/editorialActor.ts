@@ -60,7 +60,7 @@ export function actorPose(a:EditorialActor,t:number,talk=0){
  const b=(time+(hash%200)/100)%3.7;
  return {bob,arms,legs,blink:b<.18?Math.max(.08,Math.abs(Math.cos(b/.18*Math.PI))):1,headTilt:a.expression==='worried'?.06:a.action==='react'?-.045:Math.sin(time*1.3)*.018};
 }
-export const ACTOR_BOUNDS={left:-160,right:160,top:-174,bottom:165};
+export const ACTOR_BOUNDS={left:-160,right:160,top:-196,bottom:165};
 export function drawEditorialActor(c:CanvasRenderingContext2D,a:EditorialActor,u:number,t:number,talk:number){
  const q=actorPose(a,t,talk),s=a.style,ink='#273241';
  const oval=(x:number,y:number,w:number,h:number,color:string)=>{c.beginPath();c.ellipse(x,y,w,h,0,0,Math.PI*2);c.fillStyle=color;c.fill();};
