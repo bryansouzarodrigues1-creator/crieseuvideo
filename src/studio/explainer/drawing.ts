@@ -1,3 +1,4 @@
+import {normalizeActor,type EditorialActor} from './editorialActor';
 import {normalizeMaterial,type EditorialMaterial} from './editorialMaterials';
 import {validGroupId} from './editorialGroups';
 import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
@@ -6,7 +7,7 @@ import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
  * The AI never makes pixels: it describes primitives and motions, and this code draws them,
  * so any idea in a script (fire, chair, firefighters, hose) costs only text credits.
  */
-export const SHAPE_TYPES = ['circle', 'ellipse', 'rect', 'poly', 'line', 'text', 'star', 'flame', 'person', 'car', 'house', 'tree', 'cloud', 'building', 'sun', 'moon', 'heart', 'arrow', 'bubble', 'bust', 'phone', 'laptop', 'pin', 'scale', 'chart', 'coin', 'clock', 'stamp', 'xmark', 'check', 'hand', 'dog', 'cat', 'crowd', 'skyline'] as const;
+export const SHAPE_TYPES = ['circle', 'ellipse', 'rect', 'poly', 'line', 'text', 'star', 'flame', 'person', 'actor', 'car', 'house', 'tree', 'cloud', 'building', 'sun', 'moon', 'heart', 'arrow', 'bubble', 'bust', 'phone', 'laptop', 'pin', 'scale', 'chart', 'coin', 'clock', 'stamp', 'xmark', 'check', 'hand', 'dog', 'cat', 'crowd', 'skyline'] as const;
 export const SHAPE_ANIMS = ['none', 'pop', 'float', 'flicker', 'spin', 'shake', 'rise', 'fall', 'pulse', 'swing', 'walk', 'rock', 'drive', 'bounce', 'grow', 'zoom', 'orbit'] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
 export type ShapeAnim = (typeof SHAPE_ANIMS)[number];
@@ -20,6 +21,7 @@ export interface Shape {
   mood?: string; anim: ShapeAnim; delay: number;
   strokeWidth?: number;
   material?: EditorialMaterial;
+  actor?: EditorialActor;
   group?: string;
   motion?: ShapeMotionKey[]; depth?: 'back'|'middle'|'front';
 }
@@ -39,12 +41,14 @@ export function normalizeDrawing(raw: unknown): Shape[] | undefined {
     const o = s as Record<string, unknown>;
     const type = SHAPE_TYPES.includes(o.type as ShapeType) ? (o.type as ShapeType) : null;
     if (!type) continue;
+    const actor=type==='actor'?normalizeActor(o.actor):undefined;
+    if(type==='actor'&&!actor)continue;
     const pts = Array.isArray(o.points)
       ? (o.points as unknown[]).slice(0, 16).filter((p) => Array.isArray(p) && p.length >= 2).map((p: any) => [num(p[0], 0), num(p[1], 0)] as [number, number])
       : undefined;
     if ((type === 'poly' || type === 'line') && (!pts || pts.length < 2)) continue;
     out.push({
-      type, x: num(o.x, 0), y: num(o.y, 0),
+      type, actor, x: num(o.x, 0), y: num(o.y, 0),
       w: num(o.w, 120, 1, 1100), h: num(o.h, 120, 1, 1100), r: num(o.r, 60, 1, 600),
       points: pts, color: color(o.color), stroke: color(o.stroke),
       rot: num(o.rot, 0, -360, 360), size: num(o.size, 1, 0.2, 3),
