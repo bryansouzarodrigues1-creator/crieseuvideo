@@ -1,27 +1,29 @@
 /** Offline, real Alex narration + actual production renderer/exporter.
  * The storyboard is authored by hand, not a Gemini result. */
 import {chromium} from 'playwright';
-import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const out='tmp/editorial-launch-proof';
 await mkdir(out,{recursive:true});
 const script='O quarto está quente. O ar-condicionado puxa o ar do ambiente. O fluido refrigerante absorve calor e o leva para fora. O ar volta mais frio. O aparelho não cria frio, ele transporta calor.';
-const wav=await readFile('labs/alex-browser/proof/alex.wav');
+
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
  const page=await browser.newPage({viewport:{width:412,height:915}});
- let providerRequests=0;
- await page.route(/generativelanguage\.googleapis\.com|ai\.gateway\.lovable\.dev|api\.elevenlabs\.io|\/api\/ai\//,route=>{providerRequests++;return route.abort();});
+ let providerRequests=0;const external=[];
+ await page.route('**/*',route=>{const url=route.request().url();if(url.includes('/api/ai/')){providerRequests++;return route.abort();}if(url.startsWith('http://127.0.0.1:4198/')||url.startsWith('blob:')||url.startsWith('data:'))return route.continue();external.push(new URL(url).origin);return route.abort();});
  await page.goto('http://127.0.0.1:4198/',{waitUntil:'domcontentloaded'});
- const result=await page.evaluate(async({script,wav})=>{
+ const result=await page.evaluate(async({script})=>{
   const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
   const {exportEditorialVideo}=await import('/src/studio/explainer/editorialExport.ts');
   const {inspectEditorialFrames}=await import('/src/studio/explainer/editorialReview.ts');
   const {drawExplainerFrame}=await import('/src/studio/explainer/render.ts');
   await document.fonts.ready;
   const ac=new AudioContext();
-  const bytes=Uint8Array.from(atob(wav),x=>x.charCodeAt(0));
-  const track=await ac.decodeAudioData(bytes.buffer);await ac.close();
+  const {synthesizeAlexInBrowser}=await import('/src/studio/components/alexBrowser.ts');
+  const file=await synthesizeAlexInBrowser({text:script,speed:1,signal:AbortSignal.timeout(300000)});
+  const wav=new Uint8Array(await file.arrayBuffer());
+  const track=await ac.decodeAudioData(wav.buffer.slice(0));await ac.close();
   const part=(type,x,y,p)=>({type,x,y,anim:'none',depth:'middle',strokeWidth:0,...p});
   const rect=(x,y,w,h,color,p={})=>part('rect',x,y,{w,h,color,...p});
   const circle=(x,y,r,color,p={})=>part('circle',x,y,{r,color,...p});
@@ -51,9 +53,14 @@ try{
   for(const f of [.12,.38,.64,.88]){drawExplainerFrame(context,plan,totalDuration(plan)*f);stills.push(canvas.toDataURL('image/jpeg',.9).split(',')[1]);}
   const video=await exportEditorialVideo({plan,track,canvas});
   let binary='';const b=new Uint8Array(await video.blob.arrayBuffer());for(let i=0;i<b.length;i+=8192)binary+=String.fromCharCode(...b.subarray(i,i+8192));
-  return {video:btoa(binary),extension:video.filenameExtension,frames:video.frames,fps:video.fps,voiceSeconds:track.duration,timelineSeconds:totalDuration(plan),review,stills};
- },{script,wav:wav.toString('base64')});
+  let voiceBinary='';for(let i=0;i<wav.length;i+=8192)voiceBinary+=String.fromCharCode(...wav.subarray(i,i+8192));
+  return {wav:btoa(voiceBinary),video:btoa(binary),extension:video.filenameExtension,frames:video.frames,fps:video.fps,voiceSeconds:track.duration,timelineSeconds:totalDuration(plan),review,stills};
+ },{script});
  assert.equal(providerRequests,0);
+ const externalSpeech=external.filter(origin=>!['https://fonts.googleapis.com','https://fonts.gstatic.com'].includes(origin));
+ await writeFile(out+'/network.json',JSON.stringify({blockedExternal:external,blockedNonFont:externalSpeech},null,2));
+ assert.equal(externalSpeech.length,0,'Unexpected external request during studio proof');
+ await writeFile(out+'/alex.wav',Buffer.from(result.wav,'base64'));
  assert.ok(Math.abs(result.voiceSeconds-result.timelineSeconds)<.001);
  assert.equal(result.frames,Math.round((result.timelineSeconds+.35)*30));
  assert.ok(Buffer.from(result.video,'base64').length>10000);
