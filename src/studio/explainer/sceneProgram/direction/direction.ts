@@ -13,7 +13,7 @@
  * Output goes through normalizeSceneProgram, which stays the only security boundary.
  * The shape is plain JSON on purpose: an LLM can write it instead of raw tracks.
  */
-import { normalizeSceneProgram, SceneProgramError, type ProgramSource, type SceneProgram, type Vec3 } from '../score';
+import { normalizeSceneProgram, SceneProgramError, type Mood, type ProgramSource, type SceneProgram, type Vec3 } from '../score';
 import { EMOTIONS, POSE_NAMES, faceFor, handTargets, type Emotion, type PoseName } from './poses';
 import { DirectionError } from './errors';
 import { choreograph, isLocomotion, type Beat, type CliffWorld, type CompileReport, type LocomotionVerb } from './locomotion';
@@ -54,13 +54,17 @@ export type Verb =
 export type ActorVerb = { do: LocomotionVerb; node: string; from?: 'left' | 'right' | 'front' };
 const isActorVerb = (v: Verb): v is ActorVerb => isLocomotion(v.do);
 
+export type ShotSpec = { subjects: string[]; azimuth: number; endAzimuth?: number; elevation: number; distance: number };
+/** A camera change INSIDE the sentence, from phase `from` (0.1..0.9) until the next cut or the end. */
+export type Cut = ShotSpec & { from: number };
+
 export interface SceneDirection {
   sourceId: string;
-  shot: { subjects: string[]; azimuth: number; endAzimuth?: number; elevation: number; distance: number };
+  shot: ShotSpec & { cuts?: Cut[] };
   verbs: Verb[];
 }
 export interface Direction {
-  version: 1; background: string; cast: CastMember[]; scenes: SceneDirection[];
+  version: 1; background: string; /** Light preset (day, dusk, night, overcast, warm). */ mood?: Mood; cast: CastMember[]; scenes: SceneDirection[];
   /** Optional world built from the engine's own measurements; required by the actor verbs (walk, climb, plant, celebrate, stand). */
   world?: CliffWorld;
 }
@@ -153,6 +157,7 @@ export function compileDirectionDetailed(direction: Direction, sources: ProgramS
   const shots = direction.scenes.map((scene) => ({
     sourceId: scene.sourceId, subjects: scene.shot.subjects, azimuth: scene.shot.azimuth,
     endAzimuth: scene.shot.endAzimuth ?? scene.shot.azimuth, elevation: scene.shot.elevation, distance: scene.shot.distance,
+    ...(scene.shot.cuts?.length ? { cuts: scene.shot.cuts.map((c) => ({ ...c, endAzimuth: c.endAzimuth ?? c.azimuth })) } : {}),
   }));
 
   direction.scenes.forEach((scene, index) => {
@@ -237,7 +242,7 @@ export function compileDirectionDetailed(direction: Direction, sources: ProgramS
   const motionChecks = [...checks].sort((x, y) => y.threshold - x.threshold).slice(0, 60).map((c) => ({ ...c, kind: 'change' as const }));
   try {
     const program = normalizeSceneProgram({
-      version: 1, background: choreo?.background ?? direction.background, nodes,
+      version: 1, background: choreo?.background ?? direction.background, ...(direction.mood ? { mood: direction.mood } : {}), nodes,
       tracks: [...(choreo?.tracks ?? []), ...[...tracks.values()].map(({ current: _c, lastOrder: _l, ...t }) => t)],
       shots, contacts: choreo?.contacts ?? [], motionChecks,
     }, sources);

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped model JSON, validated field by field */
-import type { ProgramSource } from "../score";
+import { MOODS, type ProgramSource } from "../score";
 import { DirectionError } from "./errors";
 import { EMOTIONS, POSE_NAMES } from "./poses";
 import { isLocomotion } from "./locomotion";
@@ -38,7 +38,7 @@ export function parseDirection(raw: unknown, sources: ProgramSource[]): Directio
   if (!r || typeof r !== "object" || Array.isArray(r))
     return fail("A direção precisa ser um objeto JSON { version, background, cast, scenes }.");
   const extra = Object.keys(r).filter(
-    (k) => !["version", "background", "world", "cast", "scenes", "title"].includes(k),
+    (k) => !["version", "background", "mood", "world", "cast", "scenes", "title"].includes(k),
   );
   if (extra.length) fail(`Campos não suportados na direção: ${extra.join(", ")}.`);
   if (r.version !== 1) fail("version precisa ser 1.");
@@ -114,10 +114,48 @@ export function parseDirection(raw: unknown, sources: ProgramSource[]): Directio
     typeof v === "number" && Number.isFinite(v) && v >= min && v <= max
       ? v
       : fail(`${what} precisa ser um número entre ${min} e ${max}.`);
+  if (r.mood !== undefined && !(MOODS as readonly unknown[]).includes(r.mood))
+    fail(`mood precisa ser um destes: ${MOODS.join(", ")}.`);
+  const strictShot = (s: any, where: string, ids: { has(id: string): boolean }, extra: string[] = []) => {
+    if (!s || typeof s !== "object") fail(`${where} não é um objeto.`);
+    const unknown = Object.keys(s).find(
+      (k) => !["subjects", "azimuth", "endAzimuth", "elevation", "distance", ...extra].includes(k),
+    );
+    if (unknown) fail(`${where} tem o campo não suportado "${unknown}".`);
+    if (
+      !Array.isArray(s.subjects) ||
+      !s.subjects.length ||
+      s.subjects.length > 6 ||
+      s.subjects.some((x: unknown) => typeof x !== "string")
+    )
+      fail(`${where}.subjects precisa ser uma lista de 1 a 6 ids do elenco.`);
+    if (r.world === undefined)
+      for (const id of s.subjects) if (!ids.has(id)) fail(`${where} cita "${id}", que não está no elenco.`);
+    return {
+      subjects: s.subjects as string[],
+      azimuth: num(s.azimuth, `${where}.azimuth`, -Math.PI * 2, Math.PI * 2),
+      ...(s.endAzimuth !== undefined && s.endAzimuth !== null
+        ? { endAzimuth: num(s.endAzimuth, `${where}.endAzimuth`, -Math.PI * 2, Math.PI * 2) }
+        : {}),
+      elevation: num(s.elevation, `${where}.elevation`, -0.35, 1.1),
+      distance: num(s.distance, `${where}.distance`, 1, 2.5),
+    };
+  };
   const scenes = r.scenes.map((sc: any, i: number) => {
     const s = sc.shot;
+    const rawCuts = s.cuts;
+    if (rawCuts !== undefined && (!Array.isArray(rawCuts) || rawCuts.length > 4))
+      fail(`scenes[${i}].shot.cuts precisa ser uma lista de até 4 cortes.`);
+    const cuts = (rawCuts ?? []).map((c: any, k: number) => ({
+      from: num(c?.from, `scenes[${i}].shot.cuts[${k}].from`, 0.1, 0.9),
+      ...strictShot(c, `scenes[${i}].shot.cuts[${k}]`, cast, ["from"]),
+    }));
+    cuts.forEach((c: { from: number }, k: number) => {
+      if (c.from < (k ? cuts[k - 1].from : 0) + 0.1 - 1e-9)
+        fail(`scenes[${i}].shot.cuts precisa estar em ordem crescente, com pelo menos 10% da frase entre os cortes.`);
+    });
     const unknown = Object.keys(s).find(
-      (k) => !["subjects", "azimuth", "endAzimuth", "elevation", "distance"].includes(k),
+      (k) => !["subjects", "azimuth", "endAzimuth", "elevation", "distance", "cuts"].includes(k),
     );
     if (unknown) fail(`scenes[${i}].shot tem o campo não suportado "${unknown}".`);
     // With `world` the engine creates reserved nodes (ground, wall, …) that a shot may cite; compileDirection checks them.
@@ -128,28 +166,14 @@ export function parseDirection(raw: unknown, sources: ProgramSource[]): Directio
     if (extraKeys.length) fail(`scenes[${i}] tem o campo não suportado "${extraKeys[0]}".`);
     return {
       sourceId: sc.sourceId as string,
-      shot: {
-        subjects: s.subjects as string[],
-        azimuth: num(s.azimuth, `scenes[${i}].shot.azimuth`, -Math.PI * 2, Math.PI * 2),
-        ...(s.endAzimuth !== undefined && s.endAzimuth !== null
-          ? {
-              endAzimuth: num(
-                s.endAzimuth,
-                `scenes[${i}].shot.endAzimuth`,
-                -Math.PI * 2,
-                Math.PI * 2,
-              ),
-            }
-          : {}),
-        elevation: num(s.elevation, `scenes[${i}].shot.elevation`, -0.35, 1.1),
-        distance: num(s.distance, `scenes[${i}].shot.distance`, 1, 2.5),
-      },
+      shot: { ...strictShot({ ...s, cuts: undefined }, `scenes[${i}].shot`, cast, ["cuts"]), ...(cuts.length ? { cuts } : {}) },
       verbs: sc.verbs.map((v: unknown) => strictVerb(v, cast)),
     };
   });
   return {
     version: 1,
     background: r.background,
+    ...(r.mood !== undefined ? { mood: r.mood } : {}),
     cast: [...cast.values()],
     scenes,
     ...(r.world !== undefined ? { world: r.world } : {}),

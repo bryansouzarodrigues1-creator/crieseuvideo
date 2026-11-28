@@ -6,7 +6,7 @@ import type { ApprovedModelId } from './modelRegistry';
 import { separate, type Body, type Solid } from './separation';
 import { InkOutline, skyTexture, toonMaterial } from './look';
 import { isKit, kitMesh, terrainHeight, waterMesh, type KitParams, type KitShape, type MeshData } from './scenery';
-import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector } from './score';
+import { compileSceneProgram, EFFECTORS, SceneProgramError, type SceneProgram, type ProgramSource, type ProgramGeometry, type ProgramState, type Effector, type Mood } from './score';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 /** Motion-specific safety gate, not a fixed library of animation actions. */
@@ -54,6 +54,15 @@ function geometry(g: ProgramGeometry, color = '#ffffff'): THREE.BufferGeometry {
 
 /** Rendering depends exclusively on the serialized graph and absolute time.
  * No script keywords, per-topic scene function, eval, network asset or wall clock. */
+/** Light presets chosen by `mood`; the model picks a name, never a number. */
+const MOOD_LIGHTS: Record<Mood, { sky: number; ground: number; ambient: number; key: number; keyIntensity: number; rim: number; rimIntensity: number }> = {
+  day: { sky: 0xe0f0ff, ground: 0x777485, ambient: 2.3, key: 0xffe6c3, keyIntensity: 3.0, rim: 0xb5dcff, rimIntensity: 1.8 },
+  dusk: { sky: 0xffd2a8, ground: 0x4a3f5c, ambient: 1.5, key: 0xff9a5c, keyIntensity: 2.6, rim: 0x7a8cff, rimIntensity: 2.0 },
+  night: { sky: 0x4a5a9a, ground: 0x1b1f3a, ambient: 1.1, key: 0x9db4ff, keyIntensity: 1.5, rim: 0x6c8cff, rimIntensity: 2.2 },
+  overcast: { sky: 0xdfe5ea, ground: 0x8a8f96, ambient: 2.9, key: 0xf2f4f6, keyIntensity: 1.6, rim: 0xd0d8e0, rimIntensity: 1.0 },
+  warm: { sky: 0xfff0d8, ground: 0x8a7560, ambient: 2.2, key: 0xffd7a0, keyIntensity: 3.3, rim: 0xffc890, rimIntensity: 1.4 },
+};
+
 export class SceneProgram3D {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(39, 9 / 16, .05, 1500);
@@ -72,10 +81,11 @@ export class SceneProgram3D {
   constructor(readonly program: SceneProgram, readonly sources: ProgramSource[], loadedModels: ReadonlyMap<ApprovedModelId, PreparedModel> = new Map(), readonly renderProfile: 'toon' | 'technical' = 'toon') {
     this.score = compileSceneProgram(program, sources);
     const sky = skyTexture(program.background); this.scene.background = sky.texture; this.scene.fog = new THREE.Fog(sky.fog, 65, 220);
-    this.scene.add(new THREE.HemisphereLight(0xe0f0ff, 0x777485, 2.3));
-    const key = new THREE.DirectionalLight(0xffe6c3, 3.0); key.position.set(-12, 22, 18); key.castShadow = true;
+    const mood = MOOD_LIGHTS[program.mood ?? 'day'];
+    this.scene.add(new THREE.HemisphereLight(mood.sky, mood.ground, mood.ambient));
+    const key = new THREE.DirectionalLight(mood.key, mood.keyIntensity); key.position.set(-12, 22, 18); key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 90 }); key.shadow.normalBias = .08; key.shadow.bias = -.0015; this.scene.add(key, key.target);
-    const rim = new THREE.DirectionalLight(0xb5dcff, 1.8); rim.position.set(8, 10, -12); this.scene.add(rim);
+    const rim = new THREE.DirectionalLight(mood.rim, mood.rimIntensity); rim.position.set(8, 10, -12); this.scene.add(rim);
     for (const n of program.nodes) {
       let root: THREE.Object3D;
       if (n.kind === 'actor') { const index = this.actors.size, repeats = [...this.actors.keys()].filter((id) => this.program.nodes.find((m) => m.id === id)?.color.toLowerCase() === n.color.toLowerCase()).length;
@@ -377,11 +387,11 @@ export class SceneProgram3D {
   }
 
   frame(aspect: number) {
-    const { span, shot } = this.score.shot(this.time), box = new THREE.Box3();
+    const { span, shot, window } = this.score.shot(this.time), box = new THREE.Box3();
     for (const id of shot.subjects) box.union(new THREE.Box3().setFromObject(this.nodes.get(id)!));
     if (box.isEmpty()) throw new SceneProgramError('A câmera não encontrou geometria para enquadrar.');
     box.expandByScalar(.13);
-    const look = box.getCenter(V()), u = THREE.MathUtils.clamp((this.time - span.start) / span.duration, 0, 1);
+    const look = box.getCenter(V()), u = THREE.MathUtils.clamp(((this.time - span.start) / span.duration - window[0]) / Math.max(1e-6, window[1] - window[0]), 0, 1);
     const angle = shot.azimuth + (shot.endAzimuth - shot.azimuth) * u;
     const direction = V(Math.sin(angle) * Math.cos(shot.elevation), Math.sin(shot.elevation), Math.cos(angle) * Math.cos(shot.elevation));
     const points: THREE.Vector3[] = [];

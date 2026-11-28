@@ -23,7 +23,20 @@ export interface ProgramKey { sourceId: string; phase: number; value: Vec3 }
 /** `part` (model nodes only, rotation only) addresses a NAMED node inside the imported GLB, e.g. a door or wheel.
  * Only the part's rotation is driven (absolute Euler XYZ, radians); its authored translation/pivot is never touched. */
 export interface ProgramTrack { node: string; channel: ProgramChannel; interpolation: 'linear' | 'smooth' | 'step'; keys: ProgramKey[]; part?: string }
-export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number }
+export interface ProgramCut { from: number; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number }
+/** `cuts` switch the camera INSIDE the sentence: each cut starts at phase `from` (0..1) and replaces the shot's framing until the next one. */
+export interface ProgramShot { sourceId: string; subjects: string[]; azimuth: number; endAzimuth: number; elevation: number; distance: number; cuts?: ProgramCut[] }
+export const MOODS = ['day', 'dusk', 'night', 'overcast', 'warm'] as const;
+export type Mood = typeof MOODS[number];
+/** The shot active at `phase` of its sentence, with the phase window [from, to] it occupies. */
+export function activeShot(shot: ProgramShot, phase: number): { shot: Omit<ProgramShot, 'cuts' | 'sourceId'> & { sourceId: string }; window: [number, number] } {
+  const cuts = shot.cuts ?? []; let index = -1;
+  cuts.forEach((c, i) => { if (phase >= c.from) index = i; });
+  const base = { sourceId: shot.sourceId, subjects: shot.subjects, azimuth: shot.azimuth, endAzimuth: shot.endAzimuth, elevation: shot.elevation, distance: shot.distance };
+  if (index < 0) return { shot: base, window: [0, cuts[0]?.from ?? 1] };
+  const c = cuts[index];
+  return { shot: { ...base, subjects: c.subjects, azimuth: c.azimuth, endAzimuth: c.endAzimuth, elevation: c.elevation, distance: c.distance }, window: [c.from, cuts[index + 1]?.from ?? 1] };
+}
 export interface ProgramContact { sourceId: string; actor: string; effector: Effector; target: string; offset: Vec3; begin: number; end: number }
 /** A measurable on-screen action, not a thematic action ID or AI assertion.
  * change => sufficient movement; hold => small movement for the whole interval.
@@ -39,7 +52,7 @@ export interface ProgramMotionCheck {
   endPhase: number;
   threshold: number;
 }
-export interface SceneProgram { version: 1; sourceSignature: string; background: string; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
+export interface SceneProgram { version: 1; sourceSignature: string; background: string; mood?: Mood; nodes: ProgramNode[]; tracks: ProgramTrack[]; shots: ProgramShot[]; contacts: ProgramContact[]; motionChecks?: ProgramMotionCheck[] }
 export interface ProgramState { position: Vec3; rotation: Vec3; scale: Vec3; pose: Partial<Record<ProgramChannel, Vec3>>; /** Rotation (Euler XYZ) of named parts inside an imported model. */ parts?: Record<string, Vec3> }
 export class SceneProgramError extends Error {
   readonly code = 'invalid_scene_program';
@@ -57,7 +70,7 @@ const only = (r: Record<string, unknown>, keys: string[]) => { if (Object.keys(r
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): SceneProgram {
-  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks']);
+  const r = obj(raw); only(r, ['version', 'sourceSignature', 'background', 'mood', 'nodes', 'tracks', 'shots', 'contacts', 'motionChecks']);
   if (r.version !== 1 || !sources.length) fail('A versão ou as frases do programa são inválidas.');
   const sourceSignature = JSON.stringify(sources.map((s) => [s.sourceId, s.text]));
   if (r.sourceSignature !== undefined && r.sourceSignature !== sourceSignature) fail('O programa pertence a outro roteiro. Gere uma nova direção para este texto.');
@@ -234,10 +247,15 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
   for (const t of tracks) if (t.channel === 'scale') maximumScales.set(t.node, Math.max(maximumScales.get(t.node)!, ...t.keys.flatMap((k) => k.value)));
   for (const node of nodes) { let current: ProgramNode | undefined = node, product = 1; while (current) { product *= maximumScales.get(current.id)!; if (product > 1000) fail('A escala acumulada de uma hierarquia excedeu o limite da cena.'); current = current.parent ? nodeMap.get(current.parent) : undefined; } }
   const shots = list(r.shots, 120).map((value): ProgramShot => {
-    const s = obj(value); only(s, ['sourceId', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance']);
-    const subjects = list(s.subjects, 6).map((v) => nodeMap.has(v) ? v as string : fail('A câmera citou um objeto inexistente.'));
-    if (!subjects.length) fail('A câmera precisa acompanhar pelo menos um objeto.');
-    return { sourceId: source(s.sourceId), subjects, azimuth: num(s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), endAzimuth: num(s.endAzimuth ?? s.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation: num(s.elevation ?? .18, -.35, 1.1), distance: num(s.distance ?? 1.15, 1, 2.5) };
+    const s = obj(value); only(s, ['sourceId', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance', 'cuts']);
+    const subjectsOf = (raw: unknown) => { const l = list(raw, 6).map((v) => nodeMap.has(v) ? v as string : fail('A câmera citou um objeto inexistente.')); if (!l.length) fail('A câmera precisa acompanhar pelo menos um objeto.'); return l; };
+    const framing = (c: Record<string, unknown>) => ({ azimuth: num(c.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), endAzimuth: num(c.endAzimuth ?? c.azimuth ?? .5, -Math.PI * 2, Math.PI * 2), elevation: num(c.elevation ?? .18, -.35, 1.1), distance: num(c.distance ?? 1.15, 1, 2.5) });
+    const cuts = list(s.cuts ?? [], 4).map((raw): ProgramCut => {
+      const c = obj(raw); only(c, ['from', 'subjects', 'azimuth', 'endAzimuth', 'elevation', 'distance']);
+      return { from: num(c.from, .1, .9), subjects: subjectsOf(c.subjects), ...framing(c) };
+    });
+    cuts.forEach((c, i) => { if (c.from < (i ? cuts[i - 1].from : 0) + .1 - 1e-9) fail('Os cortes de câmera precisam estar em ordem crescente, com pelo menos 10% da frase entre eles.'); });
+    return { sourceId: source(s.sourceId), subjects: subjectsOf(s.subjects), ...framing(s), ...(cuts.length ? { cuts } : {}) };
   });
   if (shots.length !== sources.length || new Set(shots.map((s) => s.sourceId)).size !== shots.length || sources.some((s) => !shots.some((p) => p.sourceId === s.sourceId))) fail('Cada frase do roteiro precisa da sua própria tomada.');
   const contacts = list(r.contacts ?? [], 100).map((value): ProgramContact => {
@@ -267,7 +285,7 @@ export function normalizeSceneProgram(raw: unknown, sources: ProgramSource[]): S
       fail('A IA declarou uma ação sem animar a propriedade correspondente.');
     return { sourceId, node: check.node, channel: check.channel, kind: check.kind, startPhase, endPhase, threshold, ...(part ? { part } : {}) };
   });
-  const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
+  const normalized: SceneProgram = { version: 1, sourceSignature, background: color(r.background ?? '#A7D9ED'), ...(r.mood === undefined ? {} : { mood: (MOODS as readonly unknown[]).includes(r.mood) ? r.mood as Mood : fail('O clima de luz não é suportado.') }), nodes, tracks, shots: sources.map((s) => shots.find((p) => p.sourceId === s.sourceId)!), contacts,
     ...(motionChecks ? { motionChecks } : {}) };
   validateMotionChecks(normalized, sources);
   return normalized;
@@ -297,7 +315,11 @@ export function compileSceneProgram(program: SceneProgram, sources: ProgramSourc
       else state.pose[curve.channel] = [...value];
     }
     return states;
-  }, shot(time: number) { const span = spans.find((s, i) => time < s.start + s.duration || i === spans.length - 1)!; return { span, shot: program.shots.find((s) => s.sourceId === span.sourceId)! }; } };
+  }, shot(time: number) {
+      const span = spans.find((s, i) => time < s.start + s.duration || i === spans.length - 1)!, program_shot = program.shots.find((s) => s.sourceId === span.sourceId)!;
+      const phase = Math.max(0, Math.min(1, (time - span.start) / span.duration)), active = activeShot(program_shot, phase);
+      return { span, shot: active.shot, window: active.window };
+  } };
 }
 
 /**

@@ -24,6 +24,8 @@ ${catalogue}
 CENAS (scenes): EXATAMENTE uma por frase recebida, na mesma ordem, com o sourceId recebido:
   { "sourceId": "s1", "shot": { "subjects": ["ids"], "azimuth": 0.3, "endAzimuth": 0.05, "elevation": 0.16, "distance": 1.1 }, "verbs": [ ... ] }
   Alterne a câmera entre frases (azimute -0.6..0.6, elevação 0..0.3, distância 0.9..1.6).
+  CORTES (opcional): numa frase com duas ações use "cuts": [{ "from": 0.5, "subjects": [..], "azimuth": .., "elevation": .., "distance": .. }] dentro de shot; a câmera troca no instante "from" (0.1..0.9, até 4 cortes, ≥ 0.1 de intervalo). Use para mostrar causa e efeito (ex.: o caminhão chega → corte para a porta abrindo).
+  CLIMA DE LUZ (opcional, raiz da direção): "mood": "day" | "dusk" | "night" | "overcast" | "warm". Combine com background coerente (noite = fundo escuro azulado).
 
 VERBOS: todo verbo tem { "do", "node" } e, opcionalmente, "at": [de, até] (fase 0..1 dentro da frase; padrão [0,1]).
   appear | vanish          aparece (cresce) / some

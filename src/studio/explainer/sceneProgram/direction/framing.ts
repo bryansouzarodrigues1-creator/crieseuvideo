@@ -8,7 +8,7 @@
  * rotated by yaw, i.e. (sin yaw, cos yaw) in (x, z). It faces the camera when cos(yaw − az) > 0.
  */
 import { approvedModel } from "../modelRegistry";
-import { compileSceneProgram, type ProgramSource, type SceneProgram } from "../score";
+import { activeShot, compileSceneProgram, type ProgramSource, type SceneProgram } from "../score";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -20,12 +20,15 @@ export function framingProblems(program: SceneProgram, allSources: ProgramSource
   const nodes = new Map(program.nodes.map((n) => [n.id, n]));
   const out: string[] = [];
   for (const span of timeline.spans) {
-    const shot = program.shots.find((s) => s.sourceId === span.sourceId);
-    if (!shot) continue;
-    const times = [0.35, 0.8].map((p) => span.start + span.duration * p);
-    for (const t of times) {
+    const whole = program.shots.find((s) => s.sourceId === span.sourceId);
+    if (!whole) continue;
+    // Every camera of the sentence (the opening shot and each cut) is checked in the middle and near the end of its window.
+    const phases = [0.35, 0.8, ...(whole.cuts ?? []).flatMap((c) => [c.from + 0.1, Math.min(0.97, c.from + 0.3)])];
+    for (const phase of phases) {
+      const t = span.start + span.duration * phase;
+      const { shot, window } = activeShot(whole, phase);
       const state = timeline.sample(t);
-      const u = Math.max(0, Math.min(1, (t - span.start) / span.duration));
+      const u = Math.max(0, Math.min(1, (phase - window[0]) / Math.max(1e-6, window[1] - window[0])));
       const az = shot.azimuth + (shot.endAzimuth - shot.azimuth) * u;
       for (const id of shot.subjects) {
         const node = nodes.get(id);
