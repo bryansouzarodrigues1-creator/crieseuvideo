@@ -19,7 +19,7 @@ describe('shared production editorial director',()=>{
   }
  });
  it('reports exhausted quota, never generating a fake video',async()=>{
-  const provider=vi.fn(async()=>({...answer({}),text:null,problem:'rate_limit' as const}));
+  const provider=vi.fn(async()=>({...answer({}),text:null,problem:'quota' as const}));
   const res=await directEditorialPlan({},script,'9:16',true,provider);
   expect(res.status).toBe(503);expect(provider).toHaveBeenCalledTimes(1);expect((await res.json()).plan).toBeUndefined();
  });
