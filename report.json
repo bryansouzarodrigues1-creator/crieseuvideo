@@ -1,0 +1,118 @@
+{
+  "mode": "LIVE (Gemini real)",
+  "status": "exported",
+  "review": "rejected",
+  "reviewIssues": [
+    "s2: cofre_banco está de lado para a câmera; ajustado o azimute do plano.",
+    "s3: malote ocupa muito pouco espaço no quadro; reduzida a distância da câmera.",
+    "s4: cofre_banco está de lado para a câmera e malote invisível; ajustados azimute e distância.",
+    "s5: cofre_banco está de lado para a câmera; ajustado o azimute do plano."
+  ],
+  "reviewReason": "A direção gerou um programa inválido: Uma coordenada, tempo ou dimensão do programa é inválida. Cena original preservada.",
+  "aiCalls": 5,
+  "budget": {
+    "calls": 5,
+    "costUsd": 0
+  },
+  "providers": [
+    {
+      "target": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "ok": true,
+      "attempt": 1,
+      "latencyMs": 8526
+    },
+    {
+      "target": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "ok": true,
+      "attempt": 1,
+      "latencyMs": 11094
+    },
+    {
+      "target": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "ok": true,
+      "attempt": 1,
+      "latencyMs": 9285
+    },
+    {
+      "target": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "ok": true,
+      "attempt": 1,
+      "latencyMs": 12279
+    },
+    {
+      "target": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "ok": true,
+      "attempt": 1,
+      "latencyMs": 16152
+    }
+  ],
+  "stages": [
+    "plan: direção pelo modelo (+0s)",
+    "plan: bloco 1/2 (s1, s2, s3) (+0s)",
+    "plan: bloco 2/2 (s4, s5, s6) (+20s)",
+    "render: quadros reais do motor (+41s)",
+    "review: revisão visual (+42s)",
+    "export: MP4 (+58s)"
+  ],
+  "blocksCheckpointed": [
+    1,
+    2
+  ],
+  "seconds": 45,
+  "sentences": [
+    "Todo dia, um carro-forte sai da central carregado de dinheiro.",
+    "Ele atravessa a cidade e chega até a porta do banco.",
+    "A porta de trás se abre e os malotes são descarregados.",
+    "O dinheiro entra no banco e é guardado dentro do cofre gigante.",
+    "O gerente gira o volante e fecha a porta do cofre.",
+    "No fim do dia, tudo está seguro até a próxima entrega."
+  ],
+  "nodes": 5,
+  "warnings": [],
+  "motionMeanAbsDiff": 10.78,
+  "video": {
+    "ext": "mp4",
+    "frames": 540,
+    "fps": 12,
+    "bytes": 1334353
+  },
+  "pageErrors": [],
+  "castUsed": [
+    "chao:mesh",
+    "caminhao:armored-truck-v1",
+    "cofre_banco:giant-safe-v1",
+    "malote:money-bag-v1",
+    "gerente:actor"
+  ],
+  "verbs": [
+    [
+      "drive(caminhao)"
+    ],
+    [
+      "drive(caminhao)"
+    ],
+    [
+      "open(caminhao/porta_traseira)",
+      "appear(malote)",
+      "move(malote)"
+    ],
+    [
+      "vanish(caminhao)",
+      "turn(cofre_banco)",
+      "move(malote)"
+    ],
+    [
+      "spin(cofre_banco/volante)",
+      "close(cofre_banco/porta)"
+    ],
+    [
+      "pose(gerente)"
+    ]
+  ],
+  "wallSeconds": 94
+}

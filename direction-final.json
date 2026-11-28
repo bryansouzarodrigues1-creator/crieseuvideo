@@ -1,0 +1,307 @@
+{
+  "version": 1,
+  "background": "#1e293b",
+  "cast": [
+    {
+      "id": "chao",
+      "kind": "mesh",
+      "position": [
+        0,
+        -0.1,
+        0
+      ],
+      "color": "#334155",
+      "geometry": {
+        "shape": "box",
+        "size": [
+          60,
+          0.2,
+          60
+        ]
+      }
+    },
+    {
+      "id": "caminhao",
+      "kind": "model",
+      "position": [
+        0,
+        0,
+        -10
+      ],
+      "assetId": "armored-truck-v1"
+    },
+    {
+      "id": "cofre_banco",
+      "kind": "model",
+      "position": [
+        4,
+        0,
+        -2
+      ],
+      "rotation": [
+        0,
+        -1.57,
+        0
+      ],
+      "assetId": "giant-safe-v1"
+    },
+    {
+      "id": "malote",
+      "kind": "model",
+      "position": [
+        0,
+        0,
+        -5
+      ],
+      "hidden": true,
+      "assetId": "money-bag-v1"
+    },
+    {
+      "id": "gerente",
+      "kind": "actor",
+      "position": [
+        3,
+        0,
+        -1
+      ],
+      "rotation": [
+        0,
+        -1.57,
+        0
+      ],
+      "color": "#2563eb"
+    }
+  ],
+  "scenes": [
+    {
+      "sourceId": "s1",
+      "shot": {
+        "subjects": [
+          "caminhao"
+        ],
+        "azimuth": 0.2,
+        "endAzimuth": 0,
+        "elevation": 0.18,
+        "distance": 1.4
+      },
+      "verbs": [
+        {
+          "do": "drive",
+          "node": "caminhao",
+          "by": [
+            0,
+            0,
+            4
+          ],
+          "wheels": [
+            "roda_1",
+            "roda_2",
+            "roda_3",
+            "roda_4",
+            "roda_5",
+            "roda_6"
+          ],
+          "wheelRadius": 0.42,
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s2",
+      "shot": {
+        "subjects": [
+          "caminhao",
+          "cofre_banco"
+        ],
+        "azimuth": -0.4,
+        "endAzimuth": -0.2,
+        "elevation": 0.2,
+        "distance": 1.3
+      },
+      "verbs": [
+        {
+          "do": "drive",
+          "node": "caminhao",
+          "by": [
+            0,
+            0,
+            4
+          ],
+          "wheels": [
+            "roda_1",
+            "roda_2",
+            "roda_3",
+            "roda_4",
+            "roda_5",
+            "roda_6"
+          ],
+          "wheelRadius": 0.42,
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s3",
+      "shot": {
+        "subjects": [
+          "caminhao",
+          "malote"
+        ],
+        "azimuth": 3.1,
+        "endAzimuth": 3.1,
+        "elevation": 0.15,
+        "distance": 1.1
+      },
+      "verbs": [
+        {
+          "do": "open",
+          "node": "caminhao",
+          "part": "porta_traseira",
+          "axis": "y",
+          "angle": 2.09,
+          "at": [
+            0,
+            0.4
+          ]
+        },
+        {
+          "do": "appear",
+          "node": "malote",
+          "at": [
+            0.3,
+            0.5
+          ]
+        },
+        {
+          "do": "move",
+          "node": "malote",
+          "by": [
+            0,
+            0,
+            -1.5
+          ],
+          "at": [
+            0.5,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s4",
+      "shot": {
+        "subjects": [
+          "malote",
+          "cofre_banco"
+        ],
+        "azimuth": -1.57,
+        "endAzimuth": -1.57,
+        "elevation": 0.2,
+        "distance": 1.2
+      },
+      "verbs": [
+        {
+          "do": "vanish",
+          "node": "caminhao",
+          "at": [
+            0,
+            0.2
+          ]
+        },
+        {
+          "do": "turn",
+          "node": "cofre_banco",
+          "to": [
+            0,
+            -0.24,
+            0
+          ],
+          "at": [
+            0,
+            0.3
+          ]
+        },
+        {
+          "do": "move",
+          "node": "malote",
+          "to": [
+            4,
+            0.28,
+            -2
+          ],
+          "at": [
+            0.2,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s5",
+      "shot": {
+        "subjects": [
+          "gerente",
+          "cofre_banco"
+        ],
+        "azimuth": -1.57,
+        "endAzimuth": -1.57,
+        "elevation": 0.18,
+        "distance": 1.1
+      },
+      "verbs": [
+        {
+          "do": "spin",
+          "node": "cofre_banco",
+          "part": "volante",
+          "axis": "z",
+          "turns": 1,
+          "at": [
+            0,
+            0.5
+          ]
+        },
+        {
+          "do": "close",
+          "node": "cofre_banco",
+          "part": "porta",
+          "axis": "y",
+          "at": [
+            0.5,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "sourceId": "s6",
+      "shot": {
+        "subjects": [
+          "cofre_banco",
+          "gerente"
+        ],
+        "azimuth": 0,
+        "endAzimuth": 0,
+        "elevation": 0.2,
+        "distance": 1.3
+      },
+      "verbs": [
+        {
+          "do": "pose",
+          "node": "gerente",
+          "pose": "rest",
+          "emotion": "calm",
+          "at": [
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  ]
+}
