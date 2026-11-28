@@ -37,25 +37,10 @@ jobs:
         run: |
           npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.57.0
           npx playwright install chromium
-      - name: Run actual offline speech synthesis
-        env:
-          ALEX_PROOF_SCRIPT: 'O quarto está quente. O ar-condicionado puxa o ar do ambiente. O fluido refrigerante absorve calor e o leva para fora. O ar volta mais frio. O aparelho não cria frio, ele transporta calor.'
+      - name: Verify model integrity and prepare same-origin studio bundle
         run: |
-          npm run build
-          npm exec vite preview -- --host 127.0.0.1 --port 4199 --strictPort > proof/vite.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4199/ >/dev/null; then break; fi
-            sleep 1
-          done
-          node smoke-browser.mjs
-      - name: Upload audio proof and diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: alex-real-browser-proof
-          path: labs/alex-browser/proof/
-          retention-days: 7
-          if-no-files-found: warn
+          echo 'e7b931ee5d4b7104012a838c9eee240d19ea69cb3ca269041a3274f83dbb7fa1  public/models/kokoro_int8_fp16.litertlm' | sha256sum -c -
+          node prepare-studio.mjs
       - uses: oven-sh/setup-bun@v2
       - name: Install actual studio dependencies
         working-directory: .
@@ -70,7 +55,7 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Render and export with real Alex voice
+      - name: Synthesize actual Alex in studio and export video
         working-directory: .
         run: bun scripts/editorial-launch-proof.mjs
       - name: Inspect encoded audio and video
