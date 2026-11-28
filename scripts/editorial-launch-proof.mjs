@@ -12,7 +12,9 @@ try{
  const page=await browser.newPage({viewport:{width:412,height:915}});
  let providerRequests=0;const external=[];
  await page.route('**/*',route=>{const url=route.request().url();if(url.includes('/api/ai/')){providerRequests++;return route.abort();}if(url.startsWith('http://127.0.0.1:4198/')||url.startsWith('blob:')||url.startsWith('data:'))return route.continue();external.push(new URL(url).origin);return route.abort();});
- await page.goto('http://127.0.0.1:4198/',{waitUntil:'domcontentloaded'});
+ // Isolate the real studio modules from unrelated login/analytics initialization.
+ await page.route('http://127.0.0.1:4198/__editorial-proof',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset=utf-8><title>Editorial proof</title>'}));
+ await page.goto('http://127.0.0.1:4198/__editorial-proof',{waitUntil:'domcontentloaded'});
  const result=await page.evaluate(async({script})=>{
   const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
   const {exportEditorialVideo}=await import('/src/studio/explainer/editorialExport.ts');
@@ -57,7 +59,7 @@ try{
   return {wav:btoa(voiceBinary),video:btoa(binary),extension:video.filenameExtension,frames:video.frames,fps:video.fps,voiceSeconds:track.duration,timelineSeconds:totalDuration(plan),review,stills};
  },{script});
  assert.equal(providerRequests,0);
- const externalSpeech=external.filter(origin=>!['https://fonts.googleapis.com','https://fonts.gstatic.com'].includes(origin));
+ const externalSpeech=external;
  await writeFile(out+'/network.json',JSON.stringify({blockedExternal:external,blockedNonFont:externalSpeech},null,2));
  assert.equal(externalSpeech.length,0,'Unexpected external request during studio proof');
  await writeFile(out+'/alex.wav',Buffer.from(result.wav,'base64'));
