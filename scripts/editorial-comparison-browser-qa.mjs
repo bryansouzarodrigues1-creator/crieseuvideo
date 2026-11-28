@@ -120,7 +120,21 @@ try{
       {target:'group_truck',op:'shadow',shadow:{width:360,height:32,opacity:.55}}
     ]);
     const materialProof={visible:!finished.noVisibleChange,blocked:finished.blocked,frames:finished.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
-    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof,materialProof};
+    const texture={kind:'wood',seed:17,scale:1,opacity:.45};
+    const textured=previewEditorialRepair(finished.candidate,0,[{target:'shape_1',op:'texture',texture}]);
+    const {paintTexture,TEXTURES}=await import('/src/studio/explainer/editorialTextures.ts');
+    const tc=document.createElement('canvas');tc.width=192;tc.height=192;
+    const textureCtx=tc.getContext('2d',{willReadFrequently:true});
+    const draw=(kind,seed)=>{
+      textureCtx.fillStyle='#b99970';textureCtx.fillRect(0,0,192,192);textureCtx.beginPath();textureCtx.rect(24,24,144,144);
+      paintTexture(textureCtx,{kind,seed,scale:1,opacity:.45},1,{x:0,y:0,w:192,h:192});
+      const p=textureCtx.getImageData(0,0,192,192).data;
+      return {image:tc.toDataURL(),outside:p.slice(0,4).join(','),insideChanged:Array.from({length:144},(_,y)=>y+24).some(y=>Array.from({length:144},(_,x)=>x+24).some(x=>{const i=(y*192+x)*4;return p[i]!==185||p[i+1]!==153||p[i+2]!==112;}))};
+    };
+    const textures=TEXTURES.map(kind=>({kind,...draw(kind,17)}));
+    const stable=draw('wood',17).image===textures[0].image;
+    const textureProof={visible:!textured.noVisibleChange,blocked:textured.blocked,stable,patterns:textures.map(({kind,outside,insideChanged})=>({kind,outside,insideChanged})),frames:textured.frames.map(f=>({fraction:f.fraction,before:f.before.split(',')[1],after:f.after.split(',')[1]}))};
+    return {duration:totalDuration(plan),audit:motionAudit(plan),review,blank,captures,repair,motionRepair,groundRepair,attachmentProof,materialProof,textureProof};
   });
   assert.ok(Math.abs(result.duration-20)<1e-8);
   assert.equal(providerRequests,0);
@@ -144,6 +158,15 @@ try{
   assert.equal(result.repair.noVisibleChange,false);
   assert.equal(result.repair.noop,true);
   assert.equal(result.repair.unchanged,true);
+  assert.equal(result.textureProof.visible,true);
+  assert.equal(result.textureProof.blocked,false);
+  assert.equal(result.textureProof.stable,true);
+  assert.ok(result.textureProof.patterns.every(p=>p.insideChanged&&p.outside==='185,153,112,255'));
+  for(const frame of result.textureProof.frames){
+    await writeFile(out+'/texture-'+frame.fraction+'-before.jpg',Buffer.from(frame.before,'base64'));
+    await writeFile(out+'/texture-'+frame.fraction+'-after.jpg',Buffer.from(frame.after,'base64'));
+  }
+  await writeFile(out+'/texture-report.json',JSON.stringify({stable:result.textureProof.stable,patterns:result.textureProof.patterns},null,2));
   assert.equal(result.materialProof.visible,true);
   assert.equal(result.materialProof.blocked,false);
   for(const frame of result.materialProof.frames){
