@@ -124,11 +124,11 @@ try{
     const textured=previewEditorialRepair(finished.candidate,0,[{target:'shape_1',op:'texture',texture}]);
     const {paintTexture,TEXTURES}=await import('/src/studio/explainer/editorialTextures.ts');
     const tc=document.createElement('canvas');tc.width=192;tc.height=192;
-    const ctx=tc.getContext('2d',{willReadFrequently:true});
+    const textureCtx=tc.getContext('2d',{willReadFrequently:true});
     const draw=(kind,seed)=>{
-      ctx.fillStyle='#b99970';ctx.fillRect(0,0,192,192);ctx.beginPath();ctx.rect(24,24,144,144);
-      paintTexture(ctx,{kind,seed,scale:1,opacity:.45},1,{x:0,y:0,w:192,h:192});
-      const p=ctx.getImageData(0,0,192,192).data;
+      textureCtx.fillStyle='#b99970';textureCtx.fillRect(0,0,192,192);textureCtx.beginPath();textureCtx.rect(24,24,144,144);
+      paintTexture(textureCtx,{kind,seed,scale:1,opacity:.45},1,{x:0,y:0,w:192,h:192});
+      const p=textureCtx.getImageData(0,0,192,192).data;
       return {image:tc.toDataURL(),outside:p.slice(0,4).join(','),insideChanged:Array.from({length:144},(_,y)=>y+24).some(y=>Array.from({length:144},(_,x)=>x+24).some(x=>{const i=(y*192+x)*4;return p[i]!==185||p[i+1]!==153||p[i+2]!==112;}))};
     };
     const textures=TEXTURES.map(kind=>({kind,...draw(kind,17)}));
