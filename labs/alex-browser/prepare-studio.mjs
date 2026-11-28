@@ -1,5 +1,5 @@
 // Run explicitly after installing the pinned lab SDK and preparing verified model weights.
-import {existsSync,readFileSync,readdirSync,cpSync,mkdirSync,writeFileSync} from 'node:fs';
+import {existsSync,statSync,readdirSync,cpSync,mkdirSync,writeFileSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
@@ -12,5 +12,5 @@ const workers=readdirSync(resolve(dist,'assets')).filter(n=>/^voice\.worker-[A-Z
 if(workers.length!==1)throw Error('Expected one compiled voice worker.');
 mkdirSync(target,{recursive:true});
 cpSync(dist,target,{recursive:true});
-writeFileSync(resolve(target,'manifest.json'),JSON.stringify({version:1,worker:'assets/'+workers[0],voice:'pm_alex',modelBytes:readFileSync(model).length}));
+writeFileSync(resolve(target,'manifest.json'),JSON.stringify({version:1,worker:'assets/'+workers[0],voice:'pm_alex',modelBytes:statSync(model).size}));
 console.log('Alex optional bundle prepared at public/alex-local. Deploy only with worker CSP and asset hosting verified.');
