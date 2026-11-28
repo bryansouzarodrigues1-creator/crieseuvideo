@@ -1,12 +1,16 @@
 /** Offline, real Alex narration + actual production renderer/exporter.
  * The storyboard is authored by hand, not a Gemini result. */
 import {chromium} from 'playwright';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const out='tmp/editorial-launch-proof';
+const live=process.env.EDITORIAL_LIVE_PROOF==='1';
+const out=live?'tmp/editorial-live-proof':'tmp/editorial-launch-proof';
 await mkdir(out,{recursive:true});
-const script='O quarto está quente. O ar-condicionado puxa o ar do ambiente. O fluido refrigerante absorve calor e o leva para fora. O ar volta mais frio. O aparelho não cria frio, ele transporta calor.';
+const defaultScript='O quarto está quente. O ar-condicionado puxa o ar do ambiente. O fluido refrigerante absorve calor e o leva para fora. O ar volta mais frio. O aparelho não cria frio, ele transporta calor.';
 
+const supplied=live?JSON.parse(await readFile(out+'/plan.json','utf8')):null;
+if(live&&(!supplied?.plan?.scenes?.length||supplied.script!==defaultScript||supplied.plan.engine!=='2.5d'))throw Error('Accepted Gemini plan required; no manual fallback.');
+const script=defaultScript;
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
  const page=await browser.newPage({viewport:{width:412,height:915}});
@@ -15,7 +19,7 @@ try{
  // Isolate the real studio modules from unrelated login/analytics initialization.
  await page.route('http://127.0.0.1:4198/__editorial-proof',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset=utf-8><title>Editorial proof</title>'}));
  await page.goto('http://127.0.0.1:4198/__editorial-proof',{waitUntil:'domcontentloaded'});
- const result=await page.evaluate(async({script})=>{
+ const result=await page.evaluate(async({script,supplied})=>{
   const {normalizePlan,fitToTrack,totalDuration}=await import('/src/studio/explainer/plan.ts');
   const {exportEditorialVideo}=await import('/src/studio/explainer/editorialExport.ts');
   const {inspectEditorialFrames}=await import('/src/studio/explainer/editorialReview.ts');
@@ -48,7 +52,7 @@ try{
    ],inside),
    scene('O ar volta mais frio. O aparelho não cria frio, ele transporta calor.',[rect(0,190,740,45,'#789EAE',{depth:'back'}),part('actor',-100,10,{actor:{...actor,action:'idle',expression:'happy'},size:1.1}),...unit,...[-30,40,110].map(x=>flow(115,-40,'#63C3E4',x-115,140))],cool,'pull_out')
   ];
-  const plan={...fitToTrack(normalizePlan({title:'Como o ar-condicionado funciona',scenes},script,'9:16'),track.duration),engine:'2.5d'};
+  const plan={...fitToTrack(supplied?supplied.plan:normalizePlan({title:'Como o ar-condicionado funciona',scenes},script,'9:16'),track.duration),engine:'2.5d'};
   const canvas=document.createElement('canvas');canvas.width=720;canvas.height=1280;
   const context=canvas.getContext('2d');
   const review=inspectEditorialFrames(plan),stills=[];
@@ -57,7 +61,7 @@ try{
   let binary='';const b=new Uint8Array(await video.blob.arrayBuffer());for(let i=0;i<b.length;i+=8192)binary+=String.fromCharCode(...b.subarray(i,i+8192));
   let voiceBinary='';for(let i=0;i<wav.length;i+=8192)voiceBinary+=String.fromCharCode(...wav.subarray(i,i+8192));
   return {wav:btoa(voiceBinary),video:btoa(binary),extension:video.filenameExtension,frames:video.frames,fps:video.fps,voiceSeconds:track.duration,timelineSeconds:totalDuration(plan),review,stills};
- },{script});
+ },{script,supplied});
  assert.equal(providerRequests,0);
  const externalSpeech=external;
  await writeFile(out+'/network.json',JSON.stringify({blockedExternal:external,blockedNonFont:externalSpeech},null,2));
@@ -68,5 +72,5 @@ try{
  assert.ok(Buffer.from(result.video,'base64').length>10000);
  await writeFile(out+'/ar-condicionado.'+result.extension,Buffer.from(result.video,'base64'));
  for(const [i,still] of result.stills.entries())await writeFile(out+'/scene-'+(i+1)+'.jpg',Buffer.from(still,'base64'));
- await writeFile(out+'/report.json',JSON.stringify({script,source:'manual authored storyboard, real local Alex audio, production renderer and exporter',voiceSeconds:result.voiceSeconds,timelineSeconds:result.timelineSeconds,frames:result.frames,fps:result.fps,extension:result.extension,review:result.review,providerRequests,limitations:'desktop Chromium; approximate word timings; not Gemini output'},null,2));
+ await writeFile(out+'/report.json',JSON.stringify({script,source:live?'accepted Gemini plan, real local Alex audio, production renderer and exporter':'manual authored storyboard, real local Alex audio, production renderer and exporter',voiceSeconds:result.voiceSeconds,timelineSeconds:result.timelineSeconds,frames:result.frames,fps:result.fps,extension:result.extension,review:result.review,providerRequests,limitations:live?'desktop Chromium; approximate word timings; visual quality requires review':'desktop Chromium; approximate word timings; not Gemini output'},null,2));
 }finally{await browser.close();}

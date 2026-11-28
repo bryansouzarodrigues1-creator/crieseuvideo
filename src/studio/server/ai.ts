@@ -243,7 +243,7 @@ export async function ask3DWorldAi(
 }
 
 /** Direct-only director: no paid fallback, no hidden retry. */
-export async function askGeminiForEditorial(prompt:string) {
+export async function askGeminiForEditorial(prompt:string): Promise<{text:string|null;problem:ProviderProblem;model:string;thinkingLevel:'high'}> {
   let problem:ProviderProblem='invalid_response';
   const text=await askGemini(prompt,reason=>{problem=reason;},undefined,'gemini-3.6-flash',true);
   return {text,problem,model:'gemini-3.6-flash',thinkingLevel:'high' as const};
