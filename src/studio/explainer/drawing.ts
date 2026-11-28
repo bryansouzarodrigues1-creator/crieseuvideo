@@ -1,3 +1,4 @@
+import {normalizeTexture,type SurfaceTexture} from './editorialTextures';
 import {normalizeMaterial,type EditorialMaterial} from './editorialMaterials';
 import {validGroupId} from './editorialGroups';
 import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
@@ -20,6 +21,7 @@ export interface Shape {
   mood?: string; anim: ShapeAnim; delay: number;
   strokeWidth?: number;
   material?: EditorialMaterial;
+  texture?: SurfaceTexture;
   group?: string;
   motion?: ShapeMotionKey[]; depth?: 'back'|'middle'|'front';
 }
@@ -54,6 +56,7 @@ export function normalizeDrawing(raw: unknown): Shape[] | undefined {
       delay: num(o.delay, 0, 0, 6),
       group: validGroupId(o.group)?o.group:undefined,
       material: normalizeMaterial(o.material),
+      texture: normalizeTexture(o.texture),
       strokeWidth: o.strokeWidth===undefined?undefined:num(o.strokeWidth,6,0,20),
       motion: normalizeShapeMotion(o.motion), depth: o.depth==='back'||o.depth==='front' ? o.depth : 'middle',
     });
