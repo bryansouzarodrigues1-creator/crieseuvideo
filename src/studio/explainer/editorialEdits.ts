@@ -1,13 +1,13 @@
 import {normalizeActor} from './editorialActor';
 import {normalizeTexture} from './editorialTextures';
 import {normalizeMaterial,normalizeContactShadow} from './editorialMaterials';
-import {normalizeGroupSupport,normalizeGroupAttachment,groupIssues} from './editorialGroups';
+import {normalizeGroupSupport,normalizeGroupAttachment,normalizeActorGrip,groupIssues} from './editorialGroups';
 import {normalizeEditorialFraming} from './editorialFraming';
 import {normalizeShapeMotion,type ShapeMotionKey} from './shapeMotion';
 import type {ExplainerScene} from './plan';
 import {normalizeEditorialShot} from './editorialCamera';
 import {normalizeBackdrop} from './editorialBackdrop';
-export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown}|{target:string;op:'attachment';attachment:unknown}|{target:string;op:'material';material:unknown}|{target:string;op:'shadow';shadow:unknown}|{target:string;op:'texture';texture:unknown}|{target:string;op:'acting';action:string;expression:string;facing:string;speaking:boolean};
+export type SceneEdit={target:string;op:'move';dx:number;dy:number}|{target:string;op:'color';color:string}|{target:'camera';op:'camera';shot:string}|{target:'background';op:'background';backdrop:unknown}|{target:string;op:'motion';motion:unknown}|{target:string;op:'resize';factor:number}|{target:'camera';op:'framing';framing:unknown}|{target:string;op:'support';support:unknown}|{target:string;op:'attachment';attachment:unknown}|{target:string;op:'material';material:unknown}|{target:string;op:'shadow';shadow:unknown}|{target:string;op:'texture';texture:unknown}|{target:string;op:'acting';action:string;expression:string;facing:string;speaking:boolean}|{target:string;op:'grip';grip:unknown};
 export function sceneInventory(scene:ExplainerScene){
  return {text:scene.text,camera:scene.camera,framing:scene.framing,backdrop:scene.backdrop,shapes:(scene.drawing??[]).map((s,i)=>({...s,id:'shape_'+i})),groups:(scene.groups??[]).map(g=>({...g,target:'group_'+g.id}))};
 }
@@ -45,7 +45,11 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
   const e=value as Record<string,unknown>;
   const target=e.target;
   if(typeof target!=='string')throw Error('Alvo inválido.');
-  if(e.op==='acting'&&/^shape_(0|[1-9][0-9]*)$/.test(target)){
+  if(e.op==='grip'&&target.startsWith('group_')){
+   const g=groups.find(g=>'group_'+g.id===target);if(!g)throw Error('Grupo inexistente.');
+   if(e.grip===null)delete g.grip;
+   else{const grip=normalizeActorGrip(e.grip);if(!grip)throw Error('Captura inválida.');g.grip=grip;}
+  }else if(e.op==='acting'&&/^shape_(0|[1-9][0-9]*)$/.test(target)){
    const i=Number(target.slice(6)),s=drawing[i];
    if(!s||s.type!=='actor'||!s.actor)throw Error('Personagem inexistente.');
    const actor=normalizeActor({...s.actor,action:e.action,expression:e.expression,facing:e.facing,speaking:e.speaking});
@@ -102,6 +106,7 @@ export function applySceneEdits(scene:ExplainerScene,raw:unknown):ExplainerScene
     const g=groups.find(g=>'group_'+g.id===target);if(!g||!within(g.x+dx)||!within(g.y+dy))throw Error('Grupo inválido.');
     drawing.forEach((s,i)=>{if(s.group===g.id)move(i,dx,dy);});
     if(g.support){const {anchorX,anchorY,surfaceY}=g.support;if(!within(anchorX+dx)||!within(anchorY+dy))throw Error('Âncora fora do limite.');g.support={anchorX:anchorX+dx,anchorY:anchorY+dy,surfaceY};}
+    if(g.grip){const a=g.grip;if(!within(a.anchorX+dx)||!within(a.anchorY+dy))throw Error('Âncora fora do limite.');g.grip={...a,anchorX:a.anchorX+dx,anchorY:a.anchorY+dy};}
     if(g.attachment){const a=g.attachment;if(!within(a.anchorX+dx)||!within(a.anchorY+dy))throw Error('Âncora fora do limite.');g.attachment={...a,anchorX:a.anchorX+dx,anchorY:a.anchorY+dy};}
     for(const follower of groups){const a=follower.attachment;if(a?.target===g.id){if(!within(a.targetX+dx)||!within(a.targetY+dy))throw Error('Âncora fora do limite.');follower.attachment={...a,targetX:a.targetX+dx,targetY:a.targetY+dy};}}
     g.x+=dx;g.y+=dy;
