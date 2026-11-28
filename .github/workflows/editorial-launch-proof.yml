@@ -58,6 +58,12 @@ jobs:
       - name: Synthesize actual Alex in studio and export video
         working-directory: .
         run: bun scripts/editorial-launch-proof.mjs
+      - name: Install media verification tools
+        working-directory: .
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffprobe -version | head -1
       - name: Inspect encoded audio and video
         working-directory: .
         run: |
