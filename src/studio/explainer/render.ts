@@ -399,12 +399,12 @@ function customDrawing(c: CanvasRenderingContext2D, u: number, local: number, t:
     if (sh.type === 'stamp' || sh.type === 'xmark' || sh.type === 'check') rot += (1 - clamp((local - d) / 0.35)) * -0.5; // stamp slam
     const group=groups.find(g=>g.id===sh.group);
     if(authored&&group?.support&&group.shadow&&!shadowed.has(group.id)){
-      const p=groupPose(group,local,groups),s=group.shadow;
+      const p=groupPose(group,local,groups,shapes),s=group.shadow;
       drawContactShadow(c,(group.x+p.dx)*u,group.support.surfaceY*u,s.width*p.scale*u,s.height*u,s.opacity*p.opacity);
       shadowed.add(group.id);
     }
     c.save(); c.globalAlpha *= alpha;
-    if(group){const p=groupPose(group,local,groups);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
+    if(group){const p=groupPose(group,local,groups,shapes);c.globalAlpha*=p.opacity;c.translate((group.x+p.dx)*u,(group.y+p.dy)*u);c.rotate(p.rotation*Math.PI/180);c.scale(p.scale,p.scale);c.translate(-group.x*u,-group.y*u);}
     c.translate((sh.x + dx) * u, (sh.y + dy) * u); c.rotate(rot); c.scale(sc, sc);
     // solid sticker shadow keeps every element in the same finished style
     if (!authored && sh.type !== 'line' && sh.type !== 'text') { c.shadowColor = 'rgba(20,10,30,0.28)'; c.shadowOffsetY = 9 * u; c.shadowOffsetX = 4 * u; c.shadowBlur = 0; }
@@ -531,6 +531,16 @@ function heroExtent(scene: ExplainerScene, u: number): Rect {
         const anchorRadius=Math.hypot(g.support.anchorX-g.x,g.support.anchorY-g.y);
         const reach=(radius+anchorRadius)*scale;
         ext={...ext,y0:Math.min(ext.y0,g.support.surfaceY-reach),y1:Math.max(ext.y1,g.support.surfaceY+reach)};
+      }
+      if(g.grip){
+        const target=shapes.find(s=>s.actor?.id===g.grip?.actor),a=g.grip;
+        const targetBox=target&&foregroundExtent([target],true);
+        if(targetBox){
+          const reach=(radius+Math.hypot(a.anchorX-g.x,a.anchorY-g.y))*Math.max(1,...g.motion.map(p=>p.scale))+16*(target.size??1)*Math.max(1,...(target.motion??[]).map(p=>p.scale));
+          ext={x0:Math.min(ext.x0,targetBox.x0-reach),y0:Math.min(ext.y0,targetBox.y0-reach),x1:Math.max(ext.x1,targetBox.x1+reach),y1:Math.max(ext.y1,targetBox.y1+reach)};
+          const release=groupPoint(g,g.x,g.y,a.end,scene.groups,shapes),free=groupPoint(g,g.x,g.y,a.end);
+          for(const p of g.motion){const x=g.x+p.dx+release.x-free.x,y=g.y+p.dy+release.y-free.y,rr=radius*Math.max(1,p.scale);ext={x0:Math.min(ext.x0,x-rr),y0:Math.min(ext.y0,y-rr),x1:Math.max(ext.x1,x+rr),y1:Math.max(ext.y1,y+rr)};}
+        }
       }
       if(g.attachment){
         const a=g.attachment,target=scene.groups?.find(v=>v.id===a.target);
